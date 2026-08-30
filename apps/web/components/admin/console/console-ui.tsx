@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import type { ChangeEvent, ReactNode } from "react";
 
 // Presentational primitives for the unified admin console. Every /admin
 // workspace composes these so list + detail density and spacing stay
@@ -139,5 +139,47 @@ export function ConsoleStatus({
     <p aria-live="polite" className={`console-status${error ? " is-error" : ""}`} role="status">
       {children}
     </p>
+  );
+}
+
+export function ConsoleSearchControl({
+  ariaLabel,
+  buttonLabel = "검색",
+  defaultValue,
+  name,
+  onChange,
+  placeholder,
+  value,
+}: Readonly<{
+  ariaLabel: string;
+  buttonLabel?: string;
+  defaultValue?: string;
+  name?: string;
+  onChange?: (value: string) => void;
+  placeholder: string;
+  value?: string;
+}>) {
+  return (
+    <div className="console-search-control">
+      <span aria-hidden="true" className="console-search-icon" />
+      <input
+        aria-label={ariaLabel}
+        autoComplete="off"
+        {...(defaultValue !== undefined ? { defaultValue } : {})}
+        {...(name ? { name } : {})}
+        {...(onChange
+          ? {
+              onChange: (event: ChangeEvent<HTMLInputElement>) =>
+                onChange(event.currentTarget.value),
+            }
+          : {})}
+        placeholder={placeholder}
+        type="search"
+        {...(value !== undefined ? { value } : {})}
+      />
+      <button className="console-search-button" type="submit">
+        {buttonLabel}
+      </button>
+    </div>
   );
 }

@@ -1114,18 +1114,20 @@ export function DocumentWorkspace({
           onQueryChange?.({ query, page: 1 });
         }}
       >
-        <label>
-          <span className="sr-only">문서명 검색</span>
+        <div className="console-search-control">
+          <span aria-hidden="true" className="console-search-icon" />
           <input
+            aria-label="문서명 검색"
+            autoComplete="off"
             onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="문서명 검색..."
+            placeholder="문서명을 검색해 주세요."
             type="search"
             value={searchInput}
           />
-        </label>
-        <button className="civic-secondary-action" type="submit">
-          검색
-        </button>
+          <button className="console-search-button" type="submit">
+            검색
+          </button>
+        </div>
         <label>
           <span>처리 상태</span>
           <select

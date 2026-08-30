@@ -6,7 +6,7 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import styles from "./admin-chat-operations-layout.module.css";
 
-// 채팅 운영은 사이드바에서 단일 메뉴이고, 토론방·개설 신청·카테고리 전환은
+// 토론방 운영은 사이드바에서 단일 메뉴이고, 토론방·개설 신청·카테고리 전환은
 // 워크스페이스 상단의 섹션 탭으로 한 화면 안에서 이루어진다.
 const CHAT_SECTIONS = [
   { href: "/admin/chat" as Route, label: "토론방" },
@@ -18,7 +18,7 @@ export function AdminChatOperationsLayout({ children }: Readonly<{ children: Rea
   const pathname = usePathname() ?? "/admin/chat";
   return (
     <div className={styles.layout}>
-      <nav aria-label="채팅 운영 섹션" className="console-tabs">
+      <nav aria-label="토론방 운영 섹션" className="console-tabs">
         {CHAT_SECTIONS.map((section) => (
           <Link
             aria-current={isSectionActive(pathname, section.href) ? "page" : undefined}

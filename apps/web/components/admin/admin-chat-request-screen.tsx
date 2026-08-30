@@ -8,6 +8,7 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import {
   ConsoleEmpty,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleWorkspace,
 } from "@/components/admin/console/console-ui";
@@ -315,15 +316,18 @@ export function AdminChatRequestScreen({
             subtitle={`${filteredItems.length}건 표시`}
             title="개설 신청"
           >
-            <div className="console-toolbar">
-              <input
-                aria-label="신청자 이메일 또는 토론방 이름 검색"
-                onChange={(event) => setQuery(event.currentTarget.value)}
-                placeholder="검색어 입력…"
-                type="search"
+            <form
+              className="console-toolbar"
+              onSubmit={(event) => event.preventDefault()}
+              role="search"
+            >
+              <ConsoleSearchControl
+                ariaLabel="신청자 이메일 또는 토론방 이름 검색"
+                onChange={setQuery}
+                placeholder="신청자 또는 토론방 이름을 검색해 주세요."
                 value={query}
               />
-            </div>
+            </form>
             <div aria-label="신청 상태" className="console-filter-group" role="group">
               {filterStatuses.map((option) => (
                 <button

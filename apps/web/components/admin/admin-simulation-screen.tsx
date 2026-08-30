@@ -302,20 +302,29 @@ function SimulationTargets() {
 
   return (
     <>
-      <div className="civic-domain-toolbar civic-simulation-toolbar">
-        <label className="civic-field">
-          <span>시뮬레이션할 과업 찾기</span>
+      <form
+        className="civic-domain-toolbar civic-simulation-toolbar console-toolbar"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void load();
+        }}
+        role="search"
+      >
+        <div className="console-search-control">
+          <span aria-hidden="true" className="console-search-icon" />
           <input
+            aria-label="시뮬레이션할 과업 검색"
+            autoComplete="off"
             onChange={(event) => setSearch(event.currentTarget.value)}
-            placeholder="과업 제목 입력…"
+            placeholder="과업 제목을 검색해 주세요."
             type="search"
             value={search}
           />
-        </label>
-        <button className="civic-secondary-action" onClick={() => void load()} type="button">
-          새로고침
-        </button>
-      </div>
+          <button className="console-search-button" type="submit">
+            검색
+          </button>
+        </div>
+      </form>
       <ConsoleDataGrid
         ariaLabel="시뮬레이션 과업 목록"
         columnDefs={SIMULATION_TARGET_GRID_COLUMNS}

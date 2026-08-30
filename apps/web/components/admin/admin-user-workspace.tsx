@@ -17,6 +17,7 @@ import {
   ConsoleEmpty,
   ConsoleMetricStrip,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleTabs,
   ConsoleWorkspace,
@@ -366,16 +367,12 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         subtitle={`${filteredUsers.length}명 표시`}
         title="사용자 검색"
       >
-        <form className="console-toolbar" onSubmit={search}>
-          <input
-            aria-label="이메일 검색"
+        <form className="console-toolbar" onSubmit={search} role="search">
+          <ConsoleSearchControl
+            ariaLabel="이메일 검색"
             name="query"
-            placeholder="이메일 주소 입력…"
-            type="search"
+            placeholder="이메일 주소를 검색해 주세요."
           />
-          <button className="civic-primary-action" type="submit">
-            검색
-          </button>
         </form>
         <div aria-label="사용자 상태 필터" className="console-filter-group" role="group">
           {(

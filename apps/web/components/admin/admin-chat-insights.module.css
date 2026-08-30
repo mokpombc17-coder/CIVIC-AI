@@ -873,3 +873,35 @@
 @media (max-width: 480px) {
 
 }
+
+/* 문서 관리와 동일하게 목록·분석을 카드로 감싸지 않고 세퍼레이터로 나눈다. */
+.workspace {
+  gap: 0;
+}
+
+.roomPanel {
+  border: none;
+  border-right: 1px solid #cfd3d7;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 16px 0 0;
+}
+
+.analysisPanel {
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 0 0 16px;
+}
+
+@media (max-width: 860px) {
+  .roomPanel {
+    border-right: none;
+    border-bottom: 1px solid #cfd3d7;
+    padding: 0 0 16px;
+  }
+
+  .analysisPanel {
+    padding: 16px 0 0;
+  }
+}

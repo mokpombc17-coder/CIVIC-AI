@@ -9,6 +9,7 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import {
   ConsoleEmpty,
   ConsolePane,
+  ConsoleSearchControl,
   ConsoleStatus,
   ConsoleTabs,
   ConsoleWorkspace,
@@ -210,17 +211,19 @@ function AdminTaskWorkspace({
         subtitle={`${filtered.length}건 표시`}
         title="과업 목록"
       >
-        <div className="console-toolbar">
-          <input
-            aria-label="과업 제목 검색"
-            autoComplete="off"
+        <form
+          className="console-toolbar"
+          onSubmit={(event) => event.preventDefault()}
+          role="search"
+        >
+          <ConsoleSearchControl
+            ariaLabel="과업 제목 검색"
             name="task-query"
-            onChange={(event) => setKeyword(event.currentTarget.value)}
-            placeholder="과업 제목 입력…"
-            type="search"
+            onChange={setKeyword}
+            placeholder="과업 제목을 검색해 주세요."
             value={keyword}
           />
-        </div>
+        </form>
         <div aria-label="과업 상태" className="console-filter-group" role="group">
           {(["ALL", "DRAFT", "SCHEDULED", "OPEN", "CLOSED"] as const).map((status) => (
             <button

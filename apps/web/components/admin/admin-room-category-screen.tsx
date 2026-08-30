@@ -409,10 +409,16 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
             <header>
               <h2>기존 토론방 카테고리 교체</h2>
             </header>
-            <div className="civic-category-room-search">
-              <label className="civic-field">
-                <span>토론방 이름 검색</span>
+            <form
+              className="civic-category-room-search console-toolbar"
+              onSubmit={(event) => event.preventDefault()}
+              role="search"
+            >
+              <div className="console-search-control">
+                <span aria-hidden="true" className="console-search-icon" />
                 <input
+                  aria-label="토론방 이름 검색"
+                  autoComplete="off"
                   disabled={pending}
                   maxLength={100}
                   onChange={(event) => {
@@ -422,12 +428,15 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                     setRoomHasNext(false);
                     setRoomsLoading(true);
                   }}
-                  placeholder="검색어 입력…"
+                  placeholder="토론방 이름을 검색해 주세요."
                   type="search"
                   value={roomQuery}
                 />
-              </label>
-            </div>
+                <button className="console-search-button" disabled={pending} type="submit">
+                  검색
+                </button>
+              </div>
+            </form>
             <ListedRoomTable
               categoryNamesById={categoryNamesById}
               items={visibleListedRooms}

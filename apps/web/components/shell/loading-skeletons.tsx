@@ -794,7 +794,7 @@ function adminListPresentation(kind: AdminListKind): Readonly<{
   return {
     filters: ["전체", "대기", "승인", "반려"],
     headers: ["토론방 이름", "신청자", "요청 시각", "상태", "작업"],
-    label: "채팅 운영 목록",
+    label: "토론방 운영 목록",
     placeholder: "검색어 입력…",
     searchLabel: "토론방 검색",
   };
