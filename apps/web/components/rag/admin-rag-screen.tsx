@@ -2709,7 +2709,7 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
           onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
           type="button"
         >
-          이전 결과
+          이전
         </button>
         <strong>
           {safeIndex + 1} / {jobIds.length}
@@ -2719,7 +2719,7 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
           onClick={() => setCurrentIndex((index) => Math.min(jobIds.length - 1, index + 1))}
           type="button"
         >
-          이후 결과
+          이후
         </button>
       </div>
       <JobStatusItem

@@ -1087,6 +1087,7 @@
 
 .civic-job-batch-navigation {
   justify-content: flex-end;
+  margin-inline: 12px;
 }
 
 .civic-job-batch-navigation > button {
