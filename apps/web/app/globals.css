@@ -2922,9 +2922,20 @@ th {
 
 .civic-policy-strip,
 .civic-upload-mode {
+  padding: 0.85rem 1rem;
+}
+
+.civic-policy-strip {
   border-left: 6px solid var(--civic-citrus);
   background: color-mix(in srgb, var(--civic-citrus) 18%, white);
-  padding: 0.85rem 1rem;
+}
+
+.civic-upload-mode {
+  background: transparent;
+}
+
+.civic-upload-mode p:first-child {
+  margin-top: 0;
 }
 .civic-policy-strip p,
 .civic-upload-mode p {

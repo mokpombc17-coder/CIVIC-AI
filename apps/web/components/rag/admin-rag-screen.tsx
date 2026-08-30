@@ -2225,11 +2225,11 @@ function UploadPanel({
   return (
     <form className="civic-rag-form" onSubmit={upload}>
       <div className="civic-upload-mode">
-        <strong>{mode === "NEW_VERSION" ? "새 버전" : "새 문서"}</strong>
+        {mode === "NEW_VERSION" ? <strong>새 버전</strong> : null}
         <p>
           {mode === "NEW_VERSION"
             ? "선택한 문서에 새 버전을 등록합니다."
-            : `${folder?.name ?? "선택 필요"}에 새 문서를 만듭니다.`}
+            : `${folder?.name ?? "선택 필요"} 폴더에 새 문서를 업로드합니다.`}
         </p>
       </div>
       <p className="civic-help">
