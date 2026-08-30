@@ -385,27 +385,42 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   const closeRoomDialog = page.getByRole("alertdialog", {
     name: "채팅방을 즉시 종료할까요?",
   });
+  const dialogBox = await closeRoomDialog.boundingBox();
+  const viewport = page.viewportSize();
+  expect(dialogBox).not.toBeNull();
+  expect(viewport).not.toBeNull();
+  if (!dialogBox || !viewport) throw new Error("종료 대화상자 위치를 확인할 수 없습니다.");
+  expect(Math.abs(dialogBox.x + dialogBox.width / 2 - viewport.width / 2)).toBeLessThan(2);
+  expect(Math.abs(dialogBox.y + dialogBox.height / 2 - viewport.height / 2)).toBeLessThan(2);
   await expect(closeRoomDialog).toContainText("모든 사용자");
   await expect(closeRoomDialog).toContainText("접속 중인 연결이 끊깁니다");
   const keepRoomButton = closeRoomDialog.getByRole("button", { name: "운영 유지" });
   const confirmCloseButton = closeRoomDialog.getByRole("button", { name: "채팅방 종료" });
-  await expect(keepRoomButton).toBeFocused();
+  const confirmationInput = closeRoomDialog.getByLabel("종료 확인 문구");
+  await expect(keepRoomButton).toBeEnabled();
+  await expect(confirmationInput).toBeFocused();
+  await expect(confirmCloseButton).toBeDisabled();
+  await confirmationInput.fill("종료합니다");
+  await expect(confirmCloseButton).toBeDisabled();
+  await confirmationInput.fill("종료합니다.");
+  await expect(confirmCloseButton).toBeEnabled();
   expect(
     await closeRoomButton.evaluate((button) => {
       button.focus();
       return document.activeElement === button;
     }),
   ).toBe(false);
-  await expect(keepRoomButton).toBeFocused();
+  await expect(confirmationInput).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(confirmCloseButton).toBeFocused();
   await page.keyboard.press("Tab");
-  await expect(keepRoomButton).toBeFocused();
+  await expect(confirmationInput).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(closeRoomDialog).toHaveCount(0);
   await expect(closeRoomButton).toBeFocused();
 
   await closeRoomButton.click();
+  await closeRoomDialog.getByLabel("종료 확인 문구").fill("종료합니다.");
   await closeRoomDialog.getByRole("button", { name: "채팅방 종료" }).click();
 
   await expect

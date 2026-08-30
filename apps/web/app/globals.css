@@ -41,6 +41,7 @@ body {
   inset: 0;
   width: min(30rem, 100%);
   max-height: calc(100dvh - 2.5rem);
+  margin: auto;
   overflow: auto;
   overscroll-behavior: contain;
   gap: 1.25rem;
@@ -69,6 +70,34 @@ body {
   line-height: 1.65;
   overflow-wrap: anywhere;
   white-space: pre-line;
+}
+
+.civic-confirm-dialog-confirmation {
+  display: grid;
+  gap: 0.5rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.civic-confirm-dialog-confirmation strong {
+  color: var(--civic-ink, #172033);
+}
+
+.civic-confirm-dialog-confirmation input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid #6b7280;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--civic-ink, #172033);
+  padding: 0.7rem 0.8rem;
+}
+
+.civic-confirm-dialog-confirmation input:focus-visible {
+  border-color: var(--civic-blue, #1d4ed8);
+  outline: 3px solid rgb(37 110 244 / 22%);
+  outline-offset: 1px;
 }
 
 .civic-confirm-dialog-actions {
