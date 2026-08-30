@@ -717,9 +717,6 @@ function AuthSupport({
           회원가입
         </Link>
       </div>
-      <Link className="civic-auth-reactivate" href={"/reactivate" as Route}>
-        계정 재활성화
-      </Link>
     </aside>
   );
 }
