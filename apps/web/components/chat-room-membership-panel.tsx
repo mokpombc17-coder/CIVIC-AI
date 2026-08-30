@@ -14,6 +14,7 @@ import type {
   RoomDetails,
   RoomMembershipListItem,
 } from "@/lib/chat/chat-room-contracts";
+import { getRoomParticipantDisplayName } from "@/lib/chat/chat-room-participant-profiles";
 
 const MEMBERSHIP_STATUS_LABEL: Record<MembershipStatus, string> = {
   ACTIVE: "참여 중",
@@ -364,7 +365,7 @@ function MembershipRows({
           key={member.membershipId}
         >
           <ChatRoomParticipantProfile
-            displayName={member.displayName}
+            displayName={getRoomParticipantDisplayName(member)}
             imageUrl={member.imageUrl}
             isSelf={member.membershipId === selfMembershipId}
             metadata={MEMBERSHIP_STATUS_LABEL[member.status]}
@@ -375,7 +376,13 @@ function MembershipRows({
               <button
                 className={MEMBER_ACTION_BUTTON_CLASS_NAME}
                 disabled={isCommandPending}
-                onClick={() => onMemberCommand("transfer", member.membershipId, member.displayName)}
+                onClick={() =>
+                  onMemberCommand(
+                    "transfer",
+                    member.membershipId,
+                    getRoomParticipantDisplayName(member),
+                  )
+                }
                 type="button"
               >
                 {isPendingForMember(pendingCommand, "transfer", member.membershipId)
@@ -385,7 +392,9 @@ function MembershipRows({
               <button
                 className={MEMBER_DANGER_ACTION_BUTTON_CLASS_NAME}
                 disabled={isCommandPending}
-                onClick={() => onMemberCommand("ban", member.membershipId, member.displayName)}
+                onClick={() =>
+                  onMemberCommand("ban", member.membershipId, getRoomParticipantDisplayName(member))
+                }
                 type="button"
               >
                 {isPendingForMember(pendingCommand, "ban", member.membershipId)
@@ -397,7 +406,9 @@ function MembershipRows({
             <button
               className={MEMBER_ACTION_BUTTON_CLASS_NAME}
               disabled={isCommandPending}
-              onClick={() => onMemberCommand("unban", member.membershipId, member.displayName)}
+              onClick={() =>
+                onMemberCommand("unban", member.membershipId, getRoomParticipantDisplayName(member))
+              }
               type="button"
             >
               {isPendingForMember(pendingCommand, "unban", member.membershipId)

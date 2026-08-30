@@ -110,10 +110,12 @@ describe("ChatRoomMembershipPanel", () => {
           displayName: "참여자 1",
           membershipId: membership.membershipId,
           role: "OWNER",
+          userLabel: "owner",
         }),
         createMembershipListItem({
           displayName: "참여자 2",
           membershipId: "membership-member",
+          userLabel: "member",
         }),
       ],
       BANNED: [
@@ -122,6 +124,7 @@ describe("ChatRoomMembershipPanel", () => {
           membershipId: "membership-banned",
           status: "BANNED",
           bannedAt: "2026-08-10T02:00:00Z",
+          userLabel: "blocked-member",
         }),
       ],
     });
@@ -139,7 +142,10 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("차단된 사용자 관리");
     expect(html).toContain("방 정보");
     expect(html).toContain("수정하기");
-    expect(html).toContain("참여자 3");
+    expect(html).toContain("owner");
+    expect(html).toContain("member");
+    expect(html).toContain("blocked-member");
+    expect(html).not.toContain("참여자 3");
     expect(html).toContain("차단 해제");
     expect(html).not.toContain("비활성 멤버 상태 필터");
     expect(html).not.toContain("나감");
