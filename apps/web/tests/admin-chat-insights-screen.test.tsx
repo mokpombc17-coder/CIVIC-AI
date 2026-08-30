@@ -21,8 +21,12 @@ describe("admin chat conversation insights", () => {
 
     expect(html).toContain('data-wireflow-screen="A-CHAT-001"');
     expect(html).toContain(">채팅방 관리</h1>");
+    expect(html).toContain(
+      'class="civic-admin-workbench civic-domain-console" data-wireflow-layout="chat-room-admin"',
+    );
     expect(html).toContain('aria-label="채팅방 관리 목록"');
     expect(html).toContain(">채팅방 이름</th>");
+    expect(html).not.toContain(">공개·참여</th>");
     expect(html).toContain(">작업</th>");
     expect(html).not.toContain('href="/admin/chat/categories"');
     expect(html).not.toContain("ROOM OPERATIONS · EXPORT V1");

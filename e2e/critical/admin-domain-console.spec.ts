@@ -418,8 +418,14 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
 
   await expect(page.getByRole("heading", { name: "채팅방 관리" })).toBeVisible();
   await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
+  const roomWorkbench = page.locator('[data-wireflow-layout="chat-room-admin"]');
+  await expect(roomWorkbench).toHaveCSS("padding-left", "32px");
+  await expect(roomWorkbench).toHaveCSS("padding-right", "32px");
+  await expect(page.getByRole("columnheader", { name: "공개·참여" })).toHaveCount(0);
   const activeRoom = page.getByRole("row", { name: /시민 정책 토론방/u });
   await expect(activeRoom).toContainText("운영 중");
+  await expect(activeRoom).not.toContainText("목록 공개");
+  await expect(activeRoom).not.toContainText("바로 참여");
   await expect(page.getByRole("row", { name: /지난 정책 기록방/u })).toContainText("종료");
   const detailButton = activeRoom.getByRole("button", { name: "상세 보기" });
   await detailButton.click();

@@ -379,63 +379,68 @@ export function AdminChatInsightsScreen({
   return (
     <ScreenFrame screen={screen} title="채팅방 관리">
       <AdminChatOperationsLayout>
-        <form
-          className={`civic-domain-toolbar civic-task-list-toolbar ${styles.tableToolbar}`}
-          onSubmit={searchRooms}
+        <div
+          className="civic-admin-workbench civic-domain-console"
+          data-wireflow-layout="chat-room-admin"
         >
-          <label className="civic-field">
-            <span>채팅방 이름 검색</span>
-            <input
-              disabled={roomsLoading || closingRoom}
-              onChange={(event) => setRoomQuery(event.currentTarget.value)}
-              placeholder="채팅방 이름 입력…"
-              type="search"
-              value={roomQuery}
-            />
-          </label>
-          <div aria-label="채팅방 상태" className="wf-admin-filters" role="group">
-            {(["", "ACTIVE", "CLOSED"] as const).map((status) => (
-              <button
-                aria-pressed={roomStatus === status}
+          <form
+            className={`civic-domain-toolbar civic-task-list-toolbar ${styles.tableToolbar}`}
+            onSubmit={searchRooms}
+          >
+            <label className="civic-field">
+              <span>채팅방 이름 검색</span>
+              <input
                 disabled={roomsLoading || closingRoom}
-                key={status || "ALL"}
-                onClick={() => filterRooms(status)}
-                type="button"
-              >
-                {status ? roomStatusLabel(status) : "전체"}
-              </button>
-            ))}
-          </div>
-          <button
-            className="civic-secondary-action"
-            disabled={roomsLoading || closingRoom}
-            type="submit"
-          >
-            검색
-          </button>
-        </form>
+                onChange={(event) => setRoomQuery(event.currentTarget.value)}
+                placeholder="채팅방 이름 입력…"
+                type="search"
+                value={roomQuery}
+              />
+            </label>
+            <div aria-label="채팅방 상태" className="wf-admin-filters" role="group">
+              {(["", "ACTIVE", "CLOSED"] as const).map((status) => (
+                <button
+                  aria-pressed={roomStatus === status}
+                  disabled={roomsLoading || closingRoom}
+                  key={status || "ALL"}
+                  onClick={() => filterRooms(status)}
+                  type="button"
+                >
+                  {status ? roomStatusLabel(status) : "전체"}
+                </button>
+              ))}
+            </div>
+            <button
+              className="civic-secondary-action"
+              disabled={roomsLoading || closingRoom}
+              type="submit"
+            >
+              검색
+            </button>
+          </form>
 
-        <RoomTable
-          loading={roomsLoading}
-          onOpen={selectRoom}
-          rooms={rooms}
-          selectedRoomId={selectedRoomId}
-        />
-        {hasNext && nextCursor ? (
-          <button
-            className="wf-button wf-button-secondary civic-load-more"
-            disabled={roomsLoading || closingRoom}
-            onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
-            type="button"
-          >
-            다음 채팅방 불러오기
-          </button>
-        ) : null}
-        {roomMessage ? (
-          <p aria-live="polite" className={styles.problem} role="status">
-            {roomMessage}
-          </p>
-        ) : null}
+          <RoomTable
+            loading={roomsLoading}
+            onOpen={selectRoom}
+            rooms={rooms}
+            selectedRoomId={selectedRoomId}
+          />
+          {hasNext && nextCursor ? (
+            <button
+              className="wf-button wf-button-secondary civic-load-more"
+              disabled={roomsLoading || closingRoom}
+              onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
+              type="button"
+            >
+              다음 채팅방 불러오기
+            </button>
+          ) : null}
+          {roomMessage ? (
+            <p aria-live="polite" className={styles.problem} role="status">
+              {roomMessage}
+            </p>
+          ) : null}
+        </div>
 
         {selectedRoomId ? (
           <RoomStatisticsDrawer onClose={closeRoomDrawer} room={selectedRoom}>
@@ -546,7 +551,6 @@ function RoomTable({
             <th>채팅방 이름</th>
             <th>상태</th>
             <th>카테고리</th>
-            <th>공개·참여</th>
             <th>활성 참여자</th>
             <th>개설 시각</th>
             <th>작업</th>
@@ -555,7 +559,7 @@ function RoomTable({
         <tbody>
           {rooms.length === 0 ? (
             <tr>
-              <td colSpan={7}>
+              <td colSpan={6}>
                 {loading ? "채팅방을 불러오는 중입니다." : "검색된 채팅방이 없습니다."}
               </td>
             </tr>
@@ -569,9 +573,6 @@ function RoomTable({
                 </span>
               </td>
               <td>{room.categorySummaries.map((category) => category.name).join(", ") || "—"}</td>
-              <td>
-                {visibilityLabel(room.visibility)} · {joinPolicyLabel(room.joinPolicy)}
-              </td>
               <td>{room.activeMemberCount.toLocaleString("ko-KR")}명</td>
               <td>{formatKoreanDate(room.createdAt)}</td>
               <td>
