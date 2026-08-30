@@ -54,11 +54,10 @@ export type ChatRequestRow = Readonly<{
   statusLabel: string;
 }>;
 
+// 신청자·상태는 상세 패널에 그대로 나오므로 목록은 이름·요청 시각만 보여 준다.
 export const CHAT_REQUEST_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ChatRequestRow>> = [
   { field: "name", headerName: "토론방 이름", flex: 2, minWidth: 150 },
-  { field: "requesterLabel", headerName: "신청자", flex: 2, minWidth: 140 },
   { field: "requestedLabel", headerName: "요청 시각", minWidth: 130 },
-  { field: "statusLabel", headerName: "상태", minWidth: 90 },
 ];
 
 export function chatRequestRowFromItem(

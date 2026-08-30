@@ -85,12 +85,9 @@ export function userWorkspacePath(tab: UserWorkspaceTab, userId: string | null):
   return query ? `${base}?${query}` : base;
 }
 
+// 상세 패널에 그대로 나오는 값(계정 상태·운영 권한·최근 활동)은 목록에서 뺀다.
 export const USER_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminUser>> = [
   { field: "email", headerName: "이메일", flex: 2, minWidth: 180 },
-  {
-    headerName: "계정 상태",
-    valueGetter: (params) => (params.data ? accountStateLabel(params.data.account_state) : ""),
-  },
   {
     headerName: "역할",
     valueGetter: (params) =>
@@ -98,15 +95,6 @@ export const USER_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminUser>> = [
         .filter((role) => role !== "PARTICIPANT")
         .map(roleLabel)
         .join(", ") || "없음",
-  },
-  {
-    headerName: "운영 권한",
-    flex: 2,
-    valueGetter: (params) => params.data?.permissions.map(permissionLabel).join(", ") || "없음",
-  },
-  {
-    headerName: "최근 활동",
-    valueGetter: (params) => formatAdminDate(params.data?.last_activity_at),
   },
 ];
 

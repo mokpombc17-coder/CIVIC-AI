@@ -157,9 +157,7 @@ describe("latest Wire Flow shared product UI", () => {
 
     expect(CHAT_REQUEST_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
       "토론방 이름",
-      "신청자",
       "요청 시각",
-      "상태",
     ]);
     expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
     expect(html).toContain('aria-label="개설 신청 목록"');
@@ -230,14 +228,7 @@ describe("latest Wire Flow shared product UI", () => {
   });
 
   it("과업 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
-    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
-      "제목",
-      "상태",
-      "시작",
-      "마감",
-      "종료 유형",
-      "최근 변경",
-    ]);
+    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["제목", "상태"]);
     expect(taskWorkspaceTabForScreen("A-TASK-003")).toBe("overview");
     expect(taskWorkspaceTabForScreen("A-TASK-005")).toBe("results");
     expect(taskWorkspacePath({ editing: false, taskId: null, tab: "overview" })).toBe(

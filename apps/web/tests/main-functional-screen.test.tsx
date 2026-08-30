@@ -1156,13 +1156,7 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const list = renderAdmin("A-USER-001");
-    expect(USER_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
-      "이메일",
-      "계정 상태",
-      "역할",
-      "운영 권한",
-      "최근 활동",
-    ]);
+    expect(USER_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["이메일", "역할"]);
     expect(list).toContain('aria-label="사용자 상태 필터"');
     expect(list).toContain("이메일 검색");
     expect(list).toContain('aria-label="사용자 목록 표"');

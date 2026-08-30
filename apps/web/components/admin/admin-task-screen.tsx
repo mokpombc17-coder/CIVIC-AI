@@ -60,29 +60,12 @@ export function taskWorkspacePath(view: TaskWorkspaceView): string {
   return `${base}?taskId=${encodeURIComponent(view.taskId)}`;
 }
 
+// 시작·마감·종료 유형·최근 변경은 상세 개요에 그대로 나오므로 목록에서 뺀다.
 export const TASK_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<TaskSummary>> = [
   { field: "title", headerName: "제목", flex: 2, minWidth: 160 },
   {
     headerName: "상태",
     valueGetter: (params) => (params.data ? taskStatusLabel(params.data.status) : ""),
-  },
-  {
-    headerName: "시작",
-    valueGetter: (params) =>
-      formatDate(params.data?.openedAt ?? params.data?.schedule?.opensAt ?? null),
-  },
-  {
-    headerName: "마감",
-    valueGetter: (params) =>
-      formatDate(params.data?.schedule?.closesAt ?? params.data?.closedAt ?? null),
-  },
-  {
-    headerName: "종료 유형",
-    valueGetter: (params) => (params.data ? closureLabel(params.data.closureType) : ""),
-  },
-  {
-    headerName: "최근 변경",
-    valueGetter: (params) => formatDate(params.data?.updatedAt ?? null),
   },
 ];
 

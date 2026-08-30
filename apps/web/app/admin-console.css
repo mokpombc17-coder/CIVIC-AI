@@ -7,7 +7,7 @@
 
 .console-workspace {
   display: grid;
-  grid-template-columns: minmax(340px, 5fr) minmax(420px, 7fr);
+  grid-template-columns: minmax(280px, 2fr) minmax(420px, 3fr);
   gap: 16px;
   align-items: start;
   width: 100%;
@@ -378,4 +378,33 @@
   color: var(--wf-muted);
   font-size: 11px;
   font-weight: 600;
+}
+
+
+/* ---- Admin sidebar color ---- */
+
+.civic-admin-sidebar {
+  background: #053b73;
+}
+
+/* ---- RAG workspace: drop the outer card, panel-per-column like other screens ---- */
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  gap: 16px;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
 }
