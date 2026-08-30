@@ -662,7 +662,7 @@ function SubmittedTaskResponse({
   return (
     <div className={styles.flowBody}>
       <section className={styles.flowSection}>
-        <h2 className={styles.sectionTitle}>과업</h2>
+        <h2 className={styles.sectionTitle}>주제</h2>
         <dl className={styles.infoCard}>
           <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
           <InfoRow label="질문" value={detail.task.question.content} />
@@ -684,7 +684,7 @@ function SubmittedTaskResponse({
         className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
         href="/vote"
       >
-        과업 목록으로
+        돌아가기
       </Link>
     </div>
   );
