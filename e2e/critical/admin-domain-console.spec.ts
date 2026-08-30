@@ -376,7 +376,9 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await expect(activeRoom).toContainText("운영 중");
   await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
   await activeRoom.click();
-  const closeRoomButton = page.getByRole("button", { name: "채팅방 종료" });
+  const closeRoomButton = page
+    .getByLabel("대화 Export 분석")
+    .getByRole("button", { name: "채팅방 종료" });
   await expect(closeRoomButton).toBeVisible();
 
   await closeRoomButton.click();
@@ -387,6 +389,13 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await expect(closeRoomDialog).toContainText("접속 중인 연결이 끊깁니다");
   const keepRoomButton = closeRoomDialog.getByRole("button", { name: "운영 유지" });
   const confirmCloseButton = closeRoomDialog.getByRole("button", { name: "채팅방 종료" });
+  await expect(keepRoomButton).toBeFocused();
+  expect(
+    await closeRoomButton.evaluate((button) => {
+      button.focus();
+      return document.activeElement === button;
+    }),
+  ).toBe(false);
   await expect(keepRoomButton).toBeFocused();
   await page.keyboard.press("Shift+Tab");
   await expect(confirmCloseButton).toBeFocused();

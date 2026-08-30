@@ -34,6 +34,7 @@ describe("ConfirmDialog", () => {
     );
 
     expect(html).toContain('role="alertdialog"');
+    expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('data-confirm-dialog="true"');
     expect(html).toContain("삭제할까요?");
