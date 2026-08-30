@@ -9,6 +9,7 @@ const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = 4792;
 const ACCESS_COOKIE = "civic_ai_access_token";
 const ACTUAL_QUERY_ID = "11111111-1111-4111-8111-111111111111";
+const CITATION_VERSION_ID = "30000000-0000-4000-8000-000000000003";
 const evidenceRoot = path.resolve(process.cwd(), "../../artifacts/release-evidence/browser");
 
 let mock: Server;
@@ -61,9 +62,10 @@ test.beforeAll(async () => {
       return json(response, queryResult);
     }
     if (
-      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
-        url.pathname,
-      )
+      url.pathname.startsWith(
+        `/internal/v1/rag/sources/${CITATION_VERSION_ID}/pages/3/document/pages/`,
+      ) &&
+      url.pathname.endsWith(".png")
     ) {
       response.writeHead(200, { "content-type": "image/png" });
       response.end(
@@ -100,7 +102,7 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
 
   await authenticate(context, "participant.payload.signature");
   await page.goto("/home");
-  await expect(page.locator('[data-wireflow-screen="U-HOME-001"]')).toBeVisible();
+  await expect(page.locator('[data-wireflow-screen="U-HOME-001"]').first()).toBeVisible();
   await expectNoOverflow(page);
 
   await page.goto("/rag");
@@ -124,7 +126,8 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(streamedAnswer).not.toContainText("신청 기준을 확인할 수 있습니다.");
   await expect(streamedAnswer).toContainText("지원 대상과 신청 기준을 확인할 수 있습니다.");
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await page.getByRole("link", { name: "원문 보기" }).click();
+  await expect(page.locator(".civic-rag-citation-card")).toHaveCount(0);
+  await page.getByRole("button", { name: "출처 2026 복지정책 기본계획 p.3 열기" }).click();
   await expect(page).toHaveURL(/\/rag$/);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
@@ -134,6 +137,17 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
   await expect(page.getByRole("group", { name: "문서 확대/축소 도구" })).toHaveCount(0);
   await expect(page.getByText("전체 12페이지 · 인용 3페이지", { exact: true })).toBeVisible();
+  await expect(page.locator(".wf-rag-document-card")).toHaveCSS("border-top-width", "0px");
+  await expect
+    .poll(() =>
+      page.locator(".wf-rag-document-card").evaluate((card) => {
+        const canvas = card.querySelector<HTMLElement>(".civic-pdf-canvas");
+        const meta = card.querySelector<HTMLElement>(".wf-rag-document-meta");
+        if (!canvas || !meta) return false;
+        return meta.getBoundingClientRect().top >= canvas.getBoundingClientRect().bottom;
+      }),
+    )
+    .toBe(true);
   await expect(page.getByText("연속 스크롤", { exact: true })).toHaveCount(0);
   await expect
     .poll(() =>
@@ -383,10 +397,10 @@ const queryResult = {
   job_id: ACTUAL_QUERY_ID,
   status: "SUCCEEDED",
   submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
-  answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",
+  answer: `지원 대상과 신청 기준을 확인할 수 있습니다. [${CITATION_VERSION_ID}#3]`,
   citations: [
     {
-      document_version_id: "version-1",
+      document_version_id: CITATION_VERSION_ID,
       page_number: 3,
       page_count: 12,
       source_object_sha256: "a".repeat(64),

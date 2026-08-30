@@ -50,12 +50,6 @@ export function ReadOnlyPdfViewer({
         )}
       </header>
       <div className="wf-rag-document-card">
-        <header className="wf-rag-document-meta">
-          <h3>{documentTitle}</h3>
-          <p>
-            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지
-          </p>
-        </header>
         <div className="civic-pdf-canvas">
           <AuthenticatedPdfPages
             currentPage={safePage}
@@ -64,6 +58,12 @@ export function ReadOnlyPdfViewer({
             totalPages={safeTotalPages}
           />
         </div>
+        <footer className="wf-rag-document-meta">
+          <h3>{documentTitle}</h3>
+          <p>
+            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지
+          </p>
+        </footer>
         <strong aria-live="polite" className="sr-only">
           인용 {safePage} / {safeTotalPages}페이지
         </strong>

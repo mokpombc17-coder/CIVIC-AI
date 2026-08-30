@@ -271,9 +271,10 @@ test.beforeAll(async () => {
       return json(response, queryResultFixture);
     }
     if (
-      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
-        url.pathname,
-      )
+      url.pathname.startsWith(
+        `/internal/v1/rag/sources/${CITATION_VERSION_ID}/pages/3/document/pages/`,
+      ) &&
+      url.pathname.endsWith(".png")
     ) {
       response.writeHead(200, { "content-type": "image/png" });
       response.end(
@@ -1289,8 +1290,12 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const citation = page.getByRole("link", { name: "원문 보기" });
+  const citation = page.getByRole("button", {
+    name: "출처 2026 복지정책 기본계획 p.3 열기",
+  });
   await expect(citation).toBeVisible();
+  await expect(page.locator(".civic-rag-citation-card")).toHaveCount(0);
+  await expect(page.getByText("원문 보기", { exact: true })).toHaveCount(0);
   const questionBubble = page.locator(".civic-rag-question");
   await expect(page.locator(".civic-rag-question-meta")).toHaveCount(0);
   await expect(page.locator(".civic-rag-time")).toHaveCount(0);
@@ -1306,16 +1311,12 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
     x: [16, 18],
     width: [359, 362],
   });
-  await expectBox(page.locator(".civic-rag-citation-card"), {
-    x: [16, 18],
-    width: [359, 362],
-    height: [64, 68],
-  });
-
   await page.reload();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "원문 보기" })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "출처 2026 복지정책 기본계획 p.3 열기" }),
+  ).toBeVisible();
 
   await page.getByRole("button", { name: "새 질문" }).click();
   const newQuestionDialog = page.getByRole("alertdialog", {
@@ -1341,7 +1342,9 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await page.locator("#rag-question").fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const restoredCitation = page.getByRole("link", { name: "원문 보기" });
+  const restoredCitation = page.getByRole("button", {
+    name: "출처 2026 복지정책 기본계획 p.3 열기",
+  });
   await expect(restoredCitation).toBeVisible();
   await restoredCitation.click();
 
@@ -1358,6 +1361,19 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(page.getByRole("button", { name: "문서 축소" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "화면 맞춤" })).toHaveCount(0);
   await expect(page.getByText("전체 12페이지 · 인용 3페이지", { exact: true })).toBeVisible();
+  const documentCard = page.locator(".wf-rag-document-card");
+  const documentCanvas = documentCard.locator(".civic-pdf-canvas");
+  const documentMeta = documentCard.locator(".wf-rag-document-meta");
+  await expect(documentCard).toHaveCSS("border-top-width", "0px");
+  await expect(documentCard).toHaveCSS("border-radius", "0px");
+  await expect
+    .poll(async () => {
+      const canvasBox = await documentCanvas.boundingBox();
+      const metaBox = await documentMeta.boundingBox();
+      if (!canvasBox || !metaBox) return false;
+      return metaBox.y >= canvasBox.y + canvasBox.height;
+    })
+    .toBe(true);
   await expect(page.getByText("연속 스크롤", { exact: true })).toHaveCount(0);
   await expect
     .poll(() =>
@@ -1623,14 +1639,16 @@ const currentSimulationTaskFixture = {
   },
 };
 
+const CITATION_VERSION_ID = "30000000-0000-4000-8000-000000000003";
+
 const queryResultFixture = {
   job_id: "query-job-1",
   status: "SUCCEEDED",
   submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
-  answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",
+  answer: `지원 대상과 신청 기준을 확인할 수 있습니다. [${CITATION_VERSION_ID}#3]`,
   citations: [
     {
-      document_version_id: "version-1",
+      document_version_id: CITATION_VERSION_ID,
       page_number: 3,
       page_count: 12,
       source_object_sha256: "a".repeat(64),

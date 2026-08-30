@@ -334,6 +334,44 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain('aria-label="답변 평가"');
   });
 
+  it("완료된 AI 답변은 본문 인용 칩만 유지하고 별도 출처 카드를 표시하지 않는다", () => {
+    const versionId = "30000000-0000-4000-8000-000000000001";
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "citation-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "citation-job",
+            status: "SUCCEEDED",
+            answer: `문서 기반 답변입니다. [${versionId}#3]`,
+            citations: [
+              {
+                document_version_id: versionId,
+                page_number: 3,
+                page_count: 12,
+                source_object_sha256: "a".repeat(64),
+                title: "복지 정책.pdf",
+                related_titles: ["관련 공고.pdf"],
+              },
+            ],
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('class="civic-citation-chip"');
+    expect(html).toContain('aria-label="출처 복지 정책.pdf p.3 열기"');
+    expect(html).not.toContain("civic-rag-citations");
+    expect(html).not.toContain("civic-rag-citation-card");
+    expect(html).not.toContain("원문 보기");
+    expect(html).not.toContain("관련 공고.pdf");
+  });
+
   it("사용자 질문은 이름과 시간 없이 비대화형 말풍선으로 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagMessage, {

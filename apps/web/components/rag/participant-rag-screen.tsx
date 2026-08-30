@@ -689,9 +689,6 @@ export function RagMessage({
 }>) {
   const statusMessage = ragJobStatusMessage(message.job);
   const citations = message.job?.citations ?? [];
-  const relatedTitles = Array.from(
-    new Set(citations.flatMap((citation) => citation.related_titles ?? [])),
-  );
   const showStreamingAnswer = liveJob
     ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
     : false;
@@ -734,60 +731,6 @@ export function RagMessage({
             />
           ) : null}
         </div>
-        {citations.length ? (
-          <div aria-label="출처" className="civic-rag-citations">
-            {citations.map((citation) => {
-              const externalUrl = safeExternalSourceUrl(citation.source_url);
-              return (
-                <div
-                  className="civic-rag-citation-card"
-                  key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
-                >
-                  <div className="civic-rag-citation-copy">
-                    <strong>
-                      <span aria-hidden="true" className="civic-rag-citation-icon">
-                        ⓘ
-                      </span>
-                      출처
-                    </strong>
-                    <p>
-                      {citation.title ?? "문서"} · {citation.page_number}페이지
-                    </p>
-                  </div>
-                  <div className="civic-rag-citation-actions">
-                    <Link
-                      className="wf-button wf-button-secondary"
-                      href={citationHref(citation)}
-                      onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
-                    >
-                      원문 보기
-                    </Link>
-                    {externalUrl ? (
-                      <a
-                        className="wf-button wf-button-secondary"
-                        href={externalUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        게시 원문
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-            {relatedTitles.length ? (
-              <aside className="civic-rag-related-documents">
-                <strong>관련 문서</strong>
-                <ul>
-                  {relatedTitles.map((title) => (
-                    <li key={title}>{title}</li>
-                  ))}
-                </ul>
-              </aside>
-            ) : null}
-          </div>
-        ) : null}
         {message.job?.suggestions?.length ? (
           <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
         ) : null}
