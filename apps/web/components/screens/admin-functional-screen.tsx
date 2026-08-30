@@ -384,7 +384,7 @@ export function filterAdminUsers(users: AdminUser[], filter: UserStatusFilter) {
   return users;
 }
 
-function AdminHome({
+export function AdminHome({
   canManageSimulation,
   canReadRag,
   ragJobSummary,
@@ -435,11 +435,11 @@ function AdminHome({
           <span>{simulationWalletDescription(simulationWalletSummary)}</span>
         </li>
       </ul>
-      <AdminPendingChatRequests state={chatRequestSummary} />
-      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
         <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
+      <AdminPendingChatRequests state={chatRequestSummary} />
+      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
     </div>
   );
 }
