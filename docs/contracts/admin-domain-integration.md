@@ -12,8 +12,8 @@
   정량 결과와 JSONL 다운로드
 - Simulation `A-SIM-001..007`: Vote 과업 선택, SONA 집계 패널 설정·실행, 상태·취소,
   수동 재설정, 집계 결과와 익명 패널 응답 상세
-- Main/Auth `A-HOME-001`: 권한별 승인·실패·마감·공용 지갑 요약과 RAG 문서·Simulation의
-  대기/실행 중 작업을 한 목록으로 표시
+- Main/Auth `A-HOME-001`: 권한별 승인·실패·마감·공용 지갑 요약, 검토 화면으로 바로 연결되는 Chat
+  승인 대기 목록과 RAG 문서·Simulation의 대기/실행 중 작업을 표시
 
 브라우저는 same-origin `/api/v1/admin/**`만 호출한다. Next.js BFF는 허용한 Chat·Vote path와 method만
 각각 `CHAT_INTERNAL_URL`, `VOTE_INTERNAL_URL`로 전달한다. Simulation path는 공개 nginx가 Simulation

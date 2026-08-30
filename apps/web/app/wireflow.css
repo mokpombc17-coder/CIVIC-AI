@@ -1428,6 +1428,109 @@ body {
   line-height: 1;
 }
 
+[data-wireflow-shell="admin"] .civic-pending-chat-requests {
+  overflow: hidden;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests > header {
+  display: flex;
+  min-height: 84px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  border-bottom: 1px solid var(--wf-line);
+  background: #f7faff;
+  padding: 16px 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests > header > div {
+  display: grid;
+  gap: 3px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests > header small {
+  color: var(--wf-blue-dark);
+  font-size: 12px;
+  font-weight: 800;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests h2,
+[data-wireflow-shell="admin"] .civic-pending-chat-requests > header p {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests h2 {
+  color: var(--wf-ink);
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests > header p {
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests ul {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 82px;
+  align-items: center;
+  gap: 20px;
+  border-bottom: 1px solid var(--wf-line);
+  padding: 14px 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-request-copy {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-request-copy strong {
+  overflow: hidden;
+  color: var(--wf-ink);
+  font-size: 15px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-request-copy span,
+[data-wireflow-shell="admin"] .civic-pending-chat-request-copy p {
+  overflow: hidden;
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-review {
+  justify-self: end;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests-empty,
+[data-wireflow-shell="admin"] .civic-pending-chat-requests-more {
+  margin: 0;
+  color: var(--wf-muted);
+  padding: 20px;
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-pending-chat-requests-more {
+  background: #fbfcff;
+  padding-block: 10px;
+  text-align: center;
+}
+
 [data-wireflow-shell="admin"] .civic-current-operations {
   overflow: hidden;
   border: 1px solid var(--wf-line);
@@ -1598,6 +1701,25 @@ body {
 @media (max-width: 560px) {
   [data-wireflow-shell="admin"] .civic-admin-metrics {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-shell="admin"] .civic-pending-chat-requests > header {
+    align-items: flex-start;
+    padding-inline: 16px;
+  }
+
+  [data-wireflow-shell="admin"] .civic-pending-chat-requests > header p {
+    display: none;
+  }
+
+  [data-wireflow-shell="admin"] .civic-pending-chat-requests li {
+    gap: 12px;
+    padding-inline: 16px;
+  }
+
+  [data-wireflow-shell="admin"] .civic-pending-chat-review {
+    min-height: 38px;
+    padding-inline: 12px;
   }
 
   [data-wireflow-shell="admin"] .civic-current-operations > header,

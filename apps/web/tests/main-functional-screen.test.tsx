@@ -10,6 +10,7 @@ import {
   auditSubjectHref,
   adminRoleMutationPath,
   ADMIN_PERMISSION_CODES,
+  AdminPendingChatRequests,
   filterAdminUsers,
   hasAdminAccessRevocation,
   loadRequestedAdminUser,
@@ -86,6 +87,27 @@ function surveyQuestion(prompt: string, displayOrder: number) {
     rule: {},
     allowOther: false,
     options: [],
+  };
+}
+
+function pendingChatRequest(id: string, requesterUserId: string, name: string) {
+  return {
+    creationRequestId: id,
+    requesterUserId,
+    name,
+    description: `${name} 설명`,
+    categoryIds: [],
+    visibility: "LISTED",
+    joinPolicy: "OPEN",
+    status: "PENDING" as const,
+    requestedAt: "2026-08-26T03:00:00Z",
+    resolvedAt: null,
+    roomId: null,
+    ownerMembershipId: null,
+    roomVersion: null,
+    ownerMembershipVersion: null,
+    rejectionReason: null,
+    replayed: false,
   };
 }
 
@@ -529,9 +551,24 @@ describe("25 functional Main/Auth screens", () => {
 
   it("관리 홈은 승인 대기·과업 마감·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
     const now = Date.parse("2026-08-26T00:00:00Z");
-    const chat = vi.fn(async () =>
-      Response.json({ items: [{ id: "one" }, { id: "two" }], hasNext: false }),
-    );
+    const chat = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/v1/admin/user-labels?")) {
+        return Response.json({
+          items: [
+            { user_id: "user-one", email: "one@example.com" },
+            { user_id: "user-two", email: "two@example.com" },
+          ],
+        });
+      }
+      return Response.json({
+        items: [
+          pendingChatRequest("request-one", "user-one", "지역 교통 토론방"),
+          pendingChatRequest("request-two", "user-two", "청년 주거 토론방"),
+        ],
+        nextCursor: null,
+        hasNext: false,
+      });
+    });
     const tasks = vi.fn(async () =>
       Response.json([
         {
@@ -558,11 +595,27 @@ describe("25 functional Main/Auth screens", () => {
       }),
     );
 
-    await expect(loadChatRequestSummary(chat as typeof fetch)).resolves.toEqual({
+    const chatSummary = await loadChatRequestSummary(chat as typeof fetch);
+    expect(chatSummary).toEqual({
       status: "ready",
       count: 2,
       hasMore: false,
+      items: [
+        pendingChatRequest("request-one", "user-one", "지역 교통 토론방"),
+        pendingChatRequest("request-two", "user-two", "청년 주거 토론방"),
+      ],
+      labels: new Map([
+        ["user-one", "one@example.com"],
+        ["user-two", "two@example.com"],
+      ]),
     });
+    const chatHtml = renderToStaticMarkup(
+      createElement(AdminPendingChatRequests, { state: chatSummary }),
+    );
+    expect(chatHtml).toContain("지역 교통 토론방");
+    expect(chatHtml).toContain("one@example.com");
+    expect(chatHtml).toContain("검토하기");
+    expect(chatHtml).toContain("/admin/chat/requests/detail?requestId=request-one");
     await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
       status: "ready",
       count: 1,
@@ -578,6 +631,26 @@ describe("25 functional Main/Auth screens", () => {
         updatedAt: "2026-08-29T10:00:00Z",
       },
     });
+  });
+
+  it("관리 홈은 서버의 접수순 계약에 맞춰 먼저 접수된 승인 대기 5건임을 안내한다", () => {
+    const items = Array.from({ length: 5 }, (_, index) =>
+      pendingChatRequest(`request-${index + 1}`, `user-${index + 1}`, `토론방 ${index + 1}`),
+    );
+    const html = renderToStaticMarkup(
+      createElement(AdminPendingChatRequests, {
+        state: {
+          status: "ready",
+          count: 100,
+          hasMore: true,
+          items,
+          labels: new Map(),
+        },
+      }),
+    );
+
+    expect(html).toContain("먼저 접수된 5건을 표시했습니다.");
+    expect(html).not.toContain("최신 5건");
   });
 
   it("로그인 복귀 경로는 동일 출처 상대 경로만 허용한다", () => {
@@ -1120,6 +1193,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(4);
     expect(html).toContain("승인 대기");
     expect(html).toContain("채팅 생성 신청 확인 중");
+    expect(html).toContain('aria-labelledby="civic-pending-chat-requests-title"');
+    expect(html).toContain("채팅방 승인 대기");
+    expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
     expect(html).toContain("처리 실패");
     expect(html).toContain("확인 중");
     expect(html).toContain("24시간 내 마감");

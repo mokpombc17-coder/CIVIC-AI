@@ -7,6 +7,25 @@ const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE_NAME = "civic_ai_access_token";
 
+const pendingChatRequestFixture = {
+  creationRequestId: "chat-request-1",
+  requesterUserId: "chat-requester-1",
+  name: "지역 교통 토론방",
+  description: "지역 교통 정책의 개선 방향을 논의합니다.",
+  categoryIds: [],
+  visibility: "LISTED",
+  joinPolicy: "OPEN",
+  status: "PENDING",
+  requestedAt: "2026-08-30T01:00:00Z",
+  resolvedAt: null,
+  roomId: null,
+  ownerMembershipId: null,
+  roomVersion: null,
+  ownerMembershipVersion: null,
+  rejectionReason: null,
+  replayed: false,
+};
+
 let mockApiServer: Server;
 let twoFactorEnabled = true;
 let twoFactorEnableRequested = false;
@@ -134,8 +153,21 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/admin/user-labels") {
       return json(response, {
-        items: [{ user_id: documentCreatorId, email: "rag-admin@example.com" }],
+        items: [
+          { user_id: documentCreatorId, email: "rag-admin@example.com" },
+          { user_id: "chat-requester-1", email: "citizen@example.com" },
+        ],
       });
+    }
+    if (url.pathname === "/api/v1/admin/room-creation-requests" && request.method === "GET") {
+      return json(response, {
+        items: [pendingChatRequestFixture],
+        nextCursor: null,
+        hasNext: false,
+      });
+    }
+    if (url.pathname === "/api/v1/admin/room-creation-requests/chat-request-1") {
+      return json(response, pendingChatRequestFixture);
     }
     if (url.pathname === "/internal/v1/rag/folders") {
       return json(response, { items: folderFixtures });
@@ -770,6 +802,24 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   expect(twoFactorEnableRequestBodies).toEqual([{ code: null }, { code: "123456" }]);
 });
 
+test("A-HOME은 채팅방 승인 대기 목록에서 검토 화면으로 이동한다", async ({ context, page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await authenticate(context, "admin.payload.signature");
+
+  await page.goto("/admin");
+  const pendingChatRequests = page.getByRole("region", { name: "채팅방 승인 대기" });
+  await expect(pendingChatRequests.getByText("지역 교통 토론방", { exact: true })).toBeVisible();
+  await expect(pendingChatRequests.getByText(/citizen@example\.com/)).toBeVisible();
+  const reviewChatRequest = pendingChatRequests.getByRole("link", {
+    name: "지역 교통 토론방 검토하기",
+  });
+  await expect(reviewChatRequest).toHaveCSS("justify-self", "end");
+  await reviewChatRequest.click();
+
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=chat-request-1$/u);
+  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
+});
+
 test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한다", async ({ context, page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await authenticate(context, "admin.payload.signature");
@@ -802,7 +852,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
     x: [238, 242],
     y: [0, 0],
     width: [1198, 1202],
-    height: [94, 98],
+    height: [78, 82],
   });
 
   const retryLink = page.getByRole("link", { name: "policy.pdf 업로드 화면에서 재시도" });
@@ -878,7 +928,7 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
     x: [238, 242],
     y: [0, 0],
     width: [1198, 1202],
-    height: [94, 98],
+    height: [78, 82],
   });
   await expectBox(page.locator('[data-wireflow-layout="rag-workspace"]'), {
     x: [262, 274],
