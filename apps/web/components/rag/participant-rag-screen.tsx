@@ -217,7 +217,21 @@ function RagConversation({
   const requestGeneration = useRef(0);
   const restoredQueryChecked = useRef(false);
   const queryOperation = useRef(createQueryOperation());
+  const messagesRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState("");
+  const streamedAnswerLength = Object.values(liveJobs).reduce(
+    (total, liveJob) => total + liveJob.streamedAnswer.length,
+    0,
+  );
+
+  useEffect(() => {
+    if (streamedAnswerLength === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      const messages = messagesRef.current;
+      if (messages) scrollRagMessagesToLatest(messages);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [streamedAnswerLength]);
 
   useEffect(() => {
     if (!userId) return;
@@ -419,7 +433,7 @@ function RagConversation({
             새 질문
           </button>
         </header>
-        <div aria-label="현재 RAG 대화" className="civic-rag-messages" role="log">
+        <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
               <span aria-hidden="true">✦</span>
@@ -628,7 +642,9 @@ export function RagMessage({
           <strong>CIVIC.AI</strong>
           {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
         </header>
-        <div className={`civic-rag-answer${liveJob ? " is-live" : ""}`}>
+        <div
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}`}
+        >
           {liveJob ? (
             showStreamingAnswer ? (
               <div aria-busy="true" aria-label="실시간 답변" className="civic-rag-streamed-answer">
@@ -715,6 +731,12 @@ export function RagMessage({
       </div>
     </article>
   );
+}
+
+type RagMessagesScrollTarget = Pick<HTMLDivElement, "scrollHeight" | "scrollTo">;
+
+export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): void {
+  messages.scrollTo({ behavior: "smooth", top: messages.scrollHeight });
 }
 
 const VISIBLE_PROGRESS_STAGES = [
