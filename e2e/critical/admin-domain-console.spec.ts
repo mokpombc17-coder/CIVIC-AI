@@ -166,6 +166,9 @@ test.beforeAll(async () => {
         },
       ]);
     }
+    if (url.pathname === `/api/v1/admin/simulations/${simulationId}` && request.method === "GET") {
+      return json(response, simulationFixture(latestSimulationState ?? "RUNNING"));
+    }
     if (
       url.pathname === `/api/v1/admin/simulations/${simulationId}/results` &&
       request.method === "GET"
@@ -627,6 +630,22 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   );
 });
 
+test("시뮬레이션 상태는 자동 종료 기준을 설명하고 서비스 부담을 노출하지 않는다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  latestSimulationState = "COMPLETED";
+
+  await page.goto(`/admin/simulations/status?simulationId=${simulationId}`);
+
+  await expect(page.getByText("자동 종료 기준", { exact: true })).toBeVisible();
+  await expect(page.getByText("정산", { exact: true })).toBeVisible();
+  await expect(page.getByText("9,200원", { exact: true })).toBeVisible();
+  await expect(page.getByText(/서비스 부담/u)).toHaveCount(0);
+  await expect(page.getByText("3,855원", { exact: true })).toHaveCount(0);
+});
+
 test("시뮬레이션 결과는 모든 성별 집단·도넛 분포·응답 이유를 한 화면에서 비교한다", async ({
   context,
   page,
@@ -854,7 +873,7 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
     estimatedKrw: 9500,
     holdKrw: 11400,
     settledKrw: state === "COMPLETED" ? 9200 : null,
-    absorbedKrw: 0,
+    absorbedKrw: state === "COMPLETED" ? 3855 : 0,
     billingState: state === "COMPLETED" ? "SETTLED" : "HELD",
   };
 }

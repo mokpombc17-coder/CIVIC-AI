@@ -578,7 +578,7 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
               <dd>{wholeRunEtaLabel(view.estimatedCompletionAt)}</dd>
             </div>
             <div>
-              <dt>실행 기한</dt>
+              <dt>자동 종료 기준</dt>
               <dd>{formatDate(view.deadlineAt)}</dd>
             </div>
             <div>
@@ -588,11 +588,8 @@ function SimulationStatus({ simulationId }: Readonly<{ simulationId: string | nu
               </dd>
             </div>
             <div>
-              <dt>정산 / 서비스 부담</dt>
-              <dd>
-                {formatKrw(view.settledKrw ?? undefined)} /{" "}
-                {formatKrw(view.absorbedKrw ?? undefined)}
-              </dd>
+              <dt>정산</dt>
+              <dd>{formatKrw(view.settledKrw ?? undefined)}</dd>
             </div>
             {view.state === "WAITING_PROVIDER" ? (
               <>
