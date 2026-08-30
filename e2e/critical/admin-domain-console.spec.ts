@@ -722,6 +722,35 @@ test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 �
   }
 });
 
+test("관리자 검색창은 화면별 레이아웃에서도 하나의 문서관리형 컨트롤을 유지한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+
+  for (const [route, label] of [
+    ["/admin/chat", "토론방 검색"],
+    ["/admin/chat/categories", "토론방 이름 검색"],
+    ["/admin/tasks", "과업 제목 검색"],
+  ] as const) {
+    await page.goto(route);
+    const input = page.locator(`input.console-search-input[aria-label="${label}"]:not(:disabled)`);
+    const control = input.locator("..");
+    const button = control.getByRole("button", { name: "검색" });
+
+    await expect(input).toBeVisible();
+    await expect(control).toHaveCSS("height", "48px");
+    await expect(control).toHaveCSS("max-width", "720px");
+    await expect(input).toHaveCSS("border-top-width", "0px");
+    await expect(input).toHaveCSS("border-radius", "0px");
+    await expect(input).toHaveCSS("box-shadow", "none");
+    await expect(button).toHaveCSS("border-radius", "0px");
+    await expect(button).toHaveCSS("height", "46px");
+    expect((await control.boundingBox())?.width ?? 0).toBeLessThanOrEqual(720);
+  }
+});
+
 async function authenticate(context: BrowserContext): Promise<void> {
   await context.addCookies([
     {

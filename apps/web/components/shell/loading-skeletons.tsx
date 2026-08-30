@@ -8,6 +8,7 @@ import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-frame";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
+import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { getScreenByRoute, type ScreenDefinition } from "@/lib/screens/registry";
 
 /** 로그인·이동 직후 데이터가 준비되기 전까지 보여 주는 화면 골격. */
@@ -413,14 +414,12 @@ function AdminTableLoadingSurface({ kind }: Readonly<{ kind: AdminListKind }>) {
       className="civic-admin-workbench civic-domain-console civic-loading-static-surface"
     >
       {kind === "USERS" ? (
-        <form className="civic-admin-search">
-          <label>
-            <span>이메일 검색</span>
-            <input disabled placeholder="이메일 주소 입력…" type="search" />
-          </label>
-          <button disabled type="button">
-            검색
-          </button>
+        <form className="console-toolbar">
+          <ConsoleSearchControl
+            ariaLabel="이메일 검색"
+            disabled
+            placeholder="이메일 주소를 검색해 주세요."
+          />
           <StaticFilters labels={["전체", "활성", "비활성", "관리자"]} />
         </form>
       ) : (
@@ -470,13 +469,11 @@ function AdminRagWorkspaceLoadingSurface() {
             <span>처리 상태와 검색에서 제외했는지 확인하고 있습니다.</span>
           </div>
           <form className="wf-document-filters">
-            <label>
-              <span className="sr-only">문서명 검색</span>
-              <input disabled placeholder="문서명 검색..." type="search" />
-            </label>
-            <button className="civic-secondary-action" disabled type="button">
-              검색
-            </button>
+            <ConsoleSearchControl
+              ariaLabel="문서명 검색"
+              disabled
+              placeholder="문서명을 검색해 주세요."
+            />
             <label>
               <span>처리 상태</span>
               <select disabled defaultValue="ALL">
@@ -556,12 +553,7 @@ function AdminDetailLoadingSurface() {
 }
 
 function StaticSearch({ label, placeholder }: Readonly<{ label: string; placeholder: string }>) {
-  return (
-    <label className="civic-field civic-loading-search">
-      <span>{label}</span>
-      <input disabled placeholder={placeholder} type="search" />
-    </label>
-  );
+  return <ConsoleSearchControl ariaLabel={label} disabled placeholder={placeholder} />;
 }
 
 function StaticFilters({ labels }: Readonly<{ labels: readonly string[] }>) {

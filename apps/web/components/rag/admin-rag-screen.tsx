@@ -8,7 +8,11 @@ import { bytesToHex } from "@noble/hashes/utils.js";
 import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { ConsoleMetricStrip, type ConsoleMetricItem } from "@/components/admin/console/console-ui";
+import {
+  ConsoleMetricStrip,
+  ConsoleSearchControl,
+  type ConsoleMetricItem,
+} from "@/components/admin/console/console-ui";
 import {
   loadRagJobSummary,
   type RagJobSummaryState,
@@ -1114,20 +1118,12 @@ export function DocumentWorkspace({
           onQueryChange?.({ query, page: 1 });
         }}
       >
-        <div className="console-search-control">
-          <span aria-hidden="true" className="console-search-icon" />
-          <input
-            aria-label="문서명 검색"
-            autoComplete="off"
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="문서명을 검색해 주세요."
-            type="search"
-            value={searchInput}
-          />
-          <button className="console-search-button" type="submit">
-            검색
-          </button>
-        </div>
+        <ConsoleSearchControl
+          ariaLabel="문서명 검색"
+          onChange={setSearchInput}
+          placeholder="문서명을 검색해 주세요."
+          value={searchInput}
+        />
         <label>
           <span>처리 상태</span>
           <select
