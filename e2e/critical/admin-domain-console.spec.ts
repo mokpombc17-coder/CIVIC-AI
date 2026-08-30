@@ -454,7 +454,40 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   });
 });
 
-test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행한다", async ({ context, page }) => {
+test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  task = taskFixture("OPEN");
+  await page.goto("/admin/tasks");
+
+  const detailButton = page.getByRole("button", { name: "과업 상세" });
+  await detailButton.click();
+
+  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
+  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
+  await expect(drawer.getByRole("link", { name: "조기 종료" })).toBeVisible();
+  await expect(drawer.getByLabel("동작")).toHaveValue("deadline");
+  await expect(drawer.getByRole("option", { name: "마감 변경" })).toBeAttached();
+  await expect(drawer).toHaveCSS("transform", "none");
+
+  const drawerBox = await drawer.boundingBox();
+  const viewport = page.viewportSize();
+  if (!drawerBox || !viewport) throw new Error("과업 상세 Drawer 위치를 확인할 수 없습니다.");
+  expect(Math.abs(drawerBox.x + drawerBox.width - viewport.width)).toBeLessThan(2);
+  expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThan(2);
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/tasks$/u);
+  await expect(detailButton).toBeFocused();
+});
+
+test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
+  context,
+  page,
+}) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1138, height: 768 });
   await page.goto("/admin/tasks/create");
@@ -469,33 +502,20 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행�
   await expect
     .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
-  await expect(page.getByRole("heading", { name: "과업 상세" })).toBeVisible();
+  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
+  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  await expect(drawer).toBeVisible();
   expect(createdTaskBody).toMatchObject({ title: "지역 정책 선호도 조사" });
-  await page.getByLabel("동작").selectOption("open-now");
-  await page.getByLabel("마감 시각").fill("2026-09-01T09:00");
-  await page.getByRole("button", { name: "즉시 발행" }).click();
+  await drawer.getByLabel("동작").selectOption("open-now");
+  await drawer.getByLabel("마감 시각").fill("2026-09-01T09:00");
+  await drawer.getByRole("button", { name: "즉시 발행" }).click();
 
-  await expect(page.getByRole("status")).toContainText("최신 상태를 반영했습니다");
+  await expect(drawer.getByRole("status")).toContainText("최신 상태를 반영했습니다");
   await expect(
-    page.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
+    drawer.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(taskId, { exact: true })).toHaveCount(0);
-  await page.evaluate(() => window.scrollTo(0, 0));
-
-  const [summaryBox, questionBox, operationsBox] = await Promise.all([
-    page.getByRole("group", { name: "과업 요약" }).boundingBox(),
-    page.locator(".civic-task-detail-content").boundingBox(),
-    page.getByRole("complementary", { name: "과업 운영" }).boundingBox(),
-  ]);
-  if (!summaryBox || !questionBox || !operationsBox) {
-    throw new Error("과업 상세의 고밀도 레이아웃 영역을 측정하지 못했습니다.");
-  }
-  expect(summaryBox.height).toBeLessThan(125);
-  expect(Math.abs(questionBox.y - operationsBox.y)).toBeLessThan(2);
-  expect(operationsBox.x).toBeGreaterThan(questionBox.x + questionBox.width);
-  expect(operationsBox.y + operationsBox.height).toBeLessThanOrEqual(
-    page.viewportSize()?.height ?? 768,
-  );
+  await expect(drawer.getByText(taskId, { exact: true })).toHaveCount(0);
+  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
 });
 
 test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 화면으로 연결한다", async ({

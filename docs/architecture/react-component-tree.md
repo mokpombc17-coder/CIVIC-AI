@@ -93,6 +93,8 @@ AdminCatchAllPage [Server Route]
     │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
     │   └── RoomCategorySelector [선택 방의 카테고리 교체]
     ├── AdminTaskScreen [Vote 과업 관리]
+    │   ├── TaskList [목록·검색·상태 필터]
+    │   └── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
     │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정
@@ -109,6 +111,10 @@ AdminCatchAllPage [Server Route]
 
 사용자·권한 관리 화면은 `HIGHEST_ADMIN`을 요구한다. RAG, Chat, Vote, Simulation 관리자 화면은
 `ADMIN | HIGHEST_ADMIN` role과 해당 `*_ADMIN` permission을 함께 사용한다.
+
+Vote 과업 목록의 `과업 상세`는 별도 페이지로 이동하지 않고 `TaskDetailDrawer`를 연다. 선택한
+`taskId`는 `/admin/tasks?taskId=...`에 반영해 새로고침 후에도 같은 Drawer를 복원하며, 기존
+`/admin/tasks/detail` 주소는 인증·권한 확인 뒤 이 목록 주소로 이동한다.
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
