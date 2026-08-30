@@ -4158,6 +4158,32 @@ th {
   padding: 0.75rem;
 }
 
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-rejection-reason {
+  width: 100%;
+  min-height: 6.5rem;
+  border: 1px solid var(--civic-line-strong);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  padding: 0.72rem 0.8rem;
+  color: var(--civic-text);
+  font: inherit;
+  resize: vertical;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-chat-request-rejection-reason:focus-visible {
+  border-color: var(--civic-blue);
+  outline: 3px solid #bfdbfe;
+  outline-offset: 1px;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-chat-request-rejection-reason[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
 [data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-form-actions {
   margin-top: 0.1rem;
   border-top: 1px solid var(--civic-line);

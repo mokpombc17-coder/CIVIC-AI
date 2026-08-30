@@ -690,6 +690,7 @@ function RequestDetail({
                       adminFieldError(problem, "reason") ? "chat-rejection-reason-error" : undefined
                     }
                     aria-invalid={Boolean(adminFieldError(problem, "reason"))}
+                    className="civic-chat-request-rejection-reason"
                     disabled={pending}
                     maxLength={100}
                     onChange={(event) => setReason(event.currentTarget.value)}
@@ -701,7 +702,7 @@ function RequestDetail({
                     id="chat-rejection-reason-error"
                     message={adminFieldError(problem, "reason")}
                   />
-                  <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
+                  <small>{[...reason.trim()].length} / 100자</small>
                 </label>
               ) : (
                 <RoomCategorySelector
