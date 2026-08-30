@@ -51,7 +51,8 @@ class MigrationTest {
         var requiredTables = List.of(
                 "users", "credentials", "roles", "user_roles", "permissions", "user_permissions",
                 "questionnaire_schemas",
-                "questionnaire_responses", "consent_evidence", "refresh_tokens", "auth_challenges",
+                "questionnaire_responses", "consent_evidence", "refresh_tokens",
+                "pwa_refresh_sessions", "pwa_refresh_tokens", "auth_challenges",
                 "notification_outbox", "audit_outbox", "audit_events", "feature_gates",
                 "account_state_outbox", "pre_session_rate_limits");
 

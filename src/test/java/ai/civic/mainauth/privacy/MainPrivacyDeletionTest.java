@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.AuthenticationFlowService;
+import ai.civic.mainauth.auth.PwaRefreshTokenService;
 
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.nio.ByteBuffer;
@@ -22,6 +23,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 class MainPrivacyDeletionTest extends PostgresIntegrationTest {
     @Autowired MainPrivacyDeletionHandler deletion;
     @Autowired AuthenticationFlowService authentication;
+    @Autowired PwaRefreshTokenService pwaRefreshTokens;
     @Autowired JdbcTemplate jdbc;
 
     @Test
@@ -74,6 +76,7 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
     @Test
     void deletionIsIdempotentLeavesOnlyTombstoneAndPreventsReactivation() {
         var user = createUser();
+        pwaRefreshTokens.issue(user);
         jdbc.update("""
                 insert into signup_flows(
                     email, normalized_email, questionnaire_schema_id, document_versions, expires_at, completed_at
@@ -103,6 +106,8 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
                 .startsWith("deleted+");
         assertThat(jdbc.queryForObject(
                 "select count(*) from deletion_tombstones where subject_id = ?", Integer.class, user)).isOne();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from pwa_refresh_sessions where user_id = ?", Integer.class, user)).isZero();
         assertThat(jdbc.queryForObject("""
                 select count(*) from signup_flows where normalized_email = 'delete-me@example.com'
                 """, Integer.class)).isZero();

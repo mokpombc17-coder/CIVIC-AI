@@ -25,6 +25,7 @@ Redis, migration, 로컬 테스트 계정과 Main/Auth 서버를 준비할 수 �
 - Access Token: RS256 JWT, 15분
 - Refresh Token: 256-bit 불투명 난수, 개별 7일
 - Refresh Token family: 최초 로그인부터 최대 30일
+- PWA Refresh 세션: 마지막 사용 후 90일, 정상 회전할 때마다 90일로 갱신
 - 서버 저장값: Refresh Token 원문이 아닌 SHA-256 해시와 family/회전/폐기 메타데이터
 - Spring Security HTTP session: `STATELESS`
 - 기존 `sessions` 테이블: Flyway V15에서 제거
@@ -54,6 +55,11 @@ Refresh Token은 사용할 때마다 즉시 교체됩니다. 이미 교체된 �
 세 쿠키는 모두 `HttpOnly`, `Secure`이며 `Domain`을 지정하지 않습니다. Access 쿠키에는
 `Bearer` 접두사 없이 JWT 원문만 들어갑니다. 발급 쿠키의 `Expires`는 각 자격 증명의
 만료 시각과 정확히 같고, 로그아웃은 발급 때와 같은 Path로 `Max-Age=0` 쿠키를 보냅니다.
+
+PWA는 `civic_ai_pwa_refresh_token`을 `/api/v1/auth/pwa` Path에 별도로 발급한다. PWA
+로그인은 2FA challenge 없이 완료하며, `/api/v1/auth/pwa/refresh`가 세션의 마지막 사용
+시각과 90일 만료 시각을 갱신한다. 기존 브라우저 로그인·Refresh Token 수명과 회전 규칙은
+변경하지 않는다.
 
 로컬에서 HTTPS를 사용하지 않을 때만 `CIVIC_COOKIES_SECURE=false`로 실행할 수 있습니다.
 운영 프로필은 `Secure=true`를 강제합니다.

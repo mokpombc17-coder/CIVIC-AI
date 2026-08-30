@@ -74,6 +74,7 @@ public class MainPrivacyDeletionHandler {
         }
         var anonymizedEmail = deletedEmail(subjectId);
 
+        jdbc.update("delete from pwa_refresh_sessions where user_id = ?", subjectId);
         jdbc.update("delete from refresh_tokens where user_id = ?", subjectId);
         jdbc.update("delete from auth_challenges where user_id = ?", subjectId);
         jdbc.update("delete from questionnaire_responses where user_id = ?", subjectId);

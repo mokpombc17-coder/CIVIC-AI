@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import ai.civic.mainauth.support.PostgresIntegrationTest;
 import ai.civic.mainauth.account.AccountLifecycleService;
 import ai.civic.mainauth.auth.AccessCredentialTestFactory;
+import ai.civic.mainauth.auth.PwaRefreshTokenService;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.Executors;
@@ -24,6 +25,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
     @Autowired JdbcTemplate jdbc;
     @Autowired AccountLifecycleService lifecycle;
     @Autowired AccessCredentialTestFactory credentials;
+    @Autowired PwaRefreshTokenService pwaRefreshTokens;
     private final Argon2PasswordEncoder passwords =
             Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
     UUID bootstrapId;
@@ -228,6 +230,7 @@ class AdminPolicyTest extends PostgresIntegrationTest {
                 """, participant);
 
         credentials.issue(participant);
+        pwaRefreshTokens.issue(participant);
         lifecycle.deactivateSelf(participant, participant, "Valid123!");
 
         assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, participant))
@@ -235,6 +238,10 @@ class AdminPolicyTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from account_state_outbox where user_id = ?", Integer.class, participant))
                 .isOne();
+        assertThat(jdbc.queryForObject("""
+                select count(*) from pwa_refresh_sessions
+                where user_id = ? and revoked_at is not null
+                """, Integer.class, participant)).isOne();
         assertThat(jdbc.queryForObject("""
                 select count(*) from auth_challenges
                 where user_id = ? and purpose = 'TWO_FACTOR' and consumed_at is null

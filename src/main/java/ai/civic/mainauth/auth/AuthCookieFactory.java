@@ -14,6 +14,8 @@ public final class AuthCookieFactory {
     public static final String ACCESS_TOKEN_COOKIE = "civic_ai_access_token";
     public static final String REFRESH_TOKEN_COOKIE = "civic_ai_refresh_token";
     public static final String REFRESH_TOKEN_PATH = "/api/v1/auth";
+    public static final String PWA_REFRESH_TOKEN_COOKIE = "civic_ai_pwa_refresh_token";
+    public static final String PWA_REFRESH_TOKEN_PATH = "/api/v1/auth/pwa";
 
     private final boolean secure;
 
@@ -35,6 +37,11 @@ public final class AuthCookieFactory {
                 base(REFRESH_TOKEN_COOKIE, token, "Lax", REFRESH_TOKEN_PATH), expiresAt);
     }
 
+    public String pwaRefreshToken(String token, Instant expiresAt) {
+        return expiringCookie(
+                base(PWA_REFRESH_TOKEN_COOKIE, token, "Lax", PWA_REFRESH_TOKEN_PATH), expiresAt);
+    }
+
     public ResponseCookie deleteAuthFlow() {
         return base(AUTH_FLOW_COOKIE, "", "Strict", "/").maxAge(Duration.ZERO).build();
     }
@@ -45,6 +52,11 @@ public final class AuthCookieFactory {
 
     public ResponseCookie deleteRefreshToken() {
         return base(REFRESH_TOKEN_COOKIE, "", "Lax", REFRESH_TOKEN_PATH)
+                .maxAge(Duration.ZERO).build();
+    }
+
+    public ResponseCookie deletePwaRefreshToken() {
+        return base(PWA_REFRESH_TOKEN_COOKIE, "", "Lax", PWA_REFRESH_TOKEN_PATH)
                 .maxAge(Duration.ZERO).build();
     }
 

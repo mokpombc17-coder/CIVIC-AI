@@ -106,11 +106,18 @@ Vote 과업 기반 시뮬레이션 관리자는 `VOTE_ADMIN`과 `SIMULATION_ADMI
 | --- | --- | --- | --- | --- |
 | `civic_ai_access_token` | `/` | `Lax` | JWT `exp`와 동일 | Bearer 접두사 없는 JWT 원문 |
 | `civic_ai_refresh_token` | `/api/v1/auth` | `Lax` | 개별 토큰 발급 후 최대 7일 | 불투명 토큰 |
+| `civic_ai_pwa_refresh_token` | `/api/v1/auth/pwa` | `Lax` | 마지막 사용 후 90일 | PWA 전용 불투명 토큰 |
 | `__Host-civic-auth-flow` | `/` | `Strict` | 10분 | 2FA 등 단기 인증 flow ID |
 
 운영의 모든 쿠키는 `HttpOnly`, `Secure`, host-only이며 `Domain` 속성을 지정하지 않는다.
 삭제 응답은 발급 때와 같은 이름·Path로 `Max-Age=0`을 보낸다. Refresh Token family의 전체
 수명은 최초 로그인부터 최대 30일이다.
+
+PWA Refresh 세션은 일반 브라우저 Refresh family와 별도로 저장한다. PWA 토큰을 정상적으로
+회전할 때마다 마지막 사용 시각과 만료 시각을 갱신하며, 계속 사용하는 세션에는 절대 최대
+수명을 적용하지 않는다. PWA 로그인은 제품 정책에 따라 비밀번호 확인 후 2FA challenge를
+생성하지 않는다. PWA 경로는 설치 상태를 증명하는 보안 경계가 아니므로 Frontend가 설치
+모드에서만 이 경로를 호출하는 계약으로 사용한다.
 
 Access 쿠키의 Path가 `/`이므로 같은 공개 origin의 Resource Server 경로에도 전송된다.
 Refresh 쿠키는 `/api/v1/auth` 경로에만 전송된다. 따라서 Browser/Auth와 Resource Server는
@@ -129,6 +136,9 @@ Refresh 쿠키는 `/api/v1/auth` 경로에만 전송된다. 따라서 Browser/Au
 | `POST /api/v1/auth/refresh` | `204`와 회전된 Access/Refresh 쿠키 | Refresh 쿠키 |
 | `POST /api/v1/auth/logout` | `204`, 현재 Refresh family 폐기 및 Access/Refresh 쿠키 삭제 | Refresh 쿠키는 선택 사항 |
 | `POST /api/v1/auth/logout-all` | `204`, 사용자의 모든 Refresh family 폐기 및 Access/Refresh 쿠키 삭제 | Access 쿠키, `X-CSRF-Token` |
+| `POST /api/v1/auth/pwa/login` | `204`와 Access/PWA Refresh 쿠키. 계정의 2FA 설정과 무관하게 비밀번호 확인으로 완료 | JSON `{"email":"...","password":"..."}` |
+| `POST /api/v1/auth/pwa/refresh` | `204`와 회전된 Access/PWA Refresh 쿠키, 만료 시각을 마지막 사용 후 90일로 갱신 | PWA Refresh 쿠키 |
+| `POST /api/v1/auth/pwa/logout` | `204`, 현재 PWA 세션 폐기 및 Access/PWA Refresh 쿠키 삭제 | PWA Refresh 쿠키는 선택 사항 |
 | `PUT /api/v1/account/password` | `204`와 Access/Refresh 쿠키 삭제 | Access 쿠키, `X-CSRF-Token`, JSON `{"current_password":"...","new_password":"..."}` |
 
 `GET /api/v1/auth/me` 응답 필드는 실제 Jackson 설정에 맞춘 `snake_case`다.
@@ -183,6 +193,10 @@ Frontend/BFF의 공통 요청 계층은 다음 순서로 처리한다.
    처리한다.
 6. refresh의 네트워크 오류, `429` 또는 `5xx`는 일시 오류로 표시하고 자동 반복 호출하지
    않는다. refresh의 `400`은 요청 header나 배포 설정 오류로 처리한다.
+
+설치된 PWA의 시작 스플래시는 위 흐름에서 `/api/v1/auth/refresh` 대신
+`/api/v1/auth/pwa/refresh`를 호출한다. PWA 로그인과 로그아웃도 각각 PWA 전용 경로를
+사용하며 일반 브라우저 Refresh Token 계약은 변경하지 않는다.
 
 Access JWT가 바뀌면 JWT `jti`에 묶인 CSRF 값도 바뀐다. 갱신 뒤 Main/Auth 상태 변경
 요청은 `/csrf`를 다시 호출한다. 자동 재시도는 body를 안전하게 재생할 수 있는 요청에만

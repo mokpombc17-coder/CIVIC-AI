@@ -2,6 +2,7 @@ package ai.civic.mainauth.worker;
 
 import ai.civic.mainauth.audit.AuditConsumer;
 import ai.civic.mainauth.auth.AuthenticationFlowService;
+import ai.civic.mainauth.auth.PwaRefreshTokenService;
 import ai.civic.mainauth.auth.RefreshTokenService;
 import ai.civic.mainauth.notification.SignupMailDispatcher;
 import ai.civic.mainauth.privacy.PrivacyCommandDispatcher;
@@ -25,6 +26,7 @@ class WorkerPollerConfiguration {
             AccountStateDispatcher accountState,
             AuthenticationFlowService authentication,
             RefreshTokenService refreshTokens,
+            PwaRefreshTokenService pwaRefreshTokens,
             SignupFlowService signupFlows,
             PrivacyCommandDispatcher privacy,
             PrivacyResultDispatcher privacyResults) {
@@ -36,6 +38,7 @@ class WorkerPollerConfiguration {
                         "opaque-auth-flow-retention",
                         authentication::purgeExpiredOpaqueAuthenticationFlows),
                 new NamedPoller("refresh-token-retention", refreshTokens::purgeExpiredFamilies),
+                new NamedPoller("pwa-refresh-session-retention", pwaRefreshTokens::purgeExpiredSessions),
                 new NamedPoller("signup-flow-retention", signupFlows::purgeExpiredSignupFlows),
                 new NamedPoller("privacy-main", privacy::dispatchMainOne),
                 new NamedPoller("privacy-rag-command", privacy::dispatchRagOne),

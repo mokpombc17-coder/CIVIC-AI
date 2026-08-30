@@ -28,7 +28,7 @@ public class AuthenticationFlowService {
     private static final String CODE_FAILURE = "Authentication code is invalid";
     private final JdbcTemplate jdbc;
     private final AuthenticationIdentityLock identityLocks;
-    private final RefreshTokenService refreshTokens;
+    private final SessionRevocationService sessions;
     private final AuthCredentialHashing credentialHashing;
     private final VerificationCodeProtector codeProtector;
     private final SmtpNotificationService smtp;
@@ -41,18 +41,18 @@ public class AuthenticationFlowService {
     public AuthenticationFlowService(
             JdbcTemplate jdbc,
             AuthenticationIdentityLock identityLocks,
-            RefreshTokenService refreshTokens,
+            SessionRevocationService sessions,
             AuthCredentialHashing credentialHashing,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
             ObjectMapper json) {
-        this(jdbc, identityLocks, refreshTokens, credentialHashing, codeProtector, smtp, json, Clock.systemUTC());
+        this(jdbc, identityLocks, sessions, credentialHashing, codeProtector, smtp, json, Clock.systemUTC());
     }
 
     AuthenticationFlowService(
             JdbcTemplate jdbc,
             AuthenticationIdentityLock identityLocks,
-            RefreshTokenService refreshTokens,
+            SessionRevocationService sessions,
             AuthCredentialHashing credentialHashing,
             VerificationCodeProtector codeProtector,
             SmtpNotificationService smtp,
@@ -60,7 +60,7 @@ public class AuthenticationFlowService {
             Clock clock) {
         this.jdbc = jdbc;
         this.identityLocks = identityLocks;
-        this.refreshTokens = refreshTokens;
+        this.sessions = sessions;
         this.credentialHashing = credentialHashing;
         this.codeProtector = codeProtector;
         this.smtp = smtp;
@@ -70,6 +70,20 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = {AuthenticationException.class, NotificationDeliveryException.class})
     public LoginResult login(String email, String password, String sourceIp) {
+        var account = authenticatePassword(email, password, sourceIp);
+        if (account.twoFactorEnabled()) {
+            var flow = createChallenge(account.id(), normalize(email), "TWO_FACTOR").toString();
+            return new LoginResult(Next.TWO_FACTOR, null, flow, account.role(), account.mustChangePassword());
+        }
+        return authenticated(account);
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public LoginResult loginPwaWithoutSecondFactor(String email, String password, String sourceIp) {
+        return authenticated(authenticatePassword(email, password, sourceIp));
+    }
+
+    private Account authenticatePassword(String email, String password, String sourceIp) {
         var normalized = normalize(email);
         if (isThrottled(normalized, sourceIp)) throw new AuthenticationException(PUBLIC_FAILURE);
         identityLocks.lock(normalized);
@@ -101,11 +115,12 @@ public class AuthenticationFlowService {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
         clearFailures(normalized, sourceIp);
-        if (account.twoFactorEnabled()) {
-            var flow = createChallenge(account.id(), normalized, "TWO_FACTOR").toString();
-            return new LoginResult(Next.TWO_FACTOR, null, flow, account.role(), account.mustChangePassword());
-        }
-        return new LoginResult(Next.AUTHENTICATED, account.id(), null, account.role(), account.mustChangePassword());
+        return account;
+    }
+
+    private LoginResult authenticated(Account account) {
+        return new LoginResult(
+                Next.AUTHENTICATED, account.id(), null, account.role(), account.mustChangePassword());
     }
 
     @Transactional
@@ -126,7 +141,7 @@ public class AuthenticationFlowService {
                 """, passwords.encode(newPassword), userId);
         consumePendingLoginChallenges(userId);
         consumePendingPasswordResetChallenges(userId);
-        refreshTokens.revokeAll(userId, "PASSWORD_CHANGED");
+        sessions.revokeAll(userId, "PASSWORD_CHANGED");
     }
 
     @Transactional(readOnly = true)
@@ -170,7 +185,7 @@ public class AuthenticationFlowService {
                 """, userId);
         consumePendingLoginChallenges(userId);
         consumePendingTwoFactorEnableChallenges(userId);
-        refreshTokens.revokeAll(userId, "TWO_FACTOR_DISABLED");
+        sessions.revokeAll(userId, "TWO_FACTOR_DISABLED");
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
@@ -193,7 +208,7 @@ public class AuthenticationFlowService {
                 """, passwords.encode(newPassword), verified.userId());
         consumePendingLoginChallenges(verified.userId());
         consumePendingPasswordResetChallenges(verified.userId());
-        refreshTokens.revokeAll(verified.userId(), "PASSWORD_RESET");
+        sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
     }
 
     private void consumePendingLoginChallenges(UUID userId) {

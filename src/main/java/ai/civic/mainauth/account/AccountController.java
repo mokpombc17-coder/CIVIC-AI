@@ -84,6 +84,7 @@ public class AccountController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deletePwaRefreshToken().toString())
                 .build();
     }
 
@@ -120,6 +121,7 @@ public class AccountController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deletePwaRefreshToken().toString())
                 .build();
     }
 
@@ -136,6 +138,7 @@ public class AccountController {
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deletePwaRefreshToken().toString())
                 .build();
     }
 

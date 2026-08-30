@@ -46,6 +46,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Autowired AuthenticationFlowService auth;
     @Autowired RefreshTokenService refreshTokens;
+    @Autowired PwaRefreshTokenService pwaRefreshTokens;
     @Autowired AccessCredentialTestFactory credentials;
     @Autowired AuthCredentialHashing credentialHashing;
     @Autowired AuthenticatedUserService authenticatedUsers;
@@ -59,6 +60,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     @BeforeEach
     void createActiveParticipant() {
+        jdbc.update("delete from pwa_refresh_sessions");
         jdbc.update("delete from refresh_tokens");
         jdbc.update("delete from login_throttles");
         jdbc.update("delete from notification_outbox");
@@ -242,6 +244,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     void passwordChangeRevokesEveryExistingRefreshToken() {
         refreshTokens.issue(userId);
         refreshTokens.issue(userId);
+        pwaRefreshTokens.issue(userId);
 
         auth.changePassword(userId, "Valid123!", "Changed123!");
 
@@ -251,6 +254,10 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         assertThat(jdbc.queryForObject(
                 "select count(*) from refresh_tokens where user_id = ? and revocation_reason = 'PASSWORD_CHANGED'",
                 Integer.class, userId)).isEqualTo(2);
+        assertThat(jdbc.queryForObject("""
+                select count(*) from pwa_refresh_sessions
+                where user_id = ? and revocation_reason = 'PASSWORD_CHANGED'
+                """, Integer.class, userId)).isOne();
     }
 
     @Test

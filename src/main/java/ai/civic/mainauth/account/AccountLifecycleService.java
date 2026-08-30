@@ -2,7 +2,7 @@ package ai.civic.mainauth.account;
 
 import ai.civic.mainauth.admin.AdminPolicyException;
 import ai.civic.mainauth.auth.AuthenticationException;
-import ai.civic.mainauth.auth.RefreshTokenService;
+import ai.civic.mainauth.auth.SessionRevocationService;
 import java.util.UUID;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.stereotype.Service;
@@ -12,13 +12,13 @@ import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 @Service
 public class AccountLifecycleService {
     private final JdbcTemplate jdbc;
-    private final RefreshTokenService refreshTokens;
+    private final SessionRevocationService sessions;
     private final Argon2PasswordEncoder passwords =
             Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8();
 
-    public AccountLifecycleService(JdbcTemplate jdbc, RefreshTokenService refreshTokens) {
+    public AccountLifecycleService(JdbcTemplate jdbc, SessionRevocationService sessions) {
         this.jdbc = jdbc;
-        this.refreshTokens = refreshTokens;
+        this.sessions = sessions;
     }
 
     @Transactional
@@ -64,7 +64,7 @@ public class AccountLifecycleService {
                 update auth_challenges set consumed_at = now()
                 where user_id = ? and consumed_at is null
                 """, subjectId);
-        refreshTokens.revokeAll(subjectId, "ACCOUNT_DEACTIVATED");
+        sessions.revokeAll(subjectId, "ACCOUNT_DEACTIVATED");
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)
                 select id, account_state_version, 'DEACTIVATED',

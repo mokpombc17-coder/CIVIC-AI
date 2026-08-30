@@ -20,6 +20,7 @@ public class AuthController {
     private final AuthenticationFlowService authentication;
     private final AuthenticatedUserService authenticatedUsers;
     private final RefreshTokenService refreshTokens;
+    private final SessionRevocationService sessions;
     private final CredentialIssuanceService credentialIssuance;
     private final AuthCookieFactory cookies;
     private final CsrfService csrf;
@@ -31,6 +32,7 @@ public class AuthController {
             AuthenticationFlowService authentication,
             AuthenticatedUserService authenticatedUsers,
             RefreshTokenService refreshTokens,
+            SessionRevocationService sessions,
             CredentialIssuanceService credentialIssuance,
             AuthCookieFactory cookies,
             CsrfService csrf,
@@ -40,6 +42,7 @@ public class AuthController {
         this.authentication = authentication;
         this.authenticatedUsers = authenticatedUsers;
         this.refreshTokens = refreshTokens;
+        this.sessions = sessions;
         this.credentialIssuance = credentialIssuance;
         this.cookies = cookies;
         this.csrf = csrf;
@@ -140,8 +143,8 @@ public class AuthController {
             @RequestHeader("X-CSRF-Token") String csrfToken,
             HttpServletRequest request) {
         var user = requireAuthenticatedMutation(request, accessToken, csrfToken);
-        refreshTokens.revokeAll(user.userId(), "LOGOUT_ALL");
-        return clearedCredentials();
+        sessions.revokeAll(user.userId(), "LOGOUT_ALL");
+        return clearedAllCredentials();
     }
 
     @PostMapping("/password-reset/request")
@@ -165,6 +168,7 @@ public class AuthController {
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deletePwaRefreshToken().toString())
                 .build();
     }
 
@@ -222,6 +226,14 @@ public class AuthController {
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .build();
+    }
+
+    private ResponseEntity<Void> clearedAllCredentials() {
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteRefreshToken().toString())
+                .header(HttpHeaders.SET_COOKIE, cookies.deletePwaRefreshToken().toString())
                 .build();
     }
 

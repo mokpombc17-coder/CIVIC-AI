@@ -27,6 +27,11 @@ class ControllerSurfaceTest {
         assertThat(auth).doesNotContain(
                 "@GetMapping(\"/session\")", "@PostMapping(\"/access-token\")",
                 "SessionService", "SessionCookieFactory");
+        var pwa = source("auth/PwaAuthController.java");
+        assertThat(pwa).contains(
+                "/api/v1/auth/pwa", "@PostMapping(\"/login\")",
+                "@PostMapping(\"/refresh\")", "@PostMapping(\"/logout\")",
+                "loginPwaWithoutSecondFactor", "PWA_REFRESH_TOKEN_COOKIE");
         assertThat(Files.exists(Path.of(
                 "src/main/java/ai/civic/mainauth/token/InternalTokenController.java"))).isFalse();
 
