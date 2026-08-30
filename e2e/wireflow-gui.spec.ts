@@ -1187,7 +1187,12 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(ragContent.getByText("궁금한 정보를 질문하세요.")).toBeVisible();
   await ragContent.getByRole("button", { name: "안내 닫기" }).click();
   await expect(ragContent.getByText("궁금한 정보를 질문하세요.")).toHaveCount(0);
-  await expect(ragContent.getByRole("button", { name: "새 질문" })).toBeVisible();
+  const newQuestionAction = page.getByRole("button", { name: "새 질문" });
+  await expect(newQuestionAction).toBeVisible();
+  await expect(ragContent.getByRole("button", { name: "새 질문" })).toHaveCount(0);
+  await expect(newQuestionAction).toHaveCSS("border-radius", "50%");
+  await expect(newQuestionAction).toHaveCSS("width", "44px");
+  await expect(newQuestionAction).toHaveCSS("height", "44px");
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(shell).toHaveCount(1);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"] .wf-screen-heading')).toBeHidden();

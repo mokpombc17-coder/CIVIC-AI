@@ -7,6 +7,7 @@ import { PlatformNavigation } from "@/components/platform-shell";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-frame";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
+import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import { getScreenByRoute, type ScreenDefinition } from "@/lib/screens/registry";
 
 /** 로그인·이동 직후 데이터가 준비되기 전까지 보여 주는 화면 골격. */
@@ -57,6 +58,9 @@ export function ParticipantLoadingView({ pathname }: Readonly<{ pathname: string
           : {})}
       bottomNavigation={authRoute ? null : <PlatformNavigation currentPathname={pathname} />}
       {...(authRoute ? {} : { contentClassName: "civic-platform-participant-content" })}
+      {...(screen.id === "U-RAG-001"
+        ? { headerActions: <RagNewQuestionHeaderAction disabled /> }
+        : {})}
       title={
         screen.id === "U-HOME-001" ? (
           <span className="civic-brand-title">CIVIC.AI</span>
@@ -174,21 +178,6 @@ function RagConversationLoadingSurface() {
             </svg>
           </span>
         </div>
-        <button
-          aria-label="새 질문"
-          className="civic-icon-action civic-rag-new-question-action"
-          disabled
-          type="button"
-        >
-          <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
-            <path
-              d="M10 4v12M4 10h12"
-              stroke="currentColor"
-              strokeLinecap="round"
-              strokeWidth="1.8"
-            />
-          </svg>
-        </button>
       </header>
       <div aria-hidden="true" className="civic-rag-messages civic-loading-rag-messages">
         <SkeletonBlock className="civic-skeleton-chat-question" />

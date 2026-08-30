@@ -10,6 +10,7 @@ import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
+import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -346,6 +347,12 @@ function RagConversation({
     [],
   );
 
+  useEffect(() => {
+    const openNewQuestionDialog = () => setNewQuestionDialogOpen(true);
+    window.addEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+    return () => window.removeEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+  }, []);
+
   function preserveDraftForLogin(): void {
     if (!userId) return;
     const storage = browserRagConversationStorage();
@@ -443,8 +450,8 @@ function RagConversation({
   return (
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
-        <header className="civic-rag-session-bar">
-          {introVisible ? (
+        {introVisible ? (
+          <header className="civic-rag-session-bar">
             <div className="civic-rag-intro-banner">
               <p className="civic-rag-intro">
                 궁금한 정보를 질문하세요.
@@ -461,19 +468,8 @@ function RagConversation({
                 <CloseIcon />
               </button>
             </div>
-          ) : null}
-          <button
-            aria-expanded={newQuestionDialogOpen}
-            aria-haspopup="dialog"
-            aria-label="새 질문"
-            className="civic-icon-action civic-rag-new-question-action"
-            onClick={() => setNewQuestionDialogOpen(true)}
-            title="새 질문"
-            type="button"
-          >
-            <PlusIcon />
-          </button>
-        </header>
+          </header>
+        ) : null}
         <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
@@ -657,9 +653,6 @@ function ConversationBackdrop() {
             <CloseIcon />
           </span>
         </div>
-        <span aria-hidden="true" className="civic-icon-action civic-rag-new-question-action">
-          <PlusIcon />
-        </span>
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
@@ -679,14 +672,6 @@ function CloseIcon() {
         strokeLinecap="round"
         strokeWidth="1.8"
       />
-    </svg>
-  );
-}
-
-function PlusIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
-      <path d="M10 4v12M4 10h12" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
     </svg>
   );
 }

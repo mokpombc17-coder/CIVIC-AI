@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 import { RagFunctionalScreen } from "@/components/rag/rag-functional-screen";
+import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import {
   automaticRagRetryIdempotencyKey,
   DocumentInspector,
@@ -2430,6 +2431,7 @@ describe("9 functional RAG screens", () => {
     const participantHtml = renderToStaticMarkup(
       createElement(RagFunctionalScreen, { screen: participant }),
     );
+    const headerActionHtml = renderToStaticMarkup(createElement(RagNewQuestionHeaderAction));
     const adminHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: admin }));
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
@@ -2437,9 +2439,11 @@ describe("9 functional RAG screens", () => {
     expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
     expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
     expect(participantHtml).toContain('aria-label="안내 닫기"');
-    expect(participantHtml).toContain('aria-label="새 질문"');
-    expect(participantHtml).toContain('aria-haspopup="dialog"');
-    expect(participantHtml).not.toContain(">새 질문</button>");
+    expect(participantHtml).not.toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-haspopup="dialog"');
+    expect(headerActionHtml).toContain('class="civic-rag-header-new-question-action"');
+    expect(headerActionHtml).not.toContain(">새 질문</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');

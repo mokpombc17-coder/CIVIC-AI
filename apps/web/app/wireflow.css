@@ -6325,9 +6325,45 @@ body {
   min-height: 48px;
   height: 48px;
   flex: none;
-  gap: 12px;
   border: 0;
   padding: 0;
+}
+
+.civic-rag-header-new-question-action {
+  display: inline-flex;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--platform-shell-color-text);
+  cursor: pointer;
+  padding: 0;
+  transition: background-color 150ms ease;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.civic-rag-header-new-question-action:hover {
+  background: #edf2ff;
+}
+
+.civic-rag-header-new-question-action:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: 2px;
+}
+
+.civic-rag-header-new-question-action:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+
+.civic-rag-header-new-question-action svg {
+  display: block;
+  width: 24px;
+  height: 24px;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro {
@@ -6357,8 +6393,7 @@ body {
   flex: 1 1 auto;
 }
 
-[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss,
-[data-wireflow-screen="U-RAG-001"] .civic-rag-new-question-action {
+[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss {
   display: inline-grid;
   flex: none;
   place-items: center;
@@ -6380,32 +6415,13 @@ body {
   color: #252a31;
 }
 
-[data-wireflow-screen="U-RAG-001"] .civic-rag-new-question-action {
-  width: 48px;
-  min-width: 48px;
-  min-height: 48px;
-  height: 48px;
-  border: 1px solid var(--platform-shell-color-primary);
-  border-radius: 6px;
-  background: #edf2ff;
-  color: var(--platform-shell-color-primary-emphasis);
-  margin-left: auto;
-  padding: 12px;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-new-question-action:hover {
-  background: #dfe8ff;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss svg,
-[data-wireflow-screen="U-RAG-001"] .civic-rag-new-question-action svg {
+[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss svg {
   display: block;
   width: 20px;
   height: 20px;
 }
 
-[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss:focus-visible,
-[data-wireflow-screen="U-RAG-001"] .civic-rag-new-question-action:focus-visible {
+[data-wireflow-screen="U-RAG-001"] .civic-rag-intro-dismiss:focus-visible {
   outline: 3px solid #8eb4ff;
   outline-offset: 2px;
 }

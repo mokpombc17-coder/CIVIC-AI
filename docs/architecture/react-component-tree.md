@@ -62,8 +62,9 @@ ParticipantCatchAllPage [Server Route]
 │   └── ParticipantShell
 │       └── PlatformPageShell
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
+│               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
 │               └── RagFunctionalScreen
-│                   └── ParticipantRagScreen
+│                   └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── ParticipantShell
@@ -242,6 +243,8 @@ Vote 조회 장애는 인증 성공 자체를 되돌리지 않고 기본 참여�
 RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 nginx에서 RAG Resource
 Server로 직접 연결하며 provider API key나 JWT payload를 Client Component에 전달하지 않는다. 참여자 RAG 화면은
 같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
+`RagNewQuestionHeaderAction`은 `ParticipantShell`의 header action slot에 렌더링하고, 요청 event만
+`ParticipantRagScreen`에 전달한다. 대화 초기화와 확인 dialog 상태는 RAG client container가 계속 소유한다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능
