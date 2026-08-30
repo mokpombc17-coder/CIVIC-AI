@@ -1,0 +1,42 @@
+.layout {
+  display: grid;
+  gap: 1rem;
+  color: #1e2124;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.25rem;
+  overflow-x: auto;
+  border-bottom: 1px solid #cdd1d5;
+}
+
+.tabs a {
+  position: relative;
+  flex: 0 0 auto;
+  color: #58616a;
+  padding: 0.8rem 1rem;
+  font-size: 0.9rem;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.tabs a[aria-current="page"] {
+  color: #063a74;
+}
+
+.tabs a[aria-current="page"]::after {
+  position: absolute;
+  right: 0.75rem;
+  bottom: -1px;
+  left: 0.75rem;
+  height: 3px;
+  border-radius: 3px 3px 0 0;
+  background: #256ef4;
+  content: "";
+}
+
+.tabs a:focus-visible {
+  outline: 3px solid #d9f553;
+  outline-offset: 2px;
+}

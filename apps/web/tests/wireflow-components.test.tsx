@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { Route } from "next";
 import { describe, expect, it } from "vitest";
 import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
@@ -88,6 +89,20 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
+  it("채팅 관리자 사이드바를 단일 채팅 운영 메뉴로 제공한다", () => {
+    const html = renderToStaticMarkup(
+      <AdminShell activeRoute="/admin/chat/requests" permissions={["CHAT_ADMIN"]} role="ADMIN">
+        <p>content</p>
+      </AdminShell>,
+    );
+
+    expect(html).toContain('aria-current="page"');
+    expect(html).toContain('href="/admin/chat"');
+    expect(html).toContain(">채팅 운영<");
+    expect(html).not.toContain(">채팅 신청<");
+    expect(html).not.toContain(">채팅 카테고리<");
+  });
+
   it("채팅방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
     const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
     if (!requestList) throw new Error("A-CHAT-004 missing");
@@ -97,10 +112,23 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">승인 대기</button>");
     expect(html).toContain(">승인</button>");
     expect(html).toContain(">반려</button>");
+    expect(html).toContain('aria-label="채팅 운영 메뉴"');
+    expect(html).toContain('href="/admin/chat/categories"');
     expect(html).not.toContain(">취소</button>");
     expect(html).not.toContain("공개·참여 방식");
     expect(html).not.toContain("목록 공개");
     expect(html).not.toContain("바로 참여");
+  });
+
+  it("카테고리 화면도 통합 채팅 운영 메뉴를 사용한다", () => {
+    const categoryScreen = screenRegistry.find((screen) => screen.id === "A-CHAT-007");
+    if (!categoryScreen) throw new Error("A-CHAT-007 missing");
+
+    const html = renderToStaticMarkup(<AdminRoomCategoryScreen screen={categoryScreen} />);
+
+    expect(html).toContain('aria-label="채팅 운영 메뉴"');
+    expect(html).toContain('href="/admin/chat/requests"');
+    expect(html).toContain('aria-current="page" href="/admin/chat/categories"');
   });
 
   it("과업 생성 CTA를 목록 제목 우측에 두고 검색·필터 툴바와 분리한다", () => {

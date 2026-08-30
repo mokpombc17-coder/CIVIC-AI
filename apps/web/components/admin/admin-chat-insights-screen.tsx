@@ -1,7 +1,5 @@
 "use client";
 
-import Link from "next/link";
-import type { Route } from "next";
 import {
   useCallback,
   useEffect,
@@ -11,6 +9,10 @@ import {
   type CSSProperties,
   type FormEvent,
 } from "react";
+import {
+  AdminChatOperationsLayout,
+  type AdminChatSection,
+} from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -34,13 +36,6 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
 type ViewMode = "rooms" | "detail" | "statistics" | "export";
-
-const navigation: readonly Readonly<{ href: Route; label: string; mode: ViewMode }>[] = [
-  { href: "/admin/chat" as Route, label: "채팅방", mode: "rooms" },
-  { href: "/admin/chat/detail" as Route, label: "상세", mode: "detail" },
-  { href: "/admin/chat/statistics" as Route, label: "통계", mode: "statistics" },
-  { href: "/admin/chat/export" as Route, label: "Export", mode: "export" },
-];
 
 export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const mode = viewMode(screen.id);
@@ -293,19 +288,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
 
   return (
     <ScreenFrame screen={screen} title={screenTitle(mode)}>
-      <div className={styles.page}>
-        <nav aria-label="채팅 운영 메뉴" className={styles.tabs}>
-          {navigation.map((item) => (
-            <Link
-              aria-current={item.mode === mode ? "page" : undefined}
-              href={item.href}
-              key={item.mode}
-            >
-              {item.label}
-            </Link>
-          ))}
-        </nav>
-
+      <AdminChatOperationsLayout active={navigationSection(mode)}>
         <section className={styles.intro}>
           <div>
             <span>ROOM OPERATIONS · EXPORT V1</span>
@@ -436,7 +419,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
             )}
           </section>
         </div>
-      </div>
+      </AdminChatOperationsLayout>
       <ConfirmDialog
         busy={closingRoom}
         busyLabel="종료 중…"
@@ -559,7 +542,7 @@ function AnalysisResult({
           ))}
         </ul>
       ) : null}
-      {mode === "statistics" ? <Statistics metrics={analysis.metrics} /> : null}
+      {mode === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
       {mode === "export" ? (
         <ExportFiles analysis={analysis} archiveReady={archiveReady} onDownload={onDownload} />
       ) : null}
@@ -632,7 +615,9 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
   );
 }
 
-function Statistics({ metrics }: Readonly<{ metrics: ConversationExportMetrics }>) {
+export function ChatStatisticsSummary({
+  metrics,
+}: Readonly<{ metrics: ConversationExportMetrics }>) {
   return (
     <>
       <section aria-label="채팅 통계" className={styles.kpis}>
@@ -650,60 +635,7 @@ function Statistics({ metrics }: Readonly<{ metrics: ConversationExportMetrics }
           tone="danger"
         />
       </section>
-      <section className={styles.eventStrip}>
-        <strong>변경 이벤트</strong>
-        <span>생성 {metrics.events.created}건</span>
-        <span>수정 {metrics.events.updated}건</span>
-        <span>삭제 {metrics.events.deleted}건</span>
-      </section>
-      <div className={styles.chartGrid}>
-        <BarChart buckets={metrics.daily} title="일자별 메시지" />
-        <BarChart buckets={metrics.hourly} title="시간대별 메시지" />
-        <BarChart
-          buckets={metrics.authors.map((author) => ({
-            key: author.label,
-            label: author.label,
-            count: author.count,
-          }))}
-          title="사용자별 메시지"
-        />
-        <SentimentCard metrics={metrics} />
-      </div>
-      <div className={styles.analysisGrid}>
-        <section>
-          <header>
-            <span>KEYWORDS</span>
-            <h3>자주 등장한 표현</h3>
-          </header>
-          <div className={styles.keywordCloud}>
-            {metrics.keywords.map((keyword) => (
-              <span key={keyword.term}>
-                {keyword.term} <b>{keyword.count}</b>
-              </span>
-            ))}
-            {metrics.keywords.length === 0 ? <p>분석할 잔존 본문이 없습니다.</p> : null}
-          </div>
-        </section>
-        <section>
-          <header>
-            <span>TOPICS</span>
-            <h3>규칙 기반 주제 묶음</h3>
-          </header>
-          <ul className={styles.topicList}>
-            {metrics.topics.map((topic) => (
-              <li key={topic.label}>
-                <span>{topic.label}</span>
-                <strong>{topic.count}건</strong>
-              </li>
-            ))}
-            {metrics.topics.length === 0 ? <li>분류된 주제가 없습니다.</li> : null}
-          </ul>
-        </section>
-      </div>
-      <p className={styles.analysisNote}>
-        키워드·감성·주제는 삭제되지 않은 종료 시점 본문에 적용한 규칙 기반 참고치입니다. 정책
-        판단이나 자동 제재 근거로 사용하지 마세요.
-      </p>
+      <BarChart buckets={metrics.daily} title="일자별 메시지 추이" />
     </>
   );
 }
@@ -760,15 +692,6 @@ function ExportFiles({
       </dl>
     </section>
   );
-}
-
-function SentimentCard({ metrics }: Readonly<{ metrics: ConversationExportMetrics }>) {
-  const buckets: readonly ConversationMetricBucket[] = [
-    { key: "positive", label: "긍정 표현 우세", count: metrics.sentiment.positive },
-    { key: "neutral", label: "중립·혼합", count: metrics.sentiment.neutral },
-    { key: "negative", label: "부정 표현 우세", count: metrics.sentiment.negative },
-  ];
-  return <BarChart buckets={buckets} title="감성 표현 참고치" />;
 }
 
 function BarChart({
@@ -834,11 +757,15 @@ function viewMode(screenId: string): ViewMode {
   return "rooms";
 }
 
+function navigationSection(mode: ViewMode): AdminChatSection {
+  return mode === "detail" ? "rooms" : mode;
+}
+
 function screenTitle(mode: ViewMode): string {
   if (mode === "detail") return "채팅방 상세";
   if (mode === "statistics") return "채팅 통계";
   if (mode === "export") return "대화 Export";
-  return "채팅방 운영";
+  return "채팅 운영";
 }
 
 function defaultLocalRange(): Readonly<{ from: string; to: string }> {

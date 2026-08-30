@@ -1,41 +1,3 @@
-.page {
-  display: grid;
-  gap: 1rem;
-  color: #1e2124;
-}
-
-.tabs {
-  display: flex;
-  gap: 0.25rem;
-  overflow-x: auto;
-  border-bottom: 1px solid #cdd1d5;
-}
-
-.tabs a {
-  position: relative;
-  flex: 0 0 auto;
-  color: #58616a;
-  padding: 0.8rem 1rem;
-  font-size: 0.9rem;
-  font-weight: 700;
-  text-decoration: none;
-}
-
-.tabs a[aria-current="page"] {
-  color: #063a74;
-}
-
-.tabs a[aria-current="page"]::after {
-  position: absolute;
-  right: 0.75rem;
-  bottom: -1px;
-  left: 0.75rem;
-  height: 3px;
-  border-radius: 3px 3px 0 0;
-  background: #256ef4;
-  content: "";
-}
-
 .intro {
   display: grid;
   grid-template-columns: minmax(0, 1.3fr) minmax(15rem, 0.7fr);
@@ -54,7 +16,6 @@
 .snapshot > div > span,
 .conversation header span,
 .barCard header span,
-.analysisGrid header span,
 .exportCard header span {
   display: block;
   color: #bcd2ff;
@@ -91,7 +52,6 @@
 .snapshot,
 .conversation,
 .barCard,
-.analysisGrid > section,
 .exportCard {
   border: 1px solid #cdd1d5;
   border-radius: 0.65rem;
@@ -532,35 +492,12 @@
   color: #a63225;
 }
 
-.eventStrip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.6rem;
-  align-items: center;
-  border-radius: 0.5rem;
-  background: #063a74;
-  color: #fff;
-  padding: 0.75rem 1rem;
-}
-
-.eventStrip strong {
-  margin-right: auto;
-}
-
-.eventStrip span {
-  border: 1px solid rgb(255 255 255 / 25%);
-  border-radius: 99rem;
-  padding: 0.3rem 0.55rem;
-  font-size: 0.78rem;
-}
-
 .conversation {
   padding: 1rem;
 }
 
 .conversation > header,
 .barCard header,
-.analysisGrid header,
 .exportCard > header {
   display: flex;
   justify-content: space-between;
@@ -571,14 +508,12 @@
 
 .conversation header span,
 .barCard header span,
-.analysisGrid header span,
 .exportCard header span {
   color: #256ef4;
 }
 
 .conversation h3,
 .barCard h3,
-.analysisGrid h3,
 .exportCard h3 {
   margin: 0.25rem 0 0;
   font-size: 1rem;
@@ -640,15 +575,7 @@
   text-decoration: line-through;
 }
 
-.chartGrid,
-.analysisGrid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.75rem;
-}
-
 .barCard,
-.analysisGrid > section,
 .exportCard {
   min-width: 0;
   padding: 1rem;
@@ -687,57 +614,17 @@
   background: linear-gradient(90deg, #256ef4, #8ed8f0);
 }
 
-.barCard > p,
-.keywordCloud > p {
+.barCard > p {
   color: #58616a;
   font-size: 0.82rem;
 }
 
-.keywordCloud {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.keywordCloud span {
-  border: 1px solid #a9bddb;
-  border-radius: 99rem;
-  background: #f4f7fc;
-  color: #063a74;
-  padding: 0.4rem 0.65rem;
-  font-size: 0.8rem;
-}
-
-.keywordCloud b {
-  margin-left: 0.2rem;
-  color: #256ef4;
-}
-
-.topicList,
 .exportCard ul {
   display: grid;
   gap: 0.45rem;
   margin: 0;
   padding: 0;
   list-style: none;
-}
-
-.topicList li {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  border-bottom: 1px solid #e6e8eb;
-  padding: 0.45rem 0;
-  font-size: 0.83rem;
-}
-
-.analysisNote {
-  margin: 0;
-  border-left: 3px solid #8a949e;
-  color: #58616a;
-  padding: 0.65rem 0.8rem;
-  font-size: 0.78rem;
-  line-height: 1.55;
 }
 
 .exportCard > header button {
@@ -778,8 +665,7 @@
 .roomButton:focus-visible,
 .closeRoomButton:focus-visible,
 .rangeFields button:focus-visible,
-.exportCard button:focus-visible,
-.tabs a:focus-visible {
+.exportCard button:focus-visible {
   outline: 3px solid #d9f553;
   outline-offset: 2px;
 }
@@ -807,9 +693,7 @@
 
 @media (max-width: 720px) {
   .intro,
-  .snapshot,
-  .chartGrid,
-  .analysisGrid {
+  .snapshot {
     grid-template-columns: 1fr;
   }
 
