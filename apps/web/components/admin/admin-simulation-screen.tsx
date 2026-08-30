@@ -1109,6 +1109,7 @@ function useSimulationResult(simulationId: string | null) {
   const [result, setResult] = useState<SimulationResult | null>(null);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(Boolean(simulationId));
+  const [settledSimulationId, setSettledSimulationId] = useState<string | null>(null);
   useEffect(() => {
     if (!simulationId) return;
     let disposed = false;
@@ -1123,11 +1124,17 @@ function useSimulationResult(simulationId: string | null) {
           if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
           const next = readSimulationResult(await response.json());
           if (!next) throw new Error("서버의 집계 결과 응답 형식을 확인해야 합니다.");
-          if (!disposed) setResult(next);
+          if (!disposed) {
+            setResult(next);
+            setSettledSimulationId(simulationId);
+          }
         })
         .catch((error: unknown) => {
-          if (!disposed)
+          if (!disposed) {
+            setResult(null);
             setMessage(error instanceof Error ? error.message : "집계 결과를 불러오지 못했습니다.");
+            setSettledSimulationId(simulationId);
+          }
         })
         .finally(() => {
           if (!disposed) setLoading(false);
@@ -1138,7 +1145,12 @@ function useSimulationResult(simulationId: string | null) {
       window.clearTimeout(timer);
     };
   }, [simulationId]);
-  return { loading, message, result };
+  const currentSettled = settledSimulationId === simulationId;
+  return {
+    loading: Boolean(simulationId && (loading || !currentSettled)),
+    message: currentSettled ? message : "",
+    result: currentSettled ? result : null,
+  };
 }
 
 function useSimulationResultComparisons(
@@ -1161,17 +1173,16 @@ function useSimulationResultComparisons(
       : null;
   const [state, setState] = useState<{
     comparisons: readonly SimulationResultComparison[];
+    message: string;
     signature: string;
   } | null>(null);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [loadingSignature, setLoadingSignature] = useState<string | null>(null);
 
   useEffect(() => {
     if (!simulationId || !signature || values.length === 0) return;
     let disposed = false;
     const timer = window.setTimeout(() => {
-      setLoading(true);
-      setMessage("");
+      setLoadingSignature(signature);
       void Promise.allSettled(
         values.map(async (value): Promise<SimulationResultComparison> => {
           const search = new URLSearchParams();
@@ -1191,13 +1202,15 @@ function useSimulationResultComparisons(
           item.status === "fulfilled" ? [item.value] : [],
         );
         const failureCount = settled.length - comparisons.length;
-        setState({ comparisons, signature });
-        setMessage(
-          failureCount > 0
-            ? `${failureCount.toLocaleString("ko-KR")}개 집단의 비교 결과를 불러오지 못했습니다.`
-            : "",
-        );
-        setLoading(false);
+        setState({
+          comparisons,
+          message:
+            failureCount > 0
+              ? `${failureCount.toLocaleString("ko-KR")}개 집단의 비교 결과를 불러오지 못했습니다.`
+              : "",
+          signature,
+        });
+        setLoadingSignature(null);
       });
     }, 0);
     return () => {
@@ -1208,8 +1221,10 @@ function useSimulationResultComparisons(
 
   return {
     comparisons: state?.signature === signature ? state.comparisons : [],
-    loading: Boolean(signature && (loading || state?.signature !== signature)),
-    message,
+    loading: Boolean(
+      signature && (loadingSignature === signature || state?.signature !== signature),
+    ),
+    message: state?.signature === signature ? state.message : "",
   };
 }
 
