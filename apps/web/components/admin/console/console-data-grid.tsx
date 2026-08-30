@@ -10,6 +10,7 @@ import {
   type GetRowIdParams,
   type RowClickedEvent,
 } from "ag-grid-community";
+import { useStyleNonce } from "./style-nonce-context";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
@@ -60,6 +61,7 @@ export function ConsoleDataGrid<T>({
   // rendering (and renderToStaticMarkup in unit tests) gets a plain fallback.
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
+  const styleNonce = useStyleNonce();
 
   const defaultColDef = useMemo<ColDef<T>>(
     () => ({
@@ -101,6 +103,7 @@ export function ConsoleDataGrid<T>({
         rowHeight={44}
         suppressCellFocus
         theme={consoleGridTheme}
+        {...(styleNonce ? { styleNonce } : {})}
         {...gridProps}
       />
     </div>

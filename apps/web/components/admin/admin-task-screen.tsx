@@ -434,7 +434,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
         </label>
         <label className="civic-field">
-          <span>관리자 설명</span>
+          <span>상황 또는 사건</span>
           <textarea
             disabled={pending}
             onChange={(event) => setDescription(event.currentTarget.value)}
@@ -458,15 +458,6 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <FieldError
             id="task-question-error"
             message={adminFieldError(problem, "question.content")}
-          />
-        </label>
-        <label className="civic-field">
-          <span>질문 설명</span>
-          <textarea
-            disabled={pending}
-            onChange={(event) => setQuestionDescription(event.currentTarget.value)}
-            rows={3}
-            value={questionDescription}
           />
         </label>
       </section>

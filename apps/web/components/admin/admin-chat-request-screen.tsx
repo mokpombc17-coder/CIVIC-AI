@@ -308,11 +308,7 @@ export function AdminChatRequestScreen({
   }
 
   return (
-    <ScreenFrame
-      {...(detailScreen ? { backHref: "/admin/chat/requests" as Route } : {})}
-      screen={screen}
-      title={detailScreen ? "토론방 생성 요청 검토" : "토론방 생성 요청"}
-    >
+    <ScreenFrame screen={screen}>
       <AdminChatOperationsLayout>
         <ConsoleWorkspace layout="admin-chat-request-console">
           <ConsolePane

@@ -318,3 +318,64 @@
 .console-status.is-error {
   color: var(--wf-danger);
 }
+
+/* ---- Internal scrolling: long panes scroll themselves, not the page ---- */
+
+@media (min-width: 1101px) {
+  .console-workspace:not(.is-single) > .console-pane {
+    max-height: calc(100vh - 150px);
+  }
+
+  .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
+    overflow-y: auto;
+    min-height: 0;
+  }
+}
+
+/* ---- RAG document table: uniform row height, quiet version cell ---- */
+
+[data-wireflow-layout="rag-workspace"] .civic-table-scroll {
+  max-height: calc(100vh - 320px);
+  overflow-y: auto;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-document-ledger table td {
+  vertical-align: middle;
+  height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy strong,
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.civic-version-single {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 999px;
+  color: var(--wf-muted);
+  font-size: 11px;
+  font-weight: 600;
+}

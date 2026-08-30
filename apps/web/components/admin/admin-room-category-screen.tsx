@@ -367,7 +367,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   }
 
   return (
-    <ScreenFrame screen={screen} title="토론방 카테고리 관리">
+    <ScreenFrame screen={screen}>
       <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"

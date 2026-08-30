@@ -568,3 +568,308 @@
     flex-direction: column;
   }
 }
+
+/* Consolidated workspace layout — restored from the pre-merge console rework;
+   the drawer-era rewrite removed these classes but the split-view screen still uses them. */
+
+.intro span,
+.roomPanel header span,
+.snapshot > div > span,
+.conversation header span,
+.barCard header span {
+  display: block;
+  color: #bcd2ff;
+  font-size: 0.7rem;
+  font-weight: 850;
+  letter-spacing: 0.12em;
+}
+
+.workspace {
+  display: grid;
+  grid-template-columns: minmax(15rem, 17rem) minmax(0, 1fr);
+  gap: 1rem;
+  align-items: start;
+}
+
+.roomPanel,
+.analysisPanel,
+.rangeForm,
+.snapshot,
+.conversation,
+.barCard {
+  border: 1px solid #cdd1d5;
+  border-radius: 0.65rem;
+  background: #fff;
+}
+
+.roomPanel {
+  position: sticky;
+  top: 1rem;
+  display: grid;
+  gap: 0.85rem;
+  max-height: calc(100dvh - 2rem);
+  padding: 1rem;
+}
+
+.roomPanel header {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.roomPanel header span {
+  color: #256ef4;
+}
+
+.roomPanel header strong {
+  font-size: 1.05rem;
+}
+
+.search {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.4rem;
+}
+
+.queryField {
+  grid-column: 1 / -1;
+}
+
+.statusField {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 0.45rem;
+  align-items: center;
+  color: #58616a;
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+.search input,
+.search select,
+.rangeFields input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid #8a949e;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: #1e2124;
+  padding: 0.6rem 0.7rem;
+}
+
+.search button,
+.moreButton,
+.downloadButton {
+  min-height: 2.65rem;
+  border: 0;
+  border-radius: 0.4rem;
+  background: #063a74;
+  color: #fff;
+  padding: 0.65rem 0.85rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.roomList {
+  display: grid;
+  gap: 0.4rem;
+  overflow-y: auto;
+  padding-right: 0.15rem;
+}
+
+.roomList > p {
+  margin: 0;
+  color: #58616a;
+  font-size: 0.85rem;
+  line-height: 1.6;
+}
+
+.roomButton {
+  display: grid;
+  gap: 0.25rem;
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 0.45rem;
+  background: #f4f5f6;
+  color: #1e2124;
+  padding: 0.75rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+.roomButton:hover {
+  border-color: #8baef7;
+}
+
+.roomButton[aria-pressed="true"] {
+  border-color: #256ef4;
+  background: #edf3ff;
+  box-shadow: inset 3px 0 #256ef4;
+}
+
+.roomButton strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.roomButton span {
+  color: #58616a;
+  font-size: 0.78rem;
+}
+
+.roomButton .roomTitle {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.55rem;
+  align-items: center;
+}
+
+.roomTitle strong {
+  min-width: 0;
+}
+
+.roomTitle b {
+  flex: 0 0 auto;
+  border-radius: 99rem;
+  background: #dff7e4;
+  color: #166534;
+  padding: 0.18rem 0.42rem;
+  font-size: 0.65rem;
+}
+
+.roomTitle b[data-status="CLOSED"] {
+  background: #e6e8eb;
+  color: #58616a;
+}
+
+.moreButton {
+  border: 1px solid #8a949e;
+  background: #fff;
+  color: #063a74;
+}
+
+.periodPicker button:disabled,
+.search button:disabled,
+.moreButton:disabled,
+.closeRoomButton:disabled,
+.downloadButton:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.kpis .dangerMetric {
+  border-top-color: #df563e;
+}
+
+.kpis .dangerMetric strong {
+  color: #a63225;
+}
+
+.conversation {
+  padding: 1rem;
+}
+
+.conversation > header,
+.barCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.conversation header span,
+.barCard header span {
+  color: #256ef4;
+}
+
+.conversation h3,
+.barCard h3 {
+  margin: 0.25rem 0 0;
+  font-size: 1rem;
+}
+
+.conversation header small {
+  color: #58616a;
+}
+
+.conversation ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation li {
+  border-left: 3px solid #8baef7;
+  background: #f4f7fc;
+  padding: 0.75rem 0.85rem;
+}
+
+.conversation li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.conversation time {
+  color: #58616a;
+  font-size: 0.72rem;
+}
+
+.conversation li > div > span {
+  border-radius: 99rem;
+  background: #fff2f0;
+  color: #a63225;
+  padding: 0.15rem 0.45rem;
+  font-size: 0.68rem;
+  font-weight: 750;
+}
+
+.conversation li p {
+  margin: 0.45rem 0 0;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.conversation .deletedMessage {
+  border-left-color: #df563e;
+  background: #fff8f7;
+}
+
+.deletedMessage p {
+  color: #58616a;
+  text-decoration: line-through;
+}
+
+.search input:focus-visible,
+.search select:focus-visible,
+.rangeFields input:focus-visible,
+.search button:focus-visible,
+.moreButton:focus-visible,
+.roomButton:focus-visible,
+.closeRoomButton:focus-visible,
+.periodPicker button:focus-visible,
+.downloadButton:focus-visible,
+.roomSettings summary:focus-visible {
+  outline: 3px solid #d9f553;
+  outline-offset: 2px;
+}
+
+
+
+
+
+
+@media (max-width: 980px) {
+
+
+
+}
+
+@media (max-width: 480px) {
+
+}

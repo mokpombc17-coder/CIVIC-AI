@@ -30,7 +30,7 @@ describe("admin chat conversation insights", () => {
     expect(html).not.toContain("ACTIVE · CLOSED");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
-    expect(html).not.toContain('href="/admin/chat/categories"');
+    expect(html).toContain('aria-label="채팅 운영 섹션"');
     expect(html).toContain('aria-label="분석 보기 탭"');
     expect(html).toContain(
       `<button aria-selected="true" class="console-tab" role="tab" type="button">${activeTab}</button>`,
