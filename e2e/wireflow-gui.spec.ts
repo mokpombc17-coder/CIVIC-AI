@@ -1000,7 +1000,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(deleteDialog).toHaveCount(0);
 });
 
-test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계를 유지한다", async ({
+test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경계를 유지한다", async ({
   context,
   page,
 }) => {
@@ -1075,8 +1075,21 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
   await expect(page.getByRole("heading", { name: "2026 복지정책 기본계획" })).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "2026 복지정책 기본계획 읽기 전용 PDF" }),
+    page.getByRole("region", { name: "2026 복지정책 기본계획 읽기 전용 문서" }),
   ).toBeVisible();
+  const documentViewer = page.locator('[data-document-zoom="100%"]');
+  await expect(documentViewer).toBeVisible();
+  await page.getByRole("button", { name: "문서 확대" }).click();
+  await expect(page.locator('[data-document-zoom="125%"]')).toBeVisible();
+  await expect
+    .poll(() =>
+      page
+        .locator(".civic-pdf-canvas")
+        .evaluate((canvas) => canvas.scrollWidth > canvas.clientWidth),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: "화면 맞춤" }).click();
+  await expect(page.locator('[data-document-zoom="100%"]')).toBeVisible();
   await expect(page.locator("a[download], [target='_blank']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /다운로드|저장/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
