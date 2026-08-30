@@ -9,7 +9,6 @@ import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
-import { RagFeedback } from "./rag-feedback";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -599,7 +598,7 @@ function ConversationBackdrop() {
   );
 }
 
-function RagMessage({
+export function RagMessage({
   liveJob,
   message,
   onOpenCitation,
@@ -712,12 +711,6 @@ function RagMessage({
         ) : null}
         {message.job?.suggestions?.length ? (
           <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
-        ) : null}
-        {message.job?.status === "SUCCEEDED" && message.job.answer ? (
-          <RagFeedback
-            jobId={message.job.job_id}
-            {...(message.job.feedback ? { initialValue: message.job.feedback } : {})}
-          />
         ) : null}
       </div>
     </article>

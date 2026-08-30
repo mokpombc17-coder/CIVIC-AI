@@ -81,6 +81,7 @@ import {
   problemMessage,
   RAG_SESSION_EXPIRED_MESSAGE,
   RAG_SESSION_LOGIN_HREF,
+  RagMessage,
   RagNotice,
   RagSessionExpiredError,
   ragJobStatusMessage,
@@ -256,6 +257,32 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이렇게 질문해 보세요");
     expect(html).toContain("신청 대상과 자격 조건을 알려줘");
     expect(html).toContain("신청 기간과 제출 서류를 알려줘");
+  });
+
+  it("완료된 AI 답변에는 답변 평가 UI를 표시하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "completed-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "completed-job",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다.",
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("문서 기반 답변입니다.");
+    expect(html).not.toContain("이 답변이 도움이 되었나요?");
+    expect(html).not.toContain("도움됨");
+    expect(html).not.toContain("도움 안 됨");
+    expect(html).not.toContain('aria-label="답변 평가"');
   });
 
   it("복원한 대화에서 마지막 미완료 질의만 재개 대상으로 선택한다", () => {
