@@ -1525,6 +1525,27 @@ th {
   color: var(--civic-navy);
 }
 
+.civic-admin-nav-group {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.35rem 0;
+}
+
+.civic-admin-nav-group-label {
+  color: #b1cefb;
+  padding: 0 0.8rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.civic-admin-nav-sub-link {
+  min-height: 2.6rem;
+  margin-left: 0.55rem;
+  padding-block: 0.55rem;
+  font-size: 0.82rem;
+}
+
 .civic-admin-identity {
   display: grid;
   gap: 0.2rem;
@@ -2029,6 +2050,19 @@ th {
 
   .civic-admin-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .civic-admin-nav-group {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .civic-admin-nav-group-label {
+    grid-column: 1 / -1;
+  }
+
+  .civic-admin-nav-sub-link {
+    margin-left: 0;
   }
 
   .civic-admin-identity {

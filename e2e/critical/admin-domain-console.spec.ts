@@ -405,13 +405,18 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat");
 
-  await expect(page.getByRole("heading", { name: "채팅 운영" })).toBeVisible();
-  const activeRoom = page.getByRole("button", { name: /시민 정책 토론방/u });
+  await expect(page.getByRole("heading", { name: "채팅방 관리" })).toBeVisible();
+  await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
+  const activeRoom = page.getByRole("row", { name: /시민 정책 토론방/u });
   await expect(activeRoom).toContainText("운영 중");
-  await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
-  await activeRoom.click();
+  await expect(page.getByRole("row", { name: /지난 정책 기록방/u })).toContainText("종료");
+  const detailButton = activeRoom.getByRole("button", { name: "상세 보기" });
+  await detailButton.click();
+  await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
+  const statisticsDrawer = page.getByRole("dialog", { name: "시민 정책 토론방 통계" });
+  await expect(statisticsDrawer).toBeVisible();
   await expect.poll(() => releaseExportResponse !== null).toBe(true);
-  const analysisPanel = page.getByRole("region", { name: "대화 분석" });
+  const analysisPanel = statisticsDrawer.getByRole("region", { name: "채팅방 통계 상세" });
   await analysisPanel.getByText("채팅방 운영 설정", { exact: true }).click();
   const closeRoomButton = analysisPanel.getByRole("button", { name: "채팅방 종료" });
   try {
@@ -467,11 +472,25 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
   expect(closeRoomBody).toBe("");
   await expect(page.getByRole("status")).toContainText("CLOSED 상태를 확인했습니다");
-  await expect(page.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
+  await expect(statisticsDrawer.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
   expect(adminRooms.find((room) => room.roomId === activeRoomId)).toMatchObject({
     status: "CLOSED",
     activeMemberCount: 0,
   });
+
+  await page.keyboard.press("Escape");
+  await expect(statisticsDrawer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/chat$/u);
+  await expect(detailButton).toBeFocused();
+});
+
+test("기존 채팅 통계 주소는 채팅방 관리의 통계 Drawer로 연결한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.goto(`/admin/chat/statistics?roomId=${activeRoomId}`);
+
+  await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
+  await expect(page.getByRole("dialog", { name: "시민 정책 토론방 통계" })).toBeVisible();
+  await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
 });
 
 test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
@@ -624,7 +643,12 @@ test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 �
   await authenticate(context);
   await page.setViewportSize({ width: 640, height: 900 });
 
-  for (const route of ["/admin/chat/requests", "/admin/chat/categories", "/admin/tasks/create"]) {
+  for (const route of [
+    "/admin/chat",
+    "/admin/chat/requests",
+    "/admin/chat/categories",
+    "/admin/tasks/create",
+  ]) {
     await page.goto(route);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(

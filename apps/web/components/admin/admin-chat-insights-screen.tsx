@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -8,11 +9,10 @@ import {
   useState,
   type CSSProperties,
   type FormEvent,
+  type KeyboardEvent,
+  type ReactNode,
 } from "react";
-import {
-  AdminChatOperationsLayout,
-  type AdminChatSection,
-} from "@/components/admin/admin-chat-operations-layout";
+import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -30,18 +30,20 @@ import {
   type ConversationExportAnalysis,
   type ConversationExportMetrics,
   type ConversationMetricBucket,
-  type ConversationMessage,
 } from "@/lib/chat/conversation-export";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
-type ViewMode = "rooms" | "detail" | "statistics";
 export type AnalysisPeriod = "all" | "custom";
+type AdminRouteQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
 
-export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
-  const mode = viewMode(screen.id);
+export function AdminChatInsightsScreen({
+  query: routeQuery,
+  screen,
+}: Readonly<{ query: AdminRouteQuery; screen: ScreenDefinition }>) {
+  const initialRoomId = firstQueryValue(routeQuery.roomId);
   const [rooms, setRooms] = useState<readonly AdminRoom[]>([]);
-  const [selectedRoom, setSelectedRoom] = useState<AdminRoom | null>(null);
+  const [selectedRoomId, setSelectedRoomId] = useState<string | null>(initialRoomId);
   const [roomQuery, setRoomQuery] = useState("");
   const [roomStatus, setRoomStatus] = useState<AdminRoomStatus | "">("");
   const [activeRoomQuery, setActiveRoomQuery] = useState("");
@@ -65,6 +67,11 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   const [analysisMessage, setAnalysisMessage] = useState("");
   const [analyzing, setAnalyzing] = useState(false);
   const exportAbort = useRef<AbortController | null>(null);
+  const returnFocusRef = useRef<HTMLButtonElement | null>(null);
+  const selectedRoom = useMemo(
+    () => rooms.find((room) => room.roomId === selectedRoomId) ?? null,
+    [rooms, selectedRoomId],
+  );
 
   const loadRooms = useCallback(
     async (
@@ -91,9 +98,6 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
           return null;
         }
         setRooms((current) => (cursor ? mergeRooms(current, page.items) : page.items));
-        setSelectedRoom((current) =>
-          current ? (page.items.find((item) => item.roomId === current.roomId) ?? current) : null,
-        );
         setNextCursor(page.nextCursor);
         setHasNext(page.hasNext);
         return page;
@@ -175,7 +179,20 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     };
   }, [loadRooms]);
 
-  const selectedRoomId = selectedRoom?.roomId;
+  useEffect(() => {
+    const syncSelectionFromHistory = () => {
+      const roomId = new URL(window.location.href).searchParams.get("roomId");
+      exportAbort.current?.abort();
+      setSelectedRoomId(roomId);
+      setAnalysis(null);
+      setArchive(null);
+      setAnalysisMessage("");
+      setRoomOperationNotice(null);
+    };
+    window.addEventListener("popstate", syncSelectionFromHistory);
+    return () => window.removeEventListener("popstate", syncSelectionFromHistory);
+  }, []);
+
   const selectedRoomCreatedAt = selectedRoom?.createdAt;
   const analysisRange = useMemo(
     () =>
@@ -209,24 +226,53 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   function searchRooms(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     exportAbort.current?.abort();
-    setSelectedRoom(null);
+    setSelectedRoomId(null);
     setAnalysis(null);
     setArchive(null);
     setAnalysisMessage("");
     setRoomOperationNotice(null);
+    window.history.replaceState(null, "", "/admin/chat");
     const query = roomQuery.trim();
     setActiveRoomQuery(query);
     setActiveRoomStatus(roomStatus);
     void loadRooms(query, roomStatus);
   }
 
-  function selectRoom(room: AdminRoom) {
+  function selectRoom(room: AdminRoom, trigger: HTMLButtonElement) {
     exportAbort.current?.abort();
-    setSelectedRoom(room);
+    returnFocusRef.current = trigger;
+    setSelectedRoomId(room.roomId);
     setAnalysis(null);
     setArchive(null);
     setAnalysisMessage("");
     setRoomOperationNotice(null);
+    window.history.pushState(null, "", `/admin/chat?roomId=${encodeURIComponent(room.roomId)}`);
+  }
+
+  const closeRoomDrawer = useCallback(() => {
+    const returnTarget = returnFocusRef.current;
+    exportAbort.current?.abort();
+    setSelectedRoomId(null);
+    setAnalysis(null);
+    setArchive(null);
+    setAnalysisMessage("");
+    setRoomOperationNotice(null);
+    window.history.replaceState(null, "", "/admin/chat");
+    window.setTimeout(() => returnTarget?.focus(), 0);
+  }, []);
+
+  function filterRooms(nextStatus: AdminRoomStatus | "") {
+    exportAbort.current?.abort();
+    setSelectedRoomId(null);
+    setAnalysis(null);
+    setArchive(null);
+    setAnalysisMessage("");
+    setRoomOperationNotice(null);
+    setRoomStatus(nextStatus);
+    setActiveRoomQuery(roomQuery.trim());
+    setActiveRoomStatus(nextStatus);
+    window.history.replaceState(null, "", "/admin/chat");
+    void loadRooms(roomQuery.trim(), nextStatus);
   }
 
   function selectAnalysisPeriod(period: AnalysisPeriod) {
@@ -253,7 +299,6 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
 
   function applyRoomUpdate(updated: AdminRoom) {
     setRooms((current) => current.map((room) => (room.roomId === updated.roomId ? updated : room)));
-    setSelectedRoom((current) => (current?.roomId === updated.roomId ? updated : current));
   }
 
   async function closeSelectedRoom() {
@@ -332,151 +377,144 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
-  return (
-    <ScreenFrame screen={screen} title={screenTitle(mode)}>
-      <AdminChatOperationsLayout active={navigationSection(mode)}>
-        <section className={styles.intro}>
-          <div>
-            <span>ROOM OPERATIONS · EXPORT V1</span>
-            <h2>운영 상태와 대화 맥락을 함께 확인합니다</h2>
-          </div>
-          <p>
-            관리자는 참여 여부와 관계없이 활성 방을 즉시 종료할 수 있습니다. 대화 분석은 선택한 UTC
-            구간을 <strong>시작 이상·종료 미만</strong>으로 조회합니다.
-          </p>
-        </section>
+  const categoryAction = (
+    <Link className="civic-secondary-action" href="/admin/chat/categories">
+      카테고리 관리
+    </Link>
+  );
 
-        <div className={styles.workspace}>
-          <aside className={styles.roomPanel}>
-            <header>
-              <span>ACTIVE · CLOSED</span>
-              <strong>운영할 채팅방</strong>
-            </header>
-            <form className={styles.search} onSubmit={searchRooms}>
-              <label className={styles.queryField}>
-                <span className="sr-only">채팅방 검색</span>
-                <input
-                  disabled={roomsLoading || closingRoom}
-                  onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                  placeholder="채팅방 이름 검색"
-                  type="search"
-                  value={roomQuery}
-                />
-              </label>
-              <label className={styles.statusField}>
-                <span>상태</span>
-                <select
-                  aria-label="채팅방 상태"
-                  disabled={roomsLoading || closingRoom}
-                  onChange={(event) =>
-                    setRoomStatus(event.currentTarget.value as AdminRoomStatus | "")
-                  }
-                  value={roomStatus}
-                >
-                  <option value="">전체</option>
-                  <option value="ACTIVE">운영 중</option>
-                  <option value="CLOSED">종료</option>
-                </select>
-              </label>
-              <button disabled={roomsLoading || closingRoom} type="submit">
-                검색
-              </button>
-            </form>
-            <div aria-label="채팅방 목록" className={styles.roomList} role="list">
-              {rooms.map((room) => (
-                <div key={room.roomId} role="listitem">
-                  <button
-                    aria-pressed={selectedRoom?.roomId === room.roomId}
-                    className={styles.roomButton}
-                    onClick={() => selectRoom(room)}
-                    type="button"
-                  >
-                    <span className={styles.roomTitle}>
-                      <strong>{room.name}</strong>
-                      <b data-status={room.status}>{roomStatusLabel(room.status)}</b>
-                    </span>
-                    <span>
-                      {visibilityLabel(room.visibility)} · 활성 참여자{" "}
-                      {room.activeMemberCount.toLocaleString("ko-KR")}명
-                    </span>
-                  </button>
-                </div>
-              ))}
-              {rooms.length === 0 ? (
-                <p>{roomsLoading ? "채팅방을 불러오는 중입니다." : "검색된 채팅방이 없습니다."}</p>
-              ) : null}
-            </div>
-            {hasNext && nextCursor ? (
+  return (
+    <ScreenFrame headingAction={categoryAction} screen={screen} title="채팅방 관리">
+      <AdminChatOperationsLayout>
+        <form
+          className={`civic-domain-toolbar civic-task-list-toolbar ${styles.tableToolbar}`}
+          onSubmit={searchRooms}
+        >
+          <label className="civic-field">
+            <span>채팅방 이름 검색</span>
+            <input
+              disabled={roomsLoading || closingRoom}
+              onChange={(event) => setRoomQuery(event.currentTarget.value)}
+              placeholder="채팅방 이름 입력…"
+              type="search"
+              value={roomQuery}
+            />
+          </label>
+          <div aria-label="채팅방 상태" className="wf-admin-filters" role="group">
+            {(["", "ACTIVE", "CLOSED"] as const).map((status) => (
               <button
-                className={styles.moreButton}
+                aria-pressed={roomStatus === status}
                 disabled={roomsLoading || closingRoom}
-                onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
+                key={status || "ALL"}
+                onClick={() => filterRooms(status)}
                 type="button"
               >
-                더 보기
+                {status ? roomStatusLabel(status) : "전체"}
               </button>
-            ) : null}
-            {roomMessage ? (
-              <p aria-live="polite" className={styles.problem} role="status">
-                {roomMessage}
-              </p>
-            ) : null}
-          </aside>
+            ))}
+          </div>
+          <button
+            className="civic-secondary-action"
+            disabled={roomsLoading || closingRoom}
+            type="submit"
+          >
+            검색
+          </button>
+        </form>
 
-          <section aria-label="대화 분석" className={styles.analysisPanel}>
-            <AnalysisRangeControls
-              analyzing={analyzing}
-              closingRoom={closingRoom}
-              fromLocal={fromLocal}
-              onFromChange={(value) => changeCustomRange("from", value)}
-              onPeriodChange={selectAnalysisPeriod}
-              onToChange={(value) => changeCustomRange("to", value)}
-              period={analysisPeriod}
-              selectedRoom={selectedRoom}
-              toLocal={toLocal}
-            />
-            {roomOperationNotice ? (
-              <p
-                aria-live="polite"
-                className={
-                  roomOperationNotice.tone === "success" ? styles.statusMessage : styles.problem
-                }
-                role="status"
-              >
-                {roomOperationNotice.text}
-              </p>
-            ) : null}
-            {analyzing ? (
-              <p aria-live="polite" className={styles.statusMessage} role="status">
-                {analysisPeriod === "all"
-                  ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
-                  : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
-              </p>
-            ) : null}
-            {!analyzing && (customRangeInvalid || analysisMessage) ? (
-              <p aria-live="polite" className={styles.statusMessage} role="status">
-                {customRangeInvalid ? "시작 시각은 종료 시각보다 앞서야 합니다." : analysisMessage}
-              </p>
-            ) : null}
-            {analysis && analysisRange ? (
-              <AnalysisResult
-                analysis={analysis}
-                archiveReady={archive !== null}
-                mode={mode}
-                onDownload={downloadArchive}
-              />
+        <RoomTable
+          loading={roomsLoading}
+          onOpen={selectRoom}
+          rooms={rooms}
+          selectedRoomId={selectedRoomId}
+        />
+        {hasNext && nextCursor ? (
+          <button
+            className="wf-button wf-button-secondary civic-load-more"
+            disabled={roomsLoading || closingRoom}
+            onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
+            type="button"
+          >
+            다음 채팅방 불러오기
+          </button>
+        ) : null}
+        {roomMessage ? (
+          <p aria-live="polite" className={styles.problem} role="status">
+            {roomMessage}
+          </p>
+        ) : null}
+
+        {selectedRoomId ? (
+          <RoomStatisticsDrawer onClose={closeRoomDrawer} room={selectedRoom}>
+            {selectedRoom ? (
+              <>
+                <RoomSummary room={selectedRoom} />
+                <section aria-label="채팅방 통계 상세" className={styles.analysisPanel}>
+                  <AnalysisRangeControls
+                    analyzing={analyzing}
+                    closingRoom={closingRoom}
+                    fromLocal={fromLocal}
+                    onFromChange={(value) => changeCustomRange("from", value)}
+                    onPeriodChange={selectAnalysisPeriod}
+                    onToChange={(value) => changeCustomRange("to", value)}
+                    period={analysisPeriod}
+                    selectedRoom={selectedRoom}
+                    toLocal={toLocal}
+                  />
+                  {roomOperationNotice ? (
+                    <p
+                      aria-live="polite"
+                      className={
+                        roomOperationNotice.tone === "success"
+                          ? styles.statusMessage
+                          : styles.problem
+                      }
+                      role="status"
+                    >
+                      {roomOperationNotice.text}
+                    </p>
+                  ) : null}
+                  {analyzing ? (
+                    <p aria-live="polite" className={styles.statusMessage} role="status">
+                      {analysisPeriod === "all"
+                        ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
+                        : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
+                    </p>
+                  ) : null}
+                  {!analyzing && (customRangeInvalid || analysisMessage) ? (
+                    <p aria-live="polite" className={styles.statusMessage} role="status">
+                      {customRangeInvalid
+                        ? "시작 시각은 종료 시각보다 앞서야 합니다."
+                        : analysisMessage}
+                    </p>
+                  ) : null}
+                  {analysis && analysisRange ? (
+                    <AnalysisResult
+                      analysis={analysis}
+                      archiveReady={archive !== null}
+                      onDownload={downloadArchive}
+                    />
+                  ) : (
+                    <EmptyAnalysis selected />
+                  )}
+                  <RoomOperationSettings
+                    closingRoom={closingRoom}
+                    onCloseRoom={() => {
+                      if (selectedRoom.status === "ACTIVE") setRoomToClose(selectedRoom);
+                    }}
+                    selectedRoom={selectedRoom}
+                  />
+                </section>
+              </>
             ) : (
-              <EmptyAnalysis selected={selectedRoom !== null} />
+              <p className={styles.drawerEmpty}>
+                {roomsLoading
+                  ? "채팅방 정보를 불러오는 중입니다."
+                  : "목록에서 채팅방을 찾지 못했습니다."}
+              </p>
             )}
-            <RoomOperationSettings
-              closingRoom={closingRoom}
-              onCloseRoom={() => {
-                if (selectedRoom?.status === "ACTIVE") setRoomToClose(selectedRoom);
-              }}
-              selectedRoom={selectedRoom}
-            />
-          </section>
-        </div>
+          </RoomStatisticsDrawer>
+        ) : null}
       </AdminChatOperationsLayout>
       <ConfirmDialog
         busy={closingRoom}
@@ -493,6 +531,173 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         title="채팅방을 즉시 종료할까요?"
       />
     </ScreenFrame>
+  );
+}
+
+function RoomTable({
+  loading,
+  onOpen,
+  rooms,
+  selectedRoomId,
+}: Readonly<{
+  loading: boolean;
+  onOpen: (room: AdminRoom, trigger: HTMLButtonElement) => void;
+  rooms: readonly AdminRoom[];
+  selectedRoomId: string | null;
+}>) {
+  return (
+    <div aria-label="채팅방 관리 목록" className="civic-table-scroll" role="region" tabIndex={0}>
+      <table className="civic-admin-table">
+        <thead>
+          <tr>
+            <th>채팅방 이름</th>
+            <th>상태</th>
+            <th>카테고리</th>
+            <th>공개·참여</th>
+            <th>활성 참여자</th>
+            <th>개설 시각</th>
+            <th>작업</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rooms.length === 0 ? (
+            <tr>
+              <td colSpan={7}>
+                {loading ? "채팅방을 불러오는 중입니다." : "검색된 채팅방이 없습니다."}
+              </td>
+            </tr>
+          ) : null}
+          {rooms.map((room) => (
+            <tr key={room.roomId}>
+              <th scope="row">{room.name}</th>
+              <td>
+                <span className={styles.roomState} data-status={room.status}>
+                  {roomStatusLabel(room.status)}
+                </span>
+              </td>
+              <td>{room.categorySummaries.map((category) => category.name).join(", ") || "—"}</td>
+              <td>
+                {visibilityLabel(room.visibility)} · {joinPolicyLabel(room.joinPolicy)}
+              </td>
+              <td>{room.activeMemberCount.toLocaleString("ko-KR")}명</td>
+              <td>{formatKoreanDate(room.createdAt)}</td>
+              <td>
+                <button
+                  aria-controls="civic-chat-statistics-drawer"
+                  aria-expanded={selectedRoomId === room.roomId}
+                  className="civic-primary-action"
+                  onClick={(event) => onOpen(room, event.currentTarget)}
+                  type="button"
+                >
+                  상세 보기
+                </button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RoomStatisticsDrawer({
+  children,
+  onClose,
+  room,
+}: Readonly<{ children: ReactNode; onClose: () => void; room: AdminRoom | null }>) {
+  const drawerRef = useRef<HTMLElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    const previousOverflow = document.body.style.overflow;
+    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
+      if (event.key !== "Escape" || document.querySelector('[role="alertdialog"]')) return;
+      event.preventDefault();
+      onClose();
+    };
+    document.body.style.overflow = "hidden";
+    document.addEventListener("keydown", closeOnEscape);
+    closeButtonRef.current?.focus();
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", closeOnEscape);
+    };
+  }, [onClose]);
+
+  function trapFocus(event: KeyboardEvent<HTMLElement>) {
+    if (event.key !== "Tab") return;
+    const focusable = drawerRef.current?.querySelectorAll<HTMLElement>(
+      'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex]:not([tabindex="-1"])',
+    );
+    if (!focusable?.length) return;
+    const first = focusable[0];
+    const last = focusable[focusable.length - 1];
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last?.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first?.focus();
+    }
+  }
+
+  return (
+    <div className="civic-admin-detail-drawer-layer">
+      <button
+        aria-label="채팅방 통계 닫기"
+        className="civic-admin-detail-drawer-scrim"
+        onClick={onClose}
+        type="button"
+      />
+      <aside
+        aria-labelledby="civic-chat-statistics-drawer-title"
+        aria-modal="true"
+        className={`civic-admin-detail-drawer ${styles.statisticsDrawer}`}
+        id="civic-chat-statistics-drawer"
+        onKeyDown={trapFocus}
+        ref={drawerRef}
+        role="dialog"
+      >
+        <header>
+          <div>
+            <small>채팅방 관리</small>
+            <h2 id="civic-chat-statistics-drawer-title">
+              {room ? `${room.name} 통계` : "채팅방 통계"}
+            </h2>
+          </div>
+          <button
+            aria-label="채팅방 통계 닫기"
+            onClick={onClose}
+            ref={closeButtonRef}
+            type="button"
+          >
+            ×
+          </button>
+        </header>
+        <div className={styles.drawerBody}>{children}</div>
+      </aside>
+    </div>
+  );
+}
+
+function RoomSummary({ room }: Readonly<{ room: AdminRoom }>) {
+  const items = [
+    ["상태", roomStatusLabel(room.status)],
+    ["공개 범위", visibilityLabel(room.visibility)],
+    ["참여 방식", joinPolicyLabel(room.joinPolicy)],
+    ["활성 참여자", `${room.activeMemberCount.toLocaleString("ko-KR")}명`],
+    ["카테고리", room.categorySummaries.map((category) => category.name).join(", ") || "지정 없음"],
+    ["개설 시각", formatKoreanDate(room.createdAt)],
+  ] as const;
+  return (
+    <section aria-label="채팅방 정보" className={styles.roomSummary}>
+      {items.map(([label, value]) => (
+        <div key={label}>
+          <span>{label}</span>
+          <strong>{value}</strong>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -624,12 +829,10 @@ function RoomOperationSettings({
 function AnalysisResult({
   analysis,
   archiveReady,
-  mode,
   onDownload,
 }: Readonly<{
   analysis: ConversationExportAnalysis;
   archiveReady: boolean;
-  mode: ViewMode;
   onDownload: () => void;
 }>) {
   return (
@@ -642,8 +845,7 @@ function AnalysisResult({
           ))}
         </ul>
       ) : null}
-      {mode === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
-      {mode === "rooms" || mode === "detail" ? <ConversationDetail analysis={analysis} /> : null}
+      <ChatStatisticsSummary metrics={analysis.metrics} />
     </div>
   );
 }
@@ -688,45 +890,6 @@ function SnapshotHeader({
         </button>
       </div>
     </section>
-  );
-}
-
-function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExportAnalysis }>) {
-  const labels = useMemo(() => authorLabels(analysis.messages), [analysis.messages]);
-  return (
-    <>
-      <section aria-label="채팅방 핵심 수치" className={styles.kpis}>
-        <Metric label="전체 메시지" value={`${analysis.metrics.totalMessages}건`} />
-        <Metric label="잔존 메시지" value={`${analysis.metrics.retainedMessages}건`} />
-        <Metric label="삭제 메시지" value={`${analysis.metrics.deletedMessages}건`} tone="danger" />
-        <Metric label="작성자" value={`${analysis.metrics.authorCount}명`} />
-      </section>
-      <section className={styles.conversation}>
-        <header>
-          <div>
-            <span>AS OF TO EXCLUSIVE</span>
-            <h3>종료 시점 대화 상태</h3>
-          </div>
-          <small>최근 {Math.min(analysis.messages.length, 30)}건</small>
-        </header>
-        <ol>
-          {analysis.messages.slice(-30).map((message) => (
-            <li
-              className={message.deleted ? styles.deletedMessage : undefined}
-              key={message.messageSequence}
-            >
-              <div>
-                <strong>{labels.get(message.userId)}</strong>
-                <time dateTime={message.createdAt}>{formatKoreanDate(message.createdAt)}</time>
-                {message.deleted ? <span>삭제됨</span> : null}
-              </div>
-              <p>{message.content ?? "본문이 Export에 포함되지 않았습니다."}</p>
-            </li>
-          ))}
-        </ol>
-        {analysis.messages.length === 0 ? <p>선택한 구간에 생성된 메시지가 없습니다.</p> : null}
-      </section>
-    </>
   );
 }
 
@@ -811,22 +974,6 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   );
 }
 
-function viewMode(screenId: string): ViewMode {
-  if (screenId === "A-CHAT-002") return "detail";
-  if (screenId === "A-CHAT-008") return "statistics";
-  return "rooms";
-}
-
-function navigationSection(mode: ViewMode): AdminChatSection {
-  return mode === "detail" ? "rooms" : mode;
-}
-
-function screenTitle(mode: ViewMode): string {
-  if (mode === "detail") return "채팅방 상세";
-  if (mode === "statistics") return "채팅 통계";
-  return "채팅 운영";
-}
-
 function defaultCustomLocalRange(roomCreatedAt?: string): Readonly<{ from: string; to: string }> {
   const to = new Date();
   to.setSeconds(0, 0);
@@ -869,18 +1016,6 @@ export function resolveConversationAnalysisRange({
   return { fromInclusive: from.toISOString(), toExclusive: now.toISOString() };
 }
 
-function authorLabels(messages: readonly ConversationMessage[]): ReadonlyMap<string, string> {
-  const counts = new Map<string, number>();
-  for (const message of messages) counts.set(message.userId, (counts.get(message.userId) ?? 0) + 1);
-  return new Map(
-    [...counts.entries()]
-      .sort(([leftId, leftCount], [rightId, rightCount]) =>
-        rightCount === leftCount ? leftId.localeCompare(rightId) : rightCount - leftCount,
-      )
-      .map(([userId], index) => [userId, `작성자 ${index + 1}`]),
-  );
-}
-
 function mergeRooms(current: readonly AdminRoom[], next: readonly AdminRoom[]) {
   return [...new Map([...current, ...next].map((room) => [room.roomId, room])).values()];
 }
@@ -918,6 +1053,14 @@ function roomStatusLabel(status: AdminRoomStatus): string {
 
 function visibilityLabel(visibility: AdminRoom["visibility"]): string {
   return visibility === "LISTED" ? "목록 공개" : "목록 비공개";
+}
+
+function joinPolicyLabel(joinPolicy: AdminRoom["joinPolicy"]): string {
+  return joinPolicy === "OPEN" ? "바로 참여" : "초대 전용";
+}
+
+function firstQueryValue(value: string | readonly string[] | undefined): string | null {
+  return typeof value === "string" ? value : (value?.[0] ?? null);
 }
 
 async function exportProblemMessage(response: Response): Promise<string> {

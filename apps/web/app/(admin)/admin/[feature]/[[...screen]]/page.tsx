@@ -44,6 +44,10 @@ export default async function AdminPlaceholderPage({
     redirect(chatRequestDrawerHref(query, definition.id === "A-CHAT-006"));
   }
 
+  if (["A-CHAT-002", "A-CHAT-008", "A-CHAT-009"].includes(definition.id)) {
+    redirect(chatRoomDrawerHref(query));
+  }
+
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
     return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
   }
@@ -54,8 +58,8 @@ export default async function AdminPlaceholderPage({
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "CHAT") {
     if (definition.id === "A-CHAT-007") return <AdminRoomCategoryScreen screen={definition} />;
-    if (["A-CHAT-001", "A-CHAT-002", "A-CHAT-008", "A-CHAT-009"].includes(definition.id)) {
-      return <AdminChatInsightsScreen screen={definition} />;
+    if (definition.id === "A-CHAT-001") {
+      return <AdminChatInsightsScreen query={query} screen={definition} />;
     }
     return <AdminChatRequestScreen query={query} screen={definition} />;
   }
@@ -112,4 +116,10 @@ function chatRequestDrawerHref(query: RagQuery, rejectMode: boolean): Route {
   const params = new URLSearchParams({ requestId });
   if (rejectMode) params.set("decision", "reject");
   return `/admin/chat/requests?${params.toString()}` as Route;
+}
+
+function chatRoomDrawerHref(query: RagQuery): Route {
+  const roomId = typeof query.roomId === "string" ? query.roomId : query.roomId?.[0];
+  if (!roomId) return "/admin/chat" as Route;
+  return `/admin/chat?roomId=${encodeURIComponent(roomId)}` as Route;
 }

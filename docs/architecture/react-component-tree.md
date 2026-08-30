@@ -89,6 +89,9 @@ AdminCatchAllPage [Server Route]
     │       ├── DocumentInspector
     │       │   └── AdminRagSpreadsheetPreview [Excel/CSV 읽기 전용]
     │       └── AdminRagModal / FolderEditor
+    ├── AdminChatInsightsScreen [Chat 채팅방 관리]
+    │   ├── RoomTable [검색·상태 필터·목록]
+    │   └── RoomStatisticsDrawer [기간별 통계·원본 ZIP·방 종료]
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
     │   └── RequestDetailDrawer [우측 상세 검토·카테고리 선택·승인/반려]
     ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
@@ -126,6 +129,11 @@ Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 
 승인·반려 작업을 한 흐름에서 처리한다. 선택한 `requestId`는
 `/admin/chat/requests?requestId=...`에 반영하며, 기존 상세·승인/반려 route는 인증·권한 확인 뒤
 같은 목록 Drawer 주소로 이동한다.
+
+관리자 사이드바의 `채팅 운영`은 별도의 콘텐츠 탭 대신 `채팅방 신청 목록`과 `채팅방 관리` 두 하위
+항목을 제공한다. 채팅방 관리는 과업 관리와 같은 표 목록을 사용하고, `상세 보기`는
+`RoomStatisticsDrawer`를 열어 통계와 운영 설정을 표시한다. 선택한 `roomId`는
+`/admin/chat?roomId=...`에 반영하며 기존 상세·통계·Export route는 같은 Drawer 주소로 이동한다.
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
@@ -244,9 +252,9 @@ Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지
 
 ## 현재 비활성 기능
 
-참여자 Chat·Vote와 Chat 통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
-Chat 생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를
-사용한다. Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
+참여자 Chat·Vote route는 `ComingSoonScreen`만 렌더링한다. 관리자 Chat 채팅방 목록·통계 Drawer·
+생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation route는 실제 REST API를 사용한다.
+Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
 검색·선택해 카테고리를 교체한다. 비공개 또는 목록 비공개 방을 ID로 직접 조회하는 UI는 제공하지 않는다.
 placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 

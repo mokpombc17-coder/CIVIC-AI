@@ -307,7 +307,7 @@ export function AdminChatRequestScreen({
 
   return (
     <ScreenFrame screen={screen} title="채팅방 생성 요청">
-      <AdminChatOperationsLayout active="requests">
+      <AdminChatOperationsLayout>
         <div
           className="civic-admin-workbench civic-domain-console"
           data-wireflow-layout="chat-request-admin"
