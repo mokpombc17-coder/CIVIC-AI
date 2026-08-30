@@ -633,6 +633,26 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
+  it("관리 홈은 서버의 접수순 계약에 맞춰 먼저 접수된 승인 대기 5건임을 안내한다", () => {
+    const items = Array.from({ length: 5 }, (_, index) =>
+      pendingChatRequest(`request-${index + 1}`, `user-${index + 1}`, `토론방 ${index + 1}`),
+    );
+    const html = renderToStaticMarkup(
+      createElement(AdminPendingChatRequests, {
+        state: {
+          status: "ready",
+          count: 100,
+          hasMore: true,
+          items,
+          labels: new Map(),
+        },
+      }),
+    );
+
+    expect(html).toContain("먼저 접수된 5건을 표시했습니다.");
+    expect(html).not.toContain("최신 5건");
+  });
+
   it("로그인 복귀 경로는 동일 출처 상대 경로만 허용한다", () => {
     expect(safeReturnTarget("?returnTo=%2Frag%3FfolderId%3Dwelfare")).toBe("/rag?folderId=welfare");
     expect(safeReturnTarget("?returnTo=https%3A%2F%2Fevil.example")).toBeNull();

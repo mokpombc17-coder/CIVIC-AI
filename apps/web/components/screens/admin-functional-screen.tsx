@@ -511,7 +511,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
       ) : null}
       {state.status === "ready" && (state.hasMore || state.count > items.length) ? (
         <p className="civic-pending-chat-requests-more">
-          최신 {items.length}건을 표시했습니다. 나머지 신청은 전체 목록에서 확인해 주세요.
+          먼저 접수된 {items.length}건을 표시했습니다. 나머지 신청은 전체 목록에서 확인해 주세요.
         </p>
       ) : null}
     </section>
