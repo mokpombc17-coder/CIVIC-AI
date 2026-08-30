@@ -3,12 +3,16 @@
 import { useEffect, useState } from "react";
 import { isNativeShell } from "@/lib/native/bridge-client";
 import type { MobileConfig } from "@/lib/mobile/mobile-config";
+import { isStandalonePwa } from "@/lib/pwa/runtime";
 
 export function AppInstallBanner() {
   const [storeUrl, setStoreUrl] = useState<string | null>(null);
 
   useEffect(() => {
-    if (isNativeShell()) {
+    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+    const matchMedia =
+      typeof window.matchMedia === "function" ? window.matchMedia.bind(window) : undefined;
+    if (isNativeShell() || isStandalonePwa(matchMedia, standaloneNavigator.standalone)) {
       return;
     }
 
