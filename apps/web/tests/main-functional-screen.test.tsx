@@ -773,16 +773,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
-    expect(html).toContain("배우고, 함께 토론하고, 결정합니다.");
-    expect(html).toContain("무엇이 궁금한가요?");
-    expect(html).toContain("주제와 관련된 자료를 바탕으로 AI가 답변해 드려요.");
+    expect(html).toContain("의견을 가다듬고, 나누고, 담아내는 곳");
+    expect(html).toContain(
+      "자료 속 근거를 찾아보고, 다른 참여자와 이야기하며, 내 의견을 남겨보세요.",
+    );
+    expect(html).toContain("어떤 점부터 짚어볼까요?");
+    expect(html).toContain("AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.");
     expect(html).toContain("질문하기");
-    expect(html).toContain("함께 나누는 의견");
-    expect(html).toContain("다른 참여자와 편하게 의견을 나눠보세요.");
+    expect(html).toContain("서로 오가는 이야기");
+    expect(html).toContain("관심 있는 주제를 골라 자유롭게 참여해 보세요.");
     expect(html).toContain("토론하기");
-    expect(html).toContain("내 생각을 더하는 한 표");
-    expect(html).toContain("선택지를 고르고 그 이유를 제출해 보세요.");
-    expect(html).toContain("참여하기");
+    expect(html).toContain("논의에 보태는 내 의견");
+    expect(html).toContain("이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.");
+    expect(html).toContain("투표하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
     expect(html).not.toContain("오픈 예정");
   });
