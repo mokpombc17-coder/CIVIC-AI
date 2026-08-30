@@ -63,4 +63,25 @@ describe("ConfirmDialog", () => {
     expect(html.match(/disabled=""/gu)).toHaveLength(2);
     expect(html).toContain("삭제 중…");
   });
+
+  it("확인 문구가 있으면 입력 필드를 표시하고 위험 동작을 비활성화한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConfirmDialog, {
+        confirmLabel: "채팅방 종료",
+        confirmationInputLabel: "종료 확인 문구",
+        confirmationPhrase: "종료합니다.",
+        description: "모든 연결이 끊깁니다.",
+        destructive: true,
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+        open: true,
+        title: "채팅방을 즉시 종료할까요?",
+      }),
+    );
+
+    expect(html).toContain("종료합니다.");
+    expect(html).toContain('aria-label="종료 확인 문구"');
+    expect(html).toContain('class="civic-confirm-dialog-confirmation"');
+    expect(html).toContain('class="civic-danger-action" disabled=""');
+  });
 });
