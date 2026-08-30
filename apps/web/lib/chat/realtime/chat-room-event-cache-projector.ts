@@ -1,5 +1,8 @@
 import type { QueryClient } from "@tanstack/react-query";
-import { refreshAuthoritativeRoomQueries } from "../chat-room-cache-effects";
+import {
+  refreshAuthoritativeRoomQueries,
+  resetRoomMembershipQueries,
+} from "../chat-room-cache-effects";
 import type { RoomDetails, RoomMembership } from "../chat-room-contracts";
 import { chatRoomQueryKeys } from "../chat-room-queries";
 import type { ChatRoomEventEnvelope, ChatRoomEventMemberState } from "./chat-stomp-contracts";
@@ -7,10 +10,21 @@ import type { ChatRoomEventEnvelope, ChatRoomEventMemberState } from "./chat-sto
 export type ChatRoomEventCacheProjection = Readonly<{
   eventsApplied: number;
   myMembership: RoomMembership | undefined;
+  requiresMembershipRefetch: boolean;
   requiresRoomDetailRefetch: boolean;
   roomDetails: RoomDetails | undefined;
   roomId: string;
 }>;
+
+type ChatRoomEventCacheRefreshErrorHandler = (error: unknown) => void;
+
+const MEMBERSHIP_TOPOLOGY_EVENT_TYPES = new Set<ChatRoomEventEnvelope["eventType"]>([
+  "ROOM_MEMBER_JOINED",
+  "ROOM_MEMBER_REJOINED",
+  "ROOM_MEMBER_LEFT",
+  "ROOM_MEMBER_BANNED",
+  "ROOM_CLOSED",
+]);
 
 export function createChatRoomEventCacheProjection(
   queryClient: QueryClient,
@@ -25,11 +39,16 @@ export function createChatRoomEventCacheProjection(
   let nextRoomDetails = roomDetails;
   let nextMyMembership = myMembership;
   let eventsApplied = 0;
+  let requiresMembershipRefetch = false;
   let requiresRoomDetailRefetch = false;
 
   for (const event of events) {
     if (event.payload.roomId !== roomId) {
       continue;
+    }
+
+    if (MEMBERSHIP_TOPOLOGY_EVENT_TYPES.has(event.eventType)) {
+      requiresMembershipRefetch = true;
     }
 
     if (!nextRoomDetails) {
@@ -61,6 +80,7 @@ export function createChatRoomEventCacheProjection(
   return {
     eventsApplied,
     myMembership: nextMyMembership,
+    requiresMembershipRefetch,
     requiresRoomDetailRefetch,
     roomDetails: nextRoomDetails,
     roomId,
@@ -70,8 +90,12 @@ export function createChatRoomEventCacheProjection(
 export function applyChatRoomEventCacheProjection(
   queryClient: QueryClient,
   projection: ChatRoomEventCacheProjection,
+  onRefreshError?: ChatRoomEventCacheRefreshErrorHandler,
 ): void {
-  if (projection.eventsApplied === 0 && !projection.requiresRoomDetailRefetch) {
+  const requiresAuthoritativeRoomRefetch =
+    projection.eventsApplied > 0 || projection.requiresRoomDetailRefetch;
+
+  if (!requiresAuthoritativeRoomRefetch && !projection.requiresMembershipRefetch) {
     return;
   }
 
@@ -86,7 +110,13 @@ export function applyChatRoomEventCacheProjection(
     );
   }
 
-  void refreshAuthoritativeRoomQueries(queryClient, projection.roomId).catch(() => undefined);
+  const refreshPromise = requiresAuthoritativeRoomRefetch
+    ? refreshAuthoritativeRoomQueries(queryClient, projection.roomId)
+    : resetRoomMembershipQueries(queryClient, projection.roomId);
+
+  void refreshPromise.catch((error: unknown) => {
+    onRefreshError?.(error);
+  });
 }
 
 function projectRoomDetails(

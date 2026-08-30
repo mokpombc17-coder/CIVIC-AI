@@ -9,6 +9,185 @@ import {
 } from "./chat-room-event-cache-projector";
 
 describe("chat room event cache projector", () => {
+  it("같은 roomVersion의 신규 참여 이벤트도 Membership page chain을 reset한다", () => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const event = createMemberEvent({
+      eventId: "event-join-current-version",
+      eventType: "ROOM_MEMBER_JOINED",
+      roomVersion: 1,
+      membershipId: "membership-02",
+      membershipVersion: 1,
+      role: "MEMBER",
+      status: "ACTIVE",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection).toMatchObject({
+      eventsApplied: 0,
+      requiresMembershipRefetch: true,
+      requiresRoomDetailRefetch: false,
+    });
+    expectMembershipReset(resetQueries, "room-01");
+  });
+
+  it("같은 roomVersion의 재참여 이벤트도 Membership page chain을 reset한다", () => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const event = createMemberEvent({
+      eventId: "event-rejoin-current-version",
+      eventType: "ROOM_MEMBER_REJOINED",
+      roomVersion: 1,
+      membershipId: "membership-02",
+      membershipVersion: 2,
+      role: "MEMBER",
+      status: "ACTIVE",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection.requiresMembershipRefetch).toBe(true);
+    expectMembershipReset(resetQueries, "room-01");
+  });
+
+  it.each([
+    [
+      "ROOM_MEMBER_LEFT",
+      () =>
+        createMemberEvent({
+          eventId: "event-left-current-version",
+          eventType: "ROOM_MEMBER_LEFT",
+          roomVersion: 1,
+          membershipId: "membership-02",
+          membershipVersion: 2,
+          role: "MEMBER",
+          status: "LEFT",
+        }),
+    ],
+    [
+      "ROOM_MEMBER_BANNED",
+      () =>
+        createMemberEvent({
+          eventId: "event-banned-current-version",
+          eventType: "ROOM_MEMBER_BANNED",
+          roomVersion: 1,
+          membershipId: "membership-02",
+          membershipVersion: 2,
+          role: "MEMBER",
+          status: "BANNED",
+        }),
+    ],
+    ["ROOM_CLOSED", () => createOwnerEvent("event-closed-current-version", 1)],
+  ] as const)("%s 이벤트가 Membership page chain을 reset한다", (_eventType, createEvent) => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [createEvent()]);
+
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection.requiresMembershipRefetch).toBe(true);
+    expectMembershipReset(resetQueries, "room-01");
+  });
+
+  it("다른 Room의 topology 이벤트는 현재 Room Membership을 reset하지 않는다", () => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const event = createMemberEvent({
+      eventId: "event-other-room-join",
+      eventType: "ROOM_MEMBER_JOINED",
+      roomId: "room-02",
+      roomVersion: 1,
+      membershipId: "membership-02",
+      membershipVersion: 1,
+      role: "MEMBER",
+      status: "ACTIVE",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection.requiresMembershipRefetch).toBe(false);
+    expect(resetQueries).not.toHaveBeenCalled();
+  });
+
+  it("한 delivery의 topology 이벤트가 여러 개여도 Membership reset은 한 번만 수행한다", () => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const joined = createMemberEvent({
+      eventId: "event-join-current-version",
+      eventType: "ROOM_MEMBER_JOINED",
+      roomVersion: 1,
+      membershipId: "membership-02",
+      membershipVersion: 1,
+      role: "MEMBER",
+      status: "ACTIVE",
+    });
+    const left = createMemberEvent({
+      eventId: "event-left-current-version",
+      eventType: "ROOM_MEMBER_LEFT",
+      roomVersion: 1,
+      membershipId: "membership-03",
+      membershipVersion: 2,
+      role: "MEMBER",
+      status: "LEFT",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [joined, left]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(resetQueries).toHaveBeenCalledTimes(1);
+    expectMembershipReset(resetQueries, "room-01");
+  });
+
+  it("같은 roomVersion의 설정 이벤트는 Membership 전용 reset을 요구하지 않는다", () => {
+    const queryClient = createSeededQueryClient();
+    const resetQueries = vi.spyOn(queryClient, "resetQueries");
+    const event = createSettingsUpdatedEvent({
+      eventId: "event-settings-current-version",
+      roomVersion: 1,
+      name: "이미 반영된 이름",
+    });
+
+    const projection = createChatRoomEventCacheProjection(queryClient, "room-01", [event]);
+    applyChatRoomEventCacheProjection(queryClient, projection);
+
+    expect(projection).toMatchObject({
+      eventsApplied: 0,
+      requiresMembershipRefetch: false,
+      requiresRoomDetailRefetch: false,
+    });
+    expect(resetQueries).not.toHaveBeenCalled();
+  });
+
+  it("Membership refresh 실패를 전달받은 오류 수집 경로로 보고한다", async () => {
+    const queryClient = createSeededQueryClient();
+    const refreshError = new Error("Membership refresh failed");
+    vi.spyOn(queryClient, "resetQueries").mockRejectedValue(refreshError);
+    const onRefreshError = vi.fn();
+    const event = createMemberEvent({
+      eventId: "event-join-refresh-failure",
+      eventType: "ROOM_MEMBER_JOINED",
+      roomVersion: 1,
+      membershipId: "membership-02",
+      membershipVersion: 1,
+      role: "MEMBER",
+      status: "ACTIVE",
+    });
+
+    applyChatRoomEventCacheProjection(
+      queryClient,
+      createChatRoomEventCacheProjection(queryClient, "room-01", [event]),
+      onRefreshError,
+    );
+
+    await vi.waitFor(() => {
+      expect(onRefreshError).toHaveBeenCalledWith(refreshError);
+    });
+  });
+
   it("연속된 멤버 참여 이벤트를 방 version과 참여 인원에 즉시 반영한다", () => {
     const queryClient = createSeededQueryClient();
     const event = createMemberEvent({
@@ -203,6 +382,7 @@ function createMemberEvent({
   membershipId,
   membershipVersion,
   role,
+  roomId = "room-01",
   roomVersion,
   status,
 }: {
@@ -216,6 +396,7 @@ function createMemberEvent({
   membershipId: string;
   membershipVersion: number;
   role: "OWNER" | "MEMBER";
+  roomId?: string;
   roomVersion: number;
   status: "ACTIVE" | "LEFT" | "BANNED";
 }): ChatRoomEventEnvelope {
@@ -225,7 +406,7 @@ function createMemberEvent({
     eventType,
     emittedAt: "2026-07-30T00:00:00Z",
     payload: {
-      roomId: "room-01",
+      roomId,
       roomVersion,
       roomStatus: "ACTIVE",
       member: {
@@ -236,6 +417,17 @@ function createMemberEvent({
       },
     },
   };
+}
+
+function expectMembershipReset(resetQueries: ReturnType<typeof vi.spyOn>, roomId: string): void {
+  expect(resetQueries).toHaveBeenCalledWith(
+    {
+      queryKey: chatRoomQueryKeys.membershipLists(roomId),
+    },
+    {
+      cancelRefetch: true,
+    },
+  );
 }
 
 function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {

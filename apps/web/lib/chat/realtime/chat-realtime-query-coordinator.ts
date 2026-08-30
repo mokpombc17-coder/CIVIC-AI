@@ -193,6 +193,7 @@ export class ChatRealtimeQueryCoordinator {
         delivery,
         this.options.limit ?? DEFAULT_MESSAGE_HISTORY_LIMIT,
         this.options.messageVisibleAfterSequence,
+        this.options.onError,
       );
       const result = {
         ...coreResult,
@@ -319,6 +320,7 @@ export function applyChatRealtimeEventDelivery(
   delivery: ChatRealtimeEventDelivery,
   limit = DEFAULT_MESSAGE_HISTORY_LIMIT,
   messageVisibleAfterSequence = 0,
+  onAuthoritativeRefreshError?: (error: unknown) => void,
 ): ApplyChatRealtimeDeliveryResult {
   if (delivery.overflowed) {
     throw new ChatRealtimeQueryCoordinatorError(
@@ -385,7 +387,7 @@ export function applyChatRealtimeEventDelivery(
     queryClient.setQueryData(roomEventJournalKey, roomEventJournalMerge.journal);
   }
 
-  applyChatRoomEventCacheProjection(queryClient, roomEventProjection);
+  applyChatRoomEventCacheProjection(queryClient, roomEventProjection, onAuthoritativeRefreshError);
 
   try {
     applyChatRoomMessageSearchCacheEffects(
