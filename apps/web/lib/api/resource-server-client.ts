@@ -54,6 +54,7 @@ export function createResourceServerProxy(config: ResourceServerProxyConfig) {
       cache: "no-store",
       redirect: "manual",
       headers,
+      signal: incoming.signal,
     };
     if (incoming.method !== "GET" && incoming.method !== "HEAD" && incoming.body) {
       requestInit.body = incoming.body;

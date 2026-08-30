@@ -1,5 +1,6 @@
 import { createServer, type Server } from "node:http";
 import { expect, test, type BrowserContext, type Locator } from "@playwright/test";
+import { voteSurveyCurrentFixture, voteSurveyLatestFixture } from "./fixtures/vote-survey";
 
 const WEB_BASE_URL = process.env.CIVIC_E2E_WEB_BASE_URL ?? "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
@@ -10,6 +11,9 @@ let mockApiServer: Server;
 let twoFactorEnabled = true;
 let twoFactorEnableRequested = false;
 let twoFactorEnableRequestBodies: Record<string, unknown>[] = [];
+let surveySubmitted = true;
+let surveySubmissionBodies: Record<string, unknown>[] = [];
+let surveyIdempotencyKeys: string[] = [];
 
 test.beforeAll(async () => {
   mockApiServer = createServer((request, response) => {
@@ -57,6 +61,51 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/account/profile") {
       return json(response, { ...profileFixture, two_factor_enabled: twoFactorEnabled });
+    }
+    if (url.pathname === "/api/v1/me/surveys/current" && request.method === "GET") {
+      return json(response, {
+        ...voteSurveyCurrentFixture,
+        submitted: surveySubmitted,
+        eligibility: surveySubmitted
+          ? voteSurveyCurrentFixture.eligibility
+          : {
+              ...voteSurveyCurrentFixture.eligibility,
+              eligible: false,
+              surveyRequirement: "REQUIRED",
+              reason: "CURRENT_SURVEY_RESPONSE_REQUIRED",
+              nextAction: "COMPLETE_CURRENT_SURVEY",
+              capabilities: [],
+            },
+      });
+    }
+    if (url.pathname === "/api/v1/me/survey-responses/latest" && request.method === "GET") {
+      if (!surveySubmitted) return json(response, { code: "SURVEY_RESPONSE_NOT_FOUND" }, 404);
+      return json(response, voteSurveyLatestFixture);
+    }
+    if (url.pathname === "/api/v1/me/survey-responses" && request.method === "POST") {
+      void readJsonBody(request)
+        .then((body) => {
+          surveySubmissionBodies.push(body);
+          const idempotencyKey = request.headers["idempotency-key"];
+          surveyIdempotencyKeys.push(
+            Array.isArray(idempotencyKey) ? (idempotencyKey[0] ?? "") : (idempotencyKey ?? ""),
+          );
+          surveySubmitted = true;
+          json(
+            response,
+            {
+              code: "SURVEY_RESPONSE_SUBMITTED",
+              replayed: false,
+              responseId: voteSurveyLatestFixture.id,
+              roundId: voteSurveyLatestFixture.roundId,
+              contentVersionId: voteSurveyLatestFixture.contentVersionId,
+              submittedAt: voteSurveyLatestFixture.submittedAt,
+            },
+            201,
+          );
+        })
+        .catch(() => json(response, { detail: "요청 본문을 읽지 못했습니다." }, 400));
+      return;
     }
     if (url.pathname === "/api/v1/account/2fa/enable" && request.method === "POST") {
       void readJsonBody(request)
@@ -219,6 +268,9 @@ test.beforeEach(() => {
   twoFactorEnabled = true;
   twoFactorEnableRequested = false;
   twoFactorEnableRequestBodies = [];
+  surveySubmitted = true;
+  surveySubmissionBodies = [];
+  surveyIdempotencyKeys = [];
 });
 
 test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유지한다", async ({ page }) => {
@@ -586,7 +638,7 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
 
   await page.goto("/account/survey");
   await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
-  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Vote 설문 제출이 완료되었습니다.", { exact: true })).toBeVisible();
   const surveyIntro = page.locator(".wf-account-survey-intro");
   await expectBox(surveyIntro, {
     x: [16, 18],
@@ -595,14 +647,11 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   });
   const surveyIntroLayout = await surveyIntro.evaluate((element) => {
     const root = element.getBoundingClientRect();
-    const icon = element.querySelector("img")?.getBoundingClientRect();
     const copy = element.querySelector(":scope > div")?.getBoundingClientRect();
     const heading = element.querySelector("h2");
-    if (!icon || !copy || !heading) throw new Error("survey intro layout missing");
+    if (!copy || !heading) throw new Error("survey intro layout missing");
     const headingStyle = getComputedStyle(heading);
     return {
-      iconLeft: Math.round(icon.left - root.left),
-      iconTop: Math.round(icon.top - root.top),
       copyLeft: Math.round(copy.left - root.left),
       copyTop: Math.round(copy.top - root.top),
       headingColor: headingStyle.color,
@@ -611,19 +660,78 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
     };
   });
   expect(surveyIntroLayout).toEqual({
-    iconLeft: 16,
-    iconTop: 16,
     copyLeft: 16,
-    copyTop: 52,
+    copyTop: 16,
     headingColor: "rgb(8, 89, 133)",
     headingFontSize: "16px",
     headingLineHeight: "24px",
   });
-  await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
-  await expect(page.getByText("서울특별시 종로구 사직동", { exact: true })).toBeVisible();
-  const localTrust = page.getByText("약간 신뢰한다", { exact: true }).last();
-  await localTrust.scrollIntoViewIfNeeded();
-  await expect(localTrust).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자 특성 설문" })).toBeVisible();
+  await expect(page.getByText("서울특별시 종로구", { exact: true })).toBeVisible();
+  const policyInterest = page.getByText("4", { exact: true }).last();
+  await policyInterest.scrollIntoViewIfNeeded();
+  await expect(policyInterest).toBeVisible();
+});
+
+test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 불변 응답을 표시한다", async ({
+  context,
+  page,
+}) => {
+  surveySubmitted = false;
+  await authenticate(context, "participant.payload.signature");
+  await page.goto("/account/survey");
+
+  await expect(page.getByText("Vote 서버의 현재 설문입니다.", { exact: true })).toBeVisible();
+  const questions = page.locator(".wf-vote-survey-question");
+  await expect(questions).toHaveCount(6);
+  await questions.nth(0).getByRole("radio", { name: "온라인 참여" }).check();
+  await questions.nth(1).getByRole("checkbox", { name: "주거" }).check();
+  await questions.nth(1).getByRole("checkbox", { name: "기타" }).check();
+  await questions.nth(1).getByPlaceholder("기타 내용을 입력해 주세요").fill("교통");
+  await questions.nth(2).getByPlaceholder("응답을 입력해 주세요").fill("서울특별시 종로구");
+  await questions.nth(3).getByPlaceholder("응답을 입력해 주세요").fill("보행 환경 개선");
+  await questions.nth(4).locator('input[type="number"]').fill("36");
+  await questions.nth(5).getByRole("radio", { name: "4" }).check();
+  await page.getByRole("button", { name: "설문 최종 제출" }).click();
+
+  await expect(page.getByText("Vote 설문 제출이 완료되었습니다.", { exact: true })).toBeVisible();
+  await expect.poll(() => surveySubmissionBodies.length).toBe(1);
+  expect(surveyIdempotencyKeys).toHaveLength(1);
+  expect(surveyIdempotencyKeys[0]).toMatch(
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/u,
+  );
+  const submission = surveySubmissionBodies[0] as {
+    roundId?: unknown;
+    answers?: unknown[];
+  };
+  expect(submission.roundId).toBe(voteSurveyCurrentFixture.round.id);
+  expect(submission.answers).toHaveLength(6);
+  expect(submission.answers).toEqual(
+    expect.arrayContaining([
+      {
+        questionId: voteSurveyCurrentFixture.content.questions[0].id,
+        type: "SINGLE_CHOICE",
+        selection: {
+          optionId: voteSurveyCurrentFixture.content.questions[0].options[0].id,
+          inputText: null,
+        },
+      },
+      {
+        questionId: voteSurveyCurrentFixture.content.questions[1].id,
+        type: "MULTIPLE_CHOICE",
+        selections: [
+          {
+            optionId: voteSurveyCurrentFixture.content.questions[1].options[0].id,
+            inputText: null,
+          },
+          {
+            optionId: voteSurveyCurrentFixture.content.questions[1].options[1].id,
+            inputText: "교통",
+          },
+        ],
+      },
+    ]),
+  );
 });
 
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {

@@ -4,31 +4,13 @@ import { useEffect, useRef, useState, type FormEvent } from "react";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { WireflowButton, WireflowField } from "@/components/wireflow/wireflow-primitives";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
-
-type SurveyAnswers = Readonly<Record<string, unknown>>;
-type SurveyAnswerKey =
-  | "gender"
-  | "address"
-  | "region"
-  | "birth_year"
-  | "marital_status"
-  | "housing_type"
-  | "household_income"
-  | "education"
-  | "occupation"
-  | "lifestyle"
-  | "preferred_media"
-  | "moral_orientation"
-  | "political_ideology"
-  | "supporting_party"
-  | "central_government_trust"
-  | "local_government_trust";
 
 type Profile = {
   user_id: string;
@@ -39,57 +21,9 @@ type Profile = {
   rag_answer_detail: string;
   two_factor_enabled: boolean;
   response_version: number;
-  questionnaire_answers?: SurveyAnswers;
-  survey_answers?: SurveyAnswers;
-} & Partial<Record<SurveyAnswerKey, string | number | null>>;
+};
 
 type SecurityIntent = "password" | "2fa-request" | "2fa-verify" | "2fa-disable" | null;
-type SurveySection = Readonly<{
-  title: string;
-  items: readonly Readonly<{ label: string; value: string }>[];
-}>;
-type SurveySectionDefinition = Readonly<{
-  title: string;
-  items: readonly Readonly<{ key: SurveyAnswerKey; label: string }>[];
-}>;
-
-const surveySectionDefinitions: readonly SurveySectionDefinition[] = Object.freeze([
-  {
-    title: "기본 정보",
-    items: [
-      { key: "gender", label: "성별" },
-      { key: "address", label: "주소지" },
-      { key: "birth_year", label: "출생연도" },
-      { key: "marital_status", label: "혼인상태" },
-      { key: "housing_type", label: "주거형태" },
-    ],
-  },
-  {
-    title: "사회·경제",
-    items: [
-      { key: "household_income", label: "가구소득" },
-      { key: "education", label: "학력" },
-      { key: "occupation", label: "직업" },
-    ],
-  },
-  {
-    title: "성향·매체",
-    items: [
-      { key: "lifestyle", label: "생활양식" },
-      { key: "preferred_media", label: "선호매체" },
-      { key: "moral_orientation", label: "도덕적 성향" },
-    ],
-  },
-  {
-    title: "정치·기관 인식",
-    items: [
-      { key: "political_ideology", label: "정치 성향" },
-      { key: "supporting_party", label: "지지정당" },
-      { key: "central_government_trust", label: "중앙정부 신뢰도" },
-      { key: "local_government_trust", label: "지방정부 신뢰도" },
-    ],
-  },
-]);
 
 export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -100,7 +34,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
 
   useEffect(() => {
-    if (screen.id === "U-ACCOUNT-001") return;
+    if (screen.id === "U-ACCOUNT-001" || screen.id === "U-ACCOUNT-003") return;
     let active = true;
     loadAccountProfile()
       .then((value) => {
@@ -198,7 +132,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           profile={profile}
         />
       ) : null}
-      {screen.id === "U-ACCOUNT-003" ? <AccountSurveySurface profile={profile} /> : null}
+      {screen.id === "U-ACCOUNT-003" ? <VoteSurveySurface /> : null}
       {deactivationOpen ? (
         <DeactivationDialog
           busy={busy}
@@ -221,7 +155,7 @@ function AccountHubSurface() {
         </Link>
         <Link className="wf-account-hub-card" href={"/mypage/survey" as Route}>
           <strong>내 설문 보기</strong>
-          <span>가입 시 제출한 설문 응답을 확인합니다.</span>
+          <span>Vote 설문 응답을 작성·확인합니다.</span>
         </Link>
       </nav>
       <div className="wf-account-logout">
@@ -418,65 +352,6 @@ function SecurityForm({
   );
 }
 
-function AccountSurveySurface({ profile }: Readonly<{ profile: Profile | null }>) {
-  const sections = buildSurveySections(profile);
-  return (
-    <div className="wf-account-survey" data-wireflow-layout="account-survey">
-      <section className="wf-account-notice wf-account-survey-intro">
-        <InfoIcon />
-        <div>
-          <h2>가입 시 제출한 설문입니다.</h2>
-          <p>기존 응답은 확인만 가능하며, 수정하거나 추가로 응답할 수 없습니다.</p>
-        </div>
-      </section>
-      {sections.map((section) => (
-        <section className="wf-account-survey-section" key={section.title}>
-          <h2>{section.title}</h2>
-          <dl>
-            {section.items.map((item) => (
-              <div key={item.label}>
-                <dt>{item.label}</dt>
-                <dd>{item.value}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
-    </div>
-  );
-}
-
-export function buildSurveySections(profile: Profile | null): readonly SurveySection[] {
-  if (!profile || !hasExtendedSurveyAnswers(profile)) {
-    return [
-      {
-        title: "서비스 설정",
-        items: [
-          {
-            label: "선호 언어",
-            value: profile ? languageLabel(profile.preferred_language) : "불러오는 중…",
-          },
-          {
-            label: "AI 답변 상세도",
-            value: profile ? answerDetailLabel(profile.rag_answer_detail) : "불러오는 중…",
-          },
-          {
-            label: "응답 버전",
-            value: profile ? `${profile.response_version}차 응답` : "불러오는 중…",
-          },
-        ],
-      },
-    ];
-  }
-  return surveySectionDefinitions.map((section) => ({
-    title: section.title,
-    items: section.items.map((item) => ({
-      label: item.label,
-      value: surveyAnswer(profile, item.key),
-    })),
-  }));
-}
-
 function InfoIcon() {
   return (
     <Image
@@ -584,46 +459,6 @@ export async function loadAccountProfile(
   const response = await request("/api/v1/account/profile", { cache: "no-store" });
   if (!response.ok) throw new Error("계정 정보를 불러오지 못했습니다.");
   return (await response.json()) as Profile;
-}
-
-function hasExtendedSurveyAnswers(profile: Profile | null): boolean {
-  if (!profile) return false;
-  return surveySectionDefinitions.some((section) =>
-    section.items.some((item) => rawSurveyAnswer(profile, item.key) !== undefined),
-  );
-}
-
-function surveyAnswer(profile: Profile, key: SurveyAnswerKey): string {
-  const value = rawSurveyAnswer(profile, key);
-  if (value === undefined || value === null || value === "") return "응답 없음";
-  if (key === "birth_year" && typeof value === "number") return `${value}년`;
-  return String(value);
-}
-
-function rawSurveyAnswer(profile: Profile, key: SurveyAnswerKey): unknown {
-  const direct = profile[key];
-  if (direct !== undefined) return direct;
-  const nested = profile.survey_answers?.[key] ?? profile.questionnaire_answers?.[key];
-  if (nested && typeof nested === "object" && "value" in nested) {
-    return (nested as Readonly<{ value?: unknown }>).value;
-  }
-  if (nested !== undefined) return nested;
-  if (key === "address") {
-    return (
-      profile.region ?? profile.survey_answers?.region ?? profile.questionnaire_answers?.region
-    );
-  }
-  return undefined;
-}
-
-function languageLabel(value: string): string {
-  return value === "en" ? "English" : "한국어";
-}
-
-function answerDetailLabel(value: string): string {
-  if (value === "concise") return "간결하게";
-  if (value === "detailed") return "상세하게";
-  return "균형 있게";
 }
 
 async function mutation(path: string, method: string, body: unknown) {

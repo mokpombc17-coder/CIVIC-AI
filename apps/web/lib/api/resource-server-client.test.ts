@@ -7,11 +7,13 @@ vi.mock("server-only", () => ({}));
 describe("admin resource server BFF", () => {
   it("forwards one opaque token as the matching Cookie and Authorization pair", async () => {
     let upstreamHeaders = new Headers();
+    let upstreamSignal: AbortSignal | null | undefined;
     const requestBackend = vi.fn<typeof fetch>(async (input, init) => {
       expect(String(input)).toBe(
         "http://chat.internal:8082/api/v1/admin/room-creation-requests?status=PENDING",
       );
       upstreamHeaders = new Headers(init?.headers);
+      upstreamSignal = init?.signal;
       return Response.json({ items: [], nextCursor: null, hasNext: false });
     });
     const proxy = createResourceServerProxy({
@@ -20,14 +22,18 @@ describe("admin resource server BFF", () => {
       requestBackend,
     });
 
-    const response = await proxy(
-      new NextRequest("https://civic.example/api/v1/admin/room-creation-requests?status=PENDING", {
+    const incoming = new NextRequest(
+      "https://civic.example/api/v1/admin/room-creation-requests?status=PENDING",
+      {
         headers: {
           cookie: "civic_ai_access_token=opaque-token; unrelated=must-not-forward",
           origin: "https://civic.example",
           "sec-fetch-site": "same-origin",
         },
-      }),
+      },
+    );
+    const response = await proxy(
+      incoming,
       "/api/v1/admin/room-creation-requests",
       "chat:rooms:approve",
     );
@@ -36,6 +42,7 @@ describe("admin resource server BFF", () => {
     expect(upstreamHeaders.get("authorization")).toBe("Bearer opaque-token");
     expect(upstreamHeaders.get("cookie")).toBe("civic_ai_access_token=opaque-token");
     expect(upstreamHeaders.get("origin")).toBe("https://civic.example");
+    expect(upstreamSignal).toBe(incoming.signal);
   });
 
   it("preserves result download and rate-limit response headers", async () => {

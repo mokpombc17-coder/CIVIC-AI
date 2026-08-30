@@ -50,7 +50,10 @@ ParticipantCatchAllPage [Server Route]
 │       │               └── AccountFunctionalScreen [conditional]
 │       │                   ├── AccountHubSurface [/mypage, 로그아웃]
 │       │                   ├── AccountManagementSurface [/mypage/profile, 보안 포함]
-│       │                   ├── AccountSurveySurface [/mypage/survey, 읽기 전용]
+│       │                   ├── VoteSurveySurface [/mypage/survey]
+│       │                   │   ├── Vote 현재 회차·Eligibility 조회
+│       │                   │   ├── 6개 질문 유형 동적 렌더링·최종 제출
+│       │                   │   └── 제출 당시 불변 질문·응답 읽기 전용 표시
 │       │                   └── DeactivationDialog [/mypage/deactivate]
 │       └── AdminShell
 │           └── MainFunctionalScreen
@@ -183,7 +186,21 @@ Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/
     ├── 화면별 path·method allowlist
     ├── same-origin 검사
     └── Chat 또는 Vote upstream에 동일 Cookie + Bearer 전달
+
+Browser /api/v1/me/surveys/current | /api/v1/me/survey-responses
+        | /api/v1/me/survey-responses/latest
+├── A1: nginx direct ingress
+│   └── Vote Resource Server :8082
+└── Next.js participant Vote BFF [local/standalone Frontend2]
+    ├── path·method allowlist
+    ├── same-origin 검사
+    └── Vote upstream에 동일 Cookie + Bearer 및 Idempotency-Key 전달
 ```
+
+회원가입의 `AUTH-003`은 Main/Auth가 저장하는 선호 언어·AI 답변 상세도만 다룬다. 실제 설문은 계정
+생성·이메일 인증·로그인 이후 Vote의 JWT `sub`를 기준으로 `/mypage/survey`에서 진행한다. 로그인 시
+Vote가 현재 회차를 `REQUIRED`로 판단하고 아직 제출하지 않은 참여자만 설문 화면으로 먼저 이동한다.
+Vote 조회 장애는 인증 성공 자체를 되돌리지 않고 기본 참여자 홈으로 폴백한다.
 
 실행 요청은 먼저 `/api/v1/admin/simulations/preview`에 `taskId`를 포함해 예상 원화 비용·20% 보류액·
 예상 시간·가격 정책 fingerprint를 받는다. 관리자가 화면에서 이를 확인한 다음 동일 fingerprint를
