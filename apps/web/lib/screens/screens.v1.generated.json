@@ -408,39 +408,39 @@
     },
     {
       "id": "A-CHAT-001",
-      "canonical_title": "활성 채팅방 목록",
+      "canonical_title": "활성 토론방 목록",
       "audience": "ADMIN",
       "route": "/admin/chat",
       "status": "FUNCTIONAL",
       "owner": "CHAT",
-      "source_heading": "### A-CHAT-001 활성 채팅방 목록"
+      "source_heading": "### A-CHAT-001 활성 토론방 목록"
     },
     {
       "id": "A-CHAT-002",
-      "canonical_title": "활성 채팅방 상세",
+      "canonical_title": "활성 토론방 상세",
       "audience": "ADMIN",
       "route": "/admin/chat/detail",
       "status": "FUNCTIONAL",
       "owner": "CHAT",
-      "source_heading": "### A-CHAT-002 활성 채팅방 상세"
+      "source_heading": "### A-CHAT-002 활성 토론방 상세"
     },
     {
       "id": "A-CHAT-003",
-      "canonical_title": "관리자 채팅방 생성",
+      "canonical_title": "관리자 토론방 생성",
       "audience": "ADMIN",
       "route": "/admin/chat/create",
       "status": "PLACEHOLDER",
       "owner": "CHAT",
-      "source_heading": "### A-CHAT-003 관리자 채팅방 생성"
+      "source_heading": "### A-CHAT-003 관리자 토론방 생성"
     },
     {
       "id": "A-CHAT-004",
-      "canonical_title": "채팅방 생성 요청 목록",
+      "canonical_title": "토론방 생성 요청 목록",
       "audience": "ADMIN",
       "route": "/admin/chat/requests",
       "status": "FUNCTIONAL",
       "owner": "CHAT",
-      "source_heading": "### A-CHAT-004 채팅방 생성 요청 목록"
+      "source_heading": "### A-CHAT-004 토론방 생성 요청 목록"
     },
     {
       "id": "A-CHAT-005",

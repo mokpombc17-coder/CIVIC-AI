@@ -9,10 +9,7 @@ import {
   type CSSProperties,
   type FormEvent,
 } from "react";
-import {
-  AdminChatOperationsLayout,
-  type AdminChatSection,
-} from "@/components/admin/admin-chat-operations-layout";
+import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleTabs, type ConsoleTabItem } from "@/components/admin/console/console-ui";
@@ -53,7 +50,16 @@ const INSIGHTS_TABS: readonly ConsoleTabItem[] = [
   { id: "statistics", label: "통계" },
 ];
 
-export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
+type AdminRouteQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
+
+function firstQueryValue(value: string | readonly string[] | undefined): string | null {
+  return typeof value === "string" ? value : (value?.[0] ?? null);
+}
+
+export function AdminChatInsightsScreen({
+  query,
+  screen,
+}: Readonly<{ query?: AdminRouteQuery; screen: ScreenDefinition }>) {
   const [tab, setTab] = useState<ChatInsightsTab>(() => chatInsightsTabForScreen(screen.id));
   const [rooms, setRooms] = useState<readonly AdminRoom[]>([]);
   const [selectedRoom, setSelectedRoom] = useState<AdminRoom | null>(null);
@@ -102,7 +108,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         const page = readAdminRoomPage(await response.json());
         if (!page) {
           if (!cursor) setRooms([]);
-          setRoomMessage("서버의 관리자 채팅방 목록 응답 형식을 확인해야 합니다.");
+          setRoomMessage("서버의 관리자 토론방 목록 응답 형식을 확인해야 합니다.");
           return null;
         }
         setRooms((current) => (cursor ? mergeRooms(current, page.items) : page.items));
@@ -114,7 +120,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         return page;
       } catch {
         if (!cursor) setRooms([]);
-        setRoomMessage("네트워크 오류로 관리자 채팅방 목록을 불러오지 못했습니다.");
+        setRoomMessage("네트워크 오류로 관리자 토론방 목록을 불러오지 못했습니다.");
         return null;
       } finally {
         setRoomsLoading(false);
@@ -226,7 +232,8 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   // wins; otherwise the first listed room is selected.
   useEffect(() => {
     if (roomsLoading || selectedRoom !== null || rooms.length === 0) return;
-    const requestedRoomId = new URLSearchParams(window.location.search).get("roomId");
+    const requestedRoomId =
+      firstQueryValue(query?.roomId) ?? new URLSearchParams(window.location.search).get("roomId");
     const nextRoom =
       (requestedRoomId ? rooms.find((room) => room.roomId === requestedRoomId) : undefined) ??
       rooms[0];
@@ -367,19 +374,19 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
 
   return (
     <ScreenFrame screen={screen} title={screenTitle(screen.id)}>
-      <AdminChatOperationsLayout active={navigationSection(tab)}>
+      <AdminChatOperationsLayout>
         <div className={styles.workspace}>
           <aside className={styles.roomPanel}>
             <header>
-              <strong>운영할 채팅방</strong>
+              <strong>운영할 토론방</strong>
             </header>
             <form className={styles.search} onSubmit={searchRooms}>
               <label className={styles.queryField}>
-                <span className="sr-only">채팅방 검색</span>
+                <span className="sr-only">토론방 검색</span>
                 <input
                   disabled={roomsLoading || closingRoom}
                   onChange={(event) => setRoomQuery(event.currentTarget.value)}
-                  placeholder="채팅방 이름 검색"
+                  placeholder="토론방 이름 검색"
                   type="search"
                   value={roomQuery}
                 />
@@ -387,7 +394,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
               <label className={styles.statusField}>
                 <span>상태</span>
                 <select
-                  aria-label="채팅방 상태"
+                  aria-label="토론방 상태"
                   disabled={roomsLoading || closingRoom}
                   onChange={(event) =>
                     setRoomStatus(event.currentTarget.value as AdminRoomStatus | "")
@@ -403,7 +410,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
                 검색
               </button>
             </form>
-            <div aria-label="채팅방 목록" className={styles.roomList} role="list">
+            <div aria-label="토론방 목록" className={styles.roomList} role="list">
               {rooms.map((room) => (
                 <div key={room.roomId} role="listitem">
                   <button
@@ -416,15 +423,12 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
                       <strong>{room.name}</strong>
                       <b data-status={room.status}>{roomStatusLabel(room.status)}</b>
                     </span>
-                    <span>
-                      {visibilityLabel(room.visibility)} · 활성 참여자{" "}
-                      {room.activeMemberCount.toLocaleString("ko-KR")}명
-                    </span>
+                    <span>활성 참여자 {room.activeMemberCount.toLocaleString("ko-KR")}명</span>
                   </button>
                 </div>
               ))}
               {rooms.length === 0 ? (
-                <p>{roomsLoading ? "채팅방을 불러오는 중입니다." : "검색된 채팅방이 없습니다."}</p>
+                <p>{roomsLoading ? "토론방을 불러오는 중입니다." : "검색된 토론방이 없습니다."}</p>
               ) : null}
             </div>
             {hasNext && nextCursor ? (
@@ -509,15 +513,15 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
         busy={closingRoom}
         busyLabel="종료 중…"
         cancelLabel="운영 유지"
-        confirmLabel="채팅방 종료"
+        confirmLabel="토론방 종료"
         confirmationInputLabel="종료 확인 문구"
         confirmationPhrase="종료합니다."
-        description={`‘${roomToClose?.name ?? ""}’ 채팅방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
+        description={`‘${roomToClose?.name ?? ""}’ 토론방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
         destructive
         onCancel={() => setRoomToClose(null)}
         onConfirm={() => void closeSelectedRoom()}
         open={roomToClose !== null}
-        title="채팅방을 즉시 종료할까요?"
+        title="토론방을 즉시 종료할까요?"
       />
     </ScreenFrame>
   );
@@ -549,7 +553,7 @@ function AnalysisRangeControls({
       <header>
         <div>
           <small>조회 대상</small>
-          <strong>{selectedRoom?.name ?? "채팅방을 선택하세요"}</strong>
+          <strong>{selectedRoom?.name ?? "토론방을 선택하세요"}</strong>
         </div>
         <span data-status={selectedRoom?.status ?? "NONE"}>
           {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
@@ -601,7 +605,7 @@ function AnalysisRangeControls({
         <p className={styles.periodSummary}>
           {selectedRoom
             ? `${formatKoreanDate(selectedRoom.createdAt)} 개설 이후의 전체 대화를 자동으로 표시합니다.`
-            : "채팅방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
+            : "토론방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
         </p>
       )}
       {period === "custom" ? <p>입력한 시각은 현재 기기 시간대 기준입니다.</p> : null}
@@ -624,12 +628,12 @@ function RoomOperationSettings({
   if (!selectedRoom) return null;
   return (
     <details className={styles.roomSettings}>
-      <summary>채팅방 운영 설정</summary>
+      <summary>토론방 운영 설정</summary>
       <div>
         <p>
           {selectedRoom.status === "ACTIVE"
             ? "종료하면 모든 참여자의 연결과 이후 활동이 즉시 차단됩니다."
-            : "종료된 채팅방입니다. 대화 기록과 분석 결과는 계속 확인할 수 있습니다."}
+            : "종료된 토론방입니다. 대화 기록과 분석 결과는 계속 확인할 수 있습니다."}
         </p>
         {selectedRoom.status === "ACTIVE" ? (
           <button
@@ -638,7 +642,7 @@ function RoomOperationSettings({
             onClick={onCloseRoom}
             type="button"
           >
-            {closingRoom ? "종료 상태 확인 중…" : "채팅방 종료"}
+            {closingRoom ? "종료 상태 확인 중…" : "토론방 종료"}
           </button>
         ) : null}
       </div>
@@ -687,7 +691,7 @@ function SnapshotHeader({
       <div>
         <span>무결성 확인 완료</span>
         <h2>{analysis.manifest.roomName}</h2>
-        <p>{analysis.manifest.roomDescription || "채팅방 설명이 없습니다."}</p>
+        <p>{analysis.manifest.roomDescription || "토론방 설명이 없습니다."}</p>
       </div>
       <div className={styles.snapshotMeta}>
         <dl>
@@ -720,7 +724,7 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
   const labels = useMemo(() => authorLabels(analysis.messages), [analysis.messages]);
   return (
     <>
-      <section aria-label="채팅방 핵심 수치" className={styles.kpis}>
+      <section aria-label="토론방 핵심 수치" className={styles.kpis}>
         <Metric label="전체 메시지" value={`${analysis.metrics.totalMessages}건`} />
         <Metric label="잔존 메시지" value={`${analysis.metrics.retainedMessages}건`} />
         <Metric label="삭제 메시지" value={`${analysis.metrics.deletedMessages}건`} tone="danger" />
@@ -824,11 +828,11 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   return (
     <section className={styles.empty}>
       <span aria-hidden="true">↗</span>
-      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "채팅방을 먼저 선택하세요"}</h2>
+      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "토론방을 먼저 선택하세요"}</h2>
       <p>
         {selected
           ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
-          : "채팅방을 선택하면 대화 분석이 시작됩니다."}
+          : "토론방을 선택하면 대화 분석이 시작됩니다."}
       </p>
     </section>
   );
@@ -839,12 +843,8 @@ function syncChatInsightsUrl(tab: ChatInsightsTab, roomId: string | null) {
   window.history.replaceState(window.history.state, "", chatInsightsPath(tab, roomId));
 }
 
-function navigationSection(tab: ChatInsightsTab): AdminChatSection {
-  return tab === "statistics" ? "statistics" : "rooms";
-}
-
 function screenTitle(screenId: string): string {
-  if (screenId === "A-CHAT-002") return "채팅방 상세";
+  if (screenId === "A-CHAT-002") return "토론방 상세";
   if (screenId === "A-CHAT-008") return "채팅 통계";
   return "채팅 운영";
 }
@@ -938,16 +938,12 @@ function roomStatusLabel(status: AdminRoomStatus): string {
   return status === "ACTIVE" ? "운영 중" : "종료";
 }
 
-function visibilityLabel(visibility: AdminRoom["visibility"]): string {
-  return visibility === "LISTED" ? "목록 공개" : "목록 비공개";
-}
-
 async function exportProblemMessage(response: Response): Promise<string> {
   if (response.status === 403) {
     return "대화 원본 접근 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
   }
   if (response.status === 404) {
-    return "채팅방을 찾을 수 없거나 대화 기록 조회가 아직 준비되지 않았습니다.";
+    return "토론방을 찾을 수 없거나 대화 기록 조회가 아직 준비되지 않았습니다.";
   }
   if (response.status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
   return formatAdminProblem(await readAdminProblem(response));

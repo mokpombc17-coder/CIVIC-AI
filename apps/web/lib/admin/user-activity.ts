@@ -107,9 +107,9 @@ export async function scanUserChatParticipation(
   request: typeof fetch = authenticatedFetch,
 ): Promise<UserChatScanResult> {
   const roomsResponse = await request("/api/v1/admin/rooms?limit=50", { cache: "no-store" });
-  if (!roomsResponse.ok) throw new Error("채팅방 목록을 불러오지 못했습니다.");
+  if (!roomsResponse.ok) throw new Error("토론방 목록을 불러오지 못했습니다.");
   const page = readAdminRoomPage(await roomsResponse.json());
-  if (!page) throw new Error("채팅방 목록 응답 형식을 확인하지 못했습니다.");
+  if (!page) throw new Error("토론방 목록 응답 형식을 확인하지 못했습니다.");
 
   const rooms = page.items.slice(0, CHAT_SCAN_ROOM_LIMIT);
   const participations: UserChatParticipation[] = [];

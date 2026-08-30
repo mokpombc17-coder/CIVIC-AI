@@ -91,7 +91,7 @@ export function AdminFunctionalScreen({
   const [chatRequestSummary, setChatRequestSummary] = useState<ChatRequestSummaryState>({
     status: adminCurrentUser.permissions.includes("CHAT_ADMIN") ? "loading" : "forbidden",
   });
-  const [taskDeadlineSummary, setTaskDeadlineSummary] = useState<AdminDomainMetricState>({
+  const [activeTaskSummary, setActiveTaskSummary] = useState<AdminDomainMetricState>({
     status: adminCurrentUser.permissions.includes("VOTE_ADMIN") ? "loading" : "forbidden",
   });
   const [simulationWalletSummary, setSimulationWalletSummary] =
@@ -107,7 +107,7 @@ export function AdminFunctionalScreen({
     if (screen.id !== "A-HOME-001") return;
     if (canReadRag) void loadRagJobSummary().then(setRagJobSummary);
     if (canManageChat) void loadChatRequestSummary().then(setChatRequestSummary);
-    if (canManageVote) void loadTaskDeadlineSummary().then(setTaskDeadlineSummary);
+    if (canManageVote) void loadActiveTaskSummary().then(setActiveTaskSummary);
     if (canManageSimulation) void loadSimulationWalletSummary().then(setSimulationWalletSummary);
   }, [canManageChat, canManageSimulation, canManageVote, canReadRag, screen.id]);
 
@@ -128,38 +128,37 @@ export function AdminFunctionalScreen({
           chatRequestSummary={chatRequestSummary}
           ragJobSummary={ragJobSummary}
           simulationWalletSummary={simulationWalletSummary}
-          taskDeadlineSummary={taskDeadlineSummary}
+          activeTaskSummary={activeTaskSummary}
         />
       ) : null}
     </ScreenFrame>
   );
 }
 
-function AdminHome({
+export function AdminHome({
+  activeTaskSummary,
   canManageSimulation,
   canReadRag,
   ragJobSummary,
   chatRequestSummary,
   simulationWalletSummary,
-  taskDeadlineSummary,
 }: {
+  activeTaskSummary: AdminDomainMetricState;
   canManageSimulation: boolean;
   canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: ChatRequestSummaryState;
   simulationWalletSummary: SimulationWalletMetricState;
-  taskDeadlineSummary: AdminDomainMetricState;
 }) {
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
         <li className="wf-admin-metric">
-          <small>승인 대기</small>
+          <small>토론방 승인 대기</small>
           <strong>{metricCount(chatRequestSummary)}</strong>
-          <span>{metricDescription(chatRequestSummary, "채팅방 개설 신청")}</span>
         </li>
         <li className="wf-admin-metric">
-          <small>처리 실패</small>
+          <small>문서 처리 실패</small>
           <strong>
             {ragJobSummary.status === "ready"
               ? `${ragJobSummary.failed}건`
@@ -167,30 +166,22 @@ function AdminHome({
                 ? "확인 불가"
                 : "확인 중"}
           </strong>
-          <span>
-            {ragJobSummary.status === "unavailable"
-              ? "문서 처리 현황을 불러오지 못했습니다"
-              : ragJobSummary.status === "ready"
-                ? `진행 중 ${ragJobSummary.active}건 · 실패 작업 재시도 가능`
-                : "문서 처리 상태 확인 중"}
-          </span>
         </li>
         <li className="wf-admin-metric">
-          <small>24시간 내 마감</small>
-          <strong>{metricCount(taskDeadlineSummary)}</strong>
-          <span>{metricDescription(taskDeadlineSummary, "진행 중 과업")}</span>
+          <small>진행 중 과업</small>
+          <strong>{metricCount(activeTaskSummary)}</strong>
+          <span>{metricDescription(activeTaskSummary, "현재 진행 중")}</span>
         </li>
         <li className="wf-admin-metric">
           <small>시뮬레이션 사용 잔액</small>
           <strong>{simulationWalletBalance(simulationWalletSummary)}</strong>
-          <span>{simulationWalletDescription(simulationWalletSummary)}</span>
         </li>
       </ul>
-      <AdminPendingChatRequests state={chatRequestSummary} />
-      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
       {ragJobSummary.status === "ready" && ragJobSummary.recentFailures.length > 0 ? (
         <RagFailureSummary failures={ragJobSummary.recentFailures} />
       ) : null}
+      <AdminPendingChatRequests state={chatRequestSummary} />
+      <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
     </div>
   );
 }
@@ -206,7 +197,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
       <header>
         <div>
           <small>채팅 운영</small>
-          <h2 id="civic-pending-chat-requests-title">채팅방 승인 대기</h2>
+          <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
         </div>
         {state.status !== "forbidden" ? (
           <Link className="wf-button wf-button-secondary" href="/admin/chat/requests">
@@ -231,7 +222,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
       ) : null}
       {state.status === "ready" && items.length === 0 ? (
         <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
-          승인 대기 중인 채팅방이 없습니다.
+          승인 대기 중인 토론방이 없습니다.
         </p>
       ) : null}
       {state.status === "ready" && items.length > 0 ? (
@@ -250,7 +241,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
                 aria-label={`${item.name} 검토하기`}
                 className="wf-button wf-button-primary civic-pending-chat-review"
                 href={
-                  `/admin/chat/requests/detail?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
+                  `/admin/chat/requests?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
                 }
               >
                 검토하기
@@ -408,26 +399,17 @@ export async function loadChatRequestSummary(
   }
 }
 
-export async function loadTaskDeadlineSummary(
+export async function loadActiveTaskSummary(
   request: typeof fetch = authenticatedFetch,
-  now = Date.now(),
 ): Promise<AdminDomainMetricState> {
   try {
     const response = await request("/api/v1/admin/tasks", { cache: "no-store" });
     if (!response.ok) return { status: "unavailable" };
     const value = await response.json();
     if (!Array.isArray(value)) return { status: "unavailable" };
-    const deadline = now + 24 * 60 * 60 * 1_000;
     const count = value.filter((item) => {
       if (!item || typeof item !== "object") return false;
-      const record = item as Record<string, unknown>;
-      if (record.status !== "OPEN" || !record.schedule || typeof record.schedule !== "object") {
-        return false;
-      }
-      const closesAt = (record.schedule as Record<string, unknown>).closesAt;
-      if (typeof closesAt !== "string") return false;
-      const timestamp = Date.parse(closesAt);
-      return Number.isFinite(timestamp) && timestamp > now && timestamp <= deadline;
+      return (item as Record<string, unknown>).status === "OPEN";
     }).length;
     return { status: "ready", count, hasMore: false };
   } catch {
@@ -479,15 +461,6 @@ function simulationWalletBalance(summary: SimulationWalletMetricState): string {
   return summary.status === "loading" ? "확인 중" : "확인 불가";
 }
 
-function simulationWalletDescription(summary: SimulationWalletMetricState): string {
-  if (summary.status === "ready") {
-    return `전체 ${formatKrw(summary.wallet.balanceKrw)} · 실행 보류 ${formatKrw(summary.wallet.heldKrw)}`;
-  }
-  if (summary.status === "forbidden") return "시뮬레이션 관리자 권한이 필요합니다";
-  return summary.status === "loading"
-    ? "공용 지갑 잔액 확인 중"
-    : "공용 지갑 잔액을 불러오지 못했습니다";
-}
 
 function formatKrw(value: number): string {
   return `${value.toLocaleString("ko-KR")}원`;

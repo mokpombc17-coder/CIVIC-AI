@@ -1,9 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { Route } from "next";
 import Image from "next/image";
-import Link from "next/link";
 import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { WireflowButton, WireflowField } from "@/components/wireflow/wireflow-primitives";
@@ -34,7 +32,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
 
   useEffect(() => {
-    if (screen.id === "U-ACCOUNT-001" || screen.id === "U-ACCOUNT-003") return;
+    if (screen.id === "U-ACCOUNT-003") return;
     let active = true;
     loadAccountProfile()
       .then((value) => {
@@ -112,7 +110,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   function closeDeactivationDialog() {
     setMessage("");
     if (screen.id === "U-ACCOUNT-004") {
-      location.assign("/mypage/profile");
+      location.assign("/account");
       return;
     }
     setDeactivationRequested(false);
@@ -120,9 +118,10 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
 
   return (
     <ScreenFrame screen={screen}>
-      {screen.id === "U-ACCOUNT-001" ? <AccountHubSurface /> : null}
-      {screen.id === "U-ACCOUNT-002" || screen.id === "U-ACCOUNT-004" ? (
-        <AccountManagementSurface
+      {screen.id === "U-ACCOUNT-003" ? (
+        <VoteSurveySurface />
+      ) : (
+        <AccountHomeSurface
           busy={busy}
           intent={securityIntent}
           message={message}
@@ -131,8 +130,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           onSubmit={submit}
           profile={profile}
         />
-      ) : null}
-      {screen.id === "U-ACCOUNT-003" ? <VoteSurveySurface /> : null}
+      )}
       {deactivationOpen ? (
         <DeactivationDialog
           busy={busy}
@@ -145,27 +143,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   );
 }
 
-function AccountHubSurface() {
-  return (
-    <div className="wf-account-hub" data-wireflow-layout="account-hub">
-      <nav aria-label="계정 항목" className="wf-account-hub-menu">
-        <Link className="wf-account-hub-card" href={"/mypage/profile" as Route}>
-          <strong>내 정보 관리</strong>
-          <span>비밀번호와 2단계 인증을 관리합니다.</span>
-        </Link>
-        <Link className="wf-account-hub-card" href={"/mypage/survey" as Route}>
-          <strong>내 설문 보기</strong>
-          <span>가입 시 제출한 설문 응답을 확인합니다.</span>
-        </Link>
-      </nav>
-      <div className="wf-account-logout">
-        <LogoutButton />
-      </div>
-    </div>
-  );
-}
-
-function AccountManagementSurface({
+function AccountHomeSurface({
   busy,
   intent,
   message,
@@ -178,6 +156,48 @@ function AccountManagementSurface({
   intent: SecurityIntent;
   message: string;
   onDeactivate: () => void;
+  onIntent: (intent: SecurityIntent) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  profile: Profile | null;
+}>) {
+  return (
+    <div className="wf-account-hub" data-wireflow-layout="account-hub">
+      <AccountManagementSurface
+        busy={busy}
+        intent={intent}
+        message={message}
+        onIntent={onIntent}
+        onSubmit={onSubmit}
+        profile={profile}
+      />
+      <div className="wf-account-session-actions">
+        <div className="wf-account-logout">
+          <LogoutButton />
+        </div>
+        <button
+          className="wf-button wf-button-danger wf-account-deactivate-button"
+          disabled={busy}
+          onClick={onDeactivate}
+          type="button"
+        >
+          계정 비활성화
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function AccountManagementSurface({
+  busy,
+  intent,
+  message,
+  onIntent,
+  onSubmit,
+  profile,
+}: Readonly<{
+  busy: boolean;
+  intent: SecurityIntent;
+  message: string;
   onIntent: (intent: SecurityIntent) => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
   profile: Profile | null;
@@ -220,17 +240,6 @@ function AccountManagementSurface({
         {intent ? (
           <SecurityForm busy={busy} intent={intent} message={message} onSubmit={onSubmit} />
         ) : null}
-      </section>
-
-      <section aria-labelledby="wf-account-deactivate-title" className="wf-account-notice">
-        <InfoIcon />
-        <div>
-          <h2 id="wf-account-deactivate-title">계정 관리</h2>
-          <p>계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.</p>
-          <button className="wf-button wf-button-danger" onClick={onDeactivate} type="button">
-            계정 비활성화
-          </button>
-        </div>
       </section>
     </div>
   );
@@ -352,18 +361,6 @@ function SecurityForm({
   );
 }
 
-function InfoIcon() {
-  return (
-    <Image
-      alt=""
-      className="wf-account-info-icon"
-      height={24}
-      src="/assets/account/info.png"
-      width={24}
-    />
-  );
-}
-
 function DeactivationDialog({
   busy,
   message,
@@ -399,13 +396,9 @@ function DeactivationDialog({
             <Image alt="" height={24} src="/assets/account/close.png" width={24} />
           </button>
         </header>
-        <p id="wf-deactivate-dialog-description">다음 내용을 확인한 뒤 비밀번호를 입력하세요.</p>
+        <p id="wf-deactivate-dialog-description">다시 로그인시 계정을 활성화 할 수 있습니다.</p>
         <div className="wf-account-dialog-body">
           <dl className="wf-impact-list">
-            <div>
-              <dt>비활성화 영향</dt>
-              <dd>AI·채팅·투표 정보가 개인 정보에 더 이상 반영되지 않습니다.</dd>
-            </div>
             <div>
               <dt>보관 데이터</dt>
               <dd>작성한 정보와 활동 기록은 계정을 다시 사용할 수 있도록 보관됩니다.</dd>

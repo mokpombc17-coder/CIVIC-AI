@@ -12,6 +12,21 @@ export const dynamic = "force-dynamic";
 
 export const metadata: Metadata = {
   ...(siteUrl ? { metadataBase: siteUrl } : {}),
+  applicationName: "CIVIC.AI",
+  description: "자료를 확인하고 의견을 나누며 투표에 참여하는 시민 참여 플랫폼",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CIVIC.AI",
+  },
+  icons: {
+    icon: [
+      { url: "/icons/civic-ai-192.png", sizes: "192x192", type: "image/png" },
+      { url: "/icons/civic-ai-512.png", sizes: "512x512", type: "image/png" },
+    ],
+    apple: [{ url: "/icons/apple-touch-icon.png", sizes: "180x180", type: "image/png" }],
+  },
   title: {
     default: "CIVIC.AI",
     template: "%s | CIVIC.AI",

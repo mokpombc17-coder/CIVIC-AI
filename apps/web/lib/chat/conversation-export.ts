@@ -596,7 +596,7 @@ function assertExpectation(
 ) {
   if (!expected) return;
   if (manifest.roomId !== expected.roomId) {
-    throw new ConversationExportError("요청한 채팅방과 Export의 채팅방이 일치하지 않습니다.");
+    throw new ConversationExportError("요청한 토론방과 Export의 토론방이 일치하지 않습니다.");
   }
   if (
     Date.parse(manifest.range.fromInclusive) !== Date.parse(expected.range.fromInclusive) ||

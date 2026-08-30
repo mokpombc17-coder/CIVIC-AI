@@ -5,13 +5,16 @@
 ```text
 RootLayout [Server Route]
 └── AppShell [Client]
+    ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
     ├── NativeBridgeRuntime
     └── AppUpdateGate
         ├── AppInstallBanner [conditional]
         └── App Router children
 ```
 
-`AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 앱 설치·업데이트 정책만 소유한다.
+`AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
+설치·업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
+리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
 참여자 레이아웃은 저장소에 원래 있던 `PlatformShell`이 소유하고, 관리자 레이아웃은 `AdminShell`이
 소유한다.
 
@@ -28,12 +31,22 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 ```text
 IndexPage / [Server Route] [redirect: /home]
 
+PwaStartPage /pwa/start [Server Route, manifest start_url]
+└── PwaStartup [Client]
+    ├── 일반 브라우저: /home 이동, Refresh 미실행
+    └── installed PWA: 최소 1.5초 splash + 세션 초기화
+        ├── 인증 성공: /home 이동
+        ├── 인증 실패: /login 이동
+        └── 네트워크·일시 오류: 로그인 상태를 지우지 않고 재시도
+
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 └── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
             └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
+                ├── PwaInstallTriggerCard [Client, beforeinstallprompt 준비 시 환영 카드 클릭으로 설치 요청]
+                └── ParticipantHomeLayout
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -62,8 +75,9 @@ ParticipantCatchAllPage [Server Route]
 │   └── ParticipantShell
 │       └── PlatformPageShell
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
+│               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
 │               └── RagFunctionalScreen
-│                   └── ParticipantRagScreen
+│                   └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── ParticipantShell
@@ -76,7 +90,8 @@ AdminCatchAllPage [Server Route]
 └── AdminShell
     ├── MainFunctionalScreen [Main/Auth]
     │   └── AdminFunctionalScreen [A-HOME·A-USER]
-    │       └── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
+    │       ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
+    │       └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen
     │       ├── FolderTree
@@ -88,11 +103,18 @@ AdminCatchAllPage [Server Route]
     │       ├── DocumentInspector
     │       │   └── AdminRagSpreadsheetPreview [Excel/CSV 읽기 전용]
     │       └── AdminRagModal / FolderEditor
+    ├── AdminChatInsightsScreen [Chat 채팅방 관리]
+    │   ├── RoomTable [검색·상태 필터·목록]
+    │   └── RoomStatisticsDrawer [기간별 통계·원본 ZIP·방 종료]
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
+    │   └── RequestDetailDrawer [우측 상세 검토·카테고리 선택·승인/반려]
     ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
     │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
     │   └── RoomCategorySelector [선택 방의 카테고리 교체]
     ├── AdminTaskScreen [Vote 과업 관리]
+    │   ├── TaskList [목록·검색·상태 필터]
+    │   ├── TaskCreationDrawer [기본 정보→질문→선택지 단계형 초안 생성]
+    │   └── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
     │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정
@@ -110,6 +132,29 @@ AdminCatchAllPage [Server Route]
 사용자·권한 관리 화면은 `HIGHEST_ADMIN`을 요구한다. RAG, Chat, Vote, Simulation 관리자 화면은
 `ADMIN | HIGHEST_ADMIN` role과 해당 `*_ADMIN` permission을 함께 사용한다.
 
+Vote 과업 목록의 `과업 상세`는 별도 페이지로 이동하지 않고 `TaskDetailDrawer`를 연다. 선택한
+`taskId`는 `/admin/tasks?taskId=...`에 반영해 새로고침 후에도 같은 Drawer를 복원하며, 기존
+`/admin/tasks/detail` 주소는 인증·권한 확인 뒤 이 목록 주소로 이동한다.
+
+`새 과업 만들기`도 목록 위에서 `TaskCreationDrawer`를 연다. Drawer는 닫혀도 목록 화면에
+마운트된 작성 상태를 유지해 다시 열었을 때 입력값과 현재 단계를 복원한다. 상단 네비게이션은
+`기본 정보(제목·상황 또는 사건) → 질문 → 선택지` 순서이며, 새 과업의 질문 설명은 별도 입력 없이
+`null`로 저장한다. 기존 `/admin/tasks/create` 주소는 `/admin/tasks?create=1`로 이동한다.
+
+사용자 목록의 `사용자 상세`도 별도 페이지 대신 `UserDetailDrawer`를 열고, 계정 정보·역할/권한·
+변경 이력을 Drawer 내부 탭으로 전환한다. 기존 상세·권한·감사 route는 인증·권한 확인 뒤
+`/admin/users?userId=...&tab=...`으로 이동한다.
+
+Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 정보와 카테고리 선택,
+승인·반려 작업을 한 흐름에서 처리한다. 선택한 `requestId`는
+`/admin/chat/requests?requestId=...`에 반영하며, 기존 상세·승인/반려 route는 인증·권한 확인 뒤
+같은 목록 Drawer 주소로 이동한다.
+
+관리자 사이드바의 `채팅 운영`은 별도의 콘텐츠 탭 대신 `채팅방 신청 목록`, `채팅방 관리`,
+`카테고리 관리` 세 하위 항목을 제공한다. 채팅방 관리는 과업 관리와 같은 표 목록을 사용하고, `상세 보기`는
+`RoomStatisticsDrawer`를 열어 통계와 운영 설정을 표시한다. 선택한 `roomId`는
+`/admin/chat?roomId=...`에 반영하며 기존 상세·통계·Export route는 같은 Drawer 주소로 이동한다.
+
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
 `/vote`, `/mypage` navigation을 그대로 사용한다. 이관 전 실제 UI의 `/votes`, `/account` 주소도
@@ -124,6 +169,16 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
 남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
 담당한다.
+
+`PwaInstallTriggerCard`는 브라우저가 `beforeinstallprompt`를 제공한 경우에만 기존 환영 카드 위에
+접근 가능한 투명 버튼을 활성화한다. 클릭 시 브라우저의 네이티브 설치 UI를 요청하고,
+`appinstalled` 이후에는 다시 비활성화한다. iOS 설치 안내나 별도 시각 CTA는 소유하지 않는다.
+
+`PwaStartup`의 세션 초기화는 `/pwa/start`에서만 실행한다. standalone display mode 또는 iOS
+standalone flag가 없으면 Refresh를 호출하지 않는다. API 계약 의존부는
+`lib/pwa/session-bootstrap.ts`에 격리하며, Refresh 결과와 최소 splash 시간을 함께 기다린다. 토큰은
+브라우저 JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의 HttpOnly cookie
+계약을 유지한다.
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,
@@ -211,13 +266,15 @@ Vote 조회 장애는 인증 성공 자체를 되돌리지 않고 기본 참여�
 RAG client container는 `authenticatedFetch`를 사용한다. 질의 완료 스트림은 nginx에서 RAG Resource
 Server로 직접 연결하며 provider API key나 JWT payload를 Client Component에 전달하지 않는다. 참여자 RAG 화면은
 같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
+`RagNewQuestionHeaderAction`은 `ParticipantShell`의 header action slot에 렌더링하고, 요청 event만
+`ParticipantRagScreen`에 전달한다. 대화 초기화와 확인 dialog 상태는 RAG client container가 계속 소유한다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능
 
-참여자 Chat·Vote와 Chat 통계 운영 route는 `ComingSoonScreen`만 렌더링한다.
-Chat 생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation 관리자 route는 실제 REST API를
-사용한다. Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
+참여자 Chat·Vote route는 `ComingSoonScreen`만 렌더링한다. 관리자 Chat 채팅방 목록·통계 Drawer·
+생성 신청·카테고리 관리, Vote 과업 관리, 과업 집계 Simulation route는 실제 REST API를 사용한다.
+Chat 카테고리 화면은 참여자용 `/api/v1/rooms`에서 조회되는 `ACTIVE + LISTED` 방을
 검색·선택해 카테고리를 교체한다. 비공개 또는 목록 비공개 방을 ID로 직접 조회하는 UI는 제공하지 않는다.
 placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않는다.
 

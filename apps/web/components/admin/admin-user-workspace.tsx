@@ -92,7 +92,7 @@ export const USER_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminUser>> = [
     valueGetter: (params) => (params.data ? accountStateLabel(params.data.account_state) : ""),
   },
   {
-    headerName: "관리자 역할",
+    headerName: "역할",
     valueGetter: (params) =>
       params.data?.roles
         .filter((role) => role !== "PARTICIPANT")
@@ -482,7 +482,7 @@ function UserOverviewTab({
           <strong>{accountStateLabel(selected.account_state)}</strong>
         </div>
         <div>
-          <span>관리자 역할</span>
+          <span>역할</span>
           <strong>{selected.roles.map(roleLabel).join(", ") || "없음"}</strong>
         </div>
         <div>
@@ -685,12 +685,12 @@ function UserActivityTab({ selected }: Readonly<{ selected: AdminUser | null }>)
   return (
     <>
       <section className="console-section" data-wireflow-layout="admin-user-activity-requests">
-        <h4>채팅방 개설 신청</h4>
+        <h4>토론방 개설 신청</h4>
         <RoomRequestsSection state={requests} />
       </section>
 
       <section className="console-section" data-wireflow-layout="admin-user-activity-chat">
-        <h4>대화 참여 채팅방</h4>
+        <h4>대화 참여 토론방</h4>
         <p className="console-status">
           대화 기록을 내려받아 이 사용자가 작성한 메시지를 집계합니다. 시간이 다소 걸릴 수
           있습니다.
@@ -796,10 +796,10 @@ function RoomRequestsSection({ state }: Readonly<{ state: UserRoomRequestsState 
     return <ConsoleStatus error>신청 이력을 불러오지 못했습니다.</ConsoleStatus>;
   }
   if (state.items.length === 0) {
-    return <ConsoleStatus>이 사용자가 개설을 신청한 채팅방이 없습니다.</ConsoleStatus>;
+    return <ConsoleStatus>이 사용자가 개설을 신청한 토론방이 없습니다.</ConsoleStatus>;
   }
   return (
-    <ul aria-label="채팅방 개설 신청 목록" className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+    <ul aria-label="토론방 개설 신청 목록" className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
       {state.items.map((item) => (
         <li className="console-metric" key={item.creationRequestId}>
           <small>{formatAdminDate(item.requestedAt)}</small>
@@ -818,7 +818,7 @@ function RoomRequestsSection({ state }: Readonly<{ state: UserRoomRequestsState 
             </ConsoleBadge>{" "}
             {item.roomId ? (
               <Link href={`/admin/chat?roomId=${encodeURIComponent(item.roomId)}` as Route}>
-                채팅방 열기
+                토론방 열기
               </Link>
             ) : null}
           </span>
@@ -839,11 +839,11 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
     <>
       {result.participations.length === 0 ? (
         <ConsoleStatus>
-          {result.scannedRooms}개 채팅방에서 이 사용자의 메시지를 찾지 못했습니다.
+          {result.scannedRooms}개 토론방에서 이 사용자의 메시지를 찾지 못했습니다.
         </ConsoleStatus>
       ) : (
         <ul
-          aria-label="대화 참여 채팅방 목록"
+          aria-label="대화 참여 토론방 목록"
           className="console-metrics"
           style={{ gridTemplateColumns: "1fr" }}
         >
@@ -859,7 +859,7 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
       {(result.truncated || result.failedRooms > 0) ? (
         <ConsoleStatus>
           {result.truncated
-            ? `전체 ${result.totalRooms}개 중 최근 ${result.scannedRooms}개 채팅방만 확인했습니다. `
+            ? `전체 ${result.totalRooms}개 중 최근 ${result.scannedRooms}개 토론방만 확인했습니다. `
             : ""}
           {result.failedRooms > 0 ? `${result.failedRooms}개 방은 내보내기에 실패했습니다.` : ""}
         </ConsoleStatus>

@@ -952,14 +952,12 @@
           "actions": [],
           "items": [
             {
-              "label": "승인 대기",
-              "value": "4건",
-              "meta": "채팅방 생성 요청"
+              "label": "토론방 승인 대기",
+              "value": "4건"
             },
             {
-              "label": "처리 실패",
-              "value": "2건",
-              "meta": "RAG 인덱싱 재시도"
+              "label": "문서 처리 실패",
+              "value": "2건"
             },
             { "label": "마감 임박", "value": "1건", "meta": "오늘 마감 과업" }
           ],

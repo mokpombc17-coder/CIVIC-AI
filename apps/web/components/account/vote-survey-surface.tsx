@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import Image from "next/image";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   buildVoteSurveySubmission,
-  formatStoredSurveyAnswer,
   orderedSurveyOptions,
   orderedSurveyQuestions,
   resolveVoteSurveySubmissionAttempt,
@@ -14,14 +12,12 @@ import {
   surveyOtherFieldName,
   type VoteCurrentSurvey,
   type VoteSurveyQuestion,
-  type VoteSurveyResponseDetail,
   type VoteSurveyRule,
   type VoteSurveySubmissionAttempt,
 } from "@/lib/vote/participant-survey";
 
 const voteSurveyRequestTimeoutMs = 15_000;
 
-type SurveySectionPurpose = "input" | "result";
 type SurveyQuestionSection = Readonly<{
   title: string;
   questions: readonly VoteSurveyQuestion[];
@@ -58,28 +54,8 @@ const surveyInputSectionRules: readonly Readonly<{ title: string; pattern: RegEx
   },
 ];
 
-const surveyResultSectionRules: readonly Readonly<{ title: string; pattern: RegExp }>[] = [
-  {
-    title: "기본 정보",
-    pattern: /성별|주소지|행정구역|거주 지역|출생|만 나이|혼인|주거형태|주택/u,
-  },
-  {
-    title: "사회·경제",
-    pattern: /가구\s*소득|학력|직업/u,
-  },
-  {
-    title: "성향·매체",
-    pattern: /생활양식|선호매체|도덕/u,
-  },
-  {
-    title: "정치·기관 인식",
-    pattern: /정치 성향|지지정당|중앙정부.*신뢰|지방정부.*신뢰/u,
-  },
-];
-
 export function VoteSurveySurface() {
   const [survey, setSurvey] = useState<VoteCurrentSurvey | null>(null);
-  const [response, setResponse] = useState<VoteSurveyResponseDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
@@ -89,15 +65,13 @@ export function VoteSurveySurface() {
   useEffect(() => {
     let active = true;
     loadVoteSurvey()
-      .then((loaded) => {
+      .then((loadedSurvey) => {
         if (!active) return;
-        setSurvey(loaded.survey);
-        setResponse(loaded.response);
+        setSurvey(loadedSurvey);
       })
       .catch((error: unknown) => {
         if (!active) return;
         setSurvey(null);
-        setResponse(null);
         setMessage(errorMessage(error, "설문을 불러오지 못했습니다."));
       })
       .finally(() => active && setLoading(false));
@@ -105,6 +79,10 @@ export function VoteSurveySurface() {
       active = false;
     };
   }, [reloadVersion]);
+
+  useEffect(() => {
+    if (survey?.submitted) location.replace("/account");
+  }, [survey?.submitted]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -117,8 +95,7 @@ export function VoteSurveySurface() {
       submissionAttempt.current = attempt;
       await submitVoteSurvey(submission, attempt.key);
       submissionAttempt.current = null;
-      setLoading(true);
-      setReloadVersion((value) => value + 1);
+      location.assign("/account");
     } catch (error) {
       setMessage(errorMessage(error, "설문을 제출하지 못했습니다."));
     } finally {
@@ -140,20 +117,10 @@ export function VoteSurveySurface() {
     );
   }
   if (survey.submitted) {
-    if (!response) {
-      return (
-        <SurveyStatus
-          actionLabel="다시 불러오기"
-          message={message || "제출한 설문 응답을 불러오지 못했습니다."}
-          onAction={() => reloadSurvey(setLoading, setMessage, setReloadVersion)}
-          tone="error"
-        />
-      );
-    }
-    return <SubmittedVoteSurvey response={response} />;
+    return <SurveyStatus message="계정 화면으로 이동하고 있습니다…" tone="loading" />;
   }
 
-  const sections = groupSurveyQuestions(survey.content.questions, "input");
+  const sections = groupSurveyQuestions(survey.content.questions);
   return (
     <form
       className="wf-account-survey wf-vote-survey-form"
@@ -353,48 +320,6 @@ function VoteSurveySingleChoice({
   );
 }
 
-function SubmittedVoteSurvey({ response }: Readonly<{ response: VoteSurveyResponseDetail }>) {
-  const answers = new Map(response.answers.map((answer) => [answer.questionId, answer]));
-  const sections = groupSurveyQuestions(response.content.questions, "result");
-  return (
-    <div className="wf-account-survey" data-wireflow-layout="account-survey">
-      <section className="wf-account-notice wf-account-survey-intro">
-        <Image
-          alt=""
-          className="wf-account-info-icon"
-          height={24}
-          src="/assets/account/info.png"
-          width={24}
-        />
-        <div>
-          <h2>가입 시 제출한 설문입니다.</h2>
-          <p>
-            기존 응답은 확인만 가능하며,
-            <br />
-            수정하거나 추가로 응답할 수 없습니다.
-          </p>
-        </div>
-      </section>
-      <p className="sr-only">
-        {response.roundNumber}차 설문, {response.submittedAt} 제출
-      </p>
-      {sections.map((section) => (
-        <section className="wf-account-survey-section" key={section.title}>
-          <h2>{section.title}</h2>
-          <dl>
-            {section.questions.map((question) => (
-              <div key={question.id}>
-                <dt>{question.prompt}</dt>
-                <dd>{formatStoredSurveyAnswer(question, answers.get(question.id))}</dd>
-              </div>
-            ))}
-          </dl>
-        </section>
-      ))}
-    </div>
-  );
-}
-
 function SurveyStatus({
   actionLabel,
   message,
@@ -426,7 +351,7 @@ function SurveyStatus({
 export async function loadVoteSurvey(
   request: typeof fetch = authenticatedFetch,
   timeoutMs: number = voteSurveyRequestTimeoutMs,
-): Promise<Readonly<{ survey: VoteCurrentSurvey; response: VoteSurveyResponseDetail | null }>> {
+): Promise<VoteCurrentSurvey> {
   const currentResponse = await requestWithTimeout(
     request,
     "/api/v1/me/surveys/current",
@@ -436,19 +361,7 @@ export async function loadVoteSurvey(
   if (!currentResponse.ok) {
     throw new Error(await responseProblem(currentResponse, "현재 설문을 불러오지 못했습니다."));
   }
-  const survey = (await currentResponse.json()) as VoteCurrentSurvey;
-  if (!survey.submitted) return { survey, response: null };
-
-  const latestResponse = await requestWithTimeout(
-    request,
-    "/api/v1/me/survey-responses/latest",
-    { cache: "no-store" },
-    timeoutMs,
-  );
-  if (!latestResponse.ok) {
-    throw new Error(await responseProblem(latestResponse, "제출한 설문을 불러오지 못했습니다."));
-  }
-  return { survey, response: (await latestResponse.json()) as VoteSurveyResponseDetail };
+  return (await currentResponse.json()) as VoteCurrentSurvey;
 }
 
 async function submitVoteSurvey(
@@ -496,20 +409,20 @@ function fieldKind(question: VoteSurveyQuestion): "number" | "scale" | "selectio
 
 export function groupSurveyQuestions(
   questions: readonly VoteSurveyQuestion[],
-  purpose: SurveySectionPurpose,
 ): readonly SurveyQuestionSection[] {
-  const rules = purpose === "input" ? surveyInputSectionRules : surveyResultSectionRules;
-  const fallbackTitle = purpose === "input" ? "설문 항목" : "기타 응답";
+  const fallbackTitle = "설문 항목";
   const groups = new Map<string, VoteSurveyQuestion[]>();
 
   for (const question of orderedSurveyQuestions(questions)) {
-    const title = rules.find((rule) => rule.pattern.test(question.prompt))?.title ?? fallbackTitle;
+    const title =
+      surveyInputSectionRules.find((rule) => rule.pattern.test(question.prompt))?.title ??
+      fallbackTitle;
     const group = groups.get(title);
     if (group) group.push(question);
     else groups.set(title, [question]);
   }
 
-  return [...rules.map((rule) => rule.title), fallbackTitle].flatMap((title) => {
+  return [...surveyInputSectionRules.map((rule) => rule.title), fallbackTitle].flatMap((title) => {
     const groupedQuestions = groups.get(title);
     return groupedQuestions ? [{ title, questions: groupedQuestions }] : [];
   });

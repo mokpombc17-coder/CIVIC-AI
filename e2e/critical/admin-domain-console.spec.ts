@@ -166,12 +166,18 @@ test.beforeAll(async () => {
         },
       ]);
     }
+    if (url.pathname === `/api/v1/admin/simulations/${simulationId}` && request.method === "GET") {
+      return json(response, simulationFixture(latestSimulationState ?? "RUNNING"));
+    }
     if (
       url.pathname === `/api/v1/admin/simulations/${simulationId}/results` &&
       request.method === "GET"
     ) {
       simulationResultQueries.push(url.search);
-      return json(response, simulationResultFixture(url.searchParams.get("gender")));
+      return json(
+        response,
+        simulationResultFixture(url.searchParams.get("gender"), url.searchParams.get("ageGroup")),
+      );
     }
     if (
       url.pathname.startsWith(`/api/v1/admin/simulations/${simulationId}/results/`) &&
@@ -237,10 +243,12 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   await expect(page.getByRole("columnheader", { name: "공개·참여 방식" })).toHaveCount(0);
   await expect(row).not.toContainText("목록 공개");
   await expect(row).not.toContainText("바로 참여");
-  await row.getByRole("link", { name: "상세 검토" }).click();
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
-  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
-  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  const reviewButton = row.getByRole("button", { name: "상세 검토" });
+  await reviewButton.click();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1$/u);
+  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("citizen@example.com", { exact: true })).toBeVisible();
   await expect(page.getByText("공개·참여 방식", { exact: true })).toHaveCount(0);
   await expect(page.getByText("목록 공개", { exact: true })).toHaveCount(0);
   await expect(page.getByText("바로 참여", { exact: true })).toHaveCount(0);
@@ -248,28 +256,32 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   const requestDecision = page.getByRole("complementary", { name: "신청 처리" });
   await expect(requestInfo).toBeVisible();
   await expect(requestDecision).toBeVisible();
-  const [requestInfoBox, requestDecisionBox] = await Promise.all([
+  const [drawerBox, requestInfoBox, requestDecisionBox] = await Promise.all([
+    drawer.boundingBox(),
     requestInfo.boundingBox(),
     requestDecision.boundingBox(),
   ]);
+  const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+  expect(drawerBox).not.toBeNull();
   expect(requestInfoBox).not.toBeNull();
   expect(requestDecisionBox).not.toBeNull();
-  expect(requestInfoBox!.x).toBeLessThan(requestDecisionBox!.x);
-  expect(Math.abs(requestInfoBox!.y - requestDecisionBox!.y)).toBeLessThan(2);
-  await expect(page.locator(".wf-screen-heading")).toHaveCSS("min-height", "80px");
-  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toHaveCSS(
-    "font-size",
-    "24px",
-  );
+  expect(drawerBox!.width).toBeLessThanOrEqual(720);
+  expect(Math.abs(drawerBox!.x + drawerBox!.width - viewportWidth)).toBeLessThan(24);
+  expect(requestInfoBox!.y).toBeLessThan(requestDecisionBox!.y);
   const categoryGroup = page.getByRole("group", { name: "승인 카테고리" });
   await categoryGroup.getByLabel("정책").check();
   await categoryGroup.getByLabel("지역 현안").check();
-  await page.getByRole("button", { name: "승인", exact: true }).click();
+  await drawer.getByRole("button", { name: "승인", exact: true }).click();
 
   await expect(page.getByRole("status")).toContainText("승인했습니다");
-  await expect(page.getByText("승인", { exact: true })).toBeVisible();
+  await expect(drawer.getByText("승인", { exact: true })).toBeVisible();
   expect(approvedCategoryIds).toEqual([policyCategoryId, "category-local"]);
   await expect(page.getByText("request-1", { exact: true })).toHaveCount(0);
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/chat\/requests$/u);
+  await expect(reviewButton).toBeFocused();
 });
 
 test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 중 충돌을 확인한다", async ({
@@ -278,7 +290,11 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
 }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/admin/chat/categories");
+  await page.goto("/admin/chat");
+  const categoryManagementLink = page.getByRole("link", { name: "카테고리 관리" });
+  await expect(categoryManagementLink).toBeVisible();
+  await categoryManagementLink.click();
+  await expect(page).toHaveURL(/\/admin\/chat\/categories$/u);
 
   await expect(page.getByRole("heading", { name: "채팅방 카테고리 관리" })).toBeVisible();
   await expect(page.getByText("ACTIVE · LISTED ROOMS", { exact: true })).toHaveCount(0);
@@ -310,9 +326,27 @@ test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 
   await page.route("**/api/v1/admin/room-categories", (route) => route.abort("failed"));
   await page.goto("/admin/chat/requests/detail?requestId=request-1");
 
-  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1$/u);
+  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("citizen@example.com", { exact: true })).toBeVisible();
   await expect(page.getByLabel("사유를 입력해 반려")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("카테고리 목록");
+});
+
+test("기존 승인·반려 주소는 반려 모드 Drawer로 연결한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.goto("/admin/chat/requests/review?requestId=request-1");
+
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1&decision=reject$/u);
+  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByLabel("사유를 입력해 반려")).toBeChecked();
+  const rejectionReason = drawer.getByLabel("반려 사유");
+  await expect(rejectionReason).toBeVisible();
+  await expect(rejectionReason).toHaveCSS("border-top-style", "solid");
+  await expect(rejectionReason).toHaveCSS("border-top-width", "1px");
+  await expect(drawer.getByText("한 줄 입력")).toHaveCount(0);
 });
 
 test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목록을 다시 불러온다", async ({
@@ -341,7 +375,7 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
   await page.goto("/admin/chat/categories");
 
   await page.getByLabel("채팅방 이름 검색").fill("시민");
-  await page.getByRole("button", { name: "검색" }).click();
+  await expect(page.getByRole("button", { name: "검색", exact: true })).toHaveCount(0);
   await expect.poll(() => listedRoomQueries).toContain("시민");
   await expect(page.getByText("목록에 없는 방 ID로 찾기", { exact: true })).toHaveCount(0);
 
@@ -382,13 +416,24 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat");
 
-  await expect(page.getByRole("heading", { name: "채팅 운영" })).toBeVisible();
-  const activeRoom = page.getByRole("button", { name: /시민 정책 토론방/u });
+  await expect(page.getByRole("heading", { name: "채팅방 관리" })).toBeVisible();
+  await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
+  const roomWorkbench = page.locator('[data-wireflow-layout="chat-room-admin"]');
+  await expect(roomWorkbench).toHaveCSS("padding-left", "32px");
+  await expect(roomWorkbench).toHaveCSS("padding-right", "32px");
+  await expect(page.getByRole("columnheader", { name: "공개·참여" })).toHaveCount(0);
+  const activeRoom = page.getByRole("row", { name: /시민 정책 토론방/u });
   await expect(activeRoom).toContainText("운영 중");
-  await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
-  await activeRoom.click();
+  await expect(activeRoom).not.toContainText("목록 공개");
+  await expect(activeRoom).not.toContainText("바로 참여");
+  await expect(page.getByRole("row", { name: /지난 정책 기록방/u })).toContainText("종료");
+  const detailButton = activeRoom.getByRole("button", { name: "상세 보기" });
+  await detailButton.click();
+  await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
+  const statisticsDrawer = page.getByRole("dialog", { name: "시민 정책 토론방 통계" });
+  await expect(statisticsDrawer).toBeVisible();
   await expect.poll(() => releaseExportResponse !== null).toBe(true);
-  const analysisPanel = page.getByRole("region", { name: "대화 분석" });
+  const analysisPanel = statisticsDrawer.getByRole("region", { name: "채팅방 통계 상세" });
   await analysisPanel.getByText("채팅방 운영 설정", { exact: true }).click();
   const closeRoomButton = analysisPanel.getByRole("button", { name: "채팅방 종료" });
   try {
@@ -444,55 +489,120 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
   expect(closeRoomBody).toBe("");
   await expect(page.getByRole("status")).toContainText("CLOSED 상태를 확인했습니다");
-  await expect(page.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
+  await expect(statisticsDrawer.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
   expect(adminRooms.find((room) => room.roomId === activeRoomId)).toMatchObject({
     status: "CLOSED",
     activeMemberCount: 0,
   });
+
+  await page.keyboard.press("Escape");
+  await expect(statisticsDrawer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/chat$/u);
+  await expect(detailButton).toBeFocused();
 });
 
-test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 즉시 발행한다", async ({ context, page }) => {
+test("기존 채팅 통계 주소는 채팅방 관리의 통계 Drawer로 연결한다", async ({ context, page }) => {
   await authenticate(context);
-  await page.setViewportSize({ width: 1138, height: 768 });
+  await page.goto(`/admin/chat/statistics?roomId=${activeRoomId}`);
+
+  await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
+  await expect(page.getByRole("dialog", { name: "시민 정책 토론방 통계" })).toBeVisible();
+  await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
+});
+
+test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1280, height: 800 });
+  task = taskFixture("OPEN");
+  await page.goto("/admin/tasks");
+
+  const detailButton = page.getByRole("button", { name: "과업 상세" });
+  await detailButton.click();
+
+  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
+  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
+  await expect(drawer.getByRole("link", { name: "조기 종료" })).toBeVisible();
+  await expect(drawer.getByLabel("동작")).toHaveValue("deadline");
+  await expect(drawer.getByRole("option", { name: "마감 변경" })).toBeAttached();
+  await expect(drawer).toHaveCSS("transform", "none");
+
+  const drawerBox = await drawer.boundingBox();
+  const viewport = page.viewportSize();
+  if (!drawerBox || !viewport) throw new Error("과업 상세 Drawer 위치를 확인할 수 없습니다.");
+  expect(Math.abs(drawerBox.x + drawerBox.width - viewport.width)).toBeLessThan(2);
+  expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThan(2);
+
+  await page.keyboard.press("Escape");
+  await expect(drawer).toHaveCount(0);
+  await expect(page).toHaveURL(/\/admin\/tasks$/u);
+  await expect(detailButton).toBeFocused();
+});
+
+test("기존 과업 생성 주소는 목록의 새 과업 Drawer로 연결한다", async ({ context, page }) => {
+  await authenticate(context);
   await page.goto("/admin/tasks/create");
 
-  await page.getByLabel("제목").fill("지역 정책 선호도 조사");
-  await page.getByLabel("관리자 설명").fill("운영 확인용 과업");
-  await page.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
-  await page.getByLabel("선택지 1").fill("A안");
-  await page.getByLabel("선택지 2").fill("B안");
-  await page.getByRole("button", { name: "초안 생성" }).click();
+  await expect(page).toHaveURL("/admin/tasks?create=1");
+  await expect(page.getByRole("dialog", { name: "새 과업 만들기" })).toBeVisible();
+});
+
+test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1138, height: 768 });
+  await page.goto("/admin/tasks");
+  await page.getByRole("button", { name: "새 과업 만들기" }).click();
+
+  let createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  await expect(page).toHaveURL("/admin/tasks?create=1");
+  await expect(createDrawer.getByRole("navigation", { name: "과업 생성 단계" })).toBeVisible();
+  await createDrawer.getByLabel("제목").fill("지역 정책 선호도 조사");
+  await createDrawer.getByLabel("상황 또는 사건").fill("운영 확인용 과업");
+  await createDrawer.getByRole("button", { name: "다음" }).click();
+  await createDrawer.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
+
+  await createDrawer.getByRole("button", { name: "새 과업 만들기 닫기" }).click();
+  await expect(createDrawer).toBeHidden();
+  await page.getByRole("button", { name: "새 과업 만들기" }).click();
+  createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  await expect(createDrawer.getByRole("textbox", { name: "질문", exact: true })).toHaveValue(
+    "어떤 안을 선호하시나요?",
+  );
+  await createDrawer.getByRole("button", { name: /기본 정보/ }).click();
+  await expect(createDrawer.getByLabel("제목")).toHaveValue("지역 정책 선호도 조사");
+  await expect(createDrawer.getByLabel("상황 또는 사건")).toHaveValue("운영 확인용 과업");
+  await createDrawer.getByRole("button", { name: /시민에게 물을 내용/ }).click();
+  await createDrawer.getByRole("button", { name: "다음" }).click();
+  await expect(createDrawer.getByText("질문 설명", { exact: true })).toHaveCount(0);
+  await createDrawer.getByLabel("선택지 1").fill("A안");
+  await createDrawer.getByLabel("선택지 2").fill("B안");
+  await createDrawer.getByRole("button", { name: "초안 생성" }).click();
 
   await expect
     .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
-  await expect(page.getByRole("heading", { name: "과업 상세" })).toBeVisible();
-  expect(createdTaskBody).toMatchObject({ title: "지역 정책 선호도 조사" });
-  await page.getByLabel("동작").selectOption("open-now");
-  await page.getByLabel("마감 시각").fill("2026-09-01T09:00");
-  await page.getByRole("button", { name: "즉시 발행" }).click();
+  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
+  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  await expect(drawer).toBeVisible();
+  expect(createdTaskBody).toMatchObject({
+    title: "지역 정책 선호도 조사",
+    description: "운영 확인용 과업",
+    question: { description: null },
+  });
+  await drawer.getByLabel("동작").selectOption("open-now");
+  await drawer.getByLabel("마감 시각").fill("2026-09-01T09:00");
+  await drawer.getByRole("button", { name: "즉시 발행" }).click();
 
-  await expect(page.getByRole("status")).toContainText("최신 상태를 반영했습니다");
+  await expect(drawer.getByRole("status")).toContainText("최신 상태를 반영했습니다");
   await expect(
-    page.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
+    drawer.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
   ).toBeVisible();
-  await expect(page.getByText(taskId, { exact: true })).toHaveCount(0);
-  await page.evaluate(() => window.scrollTo(0, 0));
-
-  const [summaryBox, questionBox, operationsBox] = await Promise.all([
-    page.getByRole("group", { name: "과업 요약" }).boundingBox(),
-    page.locator(".civic-task-detail-content").boundingBox(),
-    page.getByRole("complementary", { name: "과업 운영" }).boundingBox(),
-  ]);
-  if (!summaryBox || !questionBox || !operationsBox) {
-    throw new Error("과업 상세의 고밀도 레이아웃 영역을 측정하지 못했습니다.");
-  }
-  expect(summaryBox.height).toBeLessThan(125);
-  expect(Math.abs(questionBox.y - operationsBox.y)).toBeLessThan(2);
-  expect(operationsBox.x).toBeGreaterThan(questionBox.x + questionBox.width);
-  expect(operationsBox.y + operationsBox.height).toBeLessThanOrEqual(
-    page.viewportSize()?.height ?? 768,
-  );
+  await expect(drawer.getByText(taskId, { exact: true })).toHaveCount(0);
+  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
 });
 
 test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 화면으로 연결한다", async ({
@@ -530,7 +640,23 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   );
 });
 
-test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 한 화면에서 탐색한다", async ({
+test("시뮬레이션 상태는 자동 종료 기준을 설명하고 서비스 부담을 노출하지 않는다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  latestSimulationState = "COMPLETED";
+
+  await page.goto(`/admin/simulations/status?simulationId=${simulationId}`);
+
+  await expect(page.getByText("자동 종료 기준", { exact: true })).toBeVisible();
+  await expect(page.getByText("정산", { exact: true })).toBeVisible();
+  await expect(page.getByText("9,200원", { exact: true })).toBeVisible();
+  await expect(page.getByText(/서비스 부담/u)).toHaveCount(0);
+  await expect(page.getByText("3,855원", { exact: true })).toHaveCount(0);
+});
+
+test("시뮬레이션 결과는 모든 성별 집단·도넛 분포·응답 이유를 한 화면에서 비교한다", async ({
   context,
   page,
 }) => {
@@ -545,13 +671,30 @@ test("시뮬레이션 결과는 성별 필터·도넛 분포·응답 이유를 �
   await expect(page.getByText(/이 결과는 생성형 AI를 사용해 생성한 가상 패널/u)).toHaveCount(0);
   await expect(page.getByRole("link", { name: "상세 화면" })).toHaveCount(0);
 
-  await page.getByRole("button", { name: "성별", exact: true }).click();
-  await page.getByRole("button", { name: "여성", exact: true }).click();
+  await expect(page.getByRole("button", { name: "성별", exact: true })).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await expect.poll(() => simulationResultQueries).toContain("?gender=%EB%82%A8%EC%84%B1");
   await expect.poll(() => simulationResultQueries).toContain("?gender=%EC%97%AC%EC%84%B1");
-  await expect(page.getByText(/성별 · 여성.*2명/u)).toBeVisible();
+  const genderComparison = page.getByLabel("성별 기준 집단별 응답 비교");
+  await expect(genderComparison.getByRole("heading", { name: "남성" })).toBeVisible();
+  await expect(genderComparison.getByRole("heading", { name: "여성" })).toBeVisible();
+  await expect(page.getByText("집단 간 가장 큰 차이")).toBeVisible();
+
+  await page.getByRole("button", { name: "연령", exact: true }).click();
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=30%EB%8C%80");
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=40%EB%8C%80");
+  await expect.poll(() => simulationResultQueries).toContain("?ageGroup=50%EB%8C%80");
+  const ageComparison = page.getByLabel("연령 기준 집단별 응답 비교");
+  await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
+  await expect(ageComparison.getByRole("heading", { name: "40대" })).toBeVisible();
+  await expect(ageComparison.getByRole("heading", { name: "50대" })).toBeVisible();
 
   await page.getByRole("button", { name: /다음 결과/u }).click();
-  await expect(page.getByText("돌봄 공백을 줄이는 정책이 더 시급합니다.")).toBeVisible();
+  await expect(page.getByText("보행 환경 개선이 모든 주민에게 도움이 됩니다.")).toBeVisible();
+  await page.setViewportSize({ width: 640, height: 900 });
+  await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
     true,
   );
@@ -564,7 +707,12 @@ test("관리자 Chat·Vote 화면은 200% 확대 대응 폭에서도 본문이 �
   await authenticate(context);
   await page.setViewportSize({ width: 640, height: 900 });
 
-  for (const route of ["/admin/chat/requests", "/admin/chat/categories", "/admin/tasks/create"]) {
+  for (const route of [
+    "/admin/chat",
+    "/admin/chat/requests",
+    "/admin/chat/categories",
+    "/admin/tasks?create=1",
+  ]) {
     await page.goto(route);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(
@@ -735,27 +883,39 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
     estimatedKrw: 9500,
     holdKrw: 11400,
     settledKrw: state === "COMPLETED" ? 9200 : null,
-    absorbedKrw: 0,
+    absorbedKrw: state === "COMPLETED" ? 3855 : 0,
     billingState: state === "COMPLETED" ? "SETTLED" : "HELD",
   };
 }
 
-function simulationResultFixture(gender: string | null) {
+function simulationResultFixture(gender: string | null, ageGroup: string | null) {
+  const isMen = gender === "남성";
   const isWomen = gender === "여성";
+  const isAgeGroup = ageGroup !== null;
+  const filteredCount = isMen ? 1 : isWomen ? 2 : isAgeGroup ? 1 : 3;
+  const firstCount =
+    isMen || ageGroup === "30대" || ageGroup === "40대"
+      ? 1
+      : isWomen
+        ? 1
+        : ageGroup === "50대"
+          ? 0
+          : 2;
+  const secondCount = isMen || ageGroup === "30대" || ageGroup === "40대" ? 0 : 1;
   const optionResults = [
     {
       optionId: "4928e1be-b4ef-45c6-bf83-17641cf4183d",
       displayOrder: 1,
       content: "생활안전 강화",
-      count: isWomen ? 1 : 2,
-      percentage: isWomen ? 50 : 66.67,
+      count: firstCount,
+      percentage: (firstCount / filteredCount) * 100,
     },
     {
       optionId: "879ba3de-0b84-412b-b51f-e879e9d8f6e2",
       displayOrder: 2,
       content: "돌봄·복지 확대",
-      count: 1,
-      percentage: isWomen ? 50 : 33.33,
+      count: secondCount,
+      percentage: (secondCount / filteredCount) * 100,
     },
   ];
   return {
@@ -786,13 +946,13 @@ function simulationResultFixture(gender: string | null) {
       modelType: "claude-sonnet-4-6",
       filters: {},
     },
-    denominators: { total: 3, filtered: isWomen ? 2 : 3 },
+    denominators: { total: 3, filtered: filteredCount },
     optionResults,
     unansweredCount: 0,
     summary: {
       totalRespondentCount: 3,
-      filteredRespondentCount: isWomen ? 2 : 3,
-      answeredPersonaCount: isWomen ? 2 : 3,
+      filteredRespondentCount: filteredCount,
+      answeredPersonaCount: filteredCount,
       unansweredPersonaCount: 0,
       optionResults,
     },
@@ -800,7 +960,17 @@ function simulationResultFixture(gender: string | null) {
       genders: ["남성", "여성"],
       ageGroups: ["30대", "40대", "50대"],
     },
-    resultSlots: isWomen ? [1, 3] : [1, 2, 3],
+    resultSlots: isMen
+      ? [2]
+      : isWomen
+        ? [1, 3]
+        : ageGroup === "30대"
+          ? [1]
+          : ageGroup === "40대"
+            ? [2]
+            : ageGroup === "50대"
+              ? [3]
+              : [1, 2, 3],
   };
 }
 

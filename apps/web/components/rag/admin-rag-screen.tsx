@@ -470,7 +470,6 @@ export function AdminRagScreen({
       {showJobOverlay ? (
         <AdminRagModal closeHref={deleteReturnHref} title="업로드한 문서">
           <div className="civic-job-overlay" data-wireflow-layout="rag-job-status">
-            <p>문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다.</p>
             <JobPanel key={jobPanelKey(queryValues(query.jobId))} query={query} />
           </div>
         </AdminRagModal>
@@ -1106,13 +1105,6 @@ export function DocumentWorkspace({
 
   return (
     <div className="civic-document-ledger">
-      <div className="civic-ledger-summary">
-        <strong>{pageState.total.toLocaleString("ko-KR")}개 문서</strong>
-        <span>
-          {includeSubfolders ? "하위 폴더 포함" : "선택 폴더만 표시"} · 처리 완료{" "}
-          {(pageState.statusCounts.ACTIVE ?? 0).toLocaleString("ko-KR")}개
-        </span>
-      </div>
       <form
         className="wf-document-filters"
         onSubmit={(event) => {
@@ -1236,7 +1228,7 @@ export function DocumentWorkspace({
           onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
           type="button"
         >
-          검색 제외
+          검색에서 제외
         </button>
         <select
           aria-label="선택 문서 이동 대상 폴더"
@@ -1385,6 +1377,10 @@ function documentStatusQuery(status: DocumentStatusFilter): RagDocumentListQuery
   return "";
 }
 
+export function searchEnabledFromExcluded(excluded: boolean): boolean {
+  return !excluded;
+}
+
 type DocumentStatusFilter = "ALL" | "READY" | "PROCESSING" | "FAILED";
 
 export function filterRagDocuments(
@@ -1495,7 +1491,7 @@ function DocumentRow({
           </span>
         )}
         {document.search_enabled === false ? (
-          <span className="civic-search-toggle">검색 제외됨</span>
+          <span className="civic-search-toggle">검색에서 제외</span>
         ) : null}
       </td>
       <td>
@@ -1556,18 +1552,18 @@ function DocumentRow({
               </button>
               <label className="civic-search-toggle">
                 <input
-                  aria-label={`${filename} 검색 사용 여부`}
-                  checked={document.search_enabled !== false}
+                  aria-label={`${filename} 검색에서 제외`}
+                  checked={document.search_enabled === false}
                   onChange={(event) =>
                     void onBulk?.({
                       action: "SET_SEARCH_ENABLED",
                       documentIds: [document.document_id],
-                      searchEnabled: event.target.checked,
+                      searchEnabled: searchEnabledFromExcluded(event.target.checked),
                     })
                   }
                   type="checkbox"
                 />
-                <span>검색 사용</span>
+                <span>검색에서 제외</span>
               </label>
               <Link
                 className="is-danger"
@@ -2197,8 +2193,7 @@ function UploadPanel({
         </p>
       </div>
       <p className="civic-help">
-        여러 파일을 한 번에 선택할 수 있습니다. 파일당 최대 500 MiB,
-        PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
+        여러 파일을 한 번에 선택할 수 있습니다. PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
       </p>
       <label
         className="civic-upload-dropzone"
@@ -2222,10 +2217,8 @@ function UploadPanel({
           }
         }}
       >
-        <strong>원본 파일 선택</strong>
-        <span>
-          {files.length > 0 ? `${files.length}개 선택됨` : "파일을 여러 개 놓거나 찾아보세요"}
-        </span>
+        <strong>파일 선택</strong>
+        {files.length > 0 ? <span>{files.length}개 선택됨</span> : null}
         <input
           accept={RAG_ACCEPTED_EXTENSIONS.join(",")}
           disabled={!canSelectUploadFiles(busy)}
@@ -2595,9 +2588,11 @@ export function RagJobStatusCard({
         ) : null}
       </div>
 
-      <p aria-live="polite" className="civic-job-live-message">
-        {message}
-      </p>
+      {message ? (
+        <p aria-live="polite" className="civic-job-live-message">
+          {message}
+        </p>
+      ) : null}
 
       <div className="civic-form-actions civic-job-actions">
         <Link className="civic-secondary-action" href={workspaceHref}>
@@ -2690,7 +2685,7 @@ function JobStatusItem({
     const recoveredFilename =
       !filename && latest.status === "FAILED" ? await loadRagJobFilename(jobId) : null;
     setJob(recoveredFilename ? { ...latest, filename: recoveredFilename } : latest);
-    setMessage("최신 처리 상태를 반영했습니다.");
+    setMessage("");
   }, [filename, jobId]);
 
   useEffect(() => {

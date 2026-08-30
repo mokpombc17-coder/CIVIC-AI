@@ -55,7 +55,7 @@ export type ChatRequestRow = Readonly<{
 }>;
 
 export const CHAT_REQUEST_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ChatRequestRow>> = [
-  { field: "name", headerName: "채팅방 이름", flex: 2, minWidth: 150 },
+  { field: "name", headerName: "토론방 이름", flex: 2, minWidth: 150 },
   { field: "requesterLabel", headerName: "신청자", flex: 2, minWidth: 140 },
   { field: "requestedLabel", headerName: "요청 시각", minWidth: 130 },
   { field: "statusLabel", headerName: "상태", minWidth: 90 },
@@ -296,8 +296,8 @@ export function AdminChatRequestScreen({
         result.replayed
           ? "이미 반영된 동일 결정을 확인했습니다. 방은 중복 생성되지 않았습니다."
           : action === "approve"
-            ? "채팅방 생성 신청을 승인했습니다."
-            : "채팅방 생성 신청을 반려했습니다.",
+            ? "토론방 생성 신청을 승인했습니다."
+            : "토론방 생성 신청을 반려했습니다.",
       );
     } catch {
       await loadDetail(selected.creationRequestId);
@@ -311,9 +311,9 @@ export function AdminChatRequestScreen({
     <ScreenFrame
       {...(detailScreen ? { backHref: "/admin/chat/requests" as Route } : {})}
       screen={screen}
-      title={detailScreen ? "채팅방 생성 요청 검토" : "채팅방 생성 요청"}
+      title={detailScreen ? "토론방 생성 요청 검토" : "토론방 생성 요청"}
     >
-      <AdminChatOperationsLayout active="requests">
+      <AdminChatOperationsLayout>
         <ConsoleWorkspace layout="admin-chat-request-console">
           <ConsolePane
             ariaLabel="개설 신청 목록"
@@ -322,7 +322,7 @@ export function AdminChatRequestScreen({
           >
             <div className="console-toolbar">
               <input
-                aria-label="신청자 이메일 또는 채팅방 이름 검색"
+                aria-label="신청자 이메일 또는 토론방 이름 검색"
                 onChange={(event) => setQuery(event.currentTarget.value)}
                 placeholder="검색어 입력…"
                 type="search"
@@ -348,7 +348,7 @@ export function AdminChatRequestScreen({
               ))}
             </div>
             <ConsoleDataGrid
-              ariaLabel="채팅방 생성 신청 표"
+              ariaLabel="토론방 생성 신청 표"
               columnDefs={CHAT_REQUEST_GRID_COLUMNS}
               emptyText="선택한 상태에 해당하는 신청이 없습니다."
               getRowId={(row) => row.creationRequestId}
@@ -456,7 +456,7 @@ function RequestDetail({
           <div className="civic-user-summary-grid">
             <Detail label="신청자" value={adminUserLabel(labels, item.requesterUserId)} />
             <Detail label="요청 시각" value={formatDate(item.requestedAt)} />
-            <Detail label="채팅방 이름" value={item.name} />
+            <Detail label="토론방 이름" value={item.name} />
             <Detail label="상태" value={statusLabel(item.status)} />
             <Detail
               label="카테고리"
@@ -523,6 +523,7 @@ function RequestDetail({
                       adminFieldError(problem, "reason") ? "chat-rejection-reason-error" : undefined
                     }
                     aria-invalid={Boolean(adminFieldError(problem, "reason"))}
+                    className="civic-chat-request-rejection-reason"
                     disabled={pending}
                     maxLength={100}
                     onChange={(event) => setReason(event.currentTarget.value)}
@@ -534,7 +535,7 @@ function RequestDetail({
                     id="chat-rejection-reason-error"
                     message={adminFieldError(problem, "reason")}
                   />
-                  <small>{[...reason.trim()].length} / 100자 · 한 줄 입력</small>
+                  <small>{[...reason.trim()].length} / 100자</small>
                 </label>
               ) : (
                 <RoomCategorySelector

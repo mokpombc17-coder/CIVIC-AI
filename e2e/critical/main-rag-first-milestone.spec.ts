@@ -240,7 +240,9 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await expect(
       participant.getByText("합성 문서에 근거한 CIVIC 정책 내용을 확인했습니다."),
     ).toBeVisible({ timeout: 120_000 });
-    const citation = participant.getByRole("link", { name: /synthetic\.pdf 1쪽/u });
+    const citation = participant.getByRole("button", {
+      name: /출처 synthetic\.pdf p\.1 열기/u,
+    });
     await expect(citation).toBeVisible();
     await citation.click();
     await expect(participant).toHaveURL(/\/rag$/u);

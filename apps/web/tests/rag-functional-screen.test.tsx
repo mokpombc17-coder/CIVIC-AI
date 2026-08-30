@@ -13,6 +13,7 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 import { RagFunctionalScreen } from "@/components/rag/rag-functional-screen";
+import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import {
   automaticRagRetryIdempotencyKey,
   DocumentInspector,
@@ -23,6 +24,7 @@ import {
   requestRagBulkAction,
   successfulBulkJobId,
   shouldPollRagJob,
+  searchEnabledFromExcluded,
   firstQueryValue,
   queryValues,
   jobPanelKey,
@@ -548,6 +550,7 @@ describe("9 functional RAG screens", () => {
             created_by: creatorId,
             created_at: "2026-08-21T01:02:03Z",
             deleted: false,
+            search_enabled: false,
             active_version: {
               document_version_id: "20000000-0000-4000-8000-000000000001",
               document_id: documentId,
@@ -581,6 +584,9 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("4 KB");
     expect(html).toContain("미리보기");
     expect(html).toContain("문서 삭제");
+    expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(3);
+    expect(html).not.toContain("검색 사용");
+    expect(html).not.toContain("검색 제외");
     expect(html).toContain(
       "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
     );
@@ -596,7 +602,7 @@ describe("9 functional RAG screens", () => {
         folder: undefined,
         onInspect: vi.fn(),
         selectedDocumentId: undefined,
-        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: {} },
+        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: { ACTIVE: 6 } },
         onQueryChange: vi.fn(),
         onBulk: vi.fn(),
       }),
@@ -609,6 +615,15 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");
     expect(html).toContain("2 / 3");
+    expect(html).not.toContain("61개 문서");
+    expect(html).not.toContain("civic-ledger-summary");
+    expect(html).not.toContain("선택 폴더만 표시");
+    expect(html).not.toContain("처리 완료 6개");
+  });
+
+  it("검색에서 제외 체크 상태를 기존 searchEnabled API 값으로 변환한다", () => {
+    expect(searchEnabledFromExcluded(true)).toBe(false);
+    expect(searchEnabledFromExcluded(false)).toBe(true);
   });
 
   it("등록자 조회에 실패해도 문서 UUID를 대체 문구로 노출하지 않는다", () => {
@@ -1341,6 +1356,8 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain(jobId);
     expect(html).not.toContain("작업 ID");
     expect(html).toContain("문서 준비 진행 상태");
+    expect(html).not.toContain("문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
   });
 
   it("실패한 문서 처리 상태는 파일명·실패 단계·해결 행동을 한 화면에 표시한다", () => {
@@ -1355,7 +1372,7 @@ describe("9 functional RAG screens", () => {
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
@@ -1372,6 +1389,7 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("실패 파일 다시 처리");
     expect(html).toContain("업로드 취소");
     expect(html).not.toContain("상태 새로고침");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
   });
@@ -1388,7 +1406,7 @@ describe("9 functional RAG screens", () => {
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
@@ -1411,7 +1429,7 @@ describe("9 functional RAG screens", () => {
       createElement(RagJobStatusCard, {
         filename: "재시도-대기.hwpx",
         job: retryWaitJob,
-        message: "최신 처리 상태를 반영했습니다.",
+        message: "",
         onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
@@ -1613,12 +1631,15 @@ describe("9 functional RAG screens", () => {
     expect(readAcceptedJobId({ status: "QUEUED" })).toBeNull();
   });
 
-  it("파일당 500 MiB multipart 한도를 사용자에게 안내한다", () => {
+  it("파일당 500 MiB multipart 한도를 유지하되 업로드 안내는 간결하게 표시한다", () => {
     expect(MAX_RAG_UPLOAD_BYTES).toBe(500 * 1024 * 1024);
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
-    expect(html).toContain("파일당 최대 500 MiB");
+    expect(html).toContain("파일 선택");
+    expect(html).not.toContain("원본 파일 선택");
+    expect(html).not.toContain("파일을 여러 개 놓거나 찾아보세요");
+    expect(html).not.toContain("파일당 최대 500 MiB");
     expect(html).not.toContain("8 MiB");
     expect(html).not.toContain("파일 크기·요청당 파일 수의 제품 한도는 없습니다");
   });
@@ -2320,13 +2341,19 @@ describe("9 functional RAG screens", () => {
     const participantHtml = renderToStaticMarkup(
       createElement(RagFunctionalScreen, { screen: participant }),
     );
+    const headerActionHtml = renderToStaticMarkup(createElement(RagNewQuestionHeaderAction));
     const adminHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: admin }));
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
     expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
     expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
-    expect(participantHtml).toContain("새 질문");
+    expect(participantHtml).toContain('aria-label="안내 닫기"');
+    expect(participantHtml).not.toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-haspopup="dialog"');
+    expect(headerActionHtml).toContain('class="civic-rag-header-new-question-action"');
+    expect(headerActionHtml).not.toContain(">새 질문</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');

@@ -7,6 +7,7 @@ import { requireParticipantAccess } from "@/lib/auth/require-access";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
+import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
@@ -84,6 +85,9 @@ export default async function ParticipantPlaceholderPage({
       <ParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
+        {...(definition.id === "U-RAG-001"
+          ? { headerActions: <RagNewQuestionHeaderAction /> }
+          : {})}
         title={heading.title}
       >
         <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />

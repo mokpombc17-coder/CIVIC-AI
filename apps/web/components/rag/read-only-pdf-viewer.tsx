@@ -3,11 +3,8 @@
 import Link from "next/link";
 import type { Route } from "next";
 import { useEffect, useRef, useState } from "react";
-import type { CSSProperties, RefObject } from "react";
+import type { RefObject } from "react";
 import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
-
-const DOCUMENT_ZOOM_LEVELS = [0.75, 1, 1.25, 1.5, 2] as const;
-const DEFAULT_DOCUMENT_ZOOM_INDEX = 1;
 
 type ReadOnlyPdfViewerProps = Readonly<{
   documentTitle: string;
@@ -27,19 +24,12 @@ export function ReadOnlyPdfViewer({
   const safeTotalPages = Math.max(1, totalPages);
   const safePage = Math.max(1, Math.min(currentPage, safeTotalPages));
   const documentSource = sourceUrl.endsWith("/document") ? sourceUrl : `${sourceUrl}/document`;
-  const [zoomIndex, setZoomIndex] = useState(DEFAULT_DOCUMENT_ZOOM_INDEX);
-  const zoom = DOCUMENT_ZOOM_LEVELS[zoomIndex] ?? 1;
-  const zoomPercent = Math.round(zoom * 100);
-  const zoomStyle = {
-    "--document-max-width": `${72 * zoom}rem`,
-    "--document-width": `${zoomPercent}%`,
-  } as CSSProperties;
 
   return (
     <section
       aria-label={`${documentTitle} 읽기 전용 문서`}
       className="civic-pdf-viewer"
-      data-document-zoom={`${zoomPercent}%`}
+      data-pdf-zoom-mode="pinch"
       data-pdf-scroll-mode="continuous"
     >
       <header className="civic-pdf-toolbar">
@@ -60,43 +50,7 @@ export function ReadOnlyPdfViewer({
         )}
       </header>
       <div className="wf-rag-document-card">
-        <header className="wf-rag-document-meta">
-          <h3>{documentTitle}</h3>
-          <p>
-            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지 · 연속 스크롤
-          </p>
-        </header>
-        <div aria-label="문서 확대/축소 도구" className="civic-pdf-controls" role="group">
-          <button
-            aria-label="문서 축소"
-            disabled={zoomIndex === 0}
-            onClick={() => setZoomIndex((current) => Math.max(0, current - 1))}
-            type="button"
-          >
-            <span aria-hidden="true">−</span>
-          </button>
-          <output aria-live="polite" className="civic-pdf-zoom-value">
-            {zoomPercent}%
-          </output>
-          <button
-            aria-label="문서 확대"
-            disabled={zoomIndex === DOCUMENT_ZOOM_LEVELS.length - 1}
-            onClick={() =>
-              setZoomIndex((current) => Math.min(DOCUMENT_ZOOM_LEVELS.length - 1, current + 1))
-            }
-            type="button"
-          >
-            <span aria-hidden="true">+</span>
-          </button>
-          <button
-            disabled={zoomIndex === DEFAULT_DOCUMENT_ZOOM_INDEX}
-            onClick={() => setZoomIndex(DEFAULT_DOCUMENT_ZOOM_INDEX)}
-            type="button"
-          >
-            화면 맞춤
-          </button>
-        </div>
-        <div className="civic-pdf-canvas" style={zoomStyle}>
+        <div className="civic-pdf-canvas">
           <AuthenticatedPdfPages
             currentPage={safePage}
             documentSource={documentSource}
@@ -104,8 +58,14 @@ export function ReadOnlyPdfViewer({
             totalPages={safeTotalPages}
           />
         </div>
+        <footer className="wf-rag-document-meta">
+          <h3>{documentTitle}</h3>
+          <p>
+            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지
+          </p>
+        </footer>
         <strong aria-live="polite" className="sr-only">
-          인용 {safePage} / {safeTotalPages}페이지, 연속 스크롤
+          인용 {safePage} / {safeTotalPages}페이지
         </strong>
       </div>
     </section>

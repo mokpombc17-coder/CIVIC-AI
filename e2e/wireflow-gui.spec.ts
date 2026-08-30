@@ -831,9 +831,8 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(adminCards).toHaveCount(0);
   await expect(page.getByText("시뮬레이션 사용 잔액", { exact: true })).toBeVisible();
   await expect(page.getByText("88,000원", { exact: true })).toBeVisible();
-  await expect(
-    page.getByText("전체 100,000원 · 실행 보류 12,000원", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("24시간 내 마감", { exact: true })).toHaveCount(0);
+  await expect(page.getByText(/실행 보류/u)).toHaveCount(0);
   const currentOperations = page.getByRole("region", { name: "현재 처리 중" });
   await expect(currentOperations.getByText("2건", { exact: true })).toBeVisible();
   await expect(currentOperations.getByText("지역 교통정책 조사", { exact: true })).toBeVisible();

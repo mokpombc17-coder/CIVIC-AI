@@ -8,7 +8,9 @@ import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
+import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -54,6 +56,24 @@ export type RagLiveJob = Readonly<{
 }>;
 
 type RagLiveJobs = Readonly<Record<string, RagLiveJob>>;
+
+type RagQuestionKeyDownEvent = Readonly<{
+  key: string;
+  shiftKey: boolean;
+  nativeEvent: Pick<globalThis.KeyboardEvent, "isComposing" | "keyCode">;
+  currentTarget: Readonly<{ form: Pick<HTMLFormElement, "requestSubmit"> | null }>;
+  preventDefault: () => void;
+}>;
+
+export function submitRagQuestionOnEnter(event: RagQuestionKeyDownEvent): void {
+  const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+  if (event.key !== "Enter" || event.shiftKey || isComposing) return;
+
+  const form = event.currentTarget.form;
+  if (!form) return;
+  event.preventDefault();
+  form.requestSubmit();
+}
 
 const QUEUED_PROGRESS: RagProgress = {
   status: "QUEUED",
@@ -213,6 +233,8 @@ function RagConversation({
   const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [introVisible, setIntroVisible] = useState(true);
+  const [newQuestionDialogOpen, setNewQuestionDialogOpen] = useState(false);
   const activePoll = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
   const restoredQueryChecked = useRef(false);
@@ -325,11 +347,33 @@ function RagConversation({
     [],
   );
 
+  useEffect(() => {
+    const openNewQuestionDialog = () => setNewQuestionDialogOpen(true);
+    window.addEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+    return () => window.removeEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+  }, []);
+
   function preserveDraftForLogin(): void {
     if (!userId) return;
     const storage = browserRagConversationStorage();
     if (!storage) return;
     writeRagConversationDraft(storage, userId, question);
+  }
+
+  function startNewQuestion(): void {
+    requestGeneration.current += 1;
+    activePoll.current?.abort();
+    activePoll.current = null;
+    queryOperation.current.clear();
+    setCurrentSessionId(null);
+    const storage = browserRagConversationStorage();
+    if (storage) clearRagConversationSnapshot(storage);
+    setMessages([]);
+    setLiveJobs({});
+    setQuestion("");
+    setBusy(false);
+    setNewQuestionDialogOpen(false);
+    setNotice("새 질문을 시작했습니다.");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -406,33 +450,26 @@ function RagConversation({
   return (
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
-        <header className="civic-rag-session-bar">
-          <p className="civic-rag-intro">
-            궁금한 정보를 질문하세요.
-            <br />
-            AI가 실제 문서를 기반으로 답변해드립니다.
-          </p>
-          <button
-            className="civic-secondary-action"
-            onClick={() => {
-              requestGeneration.current += 1;
-              activePoll.current?.abort();
-              activePoll.current = null;
-              queryOperation.current.clear();
-              setCurrentSessionId(null);
-              const storage = browserRagConversationStorage();
-              if (storage) clearRagConversationSnapshot(storage);
-              setMessages([]);
-              setLiveJobs({});
-              setQuestion("");
-              setBusy(false);
-              setNotice("새 질문을 시작했습니다.");
-            }}
-            type="button"
-          >
-            새 질문
-          </button>
-        </header>
+        {introVisible ? (
+          <header className="civic-rag-session-bar">
+            <div className="civic-rag-intro-banner">
+              <p className="civic-rag-intro">
+                궁금한 정보를 질문하세요.
+                <br />
+                AI가 실제 문서를 기반으로 답변해드립니다.
+              </p>
+              <button
+                aria-label="안내 닫기"
+                className="civic-rag-intro-dismiss"
+                onClick={() => setIntroVisible(false)}
+                title="안내 닫기"
+                type="button"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          </header>
+        ) : null}
         <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
@@ -468,6 +505,7 @@ function RagConversation({
             id="rag-question"
             maxLength={8000}
             onChange={(event) => setQuestion(event.target.value)}
+            onKeyDown={submitRagQuestionOnEnter}
             placeholder="문서에 대해 질문하세요…"
             rows={2}
             value={question}
@@ -482,6 +520,15 @@ function RagConversation({
         </form>
         <span className="civic-screen-action-label">{ragScreenPrimaryActions[screen.id]}</span>
       </section>
+      <ConfirmDialog
+        cancelLabel="취소"
+        confirmLabel="새 질문 시작"
+        description="새 질문을 시작하면 대화 기록이 초기화 됩니다."
+        onCancel={() => setNewQuestionDialogOpen(false)}
+        onConfirm={startNewQuestion}
+        open={newQuestionDialogOpen}
+        title="새 질문을 시작할까요?"
+      />
       {activeCitation ? (
         <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
           <div aria-hidden="true" className="wf-rag-reference-scrim" />
@@ -596,12 +643,16 @@ function ConversationBackdrop() {
       data-wireflow-layout="rag-conversation"
     >
       <header className="civic-rag-session-bar">
-        <p className="civic-rag-intro">
-          궁금한 정보를 질문하세요.
-          <br />
-          AI가 실제 문서를 기반으로 답변해드립니다.
-        </p>
-        <span className="civic-secondary-action">새 질문</span>
+        <div className="civic-rag-intro-banner">
+          <p className="civic-rag-intro">
+            궁금한 정보를 질문하세요.
+            <br />
+            AI가 실제 문서를 기반으로 답변해드립니다.
+          </p>
+          <span aria-hidden="true" className="civic-rag-intro-dismiss">
+            <CloseIcon />
+          </span>
+        </div>
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
@@ -609,6 +660,19 @@ function ConversationBackdrop() {
         <span>전송</span>
       </div>
     </section>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+      <path
+        d="m5 5 10 10M15 5 5 15"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
   );
 }
 
@@ -625,43 +689,35 @@ export function RagMessage({
 }>) {
   const statusMessage = ragJobStatusMessage(message.job);
   const citations = message.job?.citations ?? [];
-  const relatedTitles = Array.from(
-    new Set(citations.flatMap((citation) => citation.related_titles ?? [])),
-  );
   const showStreamingAnswer = liveJob
     ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
     : false;
+  const showOnlyLoadingLabel = Boolean(liveJob && liveJob.streamedAnswer.length === 0);
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
-        <time className="civic-rag-time">{message.askedAt}</time>
-        <p className="civic-rag-question">{message.question}</p>
+        <div className="civic-rag-question-content">
+          <p className="civic-rag-question">{message.question}</p>
+        </div>
       </div>
       <div className="civic-rag-answer-row">
         <header className="civic-rag-answer-meta">
           <strong>CIVIC.AI</strong>
-          {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
         </header>
         <div
-          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}`}
+          aria-busy={liveJob ? true : undefined}
+          aria-label={liveJob && showStreamingAnswer ? "실시간 답변" : undefined}
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showOnlyLoadingLabel ? " is-loading-label-only" : ""}`}
         >
           {liveJob ? (
             showStreamingAnswer ? (
-              <div aria-busy="true" aria-label="실시간 답변" className="civic-rag-streamed-answer">
-                {liveJob.streamedAnswer ? (
-                  <>
-                    <span className="civic-rag-stream-label">
-                      <span aria-hidden="true" /> 실시간 답변
-                    </span>
-                    <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
-                    <span aria-hidden="true" className="civic-rag-stream-cursor" />
-                  </>
-                ) : (
-                  <p className="civic-rag-stream-starting civic-rag-loading-label">
-                    답변을 작성하는 중...
-                  </p>
-                )}
-              </div>
+              liveJob.streamedAnswer ? (
+                <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
+              ) : (
+                <p className="civic-rag-stream-starting civic-rag-loading-label">
+                  답변을 작성하는 중...
+                </p>
+              )
             ) : (
               <RagLiveProgress liveJob={liveJob} />
             )
@@ -675,60 +731,6 @@ export function RagMessage({
             />
           ) : null}
         </div>
-        {citations.length ? (
-          <div aria-label="출처" className="civic-rag-citations">
-            {citations.map((citation) => {
-              const externalUrl = safeExternalSourceUrl(citation.source_url);
-              return (
-                <div
-                  className="civic-rag-citation-card"
-                  key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
-                >
-                  <div className="civic-rag-citation-copy">
-                    <strong>
-                      <span aria-hidden="true" className="civic-rag-citation-icon">
-                        ⓘ
-                      </span>
-                      출처
-                    </strong>
-                    <p>
-                      {citation.title ?? "문서"} · {citation.page_number}페이지
-                    </p>
-                  </div>
-                  <div className="civic-rag-citation-actions">
-                    <Link
-                      className="wf-button wf-button-secondary"
-                      href={citationHref(citation)}
-                      onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
-                    >
-                      원문 보기
-                    </Link>
-                    {externalUrl ? (
-                      <a
-                        className="wf-button wf-button-secondary"
-                        href={externalUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        게시 원문
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-            {relatedTitles.length ? (
-              <aside className="civic-rag-related-documents">
-                <strong>관련 문서</strong>
-                <ul>
-                  {relatedTitles.map((title) => (
-                    <li key={title}>{title}</li>
-                  ))}
-                </ul>
-              </aside>
-            ) : null}
-          </div>
-        ) : null}
         {message.job?.suggestions?.length ? (
           <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
         ) : null}
@@ -771,7 +773,6 @@ export function ragLoadingLabel(stage: RagProgressStage): string {
 export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
   return (
     <section aria-label="RAG 답변 생성 중" className="civic-rag-live-progress" role="status">
-      <span aria-hidden="true" className="civic-rag-loading-orb" />
       <strong aria-live="polite" className="civic-rag-loading-label">
         {ragLoadingLabel(liveJob.progress.stage)}
       </strong>

@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { SimulationResult, SimulationResultDetail } from "@/lib/admin/simulation-contracts";
-import { buildDonutData, SimulationResultExplorer } from "./simulation-result-explorer";
+import {
+  buildComparisonInsight,
+  buildDonutData,
+  SimulationResultExplorer,
+} from "./simulation-result-explorer";
 
 const optionIds = [
   "11111111-1111-4111-8111-111111111111",
@@ -62,6 +66,33 @@ const detail = {
   demographics: { gender: "여성", ageGroup: "30대" },
 } satisfies SimulationResultDetail;
 
+const genderComparisons = [
+  {
+    label: "남성",
+    result: {
+      ...result,
+      denominators: { total: 100, filtered: 45 },
+      optionResults: [
+        { ...result.optionResults[0]!, count: 27, percentage: 60 },
+        { ...result.optionResults[1]!, count: 18, percentage: 40 },
+      ],
+      unansweredCount: 0,
+    },
+  },
+  {
+    label: "여성",
+    result: {
+      ...result,
+      denominators: { total: 100, filtered: 55 },
+      optionResults: [
+        { ...result.optionResults[0]!, count: 22, percentage: 40 },
+        { ...result.optionResults[1]!, count: 33, percentage: 60 },
+      ],
+      unansweredCount: 0,
+    },
+  },
+] satisfies readonly { label: string; result: SimulationResult }[];
+
 describe("simulation result explorer", () => {
   it("includes unanswered responses in the doughnut denominator", () => {
     expect(buildDonutData(result)).toEqual([
@@ -71,16 +102,26 @@ describe("simulation result explorer", () => {
     ]);
   });
 
-  it("renders demographic filters, exact distribution, and the inline response reason", () => {
+  it("finds the largest response gap across simultaneously compared groups", () => {
+    expect(buildComparisonInsight(genderComparisons)).toEqual({
+      difference: 20,
+      highestGroup: "남성",
+      lowestGroup: "여성",
+      optionLabel: "생활안전 강화",
+    });
+  });
+
+  it("renders every gender together, exact distribution, and the inline response reason", () => {
     const html = renderToStaticMarkup(
       <SimulationResultExplorer
+        comparisonLoading={false}
+        comparisonMessage=""
+        comparisons={genderComparisons}
         detail={detail}
         detailMessage=""
         dimension="gender"
-        filteredValue={null}
         loading={false}
         onDimensionChange={vi.fn()}
-        onFilteredValueChange={vi.fn()}
         onNextResult={vi.fn()}
         onPreviousResult={vi.fn()}
         result={result}
@@ -89,13 +130,15 @@ describe("simulation result explorer", () => {
       />,
     );
 
-    expect(html).toContain("RESULT FILTER");
-    expect(html).toContain("성별 결과 필터");
+    expect(html).toContain("RESULT COMPARE");
+    expect(html).toContain("성별 응답을 한눈에 비교");
     expect(html).toContain("남성");
     expect(html).toContain("여성");
+    expect(html).toContain("집단 간 가장 큰 차이");
     expect(html).toContain("45.0%");
     expect(html).toContain("응답자가 이렇게 답한 이유");
     expect(html).toContain("돌봄 공백을 줄이는 일이 가장 시급하다고 생각합니다.");
+    expect(html).not.toContain("성별 결과 필터");
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("이 결과는 생성형 AI를 사용해 생성한 가상 패널");
     expect(html).not.toContain("상세 화면");
