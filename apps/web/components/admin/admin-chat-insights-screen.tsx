@@ -12,6 +12,7 @@ import {
   type FormEvent,
 } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   readAdminRoomPage,
   type AdminRoom,
@@ -57,6 +58,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     text: string;
     tone: "error" | "success";
   } | null>(null);
+  const [roomToClose, setRoomToClose] = useState<AdminRoom | null>(null);
   const [closingRoom, setClosingRoom] = useState(false);
   const [fromLocal, setFromLocal] = useState("");
   const [toLocal, setToLocal] = useState("");
@@ -151,13 +153,9 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   }
 
   async function closeSelectedRoom() {
-    const target = selectedRoom;
-    if (!target || target.status === "CLOSED" || closingRoom) return;
-    if (
-      !window.confirm(
-        `‘${target.name}’ 채팅방을 즉시 종료하시겠습니까?\n\n방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`,
-      )
-    ) {
+    const target = roomToClose;
+    if (!target || target.status === "CLOSED" || closingRoom) {
+      setRoomToClose(null);
       return;
     }
 
@@ -213,6 +211,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
       }
     } finally {
       setClosingRoom(false);
+      setRoomToClose(null);
     }
   }
 
@@ -400,7 +399,9 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
               analyzing={analyzing}
               closingRoom={closingRoom}
               fromLocal={fromLocal}
-              onCloseRoom={() => void closeSelectedRoom()}
+              onCloseRoom={() => {
+                if (selectedRoom && selectedRoom.status !== "CLOSED") setRoomToClose(selectedRoom);
+              }}
               onFromChange={setFromLocal}
               onSubmit={requestAnalysis}
               onToChange={setToLocal}
@@ -436,6 +437,18 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
           </section>
         </div>
       </div>
+      <ConfirmDialog
+        busy={closingRoom}
+        busyLabel="종료 중…"
+        cancelLabel="운영 유지"
+        confirmLabel="채팅방 종료"
+        description={`‘${roomToClose?.name ?? ""}’ 채팅방의 방장과 참여 중인 모든 사용자가 퇴장되고, 접속 중인 연결이 끊깁니다. 이후 참여·메시지·구독은 차단됩니다.`}
+        destructive
+        onCancel={() => setRoomToClose(null)}
+        onConfirm={() => void closeSelectedRoom()}
+        open={roomToClose !== null}
+        title="채팅방을 즉시 종료할까요?"
+      />
     </ScreenFrame>
   );
 }

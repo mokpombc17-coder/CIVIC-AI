@@ -32,6 +32,77 @@ body {
     radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
 }
 
+.civic-confirm-dialog::backdrop {
+  background: rgb(16 17 20 / 56%);
+}
+
+.civic-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(30rem, 100%);
+  max-height: calc(100dvh - 2.5rem);
+  overflow: auto;
+  overscroll-behavior: contain;
+  gap: 1.25rem;
+  border: 1px solid var(--civic-ink, #172033);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1.5rem;
+  box-shadow: 0 1rem 2.25rem rgb(16 17 20 / 28%);
+}
+
+.civic-confirm-dialog[open] {
+  display: grid;
+}
+
+.civic-confirm-dialog > header h2 {
+  margin: 0;
+  color: var(--civic-ink, #172033);
+  font-size: 1.5rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.civic-confirm-dialog-description {
+  color: #4b5563;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.civic-confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.civic-confirm-dialog-actions > button {
+  min-width: 7.5rem;
+  touch-action: manipulation;
+}
+
+.civic-confirm-dialog-actions > button:focus-visible {
+  outline: 3px solid var(--civic-blue, #1d4ed8);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .civic-confirm-dialog {
+    inset: auto max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: calc(100dvh - max(2rem, env(safe-area-inset-bottom)));
+    margin: 0;
+    padding: 1.25rem;
+  }
+
+  .civic-confirm-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 button,
 input {
   font: inherit;

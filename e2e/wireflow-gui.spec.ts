@@ -975,13 +975,15 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
       new URL(request.url()).pathname === "/api/v1/rag/documents/document-1" &&
       new URL(request.url()).searchParams.get("failed_job_id") === "job-1",
   );
-  page.once("dialog", async (dialog) => {
-    expect(dialog.message()).toBe(
-      "실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다. 계속할까요?",
-    );
-    await dialog.accept();
-  });
   await page.getByRole("button", { name: "업로드 취소" }).click();
+  const uploadCancelDialog = page.getByRole("alertdialog", { name: "업로드를 취소할까요?" });
+  await expect(uploadCancelDialog).toBeVisible();
+  await expect(
+    uploadCancelDialog.getByText("실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await uploadCancelDialog.getByRole("button", { name: "업로드 취소" }).click();
   const cancellationRequest = await cancellationRequestPromise;
   expect(cancellationRequest.headers()["idempotency-key"]).toBeTruthy();
   await expect(page).toHaveURL(/\/admin\/rag$/u);

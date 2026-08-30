@@ -293,16 +293,15 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
   await createdRow.getByRole("button", { name: "이름 저장" }).click();
   const updatedRow = page.getByRole("row", { name: /생활 복지/ });
   await expect(updatedRow).toBeVisible();
-  const confirmation = page.waitForEvent("dialog").then(async (dialog) => {
-    expect(dialog.message()).toContain("생활 복지");
-    await dialog.accept();
-  });
   await updatedRow.getByRole("button", { name: "삭제" }).click();
-  await confirmation;
+  const categoryDialog = page.getByRole("alertdialog", { name: "카테고리를 삭제할까요?" });
+  await expect(categoryDialog).toContainText("생활 복지");
+  await categoryDialog.getByRole("button", { name: "카테고리 삭제" }).click();
   await expect(page.getByRole("row", { name: /생활 복지/ })).toHaveCount(0);
 
-  page.once("dialog", (dialog) => void dialog.accept());
   await page.getByRole("row", { name: /환경/ }).getByRole("button", { name: "삭제" }).click();
+  await expect(categoryDialog).toContainText("환경");
+  await categoryDialog.getByRole("button", { name: "카테고리 삭제" }).click();
   await expect(page.getByRole("status")).toContainText("3개 채팅방에서 사용 중");
 });
 
@@ -377,15 +376,37 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await expect(activeRoom).toContainText("운영 중");
   await expect(page.getByRole("button", { name: /지난 정책 기록방/u })).toContainText("종료");
   await activeRoom.click();
-  await expect(page.getByRole("button", { name: "채팅방 종료" })).toBeVisible();
+  const closeRoomButton = page
+    .getByLabel("대화 Export 분석")
+    .getByRole("button", { name: "채팅방 종료" });
+  await expect(closeRoomButton).toBeVisible();
 
-  const confirmation = page.waitForEvent("dialog").then(async (dialog) => {
-    expect(dialog.message()).toContain("모든 사용자");
-    expect(dialog.message()).toContain("접속 중인 연결이 끊깁니다");
-    await dialog.accept();
+  await closeRoomButton.click();
+  const closeRoomDialog = page.getByRole("alertdialog", {
+    name: "채팅방을 즉시 종료할까요?",
   });
-  await page.getByRole("button", { name: "채팅방 종료" }).click();
-  await confirmation;
+  await expect(closeRoomDialog).toContainText("모든 사용자");
+  await expect(closeRoomDialog).toContainText("접속 중인 연결이 끊깁니다");
+  const keepRoomButton = closeRoomDialog.getByRole("button", { name: "운영 유지" });
+  const confirmCloseButton = closeRoomDialog.getByRole("button", { name: "채팅방 종료" });
+  await expect(keepRoomButton).toBeFocused();
+  expect(
+    await closeRoomButton.evaluate((button) => {
+      button.focus();
+      return document.activeElement === button;
+    }),
+  ).toBe(false);
+  await expect(keepRoomButton).toBeFocused();
+  await page.keyboard.press("Shift+Tab");
+  await expect(confirmCloseButton).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(keepRoomButton).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(closeRoomDialog).toHaveCount(0);
+  await expect(closeRoomButton).toBeFocused();
+
+  await closeRoomButton.click();
+  await closeRoomDialog.getByRole("button", { name: "채팅방 종료" }).click();
 
   await expect
     .poll(() => closeRoomIdempotencyKey, { timeout: 2_000 })

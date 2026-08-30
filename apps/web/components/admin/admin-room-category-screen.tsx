@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
   DEFAULT_ROOM_CATEGORY_ID,
@@ -34,6 +35,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   const [loading, setLoading] = useState(true);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [pending, setPending] = useState(false);
+  const [categoryToDelete, setCategoryToDelete] = useState<RoomCategory | null>(null);
   const [message, setMessage] = useState("");
   const [roomListMessage, setRoomListMessage] = useState("");
 
@@ -182,9 +184,12 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
     }
   }
 
-  async function deleteCategory(category: RoomCategory) {
-    if (pending || category.categoryId === DEFAULT_ROOM_CATEGORY_ID) return;
-    if (!window.confirm(`‘${category.name}’ 카테고리를 삭제하시겠습니까?`)) return;
+  async function deleteCategory() {
+    const category = categoryToDelete;
+    if (!category || pending || category.categoryId === DEFAULT_ROOM_CATEGORY_ID) {
+      setCategoryToDelete(null);
+      return;
+    }
     setPending(true);
     setMessage("");
     try {
@@ -214,6 +219,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
       setMessage("네트워크 오류로 카테고리를 삭제하지 못했습니다.");
     } finally {
       setPending(false);
+      setCategoryToDelete(null);
     }
   }
 
@@ -375,7 +381,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           </form>
           <CategoryTable
             categories={categories}
-            onDelete={(category) => void deleteCategory(category)}
+            onDelete={setCategoryToDelete}
             onUpdate={(category, name) => void updateCategory(category, name)}
             pending={pending}
           />
@@ -506,6 +512,18 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           </aside>
         </div>
       ) : null}
+      <ConfirmDialog
+        busy={pending}
+        busyLabel="삭제 중…"
+        cancelLabel="유지"
+        confirmLabel="카테고리 삭제"
+        description={`‘${categoryToDelete?.name ?? ""}’ 카테고리를 삭제합니다. 사용 중인 카테고리는 삭제할 수 없습니다.`}
+        destructive
+        onCancel={() => setCategoryToDelete(null)}
+        onConfirm={() => void deleteCategory()}
+        open={categoryToDelete !== null}
+        title="카테고리를 삭제할까요?"
+      />
     </ScreenFrame>
   );
 }
