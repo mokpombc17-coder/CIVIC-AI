@@ -4441,31 +4441,24 @@ body {
 
 .civic-header-login {
   display: inline-flex;
-  min-width: 62px;
   min-height: 44px;
   align-items: center;
-  justify-content: center;
-  border: 1px solid #8fb2f7;
-  border-radius: 8px;
-  background: #eef4ff;
-  color: #0a4fd1;
+  border: 0;
+  background: transparent;
+  color: #1f2124;
+  padding: 0;
   font-size: 14px;
   font-weight: 700;
-  line-height: 20px;
+  line-height: 21px;
+  cursor: pointer;
   text-decoration: none;
-  transition:
-    background-color 160ms ease,
-    border-color 160ms ease;
+  white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 
-.civic-header-login:hover {
-  border-color: #5e90ef;
-  background: #dfeaff;
-}
-
 .civic-header-login:focus-visible {
-  outline: 2px solid #0a4fd1;
+  border-radius: 4px;
+  outline: 2px solid #266ef5;
   outline-offset: 2px;
 }
 

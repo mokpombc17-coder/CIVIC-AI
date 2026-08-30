@@ -16,10 +16,13 @@ test("비로그인 사용자는 홈을 보고 보호 기능 링크에서 로그�
 
   await expect(page).toHaveURL(/\/home$/u);
   await expect(page.getByRole("heading", { name: "CIVIC.AI", exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: "로그인", exact: true })).toHaveAttribute(
-    "href",
-    "/login?returnTo=%2Fhome",
-  );
+  const loginAction = page.getByRole("link", { name: "로그인", exact: true });
+  await expect(loginAction).toHaveAttribute("href", "/login?returnTo=%2Fhome");
+  await expect(loginAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
+  await expect(loginAction).toHaveCSS("border-top-width", "0px");
+  await expect(loginAction).toHaveCSS("color", "rgb(31, 33, 36)");
+  await expect(loginAction).toHaveCSS("font-weight", "700");
+  await expect(loginAction).toHaveCSS("min-height", "44px");
   await expect(page.getByRole("link", { name: "홈", exact: true })).toHaveAttribute(
     "href",
     "/home",
