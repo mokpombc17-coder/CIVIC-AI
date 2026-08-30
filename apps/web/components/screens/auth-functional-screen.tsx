@@ -46,6 +46,7 @@ const initialDraft: SignupDraft = {
 const signupHistorySteps = new Set(["AUTH-002", "AUTH-003", "AUTH-004", "AUTH-005", "AUTH-006"]);
 const passwordResetEmailKey = "civic:password-reset:email";
 const passwordResetCodeKey = "civic:password-reset:code";
+const participantSurveyLoginTimeoutMs = 3_000;
 
 export function signupStepFromHistory(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("civicSignupStep" in value)) return null;
@@ -1142,13 +1143,19 @@ export async function authenticatedPostLoginDestination(
   currentUser: Readonly<{ role?: unknown; must_change_password?: unknown }>,
   returnTo: string | null,
   request: typeof fetch = authenticatedFetch,
+  timeoutMs: number = participantSurveyLoginTimeoutMs,
 ): Promise<string> {
   const defaultDestination = authenticatedDestination(currentUser, returnTo);
   if (currentUser.must_change_password === true || currentUser.role !== "PARTICIPANT") {
     return defaultDestination;
   }
   try {
-    const response = await request("/api/v1/me/surveys/current", { cache: "no-store" });
+    const response = await requestWithTimeout(
+      request,
+      "/api/v1/me/surveys/current",
+      { cache: "no-store" },
+      timeoutMs,
+    );
     if (!response.ok) return defaultDestination;
     const survey = (await response.json()) as {
       submitted?: unknown;
@@ -1159,6 +1166,21 @@ export async function authenticatedPostLoginDestination(
       : defaultDestination;
   } catch {
     return defaultDestination;
+  }
+}
+
+async function requestWithTimeout(
+  request: typeof fetch,
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await request(input, { ...init, signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
   }
 }
 

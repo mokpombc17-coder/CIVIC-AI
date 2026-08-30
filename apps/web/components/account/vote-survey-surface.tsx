@@ -20,6 +20,8 @@ import {
   type VoteSurveySubmissionAttempt,
 } from "@/lib/vote/participant-survey";
 
+const voteSurveyRequestTimeoutMs = 15_000;
+
 export function VoteSurveySurface() {
   const [survey, setSurvey] = useState<VoteCurrentSurvey | null>(null);
   const [response, setResponse] = useState<VoteSurveyResponseDetail | null>(null);
@@ -326,8 +328,14 @@ function SurveyStatus({
 
 export async function loadVoteSurvey(
   request: typeof fetch = authenticatedFetch,
+  timeoutMs: number = voteSurveyRequestTimeoutMs,
 ): Promise<Readonly<{ survey: VoteCurrentSurvey; response: VoteSurveyResponseDetail | null }>> {
-  const currentResponse = await request("/api/v1/me/surveys/current", { cache: "no-store" });
+  const currentResponse = await requestWithTimeout(
+    request,
+    "/api/v1/me/surveys/current",
+    { cache: "no-store" },
+    timeoutMs,
+  );
   if (!currentResponse.ok) {
     throw new Error(
       await responseProblem(currentResponse, "현재 Vote 설문을 불러오지 못했습니다."),
@@ -336,9 +344,12 @@ export async function loadVoteSurvey(
   const survey = (await currentResponse.json()) as VoteCurrentSurvey;
   if (!survey.submitted) return { survey, response: null };
 
-  const latestResponse = await request("/api/v1/me/survey-responses/latest", {
-    cache: "no-store",
-  });
+  const latestResponse = await requestWithTimeout(
+    request,
+    "/api/v1/me/survey-responses/latest",
+    { cache: "no-store" },
+    timeoutMs,
+  );
   if (!latestResponse.ok) {
     throw new Error(
       await responseProblem(latestResponse, "제출한 Vote 설문을 불러오지 못했습니다."),
@@ -351,15 +362,21 @@ async function submitVoteSurvey(
   submission: ReturnType<typeof buildVoteSurveySubmission>,
   idempotencyKey: string,
   request: typeof fetch = authenticatedFetch,
+  timeoutMs: number = voteSurveyRequestTimeoutMs,
 ): Promise<void> {
-  const response = await request("/api/v1/me/survey-responses", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "idempotency-key": idempotencyKey,
+  const response = await requestWithTimeout(
+    request,
+    "/api/v1/me/survey-responses",
+    {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "idempotency-key": idempotencyKey,
+      },
+      body: JSON.stringify(submission),
     },
-    body: JSON.stringify(submission),
-  });
+    timeoutMs,
+  );
   if (!response.ok) {
     throw new Error(await responseProblem(response, "설문을 최종 제출하지 못했습니다."));
   }
@@ -433,6 +450,26 @@ function formatSubmittedAt(value: string): string {
 
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
+}
+
+async function requestWithTimeout(
+  request: typeof fetch,
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await request(input, { ...init, signal: controller.signal });
+  } catch (error) {
+    if (controller.signal.aborted) {
+      throw new Error("Vote 서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.");
+    }
+    throw error;
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 function reloadSurvey(

@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
+import { loadVoteSurvey } from "@/components/account/vote-survey-surface";
 import {
   AuditList,
   createLatestAdminUserRequestGate,
@@ -618,9 +619,10 @@ describe("25 functional Main/Auth screens", () => {
         completedSurvey,
       ),
     ).resolves.toBe("/rag");
-    expect(requiredSurvey).toHaveBeenCalledWith("/api/v1/me/surveys/current", {
-      cache: "no-store",
-    });
+    expect(requiredSurvey).toHaveBeenCalledWith(
+      "/api/v1/me/surveys/current",
+      expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }),
+    );
   });
 
   it("Vote 조회 장애는 로그인 완료를 막지 않고 기본 역할 홈으로 폴백한다", async () => {
@@ -632,6 +634,39 @@ describe("25 functional Main/Auth screens", () => {
         { role: "PARTICIPANT", must_change_password: false },
         null,
         unavailableVote,
+      ),
+    ).resolves.toBe("/home");
+  });
+
+  it("Vote 설문 화면 조회가 지연되면 제한시간 오류로 재시도할 수 있다", async () => {
+    const hangingVote = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    );
+    await expect(loadVoteSurvey(hangingVote, 1)).rejects.toThrow(
+      "Vote 서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
+    );
+  });
+
+  it("Vote 조회가 응답하지 않아도 제한시간 후 로그인 기본 홈으로 이동한다", async () => {
+    const hangingVote = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    );
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        hangingVote,
+        1,
       ),
     ).resolves.toBe("/home");
   });

@@ -145,8 +145,10 @@ export function buildVoteSurveySubmission(
 ): VoteSurveySubmission {
   return {
     roundId: survey.round.id,
-    answers: orderedSurveyQuestions(survey.content.questions).map((question, index) =>
-      buildAnswer(question, index + 1, formData),
+    answers: orderedSurveyQuestions(survey.content.questions).flatMap((question, index) =>
+      !question.required && !hasAnswer(question, formData)
+        ? []
+        : [buildAnswer(question, index + 1, formData)],
     ),
   };
 }
@@ -267,6 +269,22 @@ function buildAnswer(
     throw new VoteSurveyValidationError(`${questionNumber}번 질문의 척도 값을 확인해 주세요.`);
   }
   return { questionId: question.id, type: question.type, scale };
+}
+
+function hasAnswer(question: VoteSurveyQuestion, formData: FormData): boolean {
+  if (question.type === "SINGLE_CHOICE") {
+    return stringValue(formData.get(surveyFieldName(question.id, "selection"))) !== null;
+  }
+  if (question.type === "MULTIPLE_CHOICE") {
+    return formData
+      .getAll(surveyFieldName(question.id, "selection"))
+      .some((value) => stringValue(value) !== null);
+  }
+  if (question.type === "SHORT_TEXT" || question.type === "LONG_TEXT") {
+    return nonEmpty(formData.get(surveyFieldName(question.id, "text"))) !== null;
+  }
+  const field = question.type === "NUMBER" ? "number" : "scale";
+  return stringValue(formData.get(surveyFieldName(question.id, field))) !== null;
 }
 
 function selection(

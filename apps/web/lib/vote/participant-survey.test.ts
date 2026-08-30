@@ -177,6 +177,26 @@ describe("Vote participant survey contract", () => {
     );
   });
 
+  it("omits unanswered optional questions and still validates started answers", () => {
+    const optionalText = { ...questions[2]!, required: false };
+    const optionalMultiple = { ...questions[1]!, required: false };
+    const optionalSurvey = {
+      ...survey,
+      content: { ...survey.content, questions: [optionalText, optionalMultiple] },
+    };
+    const empty = new FormData();
+    expect(buildVoteSurveySubmission(optionalSurvey, empty)).toEqual({
+      roundId: survey.round.id,
+      answers: [],
+    });
+
+    const started = new FormData();
+    started.append(surveyFieldName(optionalMultiple.id, "selection"), "multiple-a");
+    expect(() => buildVoteSurveySubmission(optionalSurvey, started)).toThrow(
+      "1번 질문은 2개 이상 선택해 주세요.",
+    );
+  });
+
   it("reuses one idempotency key for an unchanged canonical submission", () => {
     const submission = { roundId: "round-1", answers: [] };
     const first = resolveVoteSurveySubmissionAttempt(null, submission, () => "key-1");
