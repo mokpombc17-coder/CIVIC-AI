@@ -346,7 +346,41 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("civic-rag-answer is-live is-streaming-answer");
+    expect(html).toContain('aria-busy="true"');
+    expect(html).toContain('class="civic-rag-markdown"');
     expect(html).toContain("실시간 문서 답변");
+    expect(html).not.toContain("civic-rag-stream-label");
+    expect(html).not.toContain("civic-rag-stream-cursor");
+  });
+
+  it("답변 조각 전 작성 상태는 문구 너비의 아이콘 없는 버블로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        liveJob: {
+          progress: {
+            status: "RUNNING",
+            stage: "COMPOSING",
+            label: "답변을 작성하고 있어요",
+            detail: "선별한 근거로 답변을 구성합니다.",
+            progress_percent: 80,
+            estimated_remaining_seconds: 3,
+            elapsed_seconds: 8,
+          },
+          streamedAnswer: "",
+        },
+        message: {
+          id: "composing-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("civic-rag-answer is-live is-streaming-answer is-loading-label-only");
+    expect(html).toContain("답변을 작성하는 중...");
+    expect(html).not.toContain("civic-rag-loading-orb");
   });
 
   it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {
@@ -888,6 +922,7 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("관련 자료를 찾는 중...");
     expect(html).toContain("civic-rag-loading-label");
+    expect(html).not.toContain("civic-rag-loading-orb");
     expect(html).not.toContain("<ol");
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain("관련 자료를 좁힙니다.");
