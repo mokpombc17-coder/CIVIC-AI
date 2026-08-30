@@ -287,7 +287,11 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
 }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
-  await page.goto("/admin/chat/categories");
+  await page.goto("/admin/chat");
+  const categoryManagementLink = page.getByRole("link", { name: "카테고리 관리" });
+  await expect(categoryManagementLink).toBeVisible();
+  await categoryManagementLink.click();
+  await expect(page).toHaveURL(/\/admin\/chat\/categories$/u);
 
   await expect(page.getByRole("heading", { name: "채팅방 카테고리 관리" })).toBeVisible();
   await expect(page.getByText("ACTIVE · LISTED ROOMS", { exact: true })).toHaveCount(0);

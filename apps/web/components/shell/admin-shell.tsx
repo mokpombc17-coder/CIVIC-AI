@@ -77,6 +77,13 @@ export function AdminShell({
                 >
                   <span>채팅방 관리</span>
                 </Link>
+                <Link
+                  aria-current={isChatCategoryActive(currentRoute) ? "page" : undefined}
+                  className="civic-admin-nav-link civic-admin-nav-sub-link"
+                  href="/admin/chat/categories"
+                >
+                  <span>카테고리 관리</span>
+                </Link>
               </div>
             ) : (
               <Link
@@ -109,9 +116,16 @@ function isChatRequestActive(activeRoute: string): boolean {
   return activeRoute === "/admin/chat/requests" || activeRoute.startsWith("/admin/chat/requests/");
 }
 
+function isChatCategoryActive(activeRoute: string): boolean {
+  return (
+    activeRoute === "/admin/chat/categories" || activeRoute.startsWith("/admin/chat/categories/")
+  );
+}
+
 function isChatManagementActive(activeRoute: string): boolean {
   return (
     (activeRoute === "/admin/chat" || activeRoute.startsWith("/admin/chat/")) &&
-    !isChatRequestActive(activeRoute)
+    !isChatRequestActive(activeRoute) &&
+    !isChatCategoryActive(activeRoute)
   );
 }

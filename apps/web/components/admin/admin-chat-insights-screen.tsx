@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import {
   useCallback,
   useEffect,
@@ -377,14 +376,8 @@ export function AdminChatInsightsScreen({
     window.setTimeout(() => URL.revokeObjectURL(url), 0);
   }
 
-  const categoryAction = (
-    <Link className="civic-secondary-action" href="/admin/chat/categories">
-      카테고리 관리
-    </Link>
-  );
-
   return (
-    <ScreenFrame headingAction={categoryAction} screen={screen} title="채팅방 관리">
+    <ScreenFrame screen={screen} title="채팅방 관리">
       <AdminChatOperationsLayout>
         <form
           className={`civic-domain-toolbar civic-task-list-toolbar ${styles.tableToolbar}`}
