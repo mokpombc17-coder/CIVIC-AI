@@ -6,13 +6,14 @@ import { AdminFunctionalScreen } from "./admin-functional-screen";
 import { AuthFunctionalScreen } from "./auth-functional-screen";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
+import { PwaInstallTriggerCard } from "@/components/pwa/pwa-install-trigger-card";
 import {
   WireflowCommonState,
   WireflowConflictState,
   WireflowOutageState,
   WireflowProgressState,
 } from "@/components/wireflow/common-state-layouts";
-import { WireflowBadge, WireflowCard } from "@/components/wireflow/wireflow-primitives";
+import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
 import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
 import type { CurrentUser } from "@/lib/auth/shell-access";
 
@@ -58,11 +59,11 @@ export function MainFunctionalScreen({
         : path) as Route;
     return (
       <ScreenFrame screen={screen}>
-        <WireflowCard className="wf-home-welcome">
+        <PwaInstallTriggerCard>
           <WireflowBadge>참여 안내</WireflowBadge>
           <h2>의견을 가다듬고, 나누고, 담아내는 곳</h2>
           <p>자료 속 근거를 찾아보고, 다른 참여자와 이야기하며, 내 의견을 남겨보세요.</p>
-        </WireflowCard>
+        </PwaInstallTriggerCard>
         <ParticipantHomeLayout
           actions={[
             {

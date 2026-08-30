@@ -5,13 +5,16 @@
 ```text
 RootLayout [Server Route]
 └── AppShell [Client]
+    ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
     ├── NativeBridgeRuntime
     └── AppUpdateGate
         ├── AppInstallBanner [conditional]
         └── App Router children
 ```
 
-`AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 앱 설치·업데이트 정책만 소유한다.
+`AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
+설치·업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
+리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
 참여자 레이아웃은 저장소에 원래 있던 `PlatformShell`이 소유하고, 관리자 레이아웃은 `AdminShell`이
 소유한다.
 
@@ -28,12 +31,22 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 ```text
 IndexPage / [Server Route] [redirect: /home]
 
+PwaStartPage /pwa/start [Server Route, manifest start_url]
+└── PwaStartup [Client]
+    ├── 일반 브라우저: /home 이동, Refresh 미실행
+    └── installed PWA: 최소 1.5초 splash + 세션 초기화
+        ├── 인증 성공: /home 이동
+        ├── 인증 실패: /login 이동
+        └── 네트워크·일시 오류: 로그인 상태를 지우지 않고 재시도
+
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 └── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
             └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
+                ├── PwaInstallTriggerCard [Client, beforeinstallprompt 준비 시 환영 카드 클릭으로 설치 요청]
+                └── ParticipantHomeLayout
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -156,6 +169,16 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
 남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
 담당한다.
+
+`PwaInstallTriggerCard`는 브라우저가 `beforeinstallprompt`를 제공한 경우에만 기존 환영 카드 위에
+접근 가능한 투명 버튼을 활성화한다. 클릭 시 브라우저의 네이티브 설치 UI를 요청하고,
+`appinstalled` 이후에는 다시 비활성화한다. iOS 설치 안내나 별도 시각 CTA는 소유하지 않는다.
+
+`PwaStartup`의 세션 초기화는 `/pwa/start`에서만 실행한다. standalone display mode 또는 iOS
+standalone flag가 없으면 Refresh를 호출하지 않는다. API 계약 의존부는
+`lib/pwa/session-bootstrap.ts`에 격리하며, Refresh 결과와 최소 splash 시간을 함께 기다린다. 토큰은
+브라우저 JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의 HttpOnly cookie
+계약을 유지한다.
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,

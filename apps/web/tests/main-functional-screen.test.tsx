@@ -1085,7 +1085,8 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
-    expect(html).toContain('class="wf-card wf-home-welcome"');
+    expect(html).toContain('class="wf-card wf-home-welcome wf-pwa-install-trigger"');
+    expect(html).toContain('data-pwa-install-trigger="true"');
     expect(html).toContain("의견을 가다듬고, 나누고, 담아내는 곳");
     expect(html).toContain(
       "자료 속 근거를 찾아보고, 다른 참여자와 이야기하며, 내 의견을 남겨보세요.",
