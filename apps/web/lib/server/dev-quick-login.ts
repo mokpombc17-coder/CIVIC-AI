@@ -15,6 +15,7 @@ type LoginProxy = (request: NextRequest, upstreamPath: string) => Promise<NextRe
 type DevQuickLoginEnv = Readonly<Record<string, string | undefined>>;
 
 export function readDevQuickLoginConfig(env: DevQuickLoginEnv): DevQuickLoginConfig | null {
+  if (value(env.NODE_ENV)?.toLowerCase() === "production") return null;
   const host = value(env.CIVIC_DEV_QUICK_LOGIN_HOST);
   const userEmail = value(env.CIVIC_DEV_QUICK_LOGIN_USER_EMAIL);
   const userPassword = value(env.CIVIC_DEV_QUICK_LOGIN_USER_PASSWORD);
