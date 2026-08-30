@@ -2128,7 +2128,7 @@ describe("9 functional RAG screens", () => {
     expect(versionHtml).not.toContain("version-1");
   });
 
-  it("참여자 대화는 유지하고 관리자 문서는 2열 작업공간과 목록 내 업로드를 사용한다", () => {
+  it("참여자 대화는 Figma의 AI 안내와 문서 원문 동선을 유지한다", () => {
     const participant = ragScreens.find((item) => item.id === "U-RAG-001");
     const admin = ragScreens.find((item) => item.id === "A-RAG-001");
     if (!participant || !admin) throw new Error("RAG wire flow screens missing");
@@ -2141,6 +2141,7 @@ describe("9 functional RAG screens", () => {
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
     expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
+    expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
     expect(participantHtml).toContain("새 질문");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");

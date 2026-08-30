@@ -454,7 +454,7 @@ function RagConversation({
             id="rag-question"
             maxLength={8000}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="문서에 대해 질문하세요..."
+            placeholder="문서에 대해 질문하세요…"
             rows={2}
             value={question}
           />
@@ -591,7 +591,7 @@ function ConversationBackdrop() {
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
-        <span>문서에 대해 질문하세요...</span>
+        <span>문서에 대해 질문하세요…</span>
         <span>전송</span>
       </div>
     </section>
@@ -681,7 +681,7 @@ export function RagMessage({
                       href={citationHref(citation)}
                       onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
                     >
-                      근거 페이지
+                      원문 보기
                     </Link>
                     {externalUrl ? (
                       <a
