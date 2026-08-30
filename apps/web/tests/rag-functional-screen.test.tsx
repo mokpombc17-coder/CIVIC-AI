@@ -1680,13 +1680,16 @@ describe("9 functional RAG screens", () => {
     expect(readAcceptedJobId({ status: "QUEUED" })).toBeNull();
   });
 
-  it("파일당 500 MiB multipart 한도를 사용자에게 안내한다", () => {
+  it("파일당 500 MiB multipart 한도를 유지하되 업로드 안내는 간결하게 표시한다", () => {
     expect(MAX_RAG_UPLOAD_BYTES).toBe(500 * 1024 * 1024);
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
-    expect(html).toContain("파일당 최대 500 MiB");
-    expect(html).toContain("8 MiB 단위");
+    expect(html).toContain("파일 선택");
+    expect(html).not.toContain("원본 파일 선택");
+    expect(html).not.toContain("파일을 여러 개 놓거나 찾아보세요");
+    expect(html).not.toContain("파일당 최대 500 MiB");
+    expect(html).not.toContain("8 MiB 단위");
     expect(html).not.toContain("파일 크기·요청당 파일 수의 제품 한도는 없습니다");
   });
 
