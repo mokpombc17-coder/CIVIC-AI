@@ -2184,8 +2184,7 @@ function UploadPanel({
         </p>
       </div>
       <p className="civic-help">
-        여러 파일을 한 번에 선택할 수 있습니다. 파일당 최대 500 MiB이며 8 MiB 단위로 안전하게 나누어
-        전송합니다. PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
+        여러 파일을 한 번에 선택할 수 있습니다. PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
       </p>
       <label
         className="civic-upload-dropzone"
@@ -2209,10 +2208,8 @@ function UploadPanel({
           }
         }}
       >
-        <strong>원본 파일 선택</strong>
-        <span>
-          {files.length > 0 ? `${files.length}개 선택됨` : "파일을 여러 개 놓거나 찾아보세요"}
-        </span>
+        <strong>파일 선택</strong>
+        {files.length > 0 ? <span>{files.length}개 선택됨</span> : null}
         <input
           accept={RAG_ACCEPTED_EXTENSIONS.join(",")}
           disabled={!canSelectUploadFiles(busy)}
