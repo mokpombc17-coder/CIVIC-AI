@@ -65,6 +65,8 @@ import {
   ragJobTimelineStates,
   ragUploadExclusionMessage,
   ragUploadFailureMessage,
+  RagUploadConflictDialog,
+  readRagUploadDuplicateResolution,
   resolveDeletionDocument,
   sha256Blob,
   settleMultipartCompletionRecovery,
@@ -1670,6 +1672,102 @@ describe("9 functional RAG screens", () => {
       "지원하지 않는 형식의 파일은 선택에서 제외했습니다.",
     );
     expect(ragUploadExclusionMessage([oversized])).toContain("500 MiB");
+  });
+
+  it("중복 업로드 응답에서 기존 문서 갱신 정보를 안전하게 읽는다", async () => {
+    const request = vi.fn(async () =>
+      Response.json(
+        {
+          code: "DOCUMENT_ALREADY_EXISTS",
+          message: "Document already exists in this folder",
+          request_id: "request-1",
+          details: {
+            document_id: "document-1",
+            filename: "정책자료.pdf",
+            conflict_kind: "SAME_FILENAME",
+            suggested_action: "UPLOAD_NEW_VERSION",
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const error = await uploadRagFileMultipart({
+      file: new File(["%PDF-1.7\n%%EOF"], "정책자료.pdf", { type: "application/pdf" }),
+      folderId: "folder-1",
+      request: request as typeof fetch,
+    }).catch((reason: unknown) => reason);
+
+    expect(readRagUploadDuplicateResolution(error)).toEqual({
+      action: "UPLOAD_NEW_VERSION",
+      conflictKind: "SAME_FILENAME",
+      documentId: "document-1",
+      existingFilename: "정책자료.pdf",
+    });
+    expect(ragUploadFailureMessage("정책자료.pdf", error)).toContain("처리 방법을 확인");
+  });
+
+  it.each([
+    ["UPLOAD_NEW_VERSION", "이미 업로드된 문서입니다", "새 버전으로 갱신"],
+    ["RETRY_FAILED", "실패한 동일 문서가 있습니다", "기존 문서 다시 처리"],
+    ["KEEP_EXISTING", "동일한 문서가 이미 등록되어 있습니다", "업로드 목록에서 제외"],
+  ] as const)("중복 문서 %s 처리 다이얼로그를 표시한다", (action, title, confirmLabel) => {
+    const html = renderToStaticMarkup(
+      createElement(RagUploadConflictDialog, {
+        busy: false,
+        conflict: {
+          file: new File(["same"], "선택파일.pdf"),
+          resolution: {
+            action,
+            conflictKind: action === "UPLOAD_NEW_VERSION" ? "SAME_FILENAME" : "SAME_CONTENT",
+            documentId: "document-1",
+            existingFilename: "기존문서.pdf",
+            ...(action === "RETRY_FAILED" ? { jobId: "failed-job-1" } : {}),
+          },
+        },
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('role="alertdialog"');
+    expect(html).toContain(title);
+    expect(html).toContain(confirmLabel);
+    expect(html).toContain("기존문서.pdf");
+  });
+
+  it("중복 확인 뒤 기존 document id로 새 버전 초기화를 요청한다", async () => {
+    let initiationBody: Record<string, unknown> | undefined;
+    const request = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/api/v1/rag/uploads") {
+        initiationBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json(
+          {
+            upload_id: "new-version-upload",
+            part_size: 8 * 1024 * 1024,
+            part_count: 1,
+            max_bytes: MAX_RAG_UPLOAD_BYTES,
+          },
+          { status: 201 },
+        );
+      }
+      if (path.endsWith("/complete")) {
+        return Response.json({ job_id: "new-version-job" }, { status: 202 });
+      }
+      return new Response(null, { status: 200 });
+    });
+
+    await expect(
+      uploadRagFileMultipart({
+        file: new File(["%PDF-1.7\n%%EOF"], "정책자료.pdf", {
+          type: "application/pdf",
+        }),
+        folderId: "folder-1",
+        documentId: "document-1",
+        request: request as typeof fetch,
+      }),
+    ).resolves.toEqual({ filename: "정책자료.pdf", jobId: "new-version-job" });
+    expect(initiationBody?.document_id).toBe("document-1");
   });
 
   it("위장 파일 업로드와 처리 실패를 사람이 이해할 수 있는 문장으로 안내한다", async () => {

@@ -1883,6 +1883,122 @@ export function selectedDocumentVersionStatus(
   );
 }
 
+type RagUploadProblem = Readonly<{
+  code?: unknown;
+  details?: unknown;
+  message?: unknown;
+}>;
+
+export type RagUploadDuplicateResolution = Readonly<{
+  action: "KEEP_EXISTING" | "RETRY_FAILED" | "UPLOAD_NEW_VERSION";
+  conflictKind: "SAME_CONTENT" | "SAME_FILENAME";
+  documentId: string;
+  existingFilename?: string;
+  jobId?: string;
+}>;
+
+export type PendingRagUploadConflict = Readonly<{
+  file: File;
+  resolution: RagUploadDuplicateResolution;
+}>;
+
+export function readRagUploadDuplicateResolution(
+  error: unknown,
+): RagUploadDuplicateResolution | undefined {
+  if (
+    !(error instanceof RagUploadDefinitiveResponseError) ||
+    error.status !== 409 ||
+    error.problem?.code !== "DOCUMENT_ALREADY_EXISTS" ||
+    !error.problem.details ||
+    typeof error.problem.details !== "object"
+  ) {
+    return undefined;
+  }
+  const details = error.problem.details as Record<string, unknown>;
+  const documentId = details.document_id;
+  const conflictKind = details.conflict_kind;
+  const action = details.suggested_action;
+  const jobId = details.job_id;
+  if (
+    typeof documentId !== "string" ||
+    !documentId ||
+    (conflictKind !== "SAME_CONTENT" && conflictKind !== "SAME_FILENAME") ||
+    (action !== "KEEP_EXISTING" && action !== "RETRY_FAILED" && action !== "UPLOAD_NEW_VERSION") ||
+    (action === "RETRY_FAILED" && (typeof jobId !== "string" || !jobId))
+  ) {
+    return undefined;
+  }
+  return {
+    action,
+    conflictKind,
+    documentId,
+    ...(typeof details.filename === "string" && details.filename
+      ? { existingFilename: details.filename }
+      : {}),
+    ...(typeof jobId === "string" && jobId ? { jobId } : {}),
+  };
+}
+
+export function RagUploadConflictDialog({
+  busy,
+  conflict,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  busy: boolean;
+  conflict: PendingRagUploadConflict;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  const { action, existingFilename } = conflict.resolution;
+  const filename = existingFilename ?? conflict.file.name;
+  const copy =
+    action === "UPLOAD_NEW_VERSION"
+      ? {
+          confirmLabel: "새 버전으로 갱신",
+          description: (
+            <p>
+              <strong>{filename}</strong> 문서가 이미 있습니다. 선택한 파일을 기존 문서의 새
+              버전으로 등록할까요?
+            </p>
+          ),
+          title: "이미 업로드된 문서입니다",
+        }
+      : action === "RETRY_FAILED"
+        ? {
+            confirmLabel: "기존 문서 다시 처리",
+            description: (
+              <p>
+                <strong>{filename}</strong> 문서와 내용이 같은 파일이 처리 실패 상태로 남아
+                있습니다. 파일을 중복 저장하지 않고 기존 문서를 다시 처리할까요?
+              </p>
+            ),
+            title: "실패한 동일 문서가 있습니다",
+          }
+        : {
+            confirmLabel: "업로드 목록에서 제외",
+            description: (
+              <p>
+                <strong>{filename}</strong> 문서와 동일한 내용이 이미 등록되어 있습니다. 내용이 같아
+                새 버전을 만들지 않습니다.
+              </p>
+            ),
+            title: "동일한 문서가 이미 등록되어 있습니다",
+          };
+  return (
+    <ConfirmDialog
+      busy={busy}
+      busyLabel="처리 중…"
+      confirmLabel={copy.confirmLabel}
+      description={copy.description}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      open
+      title={copy.title}
+    />
+  );
+}
+
 function UploadPanel({
   folder,
   inline = false,
@@ -1903,14 +2019,17 @@ function UploadPanel({
   const [busy, setBusy] = useState(false);
   const [uploadProgress, setUploadProgress] = useState<ReadonlyMap<File, string>>(() => new Map());
   const [acceptedJobs, setAcceptedJobs] = useState<Array<{ filename: string; jobId: string }>>([]);
+  const [pendingConflicts, setPendingConflicts] = useState<PendingRagUploadConflict[]>([]);
   const completionRecoveries = useRef(new Map<File, string>());
   const initiationKeys = useRef(createFileRetryKeyStore());
+  const conflictRetryKeys = useRef(createFileRetryKeyStore());
+  const activeConflict = pendingConflicts[0];
 
-  function removeQueuedFile(file: File) {
-    if (busy) return;
+  function discardQueuedFile(file: File) {
     const recoveryKey = multipartFileRecoveryKey(file);
     completionRecoveries.current.delete(recoveryKey);
     initiationKeys.current.retire(recoveryKey);
+    conflictRetryKeys.current.retire(recoveryKey);
     setUploadProgress((current) => {
       const next = new Map(current);
       next.delete(file);
@@ -1919,67 +2038,153 @@ function UploadPanel({
     setFiles((current) => current.filter((candidate) => candidate !== file));
   }
 
+  function removeQueuedFile(file: File) {
+    if (busy) return;
+    discardQueuedFile(file);
+  }
+
+  async function uploadFile(file: File, targetDocumentId?: string) {
+    if (!folder) throw new Error("RAG upload folder is unavailable");
+    const recoveryKey = multipartFileRecoveryKey(file);
+    const completionUploadId = completionRecoveries.current.get(recoveryKey);
+    const initIdempotencyKey = completionUploadId
+      ? undefined
+      : initiationKeys.current.acquire(recoveryKey);
+    const effectiveDocumentId =
+      targetDocumentId ?? (mode === "NEW_VERSION" ? documentId : undefined);
+    try {
+      const accepted = await uploadRagFileMultipart({
+        file,
+        folderId: folder.folder_id,
+        ...(effectiveDocumentId ? { documentId: effectiveDocumentId } : {}),
+        ...(completionUploadId ? { completionUploadId } : {}),
+        ...(initIdempotencyKey ? { initIdempotencyKey } : {}),
+        onInitiationSettled: () => initiationKeys.current.retire(recoveryKey),
+        onProgress: (uploadedParts, totalParts) => {
+          setUploadProgress((current) => {
+            const next = new Map(current);
+            next.set(file, `${uploadedParts}/${totalParts} part`);
+            return next;
+          });
+          onMessage(`${file.name}: ${uploadedParts}/${totalParts} part 전송 중`);
+        },
+      });
+      completionRecoveries.current.delete(recoveryKey);
+      return accepted;
+    } catch (error) {
+      settleMultipartCompletionRecovery(
+        completionRecoveries.current,
+        recoveryKey,
+        error,
+        completionUploadId,
+      );
+      throw error;
+    }
+  }
+
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!folder || files.length === 0 || (mode === "NEW_VERSION" && !documentId)) {
       return;
     }
     setBusy(true);
-    const results = await mapSettledWithConcurrency(files, 2, async (file) => {
-      const recoveryKey = multipartFileRecoveryKey(file);
-      const completionUploadId = completionRecoveries.current.get(recoveryKey);
-      const initIdempotencyKey = completionUploadId
-        ? undefined
-        : initiationKeys.current.acquire(recoveryKey);
-      try {
-        const accepted = await uploadRagFileMultipart({
-          file,
-          folderId: folder.folder_id,
-          ...(mode === "NEW_VERSION" && documentId ? { documentId } : {}),
-          ...(completionUploadId ? { completionUploadId } : {}),
-          ...(initIdempotencyKey ? { initIdempotencyKey } : {}),
-          onInitiationSettled: () => initiationKeys.current.retire(recoveryKey),
-          onProgress: (uploadedParts, totalParts) => {
-            setUploadProgress((current) => {
-              const next = new Map(current);
-              next.set(file, `${uploadedParts}/${totalParts} part`);
-              return next;
-            });
-            onMessage(`${file.name}: ${uploadedParts}/${totalParts} part 전송 중`);
-          },
-        });
-        completionRecoveries.current.delete(recoveryKey);
-        return accepted;
-      } catch (error) {
-        settleMultipartCompletionRecovery(
-          completionRecoveries.current,
-          recoveryKey,
-          error,
-          completionUploadId,
-        );
-        throw error;
-      }
+    const results = await mapSettledWithConcurrency(files, 2, (file) => uploadFile(file));
+    const conflicts = results.flatMap((result, index) => {
+      const file = files[index];
+      const resolution =
+        result.status === "rejected" ? readRagUploadDuplicateResolution(result.reason) : undefined;
+      return file && resolution ? [{ file, resolution }] : [];
     });
-    const failedResults = results.flatMap((result, index) =>
-      result.status === "rejected"
-        ? [ragUploadFailureMessage(files[index]?.name ?? "선택한 파일", result.reason)]
-        : [],
-    );
-    const failed = failedResults.length;
+    const failedResults = results.flatMap((result, index) => {
+      if (result.status !== "rejected" || readRagUploadDuplicateResolution(result.reason)) {
+        return [];
+      }
+      return [ragUploadFailureMessage(files[index]?.name ?? "선택한 파일", result.reason)];
+    });
+    const rejected = results.filter((result) => result.status === "rejected").length;
     const acceptedNow = results.flatMap((result) =>
       result.status === "fulfilled" ? [result.value] : [],
     );
+    setPendingConflicts(conflicts);
     setAcceptedJobs((current) => [...current, ...acceptedNow]);
     setFiles(rejectedInputs(files, results));
-    onMessage(
-      failed > 0
-        ? `${failed}개 파일 전송에 실패했습니다. ${failedResults.join(" ")} 성공 파일은 유지되며 실패 파일만 다시 시도하세요.`
-        : `${acceptedNow.length}개 파일을 접수했습니다. 문서 준비 상태로 이동합니다.`,
-    );
+    const messages = [
+      ...(conflicts.length > 0
+        ? [`${conflicts.length}개 파일은 기존 문서 처리 방법을 확인해 주세요.`]
+        : []),
+      ...(failedResults.length > 0
+        ? [`${failedResults.length}개 파일 전송에 실패했습니다. ${failedResults.join(" ")}`]
+        : []),
+      ...(acceptedNow.length > 0 ? [`${acceptedNow.length}개 파일을 접수했습니다.`] : []),
+    ];
+    onMessage(messages.join(" "));
     if (acceptedNow.length > 0) onAccepted?.();
     setBusy(false);
-    if (failed === 0 && acceptedNow.length > 0) {
+    if (rejected === 0 && acceptedNow.length > 0) {
       router.push(ragJobsHref(acceptedNow, folder.folder_id));
+    }
+  }
+
+  function cancelActiveConflict() {
+    if (!activeConflict || busy) return;
+    setPendingConflicts((current) => current.slice(1));
+    onMessage(`${activeConflict.file.name}: 기존 문서를 변경하지 않았습니다.`);
+  }
+
+  async function confirmActiveConflict() {
+    if (!activeConflict || !folder || busy) return;
+    const { file, resolution } = activeConflict;
+    if (resolution.action === "KEEP_EXISTING") {
+      discardQueuedFile(file);
+      setPendingConflicts((current) => current.slice(1));
+      onMessage(`${file.name}: 동일 내용이 이미 등록되어 업로드 목록에서 제외했습니다.`);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      let accepted: { filename: string; jobId: string };
+      if (resolution.action === "RETRY_FAILED") {
+        if (!resolution.jobId) throw new Error("실패 작업 정보를 확인할 수 없습니다.");
+        const retryKey = conflictRetryKeys.current.acquire(file);
+        const result = await requestRagJobRetry({
+          jobId: resolution.jobId,
+          idempotencyKey: retryKey,
+        });
+        if (result.definitive) conflictRetryKeys.current.retire(file);
+        if (result.kind !== "accepted" || !result.acceptedJobId) {
+          throw new Error(
+            result.kind === "network" || result.kind === "malformed"
+              ? "네트워크 오류로 기존 문서를 다시 처리하지 못했습니다. 다시 시도하세요."
+              : "문서 상태가 변경되어 다시 처리를 시작하지 못했습니다. 목록을 새로고침하세요.",
+          );
+        }
+        accepted = {
+          filename: resolution.existingFilename ?? file.name,
+          jobId: result.acceptedJobId,
+        };
+      } else {
+        accepted = await uploadFile(file, resolution.documentId);
+      }
+      discardQueuedFile(file);
+      setPendingConflicts((current) => current.slice(1));
+      setAcceptedJobs((current) => [...current, accepted]);
+      onAccepted?.();
+      onMessage(
+        resolution.action === "RETRY_FAILED"
+          ? `${accepted.filename}: 기존 문서 재처리를 접수했습니다.`
+          : `${accepted.filename}: 새 버전 업로드를 접수했습니다.`,
+      );
+    } catch (error) {
+      onMessage(
+        resolution.action === "UPLOAD_NEW_VERSION"
+          ? ragUploadFailureMessage(file.name, error)
+          : error instanceof Error
+            ? error.message
+            : `${file.name}: 기존 문서를 다시 처리하지 못했습니다.`,
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -2007,6 +2212,8 @@ function UploadPanel({
           event.preventDefault();
           completionRecoveries.current.clear();
           initiationKeys.current.clear();
+          conflictRetryKeys.current.clear();
+          setPendingConflicts([]);
           const accepted = acceptRagUploadFiles(
             Array.from(event.dataTransfer.files),
             mode === "NEW_DOCUMENT",
@@ -2029,6 +2236,8 @@ function UploadPanel({
             if (!canSelectUploadFiles(busy)) return;
             completionRecoveries.current.clear();
             initiationKeys.current.clear();
+            conflictRetryKeys.current.clear();
+            setPendingConflicts([]);
             const selected = Array.from(event.target.files ?? []);
             const accepted = acceptRagUploadFiles(selected, mode === "NEW_DOCUMENT");
             setFiles(accepted);
@@ -2103,6 +2312,14 @@ function UploadPanel({
           업로드 시작
         </button>
       </div>
+      {activeConflict ? (
+        <RagUploadConflictDialog
+          busy={busy}
+          conflict={activeConflict}
+          onCancel={cancelActiveConflict}
+          onConfirm={() => void confirmActiveConflict()}
+        />
+      ) : null}
     </form>
   );
 }
@@ -2207,6 +2424,9 @@ export function ragUploadExclusionMessage(files: readonly File[]): string {
 
 export function ragUploadFailureMessage(filename: string, error: unknown): string {
   if (error instanceof RagUploadDefinitiveResponseError) {
+    if (readRagUploadDuplicateResolution(error)) {
+      return `${filename}: 기존 문서 처리 방법을 확인해 주세요.`;
+    }
     if (error.status === 400) {
       return `${filename}: 확장자와 실제 파일 형식이 일치하지 않거나 파일을 읽을 수 없습니다.`;
     }
@@ -2995,7 +3215,10 @@ export class RagMultipartCompletionPendingError extends Error {
 }
 
 class RagUploadDefinitiveResponseError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly problem: RagUploadProblem | undefined,
+  ) {
     super(`RAG upload failed with ${status}`);
     this.name = "RagUploadDefinitiveResponseError";
   }
@@ -3211,11 +3434,23 @@ async function fetchWithRetry(
     if (response.ok) return response;
     if (![408, 429].includes(response.status) && response.status < 500) {
       onDefinitiveResponse();
-      throw new RagUploadDefinitiveResponseError(response.status);
+      throw new RagUploadDefinitiveResponseError(
+        response.status,
+        await readRagUploadProblem(response),
+      );
     }
     lastError = new Error(`RAG upload retryable response ${response.status}`);
   }
   throw lastError instanceof Error ? lastError : new Error("RAG upload failed");
+}
+
+async function readRagUploadProblem(response: Response): Promise<RagUploadProblem | undefined> {
+  try {
+    const value: unknown = await response.json();
+    return value && typeof value === "object" ? (value as RagUploadProblem) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function mediaType(filename: string) {
