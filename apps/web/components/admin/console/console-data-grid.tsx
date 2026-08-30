@@ -8,6 +8,7 @@ import {
   themeQuartz,
   type ColDef,
   type GetRowIdParams,
+  type RowClassRules,
   type RowClickedEvent,
 } from "ag-grid-community";
 import { useStyleNonce } from "./style-nonce-context";
@@ -77,6 +78,13 @@ export function ConsoleDataGrid<T>({
     }),
     [],
   );
+  const rowClassRules = useMemo<RowClassRules<T>>(
+    () => ({
+      "is-console-selected": (params) =>
+        selectedRowId != null && params.data != null && getRowId(params.data) === selectedRowId,
+    }),
+    [getRowId, selectedRowId],
+  );
 
   if (!mounted) {
     return (
@@ -91,17 +99,13 @@ export function ConsoleDataGrid<T>({
       <AgGridReact<T>
         columnDefs={columnDefs as ColDef<T>[]}
         defaultColDef={defaultColDef}
-        getRowClass={(params) =>
-          selectedRowId != null && params.data && getRowId(params.data) === selectedRowId
-            ? "is-console-selected"
-            : undefined
-        }
         getRowId={(params: GetRowIdParams<T>) => getRowId(params.data)}
         headerHeight={40}
         onRowClicked={(event: RowClickedEvent<T>) => {
           if (event.data && onRowClicked) onRowClicked(event.data);
         }}
         overlayNoRowsTemplate={`<span class="console-status">${emptyText}</span>`}
+        rowClassRules={rowClassRules}
         rowData={rowData as T[]}
         rowHeight={44}
         suppressCellFocus
