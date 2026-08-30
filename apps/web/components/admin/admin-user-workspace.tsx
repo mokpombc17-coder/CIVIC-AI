@@ -587,37 +587,39 @@ function UserOverviewTab({
       </div>
       <section className="console-section">
         <h4>활동 요약</h4>
-        <ul aria-label="활동 요약" className="console-metrics">
-          <li className="console-metric">
-            <small>참여 토론방</small>
-            <strong>{chatSummaryValue(chatScan)}</strong>
-            {chatScan.status === "idle" ? (
-              <span>
-                <button className="civic-text-action" onClick={onStartChatScan} type="button">
-                  대화 기록으로 확인
-                </button>
-              </span>
-            ) : null}
-          </li>
-          <li className="console-metric">
-            <small>투표 참여</small>
-            <strong>{voteSummaryValue(voteScan)}</strong>
-          </li>
-          <li className="console-metric">
-            <small>AI 질의</small>
-            <strong>{ragSummaryValue(ragUsage)}</strong>
-            {ragUsage.status === "ready" && ragUsage.usage.lastQueryAt ? (
-              <span>마지막 질의 {formatAdminDate(ragUsage.usage.lastQueryAt)}</span>
-            ) : null}
-          </li>
-        </ul>
+        <ConsoleMetricStrip
+          ariaLabel="활동 요약"
+          metrics={[
+            {
+              label: "참여 토론방",
+              value: chatSummaryValue(chatScan),
+              ...(chatScan.status === "idle"
+                ? {
+                    description: (
+                      <button className="civic-text-action" onClick={onStartChatScan} type="button">
+                        대화 기록으로 확인
+                      </button>
+                    ),
+                  }
+                : {}),
+            },
+            { label: "투표 참여", value: voteSummaryValue(voteScan) },
+            {
+              label: "AI 질의",
+              value: ragSummaryValue(ragUsage),
+              ...(ragUsage.status === "ready" && ragUsage.usage.lastQueryAt
+                ? { description: `마지막 질의 ${formatAdminDate(ragUsage.usage.lastQueryAt)}` }
+                : {}),
+            },
+          ]}
+        />
       </section>
       <section className="console-section">
         <h4>최근 권한 변경 이력</h4>
         {recent.length === 0 ? (
           <ConsoleStatus>이 사용자에 대한 권한 변경 이력이 없습니다.</ConsoleStatus>
         ) : (
-          <ul className="console-metrics" style={{ gridTemplateColumns: "1fr" }}>
+          <ul className="console-metrics console-field-grid is-stacked">
             {recent.map((event) => {
               const row = auditRowFromEvent(event, userLabels);
               return (
@@ -847,11 +849,7 @@ function RagUsageSection({ state }: Readonly<{ state: UserRagUsageState }>) {
         </div>
       </div>
       {usage.recentQuestions.length > 0 ? (
-        <ul
-          aria-label="최근 질문 목록"
-          className="console-metrics"
-          style={{ gridTemplateColumns: "1fr" }}
-        >
+        <ul aria-label="최근 질문 목록" className="console-metrics console-field-grid is-stacked">
           {usage.recentQuestions.map((entry, index) => (
             <li className="console-metric" key={`${entry.askedAt ?? "unknown"}-${index}`}>
               <small>{formatAdminDate(entry.askedAt)}</small>
@@ -894,7 +892,7 @@ function ScanSection<T>({
 }>) {
   if (state.status === "idle") {
     return (
-      <div className="console-actions" style={{ justifyContent: "flex-start" }}>
+      <div className="console-actions is-start">
         <button className="wf-button wf-button-secondary" onClick={onStart} type="button">
           {idleLabel}
         </button>
@@ -912,7 +910,7 @@ function ScanSection<T>({
     return (
       <>
         <ConsoleStatus error>{state.message}</ConsoleStatus>
-        <div className="console-actions" style={{ justifyContent: "flex-start" }}>
+        <div className="console-actions is-start">
           <button className="wf-button wf-button-secondary" onClick={onStart} type="button">
             다시 시도
           </button>
@@ -937,8 +935,7 @@ function RoomRequestsSection({ state }: Readonly<{ state: UserRoomRequestsState 
   return (
     <ul
       aria-label="토론방 개설 신청 목록"
-      className="console-metrics"
-      style={{ gridTemplateColumns: "1fr" }}
+      className="console-metrics console-field-grid is-stacked"
     >
       {state.items.map((item) => (
         <li className="console-metric" key={item.creationRequestId}>
@@ -989,8 +986,7 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
       ) : (
         <ul
           aria-label="대화 참여 토론방 목록"
-          className="console-metrics"
-          style={{ gridTemplateColumns: "1fr" }}
+          className="console-metrics console-field-grid is-stacked"
         >
           {result.participations.map((room) => (
             <li className="console-metric" key={room.roomId}>
@@ -1028,11 +1024,7 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
           {result.scannedTasks}개 종료 과업에서 이 사용자의 응답을 찾지 못했습니다.
         </ConsoleStatus>
       ) : (
-        <ul
-          aria-label="투표 참여 목록"
-          className="console-metrics"
-          style={{ gridTemplateColumns: "1fr" }}
-        >
+        <ul aria-label="투표 참여 목록" className="console-metrics console-field-grid is-stacked">
           {result.participations.map((vote) => (
             <li className="console-metric" key={vote.taskId}>
               <small>

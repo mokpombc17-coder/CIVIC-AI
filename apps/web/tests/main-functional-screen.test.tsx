@@ -73,13 +73,6 @@ const fullAdminSession = {
   permissions: ["RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN"] as const,
 };
 
-function renderedText(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function surveyQuestion(prompt: string, displayOrder: number) {
   return {
     id: `question-${displayOrder}`,
@@ -1198,7 +1191,7 @@ describe("25 functional Main/Auth screens", () => {
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
-    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(6);
+    expect(html.match(/class="console-metric"/g)).toHaveLength(6);
     expect(html).toContain("토론방 승인 대기");
     expect(html).toContain("운영 중 토론방");
     expect(html).toContain("24시간 내 마감");

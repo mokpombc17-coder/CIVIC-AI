@@ -8,11 +8,13 @@ import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
+  ConsoleBadge,
   ConsoleMetricStrip,
   ConsoleSearchControl,
   ConsoleTabs,
   type ConsoleTabItem,
 } from "@/components/admin/console/console-ui";
+import { formatKrw } from "@/lib/admin/format";
 import {
   loadWalletMetricState,
   readSimulationSection,
@@ -233,10 +235,13 @@ function SimulationRunWorkspace({
   );
 }
 
+export type SimulationStateTone = "neutral" | "active" | "danger" | "success";
+
 export type SimulationTargetRow = Readonly<{
   taskId: string;
   title: string;
   stateLabel: string;
+  stateTone: SimulationStateTone;
   updatedLabel: string;
   actionLabel: string;
   href: string;
@@ -244,17 +249,27 @@ export type SimulationTargetRow = Readonly<{
 
 export const SIMULATION_TARGET_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<SimulationTargetRow>> = [
   { field: "title", headerName: "과업 제목", flex: 2, minWidth: 200 },
-  { field: "stateLabel", headerName: "시뮬레이션 진행 상태", minWidth: 150 },
+  {
+    field: "stateLabel",
+    headerName: "시뮬레이션 진행 상태",
+    minWidth: 150,
+    cellRenderer: (params: Readonly<{ data?: SimulationTargetRow }>) =>
+      params.data ? (
+        <ConsoleBadge tone={params.data.stateTone}>{params.data.stateLabel}</ConsoleBadge>
+      ) : null,
+  },
   { field: "updatedLabel", headerName: "최근 변경", minWidth: 150 },
   { field: "actionLabel", headerName: "실행", minWidth: 110 },
 ];
 
 export function simulationTargetRow(task: SimulationTaskSummary): SimulationTargetRow {
-  const presentation = simulationTargetPresentation(task.latestSimulation?.state ?? null);
+  const state = task.latestSimulation?.state ?? null;
+  const presentation = simulationTargetPresentation(state);
   return {
     taskId: task.taskId,
     title: task.title,
     stateLabel: presentation.label,
+    stateTone: simulationStateTone(state),
     updatedLabel: formatDate(simulationTargetUpdatedAt(task)),
     actionLabel: presentation.action,
     href: simulationTargetHref(task.taskId, task.latestSimulation),
@@ -430,11 +445,11 @@ function SimulationSetup({
           <h2>기본 실행 설정</h2>
         </header>
         <p className="civic-simulation-copy">
-          표본과 사용 가능 인원은 전남·광주 페르소나만 기준으로 계산합니다.
+          표본과 사용 가능 인원은 전남·광주 가상 패널만 기준으로 계산합니다.
         </p>
         <div className="civic-simulation-fields">
           <label className="civic-field">
-            <span>페르소나 수</span>
+            <span>가상 패널 수</span>
             <input
               disabled={pending}
               max={options?.maxPersonaCount ?? 1}
@@ -444,10 +459,11 @@ function SimulationSetup({
               type="number"
               value={personaCount}
             />
-            <small>
-              현재 환경 {options?.minPersonaCount ?? "-"}명 이상 {options?.maxPersonaCount ?? "-"}명
-              이하
-            </small>
+            {options ? (
+              <small>
+                현재 환경 {options.minPersonaCount}명 이상 {options.maxPersonaCount}명 이하
+              </small>
+            ) : null}
           </label>
         </div>
       </section>
@@ -456,7 +472,7 @@ function SimulationSetup({
         onToggle={(event) => setPanelOpen(event.currentTarget.open)}
         open={panelOpen}
       >
-        <summary>패널 표본 조건 (선택)</summary>
+        <summary>가상 패널 표본 조건 (선택)</summary>
         <p className="civic-simulation-copy">
           거주 지역은 전남·광주로 고정됩니다. 선택하지 않은 항목은 전체를 사용하며 개인별 정보는
           노출하지 않습니다.
@@ -729,7 +745,9 @@ function SimulationRetrySection({
     <section className="civic-domain-action-panel civic-domain-danger-panel">
       <header>
         <span>수동 재실행</span>
-        <h2>{view.state === "REVIEW_REQUIRED" ? "실패 패널만 다시 실행" : "실패 내용 확인"}</h2>
+        <h2>
+          {view.state === "REVIEW_REQUIRED" ? "실패한 가상 패널만 다시 실행" : "실패 내용 확인"}
+        </h2>
       </header>
       <p>
         {recoveryMessage ??
@@ -755,7 +773,7 @@ function SimulationRetrySection({
               ? "재실행 요청 중…"
               : retryBlocked
                 ? "잠시 후 다시 시도해 주세요"
-                : "실패 패널만 다시 실행"}
+                : "실패한 가상 패널만 다시 실행"}
           </button>
         ) : null}
         {!["REJECTED_PROVIDER_POLICY", "PUBLISHING"].includes(view.state) ? (
@@ -770,7 +788,7 @@ function SimulationRetrySection({
       {actionMessage ? <StatusMessage>{actionMessage}</StatusMessage> : null}
       <ConfirmDialog
         busy={pending}
-        confirmLabel="실패 패널만 다시 실행"
+        confirmLabel="실패한 가상 패널만 다시 실행"
         description={
           <p>
             완료하지 못한 가상 패널 응답만 같은 설정으로 다시 실행합니다. 이미 완료된 응답은
@@ -783,7 +801,7 @@ function SimulationRetrySection({
           void retryFailed();
         }}
         open={confirmOpen}
-        title="실패 패널만 다시 실행"
+        title="실패한 가상 패널만 다시 실행"
       />
     </section>
   );
@@ -921,13 +939,13 @@ function useSimulationCapacity(input: CapacityInput | null) {
         .then(async (response) => {
           if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
           const capacity = readSimulationCapacity(await response.json());
-          if (!capacity) throw new Error("서버의 패널 수용량 응답 형식을 확인해야 합니다.");
+          if (!capacity) throw new Error("서버의 가상 패널 수용량 응답 형식을 확인해야 합니다.");
           if (!disposed) setResult({ capacity, signature });
         })
         .catch((error: unknown) => {
           if (!disposed)
             setMessage(
-              error instanceof Error ? error.message : "패널 수용량을 확인하지 못했습니다.",
+              error instanceof Error ? error.message : "가상 패널 수용량을 확인하지 못했습니다.",
             );
         })
         .finally(() => {
@@ -1200,13 +1218,13 @@ function useSimulationResultDetail(simulationId: string | null, resultSlot: numb
         .then(async (response) => {
           if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
           const next = readSimulationResultDetail(await response.json());
-          if (!next) throw new Error("서버의 익명 패널 응답 형식을 확인해야 합니다.");
+          if (!next) throw new Error("서버의 익명 가상 패널 응답 형식을 확인해야 합니다.");
           if (!disposed) setResult({ detail: next, signature });
         })
         .catch((error: unknown) => {
           if (!disposed)
             setMessage(
-              error instanceof Error ? error.message : "익명 패널 응답을 불러오지 못했습니다.",
+              error instanceof Error ? error.message : "익명 가상 패널 응답을 불러오지 못했습니다.",
             );
         })
         .finally(() => {
@@ -1229,7 +1247,7 @@ function TaskSnapshotCard({ task }: Readonly<{ task: TaskDetail | null }>) {
   return (
     <section className="civic-domain-description">
       <h2>{task?.task.title ?? "과업 정보 불러오는 중"}</h2>
-      <p>{task?.task.question?.content ?? "Vote 과업 질문을 확인하고 있습니다."}</p>
+      <p>{task?.task.question?.content ?? "투표 과업 질문을 확인하고 있습니다."}</p>
       {task?.task.question ? (
         <ol className="civic-task-options-readonly">
           {task.task.question.options.map((option) => (
@@ -1393,23 +1411,33 @@ function formatDate(value: string | null): string {
   return Number.isNaN(date.getTime()) ? "-" : date.toLocaleString("ko-KR");
 }
 
-function formatKrw(value: number | undefined): string {
-  return value === undefined ? "-" : `${value.toLocaleString("ko-KR")}원`;
-}
-
 function capacityBlockMessage(capacity: SimulationCapacity): string {
   if (capacity.blockReason === "PERSONA_COUNT_BELOW_MINIMUM") {
-    return `페르소나 수를 ${capacity.minPersonaCount.toLocaleString("ko-KR")}명 이상으로 입력해 주세요.`;
+    return `가상 패널 수를 ${capacity.minPersonaCount.toLocaleString("ko-KR")}명 이상으로 입력해 주세요.`;
   }
   if (capacity.blockReason === "PERSONA_COUNT_ABOVE_MAXIMUM") {
-    return `페르소나 수를 ${capacity.maxPersonaCount.toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
+    return `가상 패널 수를 ${capacity.maxPersonaCount.toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
   }
-  return `현재 조건에서 사용할 수 있는 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
+  return `현재 조건에서 사용할 수 있는 가상 패널은 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
 }
 
 function simulationTargetUpdatedAt(task: SimulationTaskSummary): string {
   const latest = task.latestSimulation;
   return latest?.completedAt ?? latest?.startedAt ?? latest?.createdAt ?? task.updatedAt;
+}
+
+export function simulationStateTone(state: SimulationState | null): SimulationStateTone {
+  if (state === "COMPLETED") return "success";
+  if (state === "FAILED" || state === "FAILED_PROVIDER" || state === "CANCELLED") return "danger";
+  if (
+    state === "READY" ||
+    state === "RUNNING" ||
+    state === "WAITING_PROVIDER" ||
+    state === "PUBLISHING"
+  ) {
+    return "active";
+  }
+  return "neutral";
 }
 
 export function simulationStateLabel(state: SimulationState): string {
@@ -1420,7 +1448,7 @@ export function simulationStateLabel(state: SimulationState): string {
     COMPLETED: "완료",
     FAILED: "실패",
     FAILED_PROVIDER: "외부 모델 호출 실패",
-    REVIEW_REQUIRED: "일부 패널 응답 실패",
+    REVIEW_REQUIRED: "일부 가상 패널 응답 실패",
     PUBLISHING: "결과 정리 중",
     REJECTED_PROVIDER_POLICY: "시뮬레이션 불가",
     CANCELLED: "취소됨",
@@ -1434,7 +1462,7 @@ export function simulationRecoveryMessage(
     return "이 질문은 AI 공급자 정책상 시뮬레이션할 수 없습니다.";
   }
   if (view.state === "REVIEW_REQUIRED") {
-    return "일부 가상 패널 응답을 완료하지 못했습니다. 실패 패널만 다시 실행할 수 있습니다.";
+    return "일부 가상 패널 응답을 완료하지 못했습니다. 실패한 가상 패널만 다시 실행할 수 있습니다.";
   }
   if (view.state === "FAILED_PROVIDER" || view.errorCode === "CALIBRATION_ATTEMPTS_EXHAUSTED") {
     return "AI 응답 검증에 반복 실패해 시뮬레이션을 중단했습니다. 잠시 후 다시 시도해 주세요.";

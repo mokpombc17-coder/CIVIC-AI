@@ -4,6 +4,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } fro
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
+import { ConsoleStatus } from "@/components/admin/console/console-ui";
+import { ConsoleDrawer } from "@/components/admin/console/console-modal";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
@@ -403,7 +405,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               onUpdate={(category, name) => void updateCategory(category, name)}
               pending={pending}
             />
-            {loading ? <p aria-live="polite">최신 카테고리를 불러오는 중입니다.</p> : null}
+            {loading ? <ConsoleStatus>최신 카테고리를 불러오는 중입니다.</ConsoleStatus> : null}
           </section>
 
           <section className="civic-domain-form-section">
@@ -445,10 +447,10 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 onClick={() => void loadListedRooms(roomQuery.trim(), roomNextCursor, true)}
                 type="button"
               >
-                다음 토론방 불러오기
+                더 불러오기
               </button>
             ) : null}
-            {roomsLoading ? <p aria-live="polite">토론방 목록을 불러오는 중입니다.</p> : null}
+            {roomsLoading ? <ConsoleStatus>토론방 목록을 불러오는 중입니다.</ConsoleStatus> : null}
             {roomListMessage ? (
               <p aria-live="polite" className="civic-form-message" role="status">
                 {roomListMessage}
@@ -463,70 +465,56 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           ) : null}
         </div>
       </AdminChatOperationsLayout>
-      {room ? (
-        <div className="civic-document-drawer-layer civic-category-editor-layer">
-          <button
-            aria-label="토론방 카테고리 편집 닫기"
-            className="civic-document-drawer-scrim"
-            onClick={closeRoomEditor}
-            type="button"
-          />
-          <aside
-            aria-labelledby="civic-category-editor-title"
-            aria-modal="true"
-            className="civic-document-inspector civic-category-editor"
-            role="dialog"
+      <ConsoleDrawer
+        ariaLabel="토론방 카테고리 편집"
+        onClose={closeRoomEditor}
+        open={room !== null}
+      >
+        <aside className="civic-document-inspector civic-category-editor">
+          <header>
+            <div>
+              <small>카테고리 편집</small>
+              <strong id="civic-category-editor-title">{selectedRoomName}</strong>
+            </div>
+            <button aria-label="토론방 카테고리 편집 닫기" onClick={closeRoomEditor} type="button">
+              ×
+            </button>
+          </header>
+          <form
+            className="civic-domain-action-panel civic-category-editor-form"
+            onSubmit={replaceRoomCategories}
           >
-            <header>
-              <div>
-                <small>카테고리 편집</small>
-                <strong id="civic-category-editor-title">{selectedRoomName}</strong>
-              </div>
+            <p className="civic-boundary-copy">
+              이 토론방에 표시할 카테고리를 최대 5개까지 선택하고 저장하세요.
+            </p>
+            <RoomCategorySelector
+              categories={categories}
+              disabled={pending}
+              legend="적용할 카테고리"
+              onChange={setSelectedCategoryIds}
+              selectedCategoryIds={selectedCategoryIds}
+            />
+            {message ? (
+              <p aria-live="polite" className="civic-form-message" role="status">
+                {message}
+              </p>
+            ) : null}
+            <div className="civic-form-actions civic-category-editor-actions">
               <button
-                aria-label="토론방 카테고리 편집 닫기"
-                autoFocus
+                className="civic-secondary-action"
+                disabled={pending}
                 onClick={closeRoomEditor}
                 type="button"
               >
-                ×
+                취소
               </button>
-            </header>
-            <form
-              className="civic-domain-action-panel civic-category-editor-form"
-              onSubmit={replaceRoomCategories}
-            >
-              <p className="civic-boundary-copy">
-                이 토론방에 표시할 카테고리를 최대 5개까지 선택하고 저장하세요.
-              </p>
-              <RoomCategorySelector
-                categories={categories}
-                disabled={pending}
-                legend="적용할 카테고리"
-                onChange={setSelectedCategoryIds}
-                selectedCategoryIds={selectedCategoryIds}
-              />
-              {message ? (
-                <p aria-live="polite" className="civic-form-message" role="status">
-                  {message}
-                </p>
-              ) : null}
-              <div className="civic-form-actions civic-category-editor-actions">
-                <button
-                  className="civic-secondary-action"
-                  disabled={pending}
-                  onClick={closeRoomEditor}
-                  type="button"
-                >
-                  취소
-                </button>
-                <button className="civic-primary-action" disabled={pending} type="submit">
-                  변경사항 저장
-                </button>
-              </div>
-            </form>
-          </aside>
-        </div>
-      ) : null}
+              <button className="civic-primary-action" disabled={pending} type="submit">
+                변경사항 저장
+              </button>
+            </div>
+          </form>
+        </aside>
+      </ConsoleDrawer>
       <ConfirmDialog
         busy={pending}
         busyLabel="삭제 중…"
@@ -685,7 +673,7 @@ function CategoryRow({
         />
       </th>
       <td>
-        <div className="civic-category-actions">
+        <div className="console-actions is-start">
           <button
             className="civic-secondary-action"
             disabled={pending || !name.trim() || name.trim() === category.name}

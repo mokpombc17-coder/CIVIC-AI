@@ -28,9 +28,9 @@ describe("simulation V2 terminal presentation", () => {
       errorCode: "FINAL_RESPONSE_SLOTS_INCOMPLETE",
     });
 
-    expect(simulationStateLabel("REVIEW_REQUIRED")).toBe("일부 패널 응답 실패");
+    expect(simulationStateLabel("REVIEW_REQUIRED")).toBe("일부 가상 패널 응답 실패");
     expect(message).toBe(
-      "일부 가상 패널 응답을 완료하지 못했습니다. 실패 패널만 다시 실행할 수 있습니다.",
+      "일부 가상 패널 응답을 완료하지 못했습니다. 실패한 가상 패널만 다시 실행할 수 있습니다.",
     );
   });
 

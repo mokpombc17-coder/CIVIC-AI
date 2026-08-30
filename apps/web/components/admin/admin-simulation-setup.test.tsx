@@ -147,7 +147,7 @@ describe("simulation setup", () => {
     });
   });
 
-  it("관리자에게 페르소나 수만 받고 불필요한 안내와 실행 정책 입력은 숨긴다", () => {
+  it("관리자에게 가상 패널 수만 받고 불필요한 안내와 실행 정책 입력은 숨긴다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
     if (!screen) throw new Error("Missing simulation setup screen");
 
@@ -155,9 +155,9 @@ describe("simulation setup", () => {
       <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
     );
 
-    expect(html).toContain("페르소나 수");
-    expect(html).toContain("전남·광주 페르소나만 기준으로 계산");
-    expect(html).not.toContain("가상 패널 수");
+    expect(html).toContain("가상 패널 수");
+    expect(html).toContain("전남·광주 가상 패널만 기준으로 계산");
+    expect(html).not.toContain("페르소나 수");
     expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
     expect(html).not.toContain(
       "개별 CIVIC 사용자의 Persona 생성이나 사용자별 예측에는 사용되지 않습니다.",
@@ -194,7 +194,7 @@ describe("simulation setup", () => {
     );
   });
 
-  it("패널 표본 조건은 설정 단계 안에서 선택 섹션으로 제공한다", () => {
+  it("가상 패널 표본 조건은 설정 단계 안에서 선택 섹션으로 제공한다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
     if (!screen) throw new Error("Missing simulation setup screen");
 
@@ -202,7 +202,7 @@ describe("simulation setup", () => {
       <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
     );
 
-    expect(html).toContain("패널 표본 조건 (선택)");
+    expect(html).toContain("가상 패널 표본 조건 (선택)");
     expect(html).toContain("거주 지역은 전남·광주로 고정됩니다.");
   });
 

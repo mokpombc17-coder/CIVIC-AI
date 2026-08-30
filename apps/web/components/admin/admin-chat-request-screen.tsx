@@ -1,6 +1,5 @@
 "use client";
 
-import type { Route } from "next";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
@@ -82,7 +81,6 @@ export function AdminChatRequestScreen({
   screen,
   query: routeQuery,
 }: Readonly<{ screen: ScreenDefinition; query: AdminRouteQuery }>) {
-  const detailScreen = screen.id === "A-CHAT-005" || screen.id === "A-CHAT-006";
   const initialRequestId = firstQueryValue(routeQuery.requestId);
   const [status, setStatus] = useState<RoomCreationStatus>("PENDING");
   const [items, setItems] = useState<readonly RoomCreationRequest[]>([]);
@@ -94,7 +92,11 @@ export function AdminChatRequestScreen({
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
-  const [message, setMessage] = useState("");
+  const [notice, setNotice] = useState<Readonly<{ text: string; error: boolean }>>({
+    text: "",
+    error: false,
+  });
+  const setMessage = useCallback((text: string, error = true) => setNotice({ text, error }), []);
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(Boolean(initialRequestId));
   const [pending, setPending] = useState(false);
@@ -103,107 +105,113 @@ export function AdminChatRequestScreen({
   const listGeneration = useRef(0);
   const detailGeneration = useRef(0);
 
-  const loadList = useCallback(async (nextStatus: RoomCreationStatus, cursor?: string) => {
-    const currentGeneration = ++listGeneration.current;
-    setListLoading(true);
-    const parameters = new URLSearchParams({ status: nextStatus, limit: "20" });
-    if (cursor) parameters.set("cursor", cursor);
-    try {
-      const response = await authenticatedFetch(
-        `/api/v1/admin/room-creation-requests?${parameters.toString()}`,
-        { cache: "no-store" },
-      );
-      if (currentGeneration !== listGeneration.current) return;
-      if (!response.ok) {
-        const problem = await readAdminProblem(response);
-        setMessage(formatAdminProblem(problem));
-        if (!cursor) setItems([]);
-        return;
-      }
-      const page = readRoomCreationRequestPage(await response.json());
-      if (!page) {
-        setMessage("서버의 신청 목록 응답 형식을 확인해야 합니다.");
-        if (!cursor) setItems([]);
-        return;
-      }
-      setItems((current) => (cursor ? [...current, ...page.items] : page.items));
-      setNextCursor(page.nextCursor);
-      setHasNext(page.hasNext);
-      setMessage("");
-      const nextLabels = await requestAdminUserLabels(
-        page.items.map((item) => item.requesterUserId),
-      );
-      if (currentGeneration === listGeneration.current && nextLabels) {
-        setLabels((current) => new Map([...current, ...nextLabels]));
-      }
-    } catch {
-      if (currentGeneration === listGeneration.current) {
-        if (!cursor) setItems([]);
-        setMessage("네트워크 오류로 신청 목록을 불러오지 못했습니다.");
-      }
-    } finally {
-      if (currentGeneration === listGeneration.current) setListLoading(false);
-    }
-  }, []);
-
-  const loadDetail = useCallback(async (requestId: string) => {
-    const currentGeneration = ++detailGeneration.current;
-    setDetailLoading(true);
-    try {
-      const [response, categoryResponse] = await Promise.all([
-        authenticatedFetch(
-          `/api/v1/admin/room-creation-requests/${encodeURIComponent(requestId)}`,
+  const loadList = useCallback(
+    async (nextStatus: RoomCreationStatus, cursor?: string) => {
+      const currentGeneration = ++listGeneration.current;
+      setListLoading(true);
+      const parameters = new URLSearchParams({ status: nextStatus, limit: "20" });
+      if (cursor) parameters.set("cursor", cursor);
+      try {
+        const response = await authenticatedFetch(
+          `/api/v1/admin/room-creation-requests?${parameters.toString()}`,
           { cache: "no-store" },
-        ),
-        authenticatedFetch("/api/v1/admin/room-categories", { cache: "no-store" }).catch(
-          () => null,
-        ),
-      ]);
-      if (currentGeneration !== detailGeneration.current) return null;
-      if (!response.ok) {
-        setSelected(null);
-        setMessage(formatAdminProblem(await readAdminProblem(response)));
-        return null;
-      }
-      const detail = readRoomCreationRequest(await response.json());
-      if (currentGeneration !== detailGeneration.current) return null;
-      if (!detail) {
-        setSelected(null);
-        setMessage("서버의 신청 상세 응답 형식을 확인해야 합니다.");
-        return null;
-      }
-      setSelected(detail);
-      setSelectedCategoryIds(detail.categoryIds);
-      if (!categoryResponse) {
-        setCategories([]);
-        setMessage("네트워크 오류로 카테고리 목록을 불러오지 못했습니다.");
-      } else if (!categoryResponse.ok) {
-        setCategories([]);
-        setMessage(formatAdminProblem(await readAdminProblem(categoryResponse)));
-      } else {
-        const page = readRoomCategoryPage(await categoryResponse.json());
-        if (!page) {
-          setCategories([]);
-          setMessage("서버의 카테고리 목록 응답 형식을 확인해야 합니다.");
-        } else {
-          setCategories(sortRoomCategories(page.items));
-          setMessage("");
+        );
+        if (currentGeneration !== listGeneration.current) return;
+        if (!response.ok) {
+          const problem = await readAdminProblem(response);
+          setMessage(formatAdminProblem(problem));
+          if (!cursor) setItems([]);
+          return;
         }
+        const page = readRoomCreationRequestPage(await response.json());
+        if (!page) {
+          setMessage("서버의 신청 목록 응답 형식을 확인해야 합니다.");
+          if (!cursor) setItems([]);
+          return;
+        }
+        setItems((current) => (cursor ? [...current, ...page.items] : page.items));
+        setNextCursor(page.nextCursor);
+        setHasNext(page.hasNext);
+        setMessage("");
+        const nextLabels = await requestAdminUserLabels(
+          page.items.map((item) => item.requesterUserId),
+        );
+        if (currentGeneration === listGeneration.current && nextLabels) {
+          setLabels((current) => new Map([...current, ...nextLabels]));
+        }
+      } catch {
+        if (currentGeneration === listGeneration.current) {
+          if (!cursor) setItems([]);
+          setMessage("네트워크 오류로 신청 목록을 불러오지 못했습니다.");
+        }
+      } finally {
+        if (currentGeneration === listGeneration.current) setListLoading(false);
       }
-      const nextLabels = await requestAdminUserLabels([detail.requesterUserId]);
-      if (currentGeneration === detailGeneration.current && nextLabels) {
-        setLabels((current) => new Map([...current, ...nextLabels]));
+    },
+    [setMessage],
+  );
+
+  const loadDetail = useCallback(
+    async (requestId: string) => {
+      const currentGeneration = ++detailGeneration.current;
+      setDetailLoading(true);
+      try {
+        const [response, categoryResponse] = await Promise.all([
+          authenticatedFetch(
+            `/api/v1/admin/room-creation-requests/${encodeURIComponent(requestId)}`,
+            { cache: "no-store" },
+          ),
+          authenticatedFetch("/api/v1/admin/room-categories", { cache: "no-store" }).catch(
+            () => null,
+          ),
+        ]);
+        if (currentGeneration !== detailGeneration.current) return null;
+        if (!response.ok) {
+          setSelected(null);
+          setMessage(formatAdminProblem(await readAdminProblem(response)));
+          return null;
+        }
+        const detail = readRoomCreationRequest(await response.json());
+        if (currentGeneration !== detailGeneration.current) return null;
+        if (!detail) {
+          setSelected(null);
+          setMessage("서버의 신청 상세 응답 형식을 확인해야 합니다.");
+          return null;
+        }
+        setSelected(detail);
+        setSelectedCategoryIds(detail.categoryIds);
+        if (!categoryResponse) {
+          setCategories([]);
+          setMessage("네트워크 오류로 카테고리 목록을 불러오지 못했습니다.");
+        } else if (!categoryResponse.ok) {
+          setCategories([]);
+          setMessage(formatAdminProblem(await readAdminProblem(categoryResponse)));
+        } else {
+          const page = readRoomCategoryPage(await categoryResponse.json());
+          if (!page) {
+            setCategories([]);
+            setMessage("서버의 카테고리 목록 응답 형식을 확인해야 합니다.");
+          } else {
+            setCategories(sortRoomCategories(page.items));
+            setMessage("");
+          }
+        }
+        const nextLabels = await requestAdminUserLabels([detail.requesterUserId]);
+        if (currentGeneration === detailGeneration.current && nextLabels) {
+          setLabels((current) => new Map([...current, ...nextLabels]));
+        }
+        return detail;
+      } catch {
+        if (currentGeneration === detailGeneration.current) {
+          setMessage("네트워크 오류로 신청 상세를 불러오지 못했습니다.");
+        }
+        return null;
+      } finally {
+        if (currentGeneration === detailGeneration.current) setDetailLoading(false);
       }
-      return detail;
-    } catch {
-      if (currentGeneration === detailGeneration.current) {
-        setMessage("네트워크 오류로 신청 상세를 불러오지 못했습니다.");
-      }
-      return null;
-    } finally {
-      if (currentGeneration === detailGeneration.current) setDetailLoading(false);
-    }
-  }, []);
+    },
+    [setMessage],
+  );
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
@@ -298,6 +306,7 @@ export function AdminChatRequestScreen({
           : action === "approve"
             ? "토론방 생성 신청을 승인했습니다."
             : "토론방 생성 신청을 반려했습니다.",
+        false,
       );
     } catch {
       await loadDetail(selected.creationRequestId);
@@ -363,7 +372,7 @@ export function AdminChatRequestScreen({
                 onClick={() => void loadList(status, nextCursor)}
                 type="button"
               >
-                다음 신청 불러오기
+                더 불러오기
               </button>
             ) : null}
             {listLoading ? (
@@ -374,7 +383,7 @@ export function AdminChatRequestScreen({
           <ConsolePane
             ariaLabel="신청 상세"
             subtitle={selected ? statusLabel(selected.status) : "목록에서 선택"}
-            title={selected?.name ?? "신청을 선택하세요"}
+            title={selected?.name ?? "목록에서 신청을 선택하세요."}
           >
             {selected ? (
               <div className="civic-domain-console" data-wireflow-layout="chat-request-admin">
@@ -397,7 +406,7 @@ export function AdminChatRequestScreen({
             ) : (
               <ConsoleEmpty title="목록에서 신청을 선택하세요." />
             )}
-            {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
+            {notice.text ? <ConsoleStatus error={notice.error}>{notice.text}</ConsoleStatus> : null}
           </ConsolePane>
         </ConsoleWorkspace>
       </AdminChatOperationsLayout>

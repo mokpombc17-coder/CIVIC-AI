@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ConsoleStatus } from "@/components/admin/console/console-ui";
 import type { Folder } from "./admin-rag-screen";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
@@ -412,6 +413,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
             </button>
             {editing ? (
               <button
+                className="civic-secondary-action"
                 onClick={() => {
                   setEditing(undefined);
                   setDraft(EMPTY_DRAFT);
@@ -492,20 +494,32 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
                       <td>{scheduleLabel(source.schedule)}</td>
                       <td>{current ? runLabel(current) : "실행 기록 없음"}</td>
                       <td>
-                        <button onClick={() => edit(source)} type="button">
+                        <button
+                          className="civic-secondary-action"
+                          onClick={() => edit(source)}
+                          type="button"
+                        >
                           수정
                         </button>
                         {current && ["QUEUED", "RUNNING"].includes(current.state) ? (
-                          <button onClick={() => stop(source, current)} type="button">
+                          <button
+                            className="civic-danger-action"
+                            onClick={() => stop(source, current)}
+                            type="button"
+                          >
                             중단
                           </button>
                         ) : (
-                          <button onClick={() => run(source)} type="button">
+                          <button
+                            className="civic-primary-action"
+                            onClick={() => run(source)}
+                            type="button"
+                          >
                             지금 수집
                           </button>
                         )}
                         <button
-                          className="is-danger"
+                          className="civic-danger-action is-danger"
                           onClick={() => setSourceToRemove(source)}
                           type="button"
                         >
@@ -521,7 +535,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
         ) : (
           <p>등록된 웹 수집원이 없습니다.</p>
         )}
-        {message ? <p aria-live="polite">{message}</p> : null}
+        {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
       </div>
       <ConfirmDialog
         busy={removingSource}
@@ -533,7 +547,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
         onCancel={() => setSourceToRemove(undefined)}
         onConfirm={() => void remove()}
         open={sourceToRemove !== undefined}
-        title="수집 설정을 삭제할까요?"
+        title="수집 설정을 삭제하시겠습니까?"
       />
     </details>
   );

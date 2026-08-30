@@ -4,7 +4,8 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
-import type { ConsoleMetricItem } from "@/components/admin/console/console-ui";
+import { ConsoleMetricStrip, type ConsoleMetricItem } from "@/components/admin/console/console-ui";
+import { formatKrw } from "@/lib/admin/format";
 import {
   readDailyUsage,
   readWalletSummary,
@@ -197,7 +198,7 @@ export const USAGE_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<UsageGridRow>> = [
   { field: "day", headerName: "일자", minWidth: 110 },
   { field: "taskTitle", headerName: "과업", flex: 2, minWidth: 160 },
   { field: "actorEmail", headerName: "실행 관리자", flex: 2, minWidth: 160 },
-  { field: "personaLabel", headerName: "패널", minWidth: 90 },
+  { field: "personaLabel", headerName: "가상 패널", minWidth: 90 },
   { field: "chargedLabel", headerName: "과금액", minWidth: 110 },
 ];
 
@@ -269,11 +270,14 @@ function UsagePanel() {
           CSV 내려받기
         </Link>
       </div>
-      <section className="civic-simulation-summary-grid" aria-label="사용량 합계">
-        <Metric label="과금액" value={formatKrw(totals.charged)} emphasis />
-        <Metric label="처리한 가상 패널" value={`${totals.personas.toLocaleString("ko-KR")}명`} />
-        <Metric label="정산 내역" value={`${rows.length.toLocaleString("ko-KR")}건`} />
-      </section>
+      <ConsoleMetricStrip
+        ariaLabel="사용량 합계"
+        metrics={[
+          { label: "과금액", value: formatKrw(totals.charged) },
+          { label: "처리한 가상 패널", value: `${totals.personas.toLocaleString("ko-KR")}명` },
+          { label: "정산 내역", value: `${rows.length.toLocaleString("ko-KR")}건` },
+        ]}
+      />
       <ConsoleDataGrid
         ariaLabel="시뮬레이션 사용량"
         columnDefs={USAGE_GRID_COLUMNS}
@@ -284,19 +288,6 @@ function UsagePanel() {
       />
       <PanelMessage>{message}</PanelMessage>
     </div>
-  );
-}
-
-function Metric({
-  emphasis = false,
-  label,
-  value,
-}: Readonly<{ emphasis?: boolean; label: string; value: string }>) {
-  return (
-    <article className={emphasis ? "is-emphasis" : undefined}>
-      <span>{label}</span>
-      <strong>{value}</strong>
-    </article>
   );
 }
 
@@ -336,9 +327,6 @@ function useIdempotentMutation() {
   }, []);
 }
 
-function formatKrw(value: number | undefined): string {
-  return value === undefined ? "-" : `${value.toLocaleString("ko-KR")}원`;
-}
 function messageOf(error: unknown): string {
   return error instanceof Error ? error.message : "정보를 불러오지 못했습니다.";
 }

@@ -13,6 +13,7 @@ import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operati
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
+  ConsoleBadge,
   ConsoleSearchControl,
   ConsoleTabs,
   type ConsoleTabItem,
@@ -256,6 +257,7 @@ export function AdminChatInsightsScreen({
 
   function searchRooms(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (roomsLoading || closingRoom) return;
     exportAbort.current?.abort();
     setSelectedRoom(null);
     setAnalysis(null);
@@ -352,7 +354,7 @@ export function AdminChatInsightsScreen({
         tone: "success",
         text:
           confirmed?.status === "CLOSED"
-            ? "관리자 목록에서 CLOSED 상태를 확인했습니다. 방장과 모든 참여자의 접속 및 이후 활동이 차단됩니다."
+            ? "관리자 목록에서 종료 상태를 확인했습니다. 방장과 모든 참여자의 접속 및 이후 활동이 차단됩니다."
             : "종료 명령은 성공했지만 관리자 목록의 최신 상태는 확인하지 못했습니다. 목록을 새로고침해 주세요.",
       });
     } catch {
@@ -361,7 +363,7 @@ export function AdminChatInsightsScreen({
         applyRoomUpdate(confirmed);
         setRoomOperationNotice({
           tone: "success",
-          text: "응답 연결은 끊겼지만 관리자 목록에서 CLOSED 상태를 확인했습니다.",
+          text: "응답 연결은 끊겼지만 관리자 목록에서 종료 상태를 확인했습니다.",
         });
       } else {
         setRoomOperationNotice({
@@ -400,7 +402,7 @@ export function AdminChatInsightsScreen({
                 className={styles.queryField ?? ""}
                 disabled={roomsLoading || closingRoom}
                 onChange={setRoomQuery}
-                placeholder="토론방 이름 검색"
+                placeholder="토론방 이름을 검색해 주세요."
                 value={roomQuery}
               />
               <label className={styles.statusField}>
@@ -430,7 +432,9 @@ export function AdminChatInsightsScreen({
                   >
                     <span className={styles.roomTitle}>
                       <strong>{room.name}</strong>
-                      <b data-status={room.status}>{roomStatusLabel(room.status)}</b>
+                      <ConsoleBadge tone={room.status === "ACTIVE" ? "success" : "neutral"}>
+                        {roomStatusLabel(room.status)}
+                      </ConsoleBadge>
                     </span>
                     <span>활성 참여자 {room.activeMemberCount.toLocaleString("ko-KR")}명</span>
                   </button>
@@ -442,12 +446,12 @@ export function AdminChatInsightsScreen({
             </div>
             {hasNext && nextCursor ? (
               <button
-                className={styles.moreButton}
+                className="wf-button wf-button-secondary"
                 disabled={roomsLoading || closingRoom}
                 onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
                 type="button"
               >
-                더 보기
+                더 불러오기
               </button>
             ) : null}
             {roomMessage ? (
@@ -566,9 +570,9 @@ function AnalysisRangeControls({
           <small>조회 대상</small>
           <strong>{selectedRoom?.name ?? "토론방을 선택하세요"}</strong>
         </div>
-        <span data-status={selectedRoom?.status ?? "NONE"}>
+        <ConsoleBadge tone={selectedRoom?.status === "ACTIVE" ? "success" : "neutral"}>
           {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
-        </span>
+        </ConsoleBadge>
       </header>
       <div aria-label="분석 기간" className={styles.periodPicker} role="group">
         <button
@@ -648,7 +652,7 @@ function RoomOperationSettings({
         </p>
         {selectedRoom.status === "ACTIVE" ? (
           <button
-            className={styles.closeRoomButton}
+            className="civic-danger-action"
             disabled={closingRoom}
             onClick={onCloseRoom}
             type="button"
@@ -719,7 +723,7 @@ function SnapshotHeader({
           </div>
         </dl>
         <button
-          className={styles.downloadButton}
+          className="civic-primary-action"
           disabled={!archiveReady}
           onClick={onDownload}
           type="button"
@@ -839,7 +843,7 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   return (
     <section className={styles.empty}>
       <span aria-hidden="true">↗</span>
-      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "토론방을 먼저 선택하세요"}</h2>
+      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "목록에서 토론방을 선택하세요."}</h2>
       <p>
         {selected
           ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
@@ -951,7 +955,7 @@ function roomStatusLabel(status: AdminRoomStatus): string {
 
 async function exportProblemMessage(response: Response): Promise<string> {
   if (response.status === 403) {
-    return "대화 원본 접근 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
+    return "대화 내보내기 권한이 없어 요청을 처리할 수 없습니다. 관리자에게 권한을 문의해 주세요.";
   }
   if (response.status === 404) {
     return "토론방을 찾을 수 없거나 대화 기록 조회가 아직 준비되지 않았습니다.";

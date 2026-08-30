@@ -9,10 +9,12 @@ import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNod
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
+  ConsoleBadge,
   ConsoleMetricStrip,
   ConsoleSearchControl,
   type ConsoleMetricItem,
 } from "@/components/admin/console/console-ui";
+import { ConsoleDrawer, ConsoleModal } from "@/components/admin/console/console-modal";
 import {
   loadRagJobSummary,
   type RagJobSummaryState,
@@ -520,15 +522,10 @@ function AdminRagModal({
   closeHref,
   title,
 }: Readonly<{ children: ReactNode; closeHref: Route; title: string }>) {
+  const router = useRouter();
   return (
-    <div className="wf-admin-overlay" data-wireflow-layout="rag-admin-modal">
-      <div aria-hidden="true" className="wf-admin-scrim" />
-      <section
-        aria-labelledby="wf-rag-admin-dialog-title"
-        aria-modal="true"
-        className="wf-rag-admin-dialog"
-        role="dialog"
-      >
+    <ConsoleModal ariaLabel={title} onClose={() => router.push(closeHref)} open>
+      <section className="wf-rag-admin-dialog" data-wireflow-layout="rag-admin-modal">
         <header>
           <h2 id="wf-rag-admin-dialog-title">{title}</h2>
           <Link aria-label={`${title} 닫기`} href={closeHref}>
@@ -537,7 +534,7 @@ function AdminRagModal({
         </header>
         {children}
       </section>
-    </div>
+    </ConsoleModal>
   );
 }
 
@@ -909,19 +906,8 @@ export function DocumentInspector({
     ? `/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(version.document_version_id)}/preview?disposition=inline`
     : undefined;
   return (
-    <div className="civic-document-drawer-layer">
-      <button
-        aria-label="문서 미리보기 닫기"
-        className="civic-document-drawer-scrim"
-        onClick={onClose}
-        type="button"
-      />
-      <aside
-        aria-labelledby="civic-document-drawer-title"
-        aria-modal="true"
-        className="civic-document-inspector"
-        role="dialog"
-      >
+    <ConsoleDrawer ariaLabel={`${filename} 문서 미리보기`} onClose={onClose} open>
+      <aside className="civic-document-inspector">
         <header>
           <div>
             <small>문서 미리보기</small>
@@ -947,9 +933,9 @@ export function DocumentInspector({
           <div>
             <dt>상태</dt>
             <dd>
-              <span className="civic-status-badge">
+              <ConsoleBadge tone={ragStatusBadgeTone(version?.status ?? "처리 대기")}>
                 {documentStatusLabel(version?.status ?? "처리 대기")}
-              </span>
+              </ConsoleBadge>
             </dd>
           </div>
           <div>
@@ -1017,7 +1003,7 @@ export function DocumentInspector({
           </Link>
         </div>
       </aside>
-    </div>
+    </ConsoleDrawer>
   );
 }
 
@@ -1061,6 +1047,9 @@ export function DocumentWorkspace({
   const [mediaTypeFilter, setMediaTypeFilter] = useState("");
   const [createdByFilter, setCreatedByFilter] = useState("");
   const [includeSubfolders, setIncludeSubfolders] = useState(false);
+  const [sortDirection, setSortDirection] = useState<RagDocumentListQuery["direction"]>(
+    DEFAULT_DOCUMENT_QUERY.direction,
+  );
   const [selection, setSelection] = useState<
     Readonly<{
       scopeKey: string;
@@ -1208,6 +1197,7 @@ export function DocumentWorkspace({
       <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
         <strong>{selectedIds.size}개 선택</strong>
         <button
+          className="civic-secondary-action"
           disabled={selectedIds.size === 0}
           onClick={() => submitBulk({ action: "REINDEX" })}
           type="button"
@@ -1215,6 +1205,7 @@ export function DocumentWorkspace({
           선택 문서 재색인
         </button>
         <button
+          className="civic-danger-action"
           disabled={selectedIds.size === 0}
           onClick={() => submitBulk({ action: "CANCEL" })}
           type="button"
@@ -1222,6 +1213,7 @@ export function DocumentWorkspace({
           처리 중단
         </button>
         <button
+          className="civic-secondary-action"
           disabled={selectedIds.size === 0}
           onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
           type="button"
@@ -1243,6 +1235,7 @@ export function DocumentWorkspace({
             ))}
         </select>
         <button
+          className="civic-secondary-action"
           disabled={selectedIds.size === 0 || !moveFolderId}
           onClick={() => submitBulk({ action: "MOVE", folderId: moveFolderId })}
           type="button"
@@ -1250,7 +1243,7 @@ export function DocumentWorkspace({
           선택 문서 이동
         </button>
         <button
-          className="is-danger"
+          className="civic-danger-action is-danger"
           disabled={selectedIds.size === 0}
           onClick={() => submitBulk({ action: "DELETE" })}
           type="button"
@@ -1289,19 +1282,21 @@ export function DocumentWorkspace({
                 </th>
                 <th>문서명</th>
                 <th>등록자</th>
-                <th>
+                <th aria-sort={sortDirection === "desc" ? "descending" : "ascending"}>
                   <button
                     className="civic-sort-button"
-                    onClick={() =>
+                    onClick={() => {
+                      const nextDirection = sortDirection === "desc" ? "asc" : "desc";
+                      setSortDirection(nextDirection);
                       onQueryChange?.({
                         sort: "created_at",
-                        direction: DEFAULT_DOCUMENT_QUERY.direction === "desc" ? "asc" : "desc",
+                        direction: nextDirection,
                         page: 1,
-                      })
-                    }
+                      });
+                    }}
                     type="button"
                   >
-                    등록일 ↓
+                    등록일 {sortDirection === "desc" ? "↓" : "↑"}
                   </button>
                 </th>
                 <th>페이지</th>
@@ -1473,15 +1468,16 @@ function DocumentRow({
         {selectedVersion?.job_id ? (
           <Link
             aria-label={`${filename} 처리 상태 보기`}
-            className={`civic-job-state is-${selectedStatus.toLowerCase()}`}
             href={processingJobHref(selectedVersion, folder?.folder_id ?? document.folder_id)}
           >
-            {documentStatusLabel(selectedStatus)}
+            <ConsoleBadge tone={ragStatusBadgeTone(selectedStatus)}>
+              {documentStatusLabel(selectedStatus)}
+            </ConsoleBadge>
           </Link>
         ) : (
-          <span className={`civic-job-state is-${selectedStatus.toLowerCase()}`}>
+          <ConsoleBadge tone={ragStatusBadgeTone(selectedStatus)}>
             {documentStatusLabel(selectedStatus)}
-          </span>
+          </ConsoleBadge>
         )}
         {document.search_enabled === false ? (
           <span className="civic-search-toggle">검색에서 제외</span>
@@ -1620,29 +1616,19 @@ function isSpreadsheetMediaType(mediaType: string): boolean {
 }
 
 function mediaTypeLabel(value?: string): string {
-  const labels: Readonly<Record<string, string>> = {
-    "application/pdf": "PDF",
-    "text/plain": "TXT",
-    "text/markdown": "Markdown",
-    "text/csv": "CSV",
-    "image/png": "PNG",
-    "image/jpeg": "JPEG",
-    "image/gif": "GIF",
-    "image/bmp": "BMP",
-    "image/tiff": "TIFF",
-    "image/webp": "WebP",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
-    "application/msword": "DOC",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
-    "application/vnd.ms-excel": "XLS",
-    "application/vnd.oasis.opendocument.spreadsheet": "ODS",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
-    "application/vnd.ms-powerpoint": "PPT",
-    "application/x-hwp": "HWP",
-    "application/hwp+zip": "HWPX",
-  };
-  if (value && labels[value]) return labels[value];
-  return "문서";
+  // 필터 옵션(RAG_DOCUMENT_MEDIA_TYPE_OPTIONS)과 동일한 표기를 사용해
+  // 목록 행과 필터의 문서 형식 라벨을 통일한다.
+  const label = value
+    ? RAG_DOCUMENT_MEDIA_TYPE_OPTIONS.find(([mediaTypeValue]) => mediaTypeValue === value)?.[1]
+    : undefined;
+  return label ?? "문서";
+}
+
+export function ragStatusBadgeTone(status: string): "neutral" | "active" | "danger" | "success" {
+  if (["ACTIVE", "READY", "SUCCEEDED"].includes(status)) return "success";
+  if (status === "FAILED") return "danger";
+  if (["PROCESSING", "QUEUED", "RUNNING", "RETRY_WAIT"].includes(status)) return "active";
+  return "neutral";
 }
 
 function documentStatusLabel(value: string): string {
@@ -1950,7 +1936,7 @@ export function RagUploadConflictDialog({
           description: (
             <p>
               <strong>{filename}</strong> 문서가 이미 있습니다. 선택한 파일을 기존 문서의 새
-              버전으로 등록할까요?
+              버전으로 등록하시겠습니까?
             </p>
           ),
           title: "이미 업로드된 문서입니다",
@@ -1961,7 +1947,7 @@ export function RagUploadConflictDialog({
             description: (
               <p>
                 <strong>{filename}</strong> 문서와 내용이 같은 파일이 처리 실패 상태로 남아
-                있습니다. 파일을 중복 저장하지 않고 기존 문서를 다시 처리할까요?
+                있습니다. 파일을 중복 저장하지 않고 기존 문서를 다시 처리하시겠습니까?
               </p>
             ),
             title: "실패한 동일 문서가 있습니다",
@@ -2545,11 +2531,9 @@ export function RagJobStatusCard({
             <span>처리 문서</span>
             <strong id={headingId}>{displayFilename}</strong>
           </div>
-          <b
-            className={`civic-job-status-badge is-${job?.status?.toLocaleLowerCase() || "loading"}`}
-          >
+          <ConsoleBadge tone={job ? ragStatusBadgeTone(job.status) : "neutral"}>
             {statusLabel}
-          </b>
+          </ConsoleBadge>
         </header>
 
         <div className="civic-job-progress">
@@ -2801,7 +2785,7 @@ function JobStatusItem({
         onCancel={() => setCancelDialogOpen(false)}
         onConfirm={() => void cancelUpload()}
         open={cancelDialogOpen}
-        title="업로드를 취소할까요?"
+        title="업로드를 취소하시겠습니까?"
       />
     </>
   );
