@@ -277,6 +277,14 @@ main {
   margin: 0 auto;
 }
 
+@media (display-mode: standalone) {
+  body,
+  .app-shell,
+  .app-route-content {
+    min-height: 100vh;
+  }
+}
+
 .page-stack {
   display: grid;
   gap: 1rem;
