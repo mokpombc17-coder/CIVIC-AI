@@ -10,7 +10,7 @@ import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
-  it("채팅방 관리는 배너와 내부 탭 없이 과업 관리형 목록을 제공한다", () => {
+  it("토론방 관리는 배너와 내부 탭 없이 과업 관리형 목록을 제공한다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-CHAT-001");
     expect(screen?.status).toBe("FUNCTIONAL");
     if (!screen) throw new Error("Missing screen: A-CHAT-001");
@@ -20,12 +20,12 @@ describe("admin chat conversation insights", () => {
     );
 
     expect(html).toContain('data-wireflow-screen="A-CHAT-001"');
-    expect(html).toContain(">채팅방 관리</h1>");
+    expect(html).toContain(">토론방 관리</h1>");
     expect(html).toContain(
       'class="civic-admin-workbench civic-domain-console" data-wireflow-layout="chat-room-admin"',
     );
-    expect(html).toContain('aria-label="채팅방 관리 목록"');
-    expect(html).toContain(">채팅방 이름</th>");
+    expect(html).toContain('aria-label="토론방 관리 목록"');
+    expect(html).toContain(">토론방 이름</th>");
     expect(html).not.toContain(">공개·참여</th>");
     expect(html).toContain(">작업</th>");
     expect(html).not.toContain('href="/admin/chat/categories"');
@@ -47,11 +47,11 @@ describe("admin chat conversation insights", () => {
     );
 
     expect(html).toContain('role="dialog"');
-    expect(html).toContain("채팅방 통계");
+    expect(html).toContain("토론방 통계");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
   });
 
-  it("전체 기간은 채팅방 개설 시각부터 현재까지로 계산한다", () => {
+  it("전체 기간은 토론방 개설 시각부터 현재까지로 계산한다", () => {
     const range = resolveConversationAnalysisRange({
       createdAt: "2026-08-01T00:00:00.000Z",
       fromLocal: "",

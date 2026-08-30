@@ -8,6 +8,7 @@ import path from "node:path";
 const webOrigin = "https://localhost:3111";
 const apiOrigin = "http://127.0.0.1:4793";
 const driverOrigin = "http://127.0.0.1:4446";
+const citationVersionId = "30000000-0000-4000-8000-000000000003";
 const root = process.cwd();
 const evidenceRoot = path.resolve(root, "../../artifacts/release-evidence/browser");
 const resultPath = path.join(evidenceRoot, "safari-result.json");
@@ -51,10 +52,10 @@ const mock = createServer((request, response) => {
       job_id: "safari-query",
       status: "SUCCEEDED",
       submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
-      answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",
+      answer: `지원 대상과 신청 기준을 확인할 수 있습니다. [${citationVersionId}#3]`,
       citations: [
         {
-          document_version_id: "version-1",
+          document_version_id: citationVersionId,
           page_number: 3,
           source_object_sha256: "a".repeat(64),
           title: "2026 복지정책 기본계획",
@@ -62,9 +63,19 @@ const mock = createServer((request, response) => {
       ],
     });
   }
-  if (url.pathname === "/internal/v1/rag/sources/version-1/pages/3") {
-    response.writeHead(200, { "content-type": "application/pdf" });
-    response.end("%PDF-1.4\n%%EOF\n");
+  if (
+    url.pathname.startsWith(
+      `/internal/v1/rag/sources/${citationVersionId}/pages/3/document/pages/`,
+    ) &&
+    url.pathname.endsWith(".png")
+  ) {
+    response.writeHead(200, { "content-type": "image/png" });
+    response.end(
+      Buffer.from(
+        "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9Wl2nLkAAAAASUVORK5CYII=",
+        "base64",
+      ),
+    );
     return;
   }
   response.writeHead(404).end();
@@ -139,7 +150,7 @@ try {
     await elementCommand(input, "POST", "/value", { text: "복지정책 문서의 핵심 내용을 알려줘." });
     const submit = await waitElement('button[type="submit"]');
     await elementCommand(submit, "POST", "/click", {});
-    const citation = await waitElement('a[href^="/rag/source?"]');
+    const citation = await waitElement('button[aria-label^="출처 "]');
     await elementCommand(citation, "POST", "/click", {});
     await waitElement('[data-wireflow-screen="U-RAG-001"]');
     await waitElement('[role="dialog"][aria-label="참조 문서"]');

@@ -490,12 +490,11 @@ export function AdminHome({
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
       <ul aria-label="관리 현황" className="civic-admin-metrics">
         <li className="wf-admin-metric">
-          <small>승인 대기</small>
+          <small>토론방 승인 대기</small>
           <strong>{metricCount(chatRequestSummary)}</strong>
-          <span>{metricDescription(chatRequestSummary, "채팅 생성 신청")}</span>
         </li>
         <li className="wf-admin-metric">
-          <small>처리 실패</small>
+          <small>문서 처리 실패</small>
           <strong>
             {ragJobSummary.status === "ready"
               ? `${ragJobSummary.failed}건`
@@ -503,13 +502,6 @@ export function AdminHome({
                 ? "확인 불가"
                 : "확인 중"}
           </strong>
-          <span>
-            {ragJobSummary.status === "unavailable"
-              ? "RAG 운영 지표를 불러오지 못했습니다"
-              : ragJobSummary.status === "ready"
-                ? `진행 중 ${ragJobSummary.active}건 · 실패 작업 재시도 가능`
-                : "문서 처리 상태 확인 중"}
-          </span>
         </li>
         <li className="wf-admin-metric">
           <small>진행 중 과업</small>
@@ -541,8 +533,8 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
       <header>
         <div>
           <small>채팅 운영</small>
-          <h2 id="civic-pending-chat-requests-title">채팅방 승인 대기</h2>
-          <p>새로 신청된 채팅방을 확인하고 승인 또는 반려할 수 있습니다.</p>
+          <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
+          <p>새로 신청된 토론방을 확인하고 승인 또는 반려할 수 있습니다.</p>
         </div>
         {state.status !== "forbidden" ? (
           <Link className="wf-button wf-button-secondary" href="/admin/chat/requests">
@@ -567,7 +559,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
       ) : null}
       {state.status === "ready" && items.length === 0 ? (
         <p aria-live="polite" className="civic-pending-chat-requests-empty" role="status">
-          승인 대기 중인 채팅방이 없습니다.
+          승인 대기 중인 토론방이 없습니다.
         </p>
       ) : null}
       {state.status === "ready" && items.length > 0 ? (

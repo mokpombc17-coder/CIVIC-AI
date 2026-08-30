@@ -2430,11 +2430,6 @@ body {
   font-size: 13px;
 }
 
-[data-wireflow-screen^="U-RAG"] .civic-rag-citations {
-  display: grid;
-  gap: 7px;
-}
-
 [data-wireflow-screen^="U-RAG"] .civic-rag-conversation > .civic-form-message {
   margin: 0 16px 8px;
   color: var(--wf-muted);
@@ -2558,9 +2553,9 @@ body {
   flex: 1;
   flex-direction: column;
   margin: 4px 12px 12px;
-  border: 1px solid var(--wf-line);
-  border-radius: 9px;
-  padding: 12px;
+  border: 0;
+  border-radius: 0;
+  padding: 0;
 }
 
 .wf-rag-document-card h3 {
@@ -2573,11 +2568,16 @@ body {
   font-size: 14px;
 }
 
+[data-wireflow-layout="rag-reference-modal"] .wf-rag-document-meta {
+  flex: none;
+  padding-top: 12px;
+}
+
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-canvas {
   display: flex;
   min-height: 45dvh;
   flex: 1;
-  margin: 10px 0 0;
+  margin: 0;
   border: 1px solid var(--wf-line);
   background: #f4f5f6;
   padding: 6px;
@@ -4791,7 +4791,7 @@ body {
   margin-top: 8px;
 }
 
-/* RAG 대화: 인트로/출처 카드 */
+/* RAG 대화: 인트로와 메시지 */
 [data-wireflow-screen^="U-RAG"] .civic-rag-intro {
   margin: 0;
   font-size: 14px;
@@ -4818,97 +4818,6 @@ body {
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-answer-meta strong {
   font-size: 13px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-citations {
-  width: min(340px, 100%);
-}
-
-.civic-rag-citation-card {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  border: 1px solid #83c9ff;
-  border-radius: 10px;
-  background: #eef8ff;
-  padding: 12px;
-}
-
-.civic-rag-citation-copy {
-  display: grid;
-  gap: 3px;
-}
-
-.civic-rag-citation-copy strong {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  color: var(--wf-blue-dark);
-  font-size: 13px;
-}
-
-.civic-rag-citation-icon {
-  font-size: 14px;
-}
-
-.civic-rag-citation-copy p {
-  margin: 0;
-  color: #24313f;
-  font-size: 13px;
-}
-
-.civic-rag-citation-card .wf-button {
-  flex: none;
-  min-height: 40px;
-  border: 1px solid var(--wf-blue);
-  background: #fff;
-  color: var(--wf-blue-dark);
-  font-size: 13px;
-  text-decoration: none;
-}
-
-.civic-rag-citation-actions {
-  display: flex;
-  flex: none;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 6px;
-}
-
-.civic-rag-related-documents {
-  display: grid;
-  gap: 5px;
-  border: 1px solid var(--wf-line);
-  border-radius: 8px;
-  background: #fff;
-  padding: 10px 12px;
-}
-
-.civic-rag-related-documents strong {
-  color: var(--wf-ink);
-  font-size: 12px;
-}
-
-.civic-rag-related-documents ul {
-  display: grid;
-  gap: 3px;
-  margin: 0;
-  padding-left: 18px;
-  color: var(--wf-muted);
-  font-size: 12px;
-}
-
-@media (max-width: 520px) {
-  .civic-rag-citation-card {
-    align-items: flex-start;
-    flex-direction: column;
-  }
-
-  .civic-rag-citation-actions {
-    width: 100%;
-    justify-content: flex-start;
-  }
 }
 
 /* PDF 뷰어 문서 메타 */
@@ -5806,6 +5715,9 @@ body {
 
 .wf-account-deactivate-button {
   width: 100%;
+  border-color: var(--wf-danger);
+  background: transparent;
+  color: var(--wf-danger);
 }
 
 .wf-account-management,

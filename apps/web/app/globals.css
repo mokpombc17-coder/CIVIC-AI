@@ -1878,28 +1878,6 @@ th {
   padding: 0;
 }
 
-.civic-rag-citations {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.civic-rag-citations strong {
-  color: var(--civic-muted);
-  font-size: 0.72rem;
-}
-
-.civic-rag-citations a {
-  display: flex;
-  min-height: 2.6rem;
-  align-items: center;
-  border: 1px solid #b1cefb;
-  border-radius: 0.38rem;
-  background: #ecf2fe;
-  padding: 0.6rem;
-  font-size: 0.78rem;
-  text-decoration: none;
-}
-
 .civic-rag-conversation > .civic-form-message {
   margin: 0 1rem 0.6rem;
 }
@@ -2622,13 +2600,6 @@ th {
   font-weight: 850;
 }
 
-.civic-rag-citations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.civic-rag-citations a,
 .civic-text-action,
 .civic-row-actions a {
   color: var(--civic-blue-dark);
