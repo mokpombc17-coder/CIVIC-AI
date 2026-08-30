@@ -2,7 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
-import { loadVoteSurvey } from "@/components/account/vote-survey-surface";
+import { groupSurveyQuestions, loadVoteSurvey } from "@/components/account/vote-survey-surface";
 import {
   AuditList,
   createLatestAdminUserRequestGate,
@@ -72,6 +72,21 @@ function renderedText(html: string): string {
     .replace(/<[^>]*>/g, " ")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function surveyQuestion(prompt: string, displayOrder: number) {
+  return {
+    id: `question-${displayOrder}`,
+    lineageKey: `lineage-${displayOrder}`,
+    type: "SHORT_TEXT" as const,
+    prompt,
+    description: null,
+    displayOrder,
+    required: true,
+    rule: {},
+    allowOther: false,
+    options: [],
+  };
 }
 
 describe("25 functional Main/Auth screens", () => {
@@ -648,8 +663,36 @@ describe("25 functional Main/Auth screens", () => {
         }),
     );
     await expect(loadVoteSurvey(hangingVote, 1)).rejects.toThrow(
-      "Vote 서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
+      "설문 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
     );
+  });
+
+  it("설문 문항을 Figma 입력·결과 섹션 순서로 묶고 알 수 없는 문항도 보존한다", () => {
+    const questions = [
+      surveyQuestion("지방정부 신뢰도", 1),
+      surveyQuestion("출생연도", 2),
+      surveyQuestion("생활양식", 3),
+      surveyQuestion("가구소득", 4),
+      surveyQuestion("새로운 설문 문항", 5),
+    ];
+
+    expect(groupSurveyQuestions(questions, "input").map((section) => section.title)).toEqual([
+      "일반 개인정보",
+      "생활 · 경제",
+      "사회 · 기관 신뢰",
+      "매체 이용 · 정보 습관",
+      "설문 항목",
+    ]);
+    expect(groupSurveyQuestions(questions, "result").map((section) => section.title)).toEqual([
+      "기본 정보",
+      "사회·경제",
+      "성향·매체",
+      "정치·기관 인식",
+      "기타 응답",
+    ]);
+    expect(
+      groupSurveyQuestions(questions, "result").flatMap((section) => section.questions),
+    ).toHaveLength(questions.length);
   });
 
   it("Vote 조회가 응답하지 않아도 제한시간 후 로그인 기본 홈으로 이동한다", async () => {
@@ -994,6 +1037,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(hub).toContain('aria-label="계정 항목"');
     expect(hub).toContain("내 정보 관리");
     expect(hub).toContain("내 설문 보기");
+    expect(hub).toContain("가입 시 제출한 설문 응답을 확인합니다.");
+    expect(hub).not.toContain("Vote 설문");
     expect(hub).toContain("로그아웃");
 
     const management = renderAccount("U-ACCOUNT-002");
@@ -1009,8 +1054,8 @@ describe("25 functional Main/Auth screens", () => {
 
     const survey = renderAccount("U-ACCOUNT-003");
     expect(survey).toContain('data-wireflow-layout="account-survey"');
-    expect(survey).toContain("Vote 서버에서 현재 설문을 불러오는 중입니다");
-    expect(survey).not.toContain("가입 시 제출한 설문입니다.");
+    expect(survey).toContain("현재 설문을 불러오는 중입니다");
+    expect(survey).not.toContain("Vote 서버");
 
     const deactivate = renderAccount("U-ACCOUNT-004");
     expect(deactivate).toContain('data-wireflow-layout="account-deactivate"');
