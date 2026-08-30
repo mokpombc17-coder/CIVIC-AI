@@ -19,6 +19,7 @@ import {
   DocumentInspector,
   DocumentWorkspace,
   FolderTree,
+  WorkspaceHeading,
   hasActiveRagDocuments,
   buildRagDocumentListPath,
   requestRagBulkAction,
@@ -711,8 +712,29 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");
     expect(html).toContain("2 / 3");
+    expect(html).not.toContain("61개 문서");
+    expect(html).not.toContain("civic-ledger-summary");
     expect(html).not.toContain("선택 폴더만 표시");
     expect(html).not.toContain("처리 완료 6개");
+  });
+
+  it("선택 폴더의 전체 문서 수를 폴더명과 같은 헤더에 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(WorkspaceHeading, {
+        documentCount: 66,
+        folder: {
+          folder_id: "general",
+          parent_id: "root",
+          name: "General",
+          kind: "GENERAL",
+          path: ["Root", "General"],
+        },
+      }),
+    );
+
+    expect(html).toContain("<h2>General</h2>");
+    expect(html).toContain('class="civic-rag-folder-document-count">66개 문서</strong>');
+    expect(html).not.toContain("civic-ledger-summary");
   });
 
   it("등록자 조회에 실패해도 문서 UUID를 대체 문구로 노출하지 않는다", () => {

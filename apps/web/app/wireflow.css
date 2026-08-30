@@ -5686,6 +5686,7 @@ body {
 
 /* 폴더명 헤딩: 경로·이름을 한 줄로 붙여 세로 공간을 아낀다. */
 [data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading {
+  flex-wrap: wrap;
   margin-bottom: 10px;
 }
 
@@ -5705,6 +5706,15 @@ body {
 [data-wireflow-screen^="A-RAG"] .civic-rag-workspace-heading h2 {
   margin-top: 0;
   font-size: 17px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-folder-document-count {
+  flex: 0 0 auto;
+  margin-left: auto;
+  color: var(--wf-muted);
+  font-size: 14px;
+  font-weight: 700;
+  white-space: nowrap;
 }
 
 /* 필터: 검색·처리 상태·페이지당을 한 줄에, 나머지는 상세 필터로 접는다. */

@@ -400,7 +400,7 @@ export function AdminRagScreen({
           selectedFolderId={selectedFolder?.folder_id}
         />
         <section className="civic-rag-admin-workspace">
-          <WorkspaceHeading folder={selectedFolder} />
+          <WorkspaceHeading documentCount={pageState.total} folder={selectedFolder} />
           <details className="civic-inline-upload" data-rag-inline-upload="true">
             <summary>
               <span>
@@ -1008,7 +1008,10 @@ export function DocumentInspector({
   );
 }
 
-function WorkspaceHeading({ folder }: Readonly<{ folder: Folder | undefined }>) {
+export function WorkspaceHeading({
+  documentCount,
+  folder,
+}: Readonly<{ documentCount: number; folder: Folder | undefined }>) {
   // 마지막 요소는 제목과 중복이므로 상위 경로만 표시한다.
   const ancestors = (folder?.path ?? []).slice(0, -1);
   return (
@@ -1017,6 +1020,9 @@ function WorkspaceHeading({ folder }: Readonly<{ folder: Folder | undefined }>) 
         {ancestors.length > 0 ? <p className="civic-breadcrumb">{ancestors.join(" / ")}</p> : null}
         <h2>{folder?.name ?? "문서 작업 공간"}</h2>
       </div>
+      <strong className="civic-rag-folder-document-count">
+        {documentCount.toLocaleString("ko-KR")}개 문서
+      </strong>
     </header>
   );
 }
@@ -1096,9 +1102,6 @@ export function DocumentWorkspace({
 
   return (
     <div className="civic-document-ledger">
-      <div className="civic-ledger-summary">
-        <strong>{pageState.total.toLocaleString("ko-KR")}개 문서</strong>
-      </div>
       <form
         className="wf-document-filters"
         onSubmit={(event) => {
