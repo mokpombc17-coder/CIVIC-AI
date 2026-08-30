@@ -7,7 +7,6 @@ import type { ScreenDefinition } from "@/lib/screens/registry";
 import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
-import { authEndpoint } from "@/lib/auth/pwa-auth";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
 
@@ -144,7 +143,7 @@ export function AuthFunctionalScreen({
     try {
       if (activeId === "AUTH-001") {
         const data = new FormData(event.currentTarget);
-        const response = await api(authEndpoint("login"), {
+        const response = await api("/api/v1/auth/login", {
           email: data.get("email"),
           password: data.get("password"),
         });
