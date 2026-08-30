@@ -8,10 +8,15 @@
 .console-workspace {
   display: grid;
   grid-template-columns: minmax(280px, 2fr) minmax(420px, 3fr);
-  gap: 16px;
+  gap: 0;
   align-items: start;
   width: 100%;
   min-width: 0;
+}
+
+/* 목록·상세는 카드로 감싸지 않고 중앙 세퍼레이터로만 나눈다. */
+.console-workspace:not(.is-single) > .console-pane + .console-pane {
+  border-left: 1px solid var(--wf-line);
 }
 
 .console-workspace.is-single {
@@ -22,15 +27,20 @@
   .console-workspace {
     grid-template-columns: 1fr;
   }
+
+  .console-workspace:not(.is-single) > .console-pane + .console-pane {
+    border-left: none;
+    border-top: 1px solid var(--wf-line);
+  }
 }
 
 .console-pane {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  background: #fff;
-  border: 1px solid var(--wf-line);
-  border-radius: var(--wf-radius);
+  background: transparent;
+  border: none;
+  border-radius: 0;
 }
 
 .console-pane-header {
@@ -394,17 +404,18 @@
   border-radius: 0;
   box-shadow: none;
   background: transparent;
-  gap: 16px;
+  gap: 0;
 }
 
 [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
-  border: 1px solid var(--wf-line);
-  border-radius: var(--wf-radius);
-  background: #fff;
+  border: none;
+  border-right: 1px solid var(--wf-line);
+  border-radius: 0;
+  background: #f4f7fb;
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
-  border: 1px solid var(--wf-line);
-  border-radius: var(--wf-radius);
-  background: #fff;
+  border: none;
+  border-radius: 0;
+  background: transparent;
 }
