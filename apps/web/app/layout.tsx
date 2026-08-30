@@ -8,6 +8,34 @@ const siteUrl = resolveSiteUrl(process.env.SITE_URL);
 
 export const metadata: Metadata = {
   ...(siteUrl ? { metadataBase: siteUrl } : {}),
+  applicationName: "CIVIC.AI",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "default",
+    title: "CIVIC.AI",
+  },
+  icons: {
+    icon: [
+      {
+        url: "/icons/civic-ai-192.png",
+        sizes: "192x192",
+        type: "image/png",
+      },
+      {
+        url: "/icons/civic-ai-512.png",
+        sizes: "512x512",
+        type: "image/png",
+      },
+    ],
+    apple: [
+      {
+        url: "/icons/apple-touch-icon.png",
+        sizes: "180x180",
+        type: "image/png",
+      },
+    ],
+  },
   title: {
     default: "Civic AI Platform",
     template: "%s | Civic AI Platform",
