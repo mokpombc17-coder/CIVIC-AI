@@ -86,6 +86,34 @@ export async function loadLatestCrawlRuns(
   return Object.fromEntries(entries);
 }
 
+export type CrawlSourceRemovalResult =
+  | Readonly<{ kind: "deleted"; refreshFailed: boolean }>
+  | Readonly<{ kind: "network" }>
+  | Readonly<{ kind: "rejected" }>;
+
+export async function removeCrawlSourceAndRefresh(
+  sourceId: string,
+  refreshSources: () => Promise<void>,
+  request: FetchRequest = authenticatedFetch,
+): Promise<CrawlSourceRemovalResult> {
+  let response: Response;
+  try {
+    response = await request(`/api/v1/rag/crawler/sources/${encodeURIComponent(sourceId)}`, {
+      method: "DELETE",
+    });
+  } catch {
+    return { kind: "network" };
+  }
+  if (!response.ok) return { kind: "rejected" };
+
+  try {
+    await refreshSources();
+    return { kind: "deleted", refreshFailed: false };
+  } catch {
+    return { kind: "deleted", refreshFailed: true };
+  }
+}
+
 export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder[] }>) {
   const [sources, setSources] = useState<readonly CrawlSource[]>([]);
   const [runs, setRuns] = useState<Readonly<Record<string, CrawlRun | undefined>>>({});
@@ -194,18 +222,21 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
     }
     setRemovingSource(true);
     try {
-      const response = await authenticatedFetch(
-        `/api/v1/rag/crawler/sources/${encodeURIComponent(source.source_id)}`,
-        { method: "DELETE" },
-      );
-      if (!response.ok) {
+      const result = await removeCrawlSourceAndRefresh(source.source_id, refresh);
+      if (result.kind === "network") {
+        setMessage("네트워크 오류로 수집 설정을 삭제하지 못했습니다.");
+        return;
+      }
+      if (result.kind === "rejected") {
         setMessage("수집 설정을 삭제하지 못했습니다.");
         return;
       }
-      setMessage("수집 설정을 삭제했습니다.");
-      await refresh();
-    } catch {
-      setMessage("네트워크 오류로 수집 설정을 삭제하지 못했습니다.");
+      setSources((current) => current.filter((item) => item.source_id !== source.source_id));
+      setMessage(
+        result.refreshFailed
+          ? "수집 설정은 삭제했지만 최신 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요."
+          : "수집 설정을 삭제했습니다.",
+      );
     } finally {
       setRemovingSource(false);
       setSourceToRemove(undefined);

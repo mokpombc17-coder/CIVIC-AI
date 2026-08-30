@@ -1,7 +1,11 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
-import { AdminRagCrawler, loadLatestCrawlRuns } from "@/components/rag/admin-rag-crawler";
+import { describe, expect, it, vi } from "vitest";
+import {
+  AdminRagCrawler,
+  loadLatestCrawlRuns,
+  removeCrawlSourceAndRefresh,
+} from "@/components/rag/admin-rag-crawler";
 
 describe("RAG 웹 수집 관리", () => {
   it("사람이 이해할 수 있는 수집 설정과 안전 한도를 표시한다", () => {
@@ -80,5 +84,18 @@ describe("RAG 웹 수집 관리", () => {
 
     expect(runs["source-1"]?.state).toBe("SUCCEEDED");
     expect(runs["source-2"]).toBeUndefined();
+  });
+
+  it("삭제 성공 후 목록 새로고침이 실패해도 삭제 결과를 실패로 바꾸지 않는다", async () => {
+    const refresh = vi.fn().mockRejectedValue(new TypeError("refresh failed"));
+    const request = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    const result = await removeCrawlSourceAndRefresh("source-1", refresh, request);
+
+    expect(request).toHaveBeenCalledWith("/api/v1/rag/crawler/sources/source-1", {
+      method: "DELETE",
+    });
+    expect(refresh).toHaveBeenCalledOnce();
+    expect(result).toEqual({ kind: "deleted", refreshFailed: true });
   });
 });

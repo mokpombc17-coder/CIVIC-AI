@@ -54,6 +54,7 @@ body {
   width: min(30rem, 100%);
   max-height: calc(100dvh - 2.5rem);
   overflow: auto;
+  overscroll-behavior: contain;
   gap: 1.25rem;
   border: 1px solid var(--civic-ink, #172033);
   border-radius: 0.75rem;
@@ -67,11 +68,14 @@ body {
   color: var(--civic-ink, #172033);
   font-size: 1.5rem;
   line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
 }
 
 .civic-confirm-dialog-description {
   color: #4b5563;
   line-height: 1.65;
+  overflow-wrap: anywhere;
   white-space: pre-line;
 }
 
@@ -83,12 +87,19 @@ body {
 
 .civic-confirm-dialog-actions > button {
   min-width: 7.5rem;
+  touch-action: manipulation;
+}
+
+.civic-confirm-dialog-actions > button:focus-visible {
+  outline: 3px solid var(--civic-blue, #1d4ed8);
+  outline-offset: 3px;
 }
 
 @media (max-width: 640px) {
   .civic-confirm-dialog-layer {
     align-items: end;
-    padding: 1rem;
+    padding: 1rem max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
   }
 
   .civic-confirm-dialog {
