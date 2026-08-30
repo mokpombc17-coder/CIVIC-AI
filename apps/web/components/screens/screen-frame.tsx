@@ -72,9 +72,9 @@ const participantHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; 
   Object.freeze({
     "U-HOME-001": { title: "홈" },
     "U-ACCOUNT-001": { title: "계정" },
-    "U-ACCOUNT-002": { backHref: "/mypage" as Route, title: "내 정보 관리" },
-    "U-ACCOUNT-003": { backHref: "/mypage" as Route, title: "내 설문 보기" },
-    "U-ACCOUNT-004": { title: "내 정보 관리" },
+    "U-ACCOUNT-002": { title: "계정" },
+    "U-ACCOUNT-003": { backHref: "/account" as Route, title: "설문 참여" },
+    "U-ACCOUNT-004": { title: "계정" },
     "U-RAG-001": { title: "AI" },
     "U-RAG-002": { title: "AI" },
     "U-RAG-003": { title: "AI" },

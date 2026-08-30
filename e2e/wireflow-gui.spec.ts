@@ -563,37 +563,17 @@ test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지
   await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
 });
 
-test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dialog를 유지한다", async ({
-  context,
-  page,
-}) => {
+test("U-ACCOUNT는 보안·비활성화·로그아웃을 계정 화면에 통합한다", async ({ context, page }) => {
   await authenticate(context, "participant.payload.signature");
 
   await page.goto("/account");
-  await expect(page.getByRole("heading", { name: "계정" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "계정 항목" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toBeVisible();
-  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "계정", exact: true })).toBeVisible();
+  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
+  await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "계정 관리" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
-  const accountCards = page.locator(".wf-account-hub-card");
-  await expect(accountCards).toHaveCount(2);
-  const accountCardLayout = await accountCards.evaluateAll((cards) =>
-    cards.map((card) => {
-      const box = card.getBoundingClientRect();
-      const style = getComputedStyle(card);
-      return {
-        height: Math.round(box.height),
-        paddingBlock: `${style.paddingTop} ${style.paddingBottom}`,
-      };
-    }),
-  );
-  expect(accountCardLayout).toEqual([
-    { height: 78, paddingBlock: "12px 12px" },
-    { height: 78, paddingBlock: "12px 12px" },
-  ]);
-
-  await page.goto("/account/profile");
-  await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
   await expect(page.getByText("회원정보 수정", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("선호 언어")).toHaveCount(0);
   await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
@@ -629,9 +609,9 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   const accountManagement = page.getByRole("heading", { name: "계정 관리" });
   await accountManagement.scrollIntoViewIfNeeded();
   await expect(accountManagement).toBeVisible();
-  const profileUrl = page.url();
+  const accountUrl = page.url();
   await page.getByRole("button", { name: "계정 비활성화" }).click();
-  await expect(page).toHaveURL(profileUrl);
+  await expect(page).toHaveURL(accountUrl);
   await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
   const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
   await expect(dialog).toBeVisible();
@@ -666,47 +646,14 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   });
   await dialog.getByRole("button", { name: "계정 유지" }).click();
   await expect(dialog).toHaveCount(0);
-  await expect(page).toHaveURL(profileUrl);
+  await expect(page).toHaveURL(accountUrl);
 
   await page.goto("/account/survey");
-  await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
-  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
-  const surveyIntro = page.locator(".wf-account-survey-intro");
-  await expectBox(surveyIntro, {
-    x: [16, 18],
-    width: [359, 362],
-    height: [134, 136],
-  });
-  const surveyIntroLayout = await surveyIntro.evaluate((element) => {
-    const root = element.getBoundingClientRect();
-    const copy = element.querySelector(":scope > div")?.getBoundingClientRect();
-    const heading = element.querySelector("h2");
-    if (!copy || !heading) throw new Error("survey intro layout missing");
-    const headingStyle = getComputedStyle(heading);
-    return {
-      copyLeft: Math.round(copy.left - root.left),
-      copyTop: Math.round(copy.top - root.top),
-      headingColor: headingStyle.color,
-      headingFontSize: headingStyle.fontSize,
-      headingLineHeight: headingStyle.lineHeight,
-    };
-  });
-  expect(surveyIntroLayout).toEqual({
-    copyLeft: 16,
-    copyTop: 52,
-    headingColor: "rgb(8, 89, 133)",
-    headingFontSize: "16px",
-    headingLineHeight: "24px",
-  });
-  await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "기타 응답" })).toBeVisible();
-  await expect(page.getByText("서울특별시 종로구", { exact: true })).toBeVisible();
-  const policyInterest = page.getByText("4", { exact: true }).last();
-  await policyInterest.scrollIntoViewIfNeeded();
-  await expect(policyInterest).toBeVisible();
+  await expect(page).toHaveURL(/\/account$/u);
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toHaveCount(0);
 });
 
-test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 불변 응답을 표시한다", async ({
+test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 계정 화면으로 돌아간다", async ({
   context,
   page,
 }) => {
@@ -736,7 +683,8 @@ test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 �
     .check();
   await page.getByRole("button", { name: "설문 최종 제출" }).click();
 
-  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
+  await expect(page).toHaveURL(/\/account$/u);
+  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
   await expect.poll(() => surveySubmissionBodies.length).toBe(1);
   expect(surveyIdempotencyKeys).toHaveLength(1);
   expect(surveyIdempotencyKeys[0]).toMatch(
@@ -779,7 +727,7 @@ test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 �
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
   twoFactorEnabled = false;
   await authenticate(context, "participant.payload.signature");
-  await page.goto("/account/profile");
+  await page.goto("/account");
 
   const twoFactorCard = page.locator(".wf-account-security-card").filter({
     hasText: "2단계 인증",
