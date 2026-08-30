@@ -90,6 +90,7 @@ AdminCatchAllPage [Server Route]
     │       │   └── AdminRagSpreadsheetPreview [Excel/CSV 읽기 전용]
     │       └── AdminRagModal / FolderEditor
     ├── AdminChatRequestScreen [Chat 생성 신청 관리]
+    │   └── RequestDetailDrawer [우측 상세 검토·카테고리 선택·승인/반려]
     ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
     │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
     │   └── RoomCategorySelector [선택 방의 카테고리 교체]
@@ -120,6 +121,11 @@ Vote 과업 목록의 `과업 상세`는 별도 페이지로 이동하지 않고
 사용자 목록의 `사용자 상세`도 별도 페이지 대신 `UserDetailDrawer`를 열고, 계정 정보·역할/권한·
 변경 이력을 Drawer 내부 탭으로 전환한다. 기존 상세·권한·감사 route는 인증·권한 확인 뒤
 `/admin/users?userId=...&tab=...`으로 이동한다.
+
+Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 정보와 카테고리 선택,
+승인·반려 작업을 한 흐름에서 처리한다. 선택한 `requestId`는
+`/admin/chat/requests?requestId=...`에 반영하며, 기존 상세·승인/반려 route는 인증·권한 확인 뒤
+같은 목록 Drawer 주소로 이동한다.
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,

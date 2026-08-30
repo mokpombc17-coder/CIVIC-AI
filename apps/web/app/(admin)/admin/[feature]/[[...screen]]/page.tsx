@@ -40,6 +40,10 @@ export default async function AdminPlaceholderPage({
   const userDrawerTab = userDrawerTabForScreen(definition.id);
   if (userDrawerTab) redirect(userDrawerHref(query, userDrawerTab));
 
+  if (definition.id === "A-CHAT-005" || definition.id === "A-CHAT-006") {
+    redirect(chatRequestDrawerHref(query, definition.id === "A-CHAT-006"));
+  }
+
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
     return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
   }
@@ -100,4 +104,12 @@ function userDrawerHref(query: RagQuery, tab: "account" | "access" | "audit"): R
   if (!userId) return "/admin/users" as Route;
   const params = new URLSearchParams({ userId, tab });
   return `/admin/users?${params.toString()}` as Route;
+}
+
+function chatRequestDrawerHref(query: RagQuery, rejectMode: boolean): Route {
+  const requestId = typeof query.requestId === "string" ? query.requestId : query.requestId?.[0];
+  if (!requestId) return "/admin/chat/requests" as Route;
+  const params = new URLSearchParams({ requestId });
+  if (rejectMode) params.set("decision", "reject");
+  return `/admin/chat/requests?${params.toString()}` as Route;
 }

@@ -626,7 +626,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(chatHtml).toContain("지역 교통 토론방");
     expect(chatHtml).toContain("one@example.com");
     expect(chatHtml).toContain("검토하기");
-    expect(chatHtml).toContain("/admin/chat/requests/detail?requestId=request-one");
+    expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
     await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
       status: "ready",
       count: 1,

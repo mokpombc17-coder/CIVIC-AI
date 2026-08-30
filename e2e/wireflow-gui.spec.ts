@@ -764,8 +764,8 @@ test("A-HOME은 채팅방 승인 대기 목록에서 검토 화면으로 이동�
   await expect(reviewChatRequest).toHaveCSS("justify-self", "end");
   await reviewChatRequest.click();
 
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=chat-request-1$/u);
-  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=chat-request-1$/u);
+  await expect(page.getByRole("dialog", { name: "지역 교통 토론방" })).toBeVisible();
 });
 
 test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한다", async ({ context, page }) => {

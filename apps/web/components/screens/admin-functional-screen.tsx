@@ -588,7 +588,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
                 aria-label={`${item.name} 검토하기`}
                 className="wf-button wf-button-primary civic-pending-chat-review"
                 href={
-                  `/admin/chat/requests/detail?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
+                  `/admin/chat/requests?requestId=${encodeURIComponent(item.creationRequestId)}` as Route
                 }
               >
                 검토하기
