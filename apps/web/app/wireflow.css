@@ -4818,7 +4818,7 @@ body {
   margin-top: 8px;
 }
 
-/* RAG 대화: 인트로/타임스탬프/출처 카드 */
+/* RAG 대화: 인트로/출처 카드 */
 [data-wireflow-screen^="U-RAG"] .civic-rag-intro {
   margin: 0;
   font-size: 14px;
@@ -4829,11 +4829,6 @@ body {
   display: grid;
   justify-items: end;
   gap: 4px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-time {
-  color: var(--wf-muted);
-  font-size: 11px;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-answer-row {
@@ -6496,45 +6491,11 @@ body {
   align-items: stretch;
 }
 
-[data-wireflow-screen="U-RAG-001"] .civic-rag-time {
-  color: #59616b;
-  font-size: 12px;
-  font-weight: 400;
-  line-height: 18px;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-question-meta {
-  display: flex;
-  min-height: 20px;
-  align-items: center;
-  justify-content: flex-end;
-  margin-bottom: 2px;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-question-meta strong {
-  min-width: 0;
-  overflow: hidden;
-  color: #59616b;
-  font-size: 13px;
-  font-weight: 700;
-  line-height: 19.5px;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 [data-wireflow-screen="U-RAG-001"] .civic-rag-question-content {
   display: flex;
   width: 100%;
   min-width: 0;
-  flex-direction: row-reverse;
-  align-items: flex-end;
-  justify-content: flex-start;
-  gap: 6px;
-}
-
-[data-wireflow-screen="U-RAG-001"] .civic-rag-question-content .civic-rag-time {
-  flex: none;
-  padding-bottom: 2px;
+  justify-content: flex-end;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-question {
