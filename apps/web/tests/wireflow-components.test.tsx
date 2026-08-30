@@ -148,6 +148,8 @@ describe("latest Wire Flow shared product UI", () => {
     const html = renderToStaticMarkup(<AdminRoomCategoryScreen screen={categoryScreen} />);
 
     expect(html).toContain("채팅방 카테고리 관리");
+    expect(html).toContain("채팅방 이름 검색");
+    expect(html).not.toContain(">검색</button>");
     expect(html).not.toContain('aria-label="채팅 운영 메뉴"');
     expect(html).not.toContain('href="/admin/chat/requests"');
     expect(html).not.toContain('href="/admin/chat/export"');
