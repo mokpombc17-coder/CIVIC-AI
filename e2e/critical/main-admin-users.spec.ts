@@ -82,8 +82,12 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await page.goto("/admin/users");
 
   await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "역할", exact: true })).toBeVisible();
+  await expect(page.getByRole("columnheader", { name: "관리자 역할" })).toHaveCount(0);
+  await expect(page.getByRole("row", { name: /admin@example.com/u })).toContainText("운영 관리자");
   const participantRow = page.getByRole("row", { name: /citizen@example.com/ });
   await expect(participantRow).toContainText("활성");
+  await expect(participantRow).toContainText("사용자");
   const detailButton = participantRow.getByRole("button", { name: "사용자 상세" });
   await detailButton.click();
 
@@ -138,6 +142,9 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
 
   await drawer.getByRole("radio", { name: /^운영 관리자 /u }).check();
   await drawer.getByLabel("문서 관리").check();
+  await expect(
+    drawer.getByText("감사 이력에서 변경 목적을 바로 이해할 수 있도록 간단히 적어 주세요."),
+  ).toHaveCount(0);
   await drawer.getByLabel("변경 사유 (필수)").fill("문서 운영 담당자 배정");
   await expect(drawer.getByRole("link", { name: "권한 회수 영향 확인" })).toHaveCount(0);
   await drawer.getByRole("button", { name: "권한 변경 저장" }).click();

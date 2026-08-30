@@ -974,7 +974,6 @@ function RoleForm({
           <strong>변경 사유</strong>
           <em>필수</em>
         </span>
-        <small>감사 이력에서 변경 목적을 바로 이해할 수 있도록 간단히 적어 주세요.</small>
         <textarea
           aria-label="변경 사유 (필수)"
           disabled={!selected || pending}
@@ -998,6 +997,10 @@ export function selectedAdminRole(roles: readonly string[]): AdminRoleChoice {
   if (roles.includes("HIGHEST_ADMIN")) return "HIGHEST_ADMIN";
   if (roles.includes("ADMIN")) return "ADMIN";
   return "PARTICIPANT";
+}
+
+export function userRoleLabel(roles: readonly string[]): string {
+  return roleLabel(selectedAdminRole(roles));
 }
 
 export function permissionsForAdminRole(
@@ -1107,7 +1110,7 @@ function UserTable({
           <tr>
             <th>이메일</th>
             <th>계정 상태</th>
-            <th>관리자 역할</th>
+            <th>역할</th>
             <th>운영 권한</th>
             <th>최근 활동</th>
             <th>작업</th>
@@ -1118,12 +1121,7 @@ function UserTable({
             <tr key={user.user_id}>
               <td>{user.email}</td>
               <td>{accountStateLabel(user.account_state)}</td>
-              <td>
-                {user.roles
-                  .filter((role) => role !== "PARTICIPANT")
-                  .map(roleLabel)
-                  .join(", ") || "없음"}
-              </td>
+              <td>{userRoleLabel(user.roles)}</td>
               <td>{user.permissions.map(permissionLabel).join(", ") || "없음"}</td>
               <td>{formatDate(user.last_activity_at)}</td>
               <td>
