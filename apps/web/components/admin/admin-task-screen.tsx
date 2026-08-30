@@ -1082,7 +1082,7 @@ function lifecycleActionLabel(action: LifecycleAction): string {
     reschedule: "예약 변경",
     "open-now": "즉시 발행",
     "start-now": "지금 시작",
-    deadline: "마감 변경",
+    deadline: "즉시 반영",
     cancel: "과업 취소",
   }[action];
 }

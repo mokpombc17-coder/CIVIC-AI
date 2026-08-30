@@ -4555,6 +4555,15 @@ th {
   gap: 1rem;
 }
 
+/* The integrated task console no longer uses the legacy task-detail/drawer wrappers. */
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-grid,
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-content,
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-operations {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
 /* Keep the task operator's decision context and lifecycle controls in one desktop view. */
 [data-wireflow-layout="task-detail"].civic-domain-console {
   gap: 0.75rem;

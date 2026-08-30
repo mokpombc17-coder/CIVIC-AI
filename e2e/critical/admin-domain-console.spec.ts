@@ -525,7 +525,7 @@ test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한
   await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
   await expect(drawer.getByRole("link", { name: "조기 종료" })).toBeVisible();
   await expect(drawer.getByLabel("동작")).toHaveValue("deadline");
-  await expect(drawer.getByRole("option", { name: "마감 변경" })).toBeAttached();
+  await expect(drawer.getByRole("option", { name: "즉시 반영" })).toBeAttached();
   await expect(drawer).toHaveCSS("transform", "none");
 
   const drawerBox = await drawer.boundingBox();
