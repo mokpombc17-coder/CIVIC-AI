@@ -398,6 +398,7 @@
   [data-wireflow-screen]:has(
     > [data-chat-operations-layout] > [data-wireflow-layout="admin-chat-insights-console"]
   ),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="admin-user-console"]),
   [data-wireflow-screen]:has(> [data-wireflow-layout="admin-task-console"]),
   [data-wireflow-screen]:has(> [data-wireflow-layout="rag-workspace"]) {
     height: 100dvh;
@@ -413,15 +414,19 @@
   }
 
   :is(
+    [data-wireflow-layout="admin-user-console"],
     [data-wireflow-layout="admin-task-console"],
     [data-wireflow-layout="admin-chat-insights-console"],
     [data-wireflow-layout="room-category-admin-console"]
   ) {
-    height: 100%;
+    align-self: stretch;
+    height: auto;
     min-height: 0;
     max-height: none;
+    overflow: hidden;
   }
 
+  [data-wireflow-screen] > [data-wireflow-layout="admin-user-console"],
   [data-wireflow-screen] > [data-wireflow-layout="admin-task-console"],
   [data-wireflow-screen] > [data-wireflow-layout="rag-workspace"] {
     flex: 1 1 auto;
@@ -492,11 +497,15 @@
   }
 
   .console-workspace:is(
+      [data-wireflow-layout="admin-user-console"],
       [data-wireflow-layout="admin-task-console"],
       [data-wireflow-layout="admin-chat-insights-console"]
     )
     > .console-pane {
+    height: auto;
+    min-height: 0;
     max-height: none;
+    overflow: hidden;
   }
 
   .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
@@ -507,7 +516,8 @@
   [data-wireflow-layout="admin-chat-insights-console"]
     > .console-pane:first-child
     > .console-pane-body {
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
   }
 
   [data-wireflow-layout="admin-chat-insights-console"] > .console-pane:last-child {
