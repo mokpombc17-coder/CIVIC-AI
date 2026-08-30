@@ -1204,7 +1204,7 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   });
   await expectBox(page.locator(".civic-rag-answer:not(.is-live)"), {
     x: [16, 18],
-    width: [294, 297],
+    width: [359, 362],
   });
   await expectBox(page.locator(".civic-rag-citation-card"), {
     x: [16, 18],
@@ -1288,7 +1288,7 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
     .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
-  await expect(page.getByRole("status", { name: "RAG 답변 처리 단계" })).toBeVisible();
+  await expect(page.getByRole("status", { name: "RAG 답변 생성 중" })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem("civic:rag-conversation:v1") ?? ""))
     .toContain("query-job-1");

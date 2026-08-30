@@ -110,14 +110,11 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
     .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
-  const progress = page.getByRole("status", { name: "RAG 답변 처리 단계" });
+  const progress = page.getByRole("status", { name: "RAG 답변 생성 중" });
   await expect(progress).toBeVisible();
-  await expect(progress).toContainText("질문 이해");
-  await expect(progress).toContainText("자료 검색");
-  await expect(progress).toContainText("근거 분석");
-  await expect(progress).not.toContainText("답변 작성");
-  await expect(progress).not.toContainText("최종 확인");
-  await expect(progress).not.toContainText("시작 후");
+  await expect(progress).toContainText(/중\.\.\.$/u);
+  await expect(progress.locator("ol")).toHaveCount(0);
+  await expect(progress.getByRole("progressbar")).toHaveCount(0);
   const streamedAnswer = page.getByLabel("실시간 답변");
   await expect(streamedAnswer).toContainText("지원 대상과 ");
   await expect(streamedAnswer).not.toContainText("신청 기준을 확인할 수 있습니다.");

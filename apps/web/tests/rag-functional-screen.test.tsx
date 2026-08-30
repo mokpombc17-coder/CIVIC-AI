@@ -86,6 +86,7 @@ import {
   RagNotice,
   RagSessionExpiredError,
   ragJobStatusMessage,
+  ragLoadingLabel,
   RagSuggestionChips,
   RagLiveProgress,
   readRagProgress,
@@ -835,7 +836,7 @@ describe("9 functional RAG screens", () => {
     expect(source.close).toHaveBeenCalledOnce();
   });
 
-  it("답변 생성 전에는 공개 1·2·3단계만 보여주고 경과 시간은 노출하지 않는다", () => {
+  it("답변 생성 전에는 단계 목록 없이 현재 작업을 한 줄로 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagLiveProgress, {
         liveJob: {
@@ -853,15 +854,17 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain("질문 이해");
-    expect(html).toContain("자료 검색");
-    expect(html).toContain("근거 분석");
-    expect(html).toContain('class="is-done"');
-    expect(html).toContain('class="is-active"');
-    expect(html).not.toContain("답변 작성");
-    expect(html).not.toContain("최종 확인");
-    expect(html).not.toContain("시작 후");
+    expect(html).toContain("관련 자료를 찾는 중...");
+    expect(html).toContain("civic-rag-loading-label");
+    expect(html).not.toContain("<ol");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).not.toContain("관련 자료를 좁힙니다.");
     expect(html).not.toMatch(/[0-9]+초/u);
+    expect(ragLoadingLabel("QUEUED")).toBe("질문을 이해하는 중...");
+    expect(ragLoadingLabel("UNDERSTANDING")).toBe("질문을 이해하는 중...");
+    expect(ragLoadingLabel("SEARCHING")).toBe("관련 자료를 찾는 중...");
+    expect(ragLoadingLabel("READING")).toBe("근거를 검토하는 중...");
+    expect(ragLoadingLabel("COMPOSING")).toBe("답변을 작성하는 중...");
   });
 
   it("3단계 이후에는 빈 첫 조각을 기다리지 않고 스트리밍 답변 영역으로 전환한다", () => {
