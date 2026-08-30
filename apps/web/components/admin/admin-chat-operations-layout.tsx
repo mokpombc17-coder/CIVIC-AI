@@ -3,7 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import styles from "./admin-chat-operations-layout.module.css";
 
-export type AdminChatSection = "rooms" | "requests" | "categories" | "statistics" | "export";
+export type AdminChatSection = "rooms" | "requests" | "categories" | "statistics";
 
 const navigation: readonly Readonly<{
   href: Route;
@@ -14,7 +14,6 @@ const navigation: readonly Readonly<{
   { href: "/admin/chat/requests" as Route, label: "신청", section: "requests" },
   { href: "/admin/chat/categories" as Route, label: "카테고리", section: "categories" },
   { href: "/admin/chat/statistics" as Route, label: "통계", section: "statistics" },
-  { href: "/admin/chat/export" as Route, label: "Export", section: "export" },
 ];
 
 export function AdminChatOperationsLayout({

@@ -114,6 +114,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">반려</button>");
     expect(html).toContain('aria-label="채팅 운영 메뉴"');
     expect(html).toContain('href="/admin/chat/categories"');
+    expect(html).not.toContain('href="/admin/chat/export"');
     expect(html).not.toContain(">취소</button>");
     expect(html).not.toContain("공개·참여 방식");
     expect(html).not.toContain("목록 공개");
@@ -129,6 +130,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain('aria-label="채팅 운영 메뉴"');
     expect(html).toContain('href="/admin/chat/requests"');
     expect(html).toContain('aria-current="page" href="/admin/chat/categories"');
+    expect(html).not.toContain('href="/admin/chat/export"');
   });
 
   it("과업 생성 CTA를 목록 제목 우측에 두고 검색·필터 툴바와 분리한다", () => {

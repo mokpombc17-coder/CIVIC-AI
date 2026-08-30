@@ -35,7 +35,8 @@ import {
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
-type ViewMode = "rooms" | "detail" | "statistics" | "export";
+type ViewMode = "rooms" | "detail" | "statistics";
+export type AnalysisPeriod = "all" | "custom";
 
 export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const mode = viewMode(screen.id);
@@ -55,6 +56,7 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   } | null>(null);
   const [roomToClose, setRoomToClose] = useState<AdminRoom | null>(null);
   const [closingRoom, setClosingRoom] = useState(false);
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod>("all");
   const [fromLocal, setFromLocal] = useState("");
   const [toLocal, setToLocal] = useState("");
   const [analysis, setAnalysis] = useState<ConversationExportAnalysis | null>(null);
@@ -106,11 +108,65 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     [],
   );
 
+  const loadAnalysis = useCallback(
+    async (roomId: string, range: Readonly<{ fromInclusive: string; toExclusive: string }>) => {
+      exportAbort.current?.abort();
+      const controller = new AbortController();
+      exportAbort.current = controller;
+      setAnalyzing(true);
+      setAnalysis(null);
+      setArchive(null);
+      setAnalysisMessage("");
+      try {
+        const response = await authenticatedFetch(
+          `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/conversation-exports`,
+          {
+            method: "POST",
+            headers: { accept: "application/zip", "content-type": "application/json" },
+            body: JSON.stringify(range),
+            cache: "no-store",
+            signal: controller.signal,
+          },
+        );
+        if (!response.ok) {
+          setAnalysisMessage(await exportProblemMessage(response));
+          return;
+        }
+        const contentType = response.headers.get("content-type")?.toLocaleLowerCase() ?? "";
+        if (!contentType.startsWith("application/zip")) {
+          setAnalysisMessage("서버가 application/zip 대신 다른 형식으로 응답했습니다.");
+          return;
+        }
+        const bytes = await readConversationExportResponse(response);
+        const parsed = await parseConversationExportArchive(bytes, { roomId, range });
+        if (controller.signal.aborted) return;
+        setAnalysis(parsed);
+        setArchive(bytes);
+        setArchiveName(exportFilename(response, parsed.manifest.roomName));
+        setAnalysisMessage(
+          parsed.warnings.length > 0
+            ? "분석은 완료됐지만 대화 기록 건수 일치 여부를 확인해야 합니다."
+            : "대화 기록 무결성을 확인하고 분석을 완료했습니다.",
+        );
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        setAnalysisMessage(
+          error instanceof ConversationExportError
+            ? error.message
+            : "대화 기록을 불러오거나 분석하는 중 오류가 발생했습니다.",
+        );
+      } finally {
+        if (exportAbort.current === controller) {
+          exportAbort.current = null;
+          setAnalyzing(false);
+        }
+      }
+    },
+    [],
+  );
+
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      const range = defaultLocalRange();
-      setFromLocal(range.from);
-      setToLocal(range.to);
       void loadRooms();
     }, 0);
     return () => {
@@ -118,6 +174,37 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
       exportAbort.current?.abort();
     };
   }, [loadRooms]);
+
+  const selectedRoomId = selectedRoom?.roomId;
+  const selectedRoomCreatedAt = selectedRoom?.createdAt;
+  const analysisRange = useMemo(
+    () =>
+      selectedRoomCreatedAt
+        ? resolveConversationAnalysisRange({
+            createdAt: selectedRoomCreatedAt,
+            period: analysisPeriod,
+            fromLocal,
+            toLocal,
+          })
+        : null,
+    [analysisPeriod, fromLocal, selectedRoomCreatedAt, toLocal],
+  );
+  const customRangeInvalid =
+    analysisPeriod === "custom" &&
+    Boolean(selectedRoomId && fromLocal && toLocal) &&
+    analysisRange === null;
+
+  useEffect(() => {
+    if (!selectedRoomId || !analysisRange) return;
+    const timer = window.setTimeout(
+      () => void loadAnalysis(selectedRoomId, analysisRange),
+      analysisPeriod === "all" ? 0 : 400,
+    );
+    return () => {
+      window.clearTimeout(timer);
+      exportAbort.current?.abort();
+    };
+  }, [analysisPeriod, analysisRange, loadAnalysis, selectedRoomId]);
 
   function searchRooms(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -140,6 +227,28 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     setArchive(null);
     setAnalysisMessage("");
     setRoomOperationNotice(null);
+  }
+
+  function selectAnalysisPeriod(period: AnalysisPeriod) {
+    exportAbort.current?.abort();
+    setAnalysis(null);
+    setArchive(null);
+    setAnalysisMessage("");
+    if (period === "custom" && (!fromLocal || !toLocal)) {
+      const range = defaultCustomLocalRange(selectedRoom?.createdAt);
+      setFromLocal(range.from);
+      setToLocal(range.to);
+    }
+    setAnalysisPeriod(period);
+  }
+
+  function changeCustomRange(field: "from" | "to", value: string) {
+    exportAbort.current?.abort();
+    setAnalysis(null);
+    setArchive(null);
+    setAnalysisMessage("");
+    if (field === "from") setFromLocal(value);
+    else setToLocal(value);
   }
 
   function applyRoomUpdate(updated: AdminRoom) {
@@ -207,71 +316,6 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
     } finally {
       setClosingRoom(false);
       setRoomToClose(null);
-    }
-  }
-
-  async function requestAnalysis(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!selectedRoom || analyzing) return;
-    const range = utcRange(fromLocal, toLocal);
-    if (!range) {
-      setAnalysisMessage("시작 시각은 종료 시각보다 앞서야 합니다.");
-      return;
-    }
-
-    exportAbort.current?.abort();
-    const controller = new AbortController();
-    exportAbort.current = controller;
-    setAnalyzing(true);
-    setAnalysis(null);
-    setArchive(null);
-    setAnalysisMessage("");
-    try {
-      const response = await authenticatedFetch(
-        `/api/v1/admin/rooms/${encodeURIComponent(selectedRoom.roomId)}/conversation-exports`,
-        {
-          method: "POST",
-          headers: { accept: "application/zip", "content-type": "application/json" },
-          body: JSON.stringify(range),
-          cache: "no-store",
-          signal: controller.signal,
-        },
-      );
-      if (!response.ok) {
-        setAnalysisMessage(await exportProblemMessage(response));
-        return;
-      }
-      const contentType = response.headers.get("content-type")?.toLocaleLowerCase() ?? "";
-      if (!contentType.startsWith("application/zip")) {
-        setAnalysisMessage("서버가 application/zip 대신 다른 형식으로 응답했습니다.");
-        return;
-      }
-      const bytes = await readConversationExportResponse(response);
-      const parsed = await parseConversationExportArchive(bytes, {
-        roomId: selectedRoom.roomId,
-        range,
-      });
-      if (controller.signal.aborted) return;
-      setAnalysis(parsed);
-      setArchive(bytes);
-      setArchiveName(exportFilename(response, parsed.manifest.roomName));
-      setAnalysisMessage(
-        parsed.warnings.length > 0
-          ? "분석은 완료됐지만 Export 건수 일치 여부를 확인해야 합니다."
-          : "Export 무결성을 확인하고 통계를 계산했습니다.",
-      );
-    } catch (error) {
-      if (controller.signal.aborted) return;
-      setAnalysisMessage(
-        error instanceof ConversationExportError
-          ? error.message
-          : "Export 요청 또는 분석 중 오류가 발생했습니다. 다시 시도해 주세요.",
-      );
-    } finally {
-      if (exportAbort.current === controller) {
-        exportAbort.current = null;
-        setAnalyzing(false);
-      }
     }
   }
 
@@ -377,17 +421,15 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
             ) : null}
           </aside>
 
-          <section aria-label="대화 Export 분석" className={styles.analysisPanel}>
-            <AnalysisRequestForm
+          <section aria-label="대화 분석" className={styles.analysisPanel}>
+            <AnalysisRangeControls
               analyzing={analyzing}
               closingRoom={closingRoom}
               fromLocal={fromLocal}
-              onCloseRoom={() => {
-                if (selectedRoom && selectedRoom.status !== "CLOSED") setRoomToClose(selectedRoom);
-              }}
-              onFromChange={setFromLocal}
-              onSubmit={requestAnalysis}
-              onToChange={setToLocal}
+              onFromChange={(value) => changeCustomRange("from", value)}
+              onPeriodChange={selectAnalysisPeriod}
+              onToChange={(value) => changeCustomRange("to", value)}
+              period={analysisPeriod}
               selectedRoom={selectedRoom}
               toLocal={toLocal}
             />
@@ -402,12 +444,19 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
                 {roomOperationNotice.text}
               </p>
             ) : null}
-            {analysisMessage ? (
+            {analyzing ? (
               <p aria-live="polite" className={styles.statusMessage} role="status">
-                {analysisMessage}
+                {analysisPeriod === "all"
+                  ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
+                  : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
               </p>
             ) : null}
-            {analysis ? (
+            {!analyzing && (customRangeInvalid || analysisMessage) ? (
+              <p aria-live="polite" className={styles.statusMessage} role="status">
+                {customRangeInvalid ? "시작 시각은 종료 시각보다 앞서야 합니다." : analysisMessage}
+              </p>
+            ) : null}
+            {analysis && analysisRange ? (
               <AnalysisResult
                 analysis={analysis}
                 archiveReady={archive !== null}
@@ -417,6 +466,14 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
             ) : (
               <EmptyAnalysis selected={selectedRoom !== null} />
             )}
+            <RoomOperationSettings
+              analyzing={analyzing}
+              closingRoom={closingRoom}
+              onCloseRoom={() => {
+                if (selectedRoom?.status === "ACTIVE") setRoomToClose(selectedRoom);
+              }}
+              selectedRoom={selectedRoom}
+            />
           </section>
         </div>
       </AdminChatOperationsLayout>
@@ -436,29 +493,29 @@ export function AdminChatInsightsScreen({ screen }: Readonly<{ screen: ScreenDef
   );
 }
 
-function AnalysisRequestForm({
+function AnalysisRangeControls({
   analyzing,
   closingRoom,
   fromLocal,
-  onCloseRoom,
   onFromChange,
-  onSubmit,
+  onPeriodChange,
   onToChange,
+  period,
   selectedRoom,
   toLocal,
 }: Readonly<{
   analyzing: boolean;
   closingRoom: boolean;
   fromLocal: string;
-  onCloseRoom: () => void;
   onFromChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+  onPeriodChange: (period: AnalysisPeriod) => void;
   onToChange: (value: string) => void;
+  period: AnalysisPeriod;
   selectedRoom: AdminRoom | null;
   toLocal: string;
 }>) {
   return (
-    <form className={styles.rangeForm} onSubmit={onSubmit}>
+    <section className={styles.rangeForm}>
       <header>
         <div>
           <small>조회 대상</small>
@@ -468,56 +525,98 @@ function AnalysisRequestForm({
           {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
         </span>
       </header>
-      {selectedRoom ? (
-        <div className={styles.roomOperationBar}>
-          <p>
-            {selectedRoom.status === "ACTIVE"
-              ? "종료하면 모든 ACTIVE 멤버가 퇴장되고 WebSocket 연결과 이후 활동이 즉시 차단됩니다."
-              : "종료된 채팅방입니다. 대화 Export와 운영 기록은 계속 확인할 수 있습니다."}
-          </p>
-          {selectedRoom.status === "ACTIVE" ? (
-            <button
-              className={styles.closeRoomButton}
-              disabled={closingRoom || analyzing}
-              onClick={onCloseRoom}
-              type="button"
-            >
-              {closingRoom ? "종료 상태 확인 중…" : "채팅방 종료"}
-            </button>
-          ) : null}
-        </div>
-      ) : null}
-      <div className={styles.rangeFields}>
-        <label>
-          <span>시작 시각</span>
-          <input
-            disabled={analyzing || closingRoom}
-            onChange={(event) => onFromChange(event.currentTarget.value)}
-            required
-            type="datetime-local"
-            value={fromLocal}
-          />
-        </label>
-        <span aria-hidden="true">→</span>
-        <label>
-          <span>종료 시각</span>
-          <input
-            disabled={analyzing || closingRoom}
-            onChange={(event) => onToChange(event.currentTarget.value)}
-            required
-            type="datetime-local"
-            value={toLocal}
-          />
-        </label>
+      <div aria-label="분석 기간" className={styles.periodPicker} role="group">
         <button
-          disabled={!selectedRoom || analyzing || closingRoom || !fromLocal || !toLocal}
-          type="submit"
+          aria-pressed={period === "all"}
+          disabled={!selectedRoom || closingRoom}
+          onClick={() => onPeriodChange("all")}
+          type="button"
         >
-          {analyzing ? "ZIP 확인·분석 중…" : "Export 요청·분석"}
+          전체 기간
+        </button>
+        <button
+          aria-pressed={period === "custom"}
+          disabled={!selectedRoom || closingRoom}
+          onClick={() => onPeriodChange("custom")}
+          type="button"
+        >
+          기간 지정
         </button>
       </div>
-      <p>입력 시각은 현재 기기 시간대로 받고 API에는 ISO 8601 UTC Instant로 전송합니다.</p>
-    </form>
+      {period === "custom" ? (
+        <div className={styles.rangeFields}>
+          <label>
+            <span>시작 시각</span>
+            <input
+              disabled={!selectedRoom || closingRoom}
+              onChange={(event) => onFromChange(event.currentTarget.value)}
+              required
+              type="datetime-local"
+              value={fromLocal}
+            />
+          </label>
+          <span aria-hidden="true">→</span>
+          <label>
+            <span>종료 시각</span>
+            <input
+              disabled={!selectedRoom || closingRoom}
+              onChange={(event) => onToChange(event.currentTarget.value)}
+              required
+              type="datetime-local"
+              value={toLocal}
+            />
+          </label>
+        </div>
+      ) : (
+        <p className={styles.periodSummary}>
+          {selectedRoom
+            ? `${formatKoreanDate(selectedRoom.createdAt)} 개설 이후의 전체 대화를 자동으로 표시합니다.`
+            : "채팅방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
+        </p>
+      )}
+      {period === "custom" ? (
+        <p>입력 시각은 현재 기기 시간대로 받고 API에는 ISO 8601 UTC Instant로 전송합니다.</p>
+      ) : null}
+      <span className="sr-only" aria-live="polite">
+        {analyzing ? "대화 분석 중" : ""}
+      </span>
+    </section>
+  );
+}
+
+function RoomOperationSettings({
+  analyzing,
+  closingRoom,
+  onCloseRoom,
+  selectedRoom,
+}: Readonly<{
+  analyzing: boolean;
+  closingRoom: boolean;
+  onCloseRoom: () => void;
+  selectedRoom: AdminRoom | null;
+}>) {
+  if (!selectedRoom) return null;
+  return (
+    <details className={styles.roomSettings}>
+      <summary>채팅방 운영 설정</summary>
+      <div>
+        <p>
+          {selectedRoom.status === "ACTIVE"
+            ? "종료하면 모든 참여자의 연결과 이후 활동이 즉시 차단됩니다."
+            : "종료된 채팅방입니다. 대화 기록과 분석 결과는 계속 확인할 수 있습니다."}
+        </p>
+        {selectedRoom.status === "ACTIVE" ? (
+          <button
+            className={styles.closeRoomButton}
+            disabled={closingRoom || analyzing}
+            onClick={onCloseRoom}
+            type="button"
+          >
+            {closingRoom ? "종료 상태 확인 중…" : "채팅방 종료"}
+          </button>
+        ) : null}
+      </div>
+    </details>
   );
 }
 
@@ -534,7 +633,7 @@ function AnalysisResult({
 }>) {
   return (
     <div className={styles.result}>
-      <SnapshotHeader analysis={analysis} />
+      <SnapshotHeader analysis={analysis} archiveReady={archiveReady} onDownload={onDownload} />
       {analysis.warnings.length > 0 ? (
         <ul className={styles.warnings}>
           {analysis.warnings.map((warning) => (
@@ -543,15 +642,20 @@ function AnalysisResult({
         </ul>
       ) : null}
       {mode === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
-      {mode === "export" ? (
-        <ExportFiles analysis={analysis} archiveReady={archiveReady} onDownload={onDownload} />
-      ) : null}
       {mode === "rooms" || mode === "detail" ? <ConversationDetail analysis={analysis} /> : null}
     </div>
   );
 }
 
-function SnapshotHeader({ analysis }: Readonly<{ analysis: ConversationExportAnalysis }>) {
+function SnapshotHeader({
+  analysis,
+  archiveReady,
+  onDownload,
+}: Readonly<{
+  analysis: ConversationExportAnalysis;
+  archiveReady: boolean;
+  onDownload: () => void;
+}>) {
   return (
     <section className={styles.snapshot}>
       <div>
@@ -559,19 +663,29 @@ function SnapshotHeader({ analysis }: Readonly<{ analysis: ConversationExportAna
         <h2>{analysis.manifest.roomName}</h2>
         <p>{analysis.manifest.roomDescription || "채팅방 설명이 없습니다."}</p>
       </div>
-      <dl>
-        <div>
-          <dt>분석 구간</dt>
-          <dd>
-            {formatKoreanDate(analysis.manifest.range.fromInclusive)} —<br />
-            {formatKoreanDate(analysis.manifest.range.toExclusive)}
-          </dd>
-        </div>
-        <div>
-          <dt>스냅샷</dt>
-          <dd>{formatKoreanDate(analysis.manifest.capturedAt)}</dd>
-        </div>
-      </dl>
+      <div className={styles.snapshotMeta}>
+        <dl>
+          <div>
+            <dt>분석 구간</dt>
+            <dd>
+              {formatKoreanDate(analysis.manifest.range.fromInclusive)} —<br />
+              {formatKoreanDate(analysis.manifest.range.toExclusive)}
+            </dd>
+          </div>
+          <div>
+            <dt>스냅샷</dt>
+            <dd>{formatKoreanDate(analysis.manifest.capturedAt)}</dd>
+          </div>
+        </dl>
+        <button
+          className={styles.downloadButton}
+          disabled={!archiveReady}
+          onClick={onDownload}
+          type="button"
+        >
+          원본 ZIP 내려받기
+        </button>
+      </div>
     </section>
   );
 }
@@ -640,60 +754,6 @@ export function ChatStatisticsSummary({
   );
 }
 
-function ExportFiles({
-  analysis,
-  archiveReady,
-  onDownload,
-}: Readonly<{
-  analysis: ConversationExportAnalysis;
-  archiveReady: boolean;
-  onDownload: () => void;
-}>) {
-  return (
-    <section className={styles.exportCard}>
-      <header>
-        <div>
-          <span>VERIFIED ARCHIVE</span>
-          <h3>Export 파일</h3>
-        </div>
-        <button disabled={!archiveReady} onClick={onDownload} type="button">
-          원본 ZIP 내려받기
-        </button>
-      </header>
-      <ul>
-        <li>
-          <strong>manifest.json</strong>
-          <span>계약·스냅샷·건수</span>
-          <b>검증 기준</b>
-        </li>
-        {analysis.verifiedFiles.map((file) => (
-          <li key={file.name}>
-            <strong>{file.name}</strong>
-            <span>{formatBytes(file.sizeBytes)}</span>
-            <b>SHA-256 일치</b>
-          </li>
-        ))}
-      </ul>
-      <dl className={styles.exportMeta}>
-        <div>
-          <dt>계약</dt>
-          <dd>
-            {analysis.manifest.contract} v{analysis.manifest.schemaVersion}
-          </dd>
-        </div>
-        <div>
-          <dt>메시지 표현</dt>
-          <dd>{analysis.manifest.messageRepresentation}</dd>
-        </div>
-        <div>
-          <dt>변경 기준점</dt>
-          <dd>{analysis.manifest.capturedChangeSequence.toLocaleString("ko-KR")}</dd>
-        </div>
-      </dl>
-    </section>
-  );
-}
-
 function BarChart({
   buckets,
   title,
@@ -740,10 +800,10 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   return (
     <section className={styles.empty}>
       <span aria-hidden="true">↗</span>
-      <h2>{selected ? "분석 구간을 정해 Export를 요청하세요" : "채팅방을 먼저 선택하세요"}</h2>
+      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "채팅방을 먼저 선택하세요"}</h2>
       <p>
         {selected
-          ? "ZIP 안의 manifest와 세 파일의 SHA-256을 확인한 뒤에만 결과를 표시합니다."
+          ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
           : "관리자 전체 채팅방 목록에서 운영 또는 분석 대상을 고를 수 있습니다."}
       </p>
     </section>
@@ -753,7 +813,6 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
 function viewMode(screenId: string): ViewMode {
   if (screenId === "A-CHAT-002") return "detail";
   if (screenId === "A-CHAT-008") return "statistics";
-  if (screenId === "A-CHAT-009") return "export";
   return "rooms";
 }
 
@@ -764,14 +823,15 @@ function navigationSection(mode: ViewMode): AdminChatSection {
 function screenTitle(mode: ViewMode): string {
   if (mode === "detail") return "채팅방 상세";
   if (mode === "statistics") return "채팅 통계";
-  if (mode === "export") return "대화 Export";
   return "채팅 운영";
 }
 
-function defaultLocalRange(): Readonly<{ from: string; to: string }> {
+function defaultCustomLocalRange(roomCreatedAt?: string): Readonly<{ from: string; to: string }> {
   const to = new Date();
   to.setSeconds(0, 0);
-  const from = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+  const recent = new Date(to.getTime() - 24 * 60 * 60 * 1000);
+  const created = roomCreatedAt ? new Date(roomCreatedAt) : null;
+  const from = created && Number.isFinite(created.getTime()) && created > recent ? created : recent;
   return { from: localDateTime(from), to: localDateTime(to) };
 }
 
@@ -786,6 +846,26 @@ function utcRange(from: string, to: string) {
   if (!Number.isFinite(fromDate.getTime()) || !Number.isFinite(toDate.getTime())) return null;
   if (fromDate.getTime() >= toDate.getTime()) return null;
   return { fromInclusive: fromDate.toISOString(), toExclusive: toDate.toISOString() };
+}
+
+export function resolveConversationAnalysisRange({
+  createdAt,
+  fromLocal,
+  now = new Date(),
+  period,
+  toLocal,
+}: Readonly<{
+  createdAt: string;
+  fromLocal: string;
+  now?: Date;
+  period: AnalysisPeriod;
+  toLocal: string;
+}>) {
+  if (period === "custom") return utcRange(fromLocal, toLocal);
+  const from = new Date(createdAt);
+  if (!Number.isFinite(from.getTime()) || !Number.isFinite(now.getTime()) || from >= now)
+    return null;
+  return { fromInclusive: from.toISOString(), toExclusive: now.toISOString() };
 }
 
 function authorLabels(messages: readonly ConversationMessage[]): ReadonlyMap<string, string> {
@@ -841,10 +921,10 @@ function visibilityLabel(visibility: AdminRoom["visibility"]): string {
 
 async function exportProblemMessage(response: Response): Promise<string> {
   if (response.status === 403) {
-    return "대화 Export 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
+    return "대화 원본 접근 권한이 없습니다. 관리자 토큰의 chat:audit:exports scope를 확인해 주세요.";
   }
   if (response.status === 404) {
-    return "채팅방을 찾을 수 없거나 대화 Export API가 아직 준비되지 않았습니다.";
+    return "채팅방을 찾을 수 없거나 대화 기록 API가 아직 준비되지 않았습니다.";
   }
   if (response.status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
   return formatAdminProblem(await readAdminProblem(response));
@@ -882,10 +962,4 @@ function formatRate(value: number): string {
     minimumFractionDigits: 1,
     maximumFractionDigits: 2,
   }).format(value);
-}
-
-function formatBytes(value: number): string {
-  if (value < 1024) return `${value} B`;
-  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
-  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
 }

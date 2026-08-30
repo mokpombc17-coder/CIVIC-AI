@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 import {
   AdminChatInsightsScreen,
   ChatStatisticsSummary,
+  resolveConversationAnalysisRange,
 } from "@/components/admin/admin-chat-insights-screen";
 import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
 import { screenRegistry } from "@/lib/screens/registry";
@@ -13,8 +14,8 @@ describe("admin chat conversation insights", () => {
     ["A-CHAT-001", "채팅 운영"],
     ["A-CHAT-002", "채팅방 상세"],
     ["A-CHAT-008", "채팅 통계"],
-    ["A-CHAT-009", "대화 Export"],
-  ])("%s 화면에서 방 선택·UTC 구간 Export 분석 흐름을 제공한다", (screenId, title) => {
+    ["A-CHAT-009", "채팅 운영"],
+  ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title) => {
     const screen = screenRegistry.find((candidate) => candidate.id === screenId);
     expect(screen?.status).toBe("FUNCTIONAL");
     if (!screen) throw new Error(`Missing screen: ${screenId}`);
@@ -29,10 +30,30 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain('aria-label="채팅 운영 메뉴"');
     expect(html).toContain('href="/admin/chat/requests"');
     expect(html).toContain('href="/admin/chat/categories"');
-    expect(html).toContain("Export 요청·분석");
-    expect(html).toContain('type="datetime-local"');
+    expect(html).toContain('aria-label="분석 기간"');
+    expect(html).toContain('aria-pressed="true"');
+    expect(html).toContain(">전체 기간</button>");
+    expect(html).toContain("개설 이후 전체 대화를 자동으로 표시합니다");
+    expect(html).not.toContain('href="/admin/chat/export"');
+    expect(html).not.toContain("Export 요청·분석");
+    expect(html).not.toContain('type="datetime-local"');
     expect(html).not.toContain("roomId");
     expect(html).not.toContain("userId");
+  });
+
+  it("전체 기간은 채팅방 개설 시각부터 현재까지로 계산한다", () => {
+    const range = resolveConversationAnalysisRange({
+      createdAt: "2026-08-01T00:00:00.000Z",
+      fromLocal: "",
+      now: new Date("2026-08-30T09:00:00.000Z"),
+      period: "all",
+      toLocal: "",
+    });
+
+    expect(range).toEqual({
+      fromInclusive: "2026-08-01T00:00:00.000Z",
+      toExclusive: "2026-08-30T09:00:00.000Z",
+    });
   });
 
   it("통계는 핵심 지표와 일자별 추이만 표시한다", () => {
