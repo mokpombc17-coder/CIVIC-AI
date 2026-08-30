@@ -10,6 +10,7 @@ import {
   auditSubjectHref,
   adminRoleMutationPath,
   ADMIN_PERMISSION_CODES,
+  AdminHome,
   AdminPendingChatRequests,
   filterAdminUsers,
   hasAdminAccessRevocation,
@@ -1221,6 +1222,42 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("시뮬레이션 열기");
     expect(html).not.toContain("RAG 자료");
     expect(html).not.toContain("오픈 예정");
+  });
+
+  it("관리자 홈은 확인이 필요한 문서를 관리 현황 다음 두 번째 영역에 배치한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(AdminHome, {
+        canManageSimulation: false,
+        canReadRag: true,
+        chatRequestSummary: {
+          status: "ready",
+          count: 0,
+          hasMore: false,
+          items: [],
+          labels: new Map(),
+        },
+        ragJobSummary: {
+          status: "ready",
+          failed: 1,
+          active: 0,
+          counts: { FAILED: 1 },
+          recentFailures: [
+            {
+              jobId: "job-failed",
+              documentId: "document-failed",
+              filename: "확인문서.pdf",
+              failureCode: "DOCUMENT_READ_FAILED",
+            },
+          ],
+        },
+        simulationWalletSummary: { status: "forbidden" },
+        taskDeadlineSummary: { status: "forbidden" },
+      }),
+    );
+
+    expect(html.indexOf("관리 현황")).toBeLessThan(html.indexOf("확인이 필요한 문서"));
+    expect(html.indexOf("확인이 필요한 문서")).toBeLessThan(html.indexOf("채팅방 승인 대기"));
+    expect(html.indexOf("채팅방 승인 대기")).toBeLessThan(html.indexOf("현재 처리 중"));
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {
