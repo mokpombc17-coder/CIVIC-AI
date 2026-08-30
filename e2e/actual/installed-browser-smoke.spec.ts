@@ -107,7 +107,7 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await page.getByRole("button", { name: "새 질문" }).click();
   await expect(page.getByText("새 질문을 시작했습니다.")).toBeVisible();
   await page
-    .getByPlaceholder("문서에 대해 질문하세요...")
+    .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   const progress = page.getByRole("status", { name: "RAG 답변 처리 단계" });
@@ -123,7 +123,7 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
   await expect(streamedAnswer).not.toContainText("신청 기준을 확인할 수 있습니다.");
   await expect(streamedAnswer).toContainText("지원 대상과 신청 기준을 확인할 수 있습니다.");
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await page.getByRole("link", { name: "근거 페이지" }).click();
+  await page.getByRole("link", { name: "원문 보기" }).click();
   await expect(page).toHaveURL(/\/rag$/);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();

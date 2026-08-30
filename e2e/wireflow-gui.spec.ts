@@ -1,7 +1,7 @@
 import { createServer, type Server } from "node:http";
 import { expect, test, type BrowserContext, type Locator } from "@playwright/test";
 
-const WEB_BASE_URL = "https://localhost:3109";
+const WEB_BASE_URL = process.env.CIVIC_E2E_WEB_BASE_URL ?? "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE_NAME = "civic_ai_access_token";
@@ -1014,23 +1014,46 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
     x: [0, 1],
     y: [0, 1],
     width: [392, 394],
-    height: [68, 70],
+    height: [63, 65],
+  });
+  await expectBox(page.locator('[data-wireflow-screen="U-RAG-001"] .civic-rag-composer'), {
+    x: [16, 18],
+    y: [674, 678],
+    width: [359, 362],
+    height: [96, 100],
+  });
+  await expectBox(page.getByRole("navigation", { name: "참여자 주요 메뉴" }), {
+    y: [788, 790],
+    height: [63, 65],
   });
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요...")
+    .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const citation = page.getByRole("link", { name: "근거 페이지" });
+  const citation = page.getByRole("link", { name: "원문 보기" });
   await expect(citation).toBeVisible();
+  await expectBox(page.locator(".civic-rag-question"), {
+    x: [80, 83],
+    width: [294, 297],
+  });
+  await expectBox(page.locator(".civic-rag-answer:not(.is-live)"), {
+    x: [16, 18],
+    width: [294, 297],
+  });
+  await expectBox(page.locator(".civic-rag-citation-card"), {
+    x: [16, 18],
+    width: [359, 362],
+    height: [64, 68],
+  });
 
   await page.reload();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "근거 페이지" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "원문 보기" })).toBeVisible();
 
   await page.getByRole("button", { name: "새 질문" }).click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
@@ -1038,11 +1061,11 @@ test("U-RAG-001 질문부터 읽기 전용 PDF까지 기준 GUI와 직결 경계
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요...")
+    .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const restoredCitation = page.getByRole("link", { name: "근거 페이지" });
+  const restoredCitation = page.getByRole("link", { name: "원문 보기" });
   await expect(restoredCitation).toBeVisible();
   await restoredCitation.click();
 
@@ -1087,10 +1110,10 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
   await page.goto("/rag");
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요...")
+    .getByPlaceholder("문서에 대해 질문하세요…")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
-  await expect(page.getByText("문서를 확인하고 답변을 준비하고 있어요")).toBeVisible();
+  await expect(page.getByRole("status", { name: "RAG 답변 처리 단계" })).toBeVisible();
   await expect
     .poll(() => page.evaluate(() => sessionStorage.getItem("civic:rag-conversation:v1") ?? ""))
     .toContain("query-job-1");
