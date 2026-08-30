@@ -70,6 +70,23 @@ export function matchChatRoomCategoryAssignmentRoute(
   );
 }
 
+export function matchChatAdminRoomListRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(method.toUpperCase(), ["GET"], "/api/v1/admin/rooms", "chat:categories:manage");
+}
+
+export function matchChatAdminRoomCloseRoute(
+  method: string,
+  roomId: string,
+): AdminDomainRoute | RouteFailure {
+  if (!uuid.test(roomId)) return { allowedMethods: [], status: 404 };
+  return allow(
+    method.toUpperCase(),
+    ["POST"],
+    `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/commands/close`,
+    "chat:rooms:approve",
+  );
+}
+
 export function matchChatRoomDetailRoute(
   method: string,
   roomId: string,

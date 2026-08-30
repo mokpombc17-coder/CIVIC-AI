@@ -176,7 +176,8 @@ Browser /api/v1/admin/simulation-tasks/**|simulations/**|simulation-options|simu
         └── 정본 Simulation API 처리
 
 Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/**
-        | /api/v1/admin/rooms/{roomId}/categories | /api/v1/rooms | /api/v1/rooms/{roomId}
+        | /api/v1/admin/rooms | /api/v1/admin/rooms/{roomId}/categories
+        | /api/v1/admin/rooms/{roomId}/commands/close | /api/v1/rooms | /api/v1/rooms/{roomId}
         | /api/v1/admin/tasks/**
 └── Admin Domain BFF
     ├── 화면별 path·method allowlist

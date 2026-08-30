@@ -42,6 +42,8 @@ describe("direct resource route boundary", () => {
         "api/v1/[...path]/route.ts",
         "api/v1/rooms/route.ts",
         "api/v1/admin/room-creation-requests/[[...path]]/route.ts",
+        "api/v1/admin/rooms/route.ts",
+        "api/v1/admin/rooms/[roomId]/commands/close/route.ts",
         "api/v1/admin/rooms/[roomId]/conversation-exports/route.ts",
         "api/v1/admin/tasks/[[...path]]/route.ts",
       ]),

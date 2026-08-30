@@ -6,7 +6,7 @@ import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
   it.each([
-    ["A-CHAT-001", "채팅방 분석"],
+    ["A-CHAT-001", "채팅방 운영"],
     ["A-CHAT-002", "채팅방 상세"],
     ["A-CHAT-008", "채팅 통계"],
     ["A-CHAT-009", "대화 Export"],
@@ -19,7 +19,8 @@ describe("admin chat conversation insights", () => {
 
     expect(html).toContain(`data-wireflow-screen="${screenId}"`);
     expect(html).toContain(`>${title}</h1>`);
-    expect(html).toContain("ACTIVE · LISTED");
+    expect(html).toContain("ACTIVE · CLOSED");
+    expect(html).toContain("관리자는 참여 여부와 관계없이 활성 방을 즉시 종료");
     expect(html).toContain("Export 요청·분석");
     expect(html).toContain('type="datetime-local"');
     expect(html).not.toContain("roomId");
