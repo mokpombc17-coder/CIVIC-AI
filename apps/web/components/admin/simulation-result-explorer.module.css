@@ -95,41 +95,6 @@
   stroke-width: 1.8;
 }
 
-.metrics {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(130px, 1fr));
-  gap: 1px;
-  overflow: hidden;
-  margin: 0;
-  border: 1px solid var(--atlas-line);
-  border-radius: var(--wf-radius);
-  background: var(--atlas-line);
-}
-
-.metrics > div {
-  min-width: 0;
-  padding: 16px;
-  background: #fff;
-}
-
-.metrics dt {
-  margin-bottom: 7px;
-  color: var(--atlas-muted);
-  font-size: 11px;
-  font-weight: 700;
-}
-
-.metrics dd {
-  overflow: hidden;
-  margin: 0;
-  color: var(--wf-ink);
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.025em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .compareStation {
   position: relative;
   display: grid;

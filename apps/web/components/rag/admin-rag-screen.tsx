@@ -5,7 +5,15 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { sha256 as createSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -298,6 +306,7 @@ export function AdminRagScreen({
 }: Readonly<{ screen: ScreenDefinition; query: RagQuery }>) {
   const router = useRouter();
   const folderId = firstQueryValue(query.folderId);
+  const initialDocumentQuery = useMemo(() => ragDocumentQueryFromRoute(query), [query]);
   const retryJobId = firstQueryValue(query.retryJobId);
   const retryFilename = firstQueryValue(query.filename);
   const {
@@ -310,10 +319,11 @@ export function AdminRagScreen({
     refreshDocuments,
     pageState,
     queryDocuments,
+    documentQuery,
     runBulk,
     message,
     setMessage,
-  } = useAdminWorkspace(folderId);
+  } = useAdminWorkspace(folderId, initialDocumentQuery);
   const [jobSummary, setJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
   useEffect(() => {
     let cancelled = false;
@@ -343,7 +353,7 @@ export function AdminRagScreen({
   const folderMode = resolveFolderEditorMode(firstQueryValue(query.mode));
   const folderDialogKey = ragFolderDialogKey(folderMode, folderId);
   const [completedFolderDialog, setCompletedFolderDialog] = useState<string>();
-  const deleteReturnHref = ragWorkspaceHref(selectedFolder?.folder_id ?? folderId);
+  const deleteReturnHref = ragWorkspaceHref(selectedFolder?.folder_id ?? folderId, documentQuery);
   const jobIds = queryValues(query.jobId);
   const showRetryOverlay = screen.id === "A-RAG-004" && retryJobId !== undefined;
   const showJobOverlay = screen.id === "A-RAG-005" && jobIds.length > 0;
@@ -357,11 +367,13 @@ export function AdminRagScreen({
           selectedFolderId={selectedFolder?.folder_id}
         />
         <section className="civic-rag-admin-workspace">
-          <WorkspaceHeading folder={selectedFolder} />
-          <ConsoleMetricStrip
-            ariaLabel="문서 처리 현황"
-            metrics={ragJobSummaryMetrics(jobSummary, pageState.total)}
-          />
+          <div className="civic-rag-workspace-overview">
+            <WorkspaceHeading folder={selectedFolder} />
+            <ConsoleMetricStrip
+              ariaLabel="문서 처리 현황"
+              metrics={ragJobSummaryMetrics(jobSummary, pageState.total)}
+            />
+          </div>
           <details
             className="civic-inline-upload"
             data-rag-inline-upload="true"
@@ -397,6 +409,7 @@ export function AdminRagScreen({
             selectedDocumentId={inspected.document?.document_id}
             onQueryChange={queryDocuments}
             pageState={pageState}
+            initialQuery={initialDocumentQuery}
           />
           {message ? (
             <p aria-live="polite" className="civic-form-message">
@@ -409,6 +422,11 @@ export function AdminRagScreen({
       {inspected.document ? (
         <DocumentInspector
           creatorLabel={adminUserLabel(creatorLabels, inspected.document.created_by)}
+          deleteHref={ragDocumentDeleteHref(
+            inspected.document.folder_id,
+            inspected.document.document_id,
+            documentQuery,
+          )}
           document={inspected.document}
           onClose={() => setDocumentSelection(undefined)}
           version={inspected.version}
@@ -458,6 +476,7 @@ export function AdminRagScreen({
             }}
             onMessage={setMessage}
             query={query}
+            returnHref={deleteReturnHref}
           />
         </AdminRagModal>
       ) : null}
@@ -538,7 +557,10 @@ function AdminRagModal({
   );
 }
 
-function useAdminWorkspace(initialFolderId?: string) {
+function useAdminWorkspace(
+  initialFolderId: string | undefined,
+  initialDocumentQuery: RagDocumentListQuery,
+) {
   const router = useRouter();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<RagDocument[]>([]);
@@ -549,7 +571,8 @@ function useAdminWorkspace(initialFolderId?: string) {
   const foldersRef = useRef<Folder[]>([]);
   const loadGateRef = useRef(createLatestRequestGate());
   const documentRefreshInFlightRef = useRef<symbol | undefined>(undefined);
-  const documentQueryRef = useRef<RagDocumentListQuery>(DEFAULT_DOCUMENT_QUERY);
+  const [documentQuery, setDocumentQuery] = useState(initialDocumentQuery);
+  const documentQueryRef = useRef<RagDocumentListQuery>(initialDocumentQuery);
   const creatorIdsKeyRef = useRef("");
   const bulkOperationRef = useRef(createRetryOperation());
   const [message, setMessage] = useState("");
@@ -652,6 +675,7 @@ function useAdminWorkspace(initialFolderId?: string) {
         }
         const nextQuery = queryOverride ?? documentQueryRef.current;
         documentQueryRef.current = nextQuery;
+        setDocumentQuery(nextQuery);
         await loadDocuments(nextSelected, nextQuery, isCurrent, true);
       } catch {
         if (!isCurrent()) return;
@@ -667,12 +691,12 @@ function useAdminWorkspace(initialFolderId?: string) {
 
   useEffect(() => {
     const loadGate = loadGateRef.current;
-    const timer = window.setTimeout(() => void load(initialFolderId), 0);
+    const timer = window.setTimeout(() => void load(initialFolderId, initialDocumentQuery), 0);
     return () => {
       window.clearTimeout(timer);
       loadGate.cancel();
     };
-  }, [initialFolderId, load]);
+  }, [initialDocumentQuery, initialFolderId, load]);
 
   const refresh = useCallback(() => void load(selectedIdRef.current), [load]);
   const refreshDocuments = useCallback(() => {
@@ -703,9 +727,11 @@ function useAdminWorkspace(initialFolderId?: string) {
     refresh,
     refreshDocuments,
     pageState,
+    documentQuery,
     queryDocuments: (patch: Partial<RagDocumentListQuery>) => {
       const nextQuery = { ...documentQueryRef.current, ...patch };
       documentQueryRef.current = nextQuery;
+      setDocumentQuery(nextQuery);
       void load(selectedIdRef.current, nextQuery);
     },
     runBulk: async (input: RagBulkActionInput) => {
@@ -889,16 +915,21 @@ export function resolveInspectedRagDocument(
 
 export function DocumentInspector({
   creatorLabel,
+  deleteHref,
   document,
   onClose,
   version,
 }: Readonly<{
   creatorLabel: string;
+  deleteHref?: Route;
   document: RagDocument;
   onClose: () => void;
   version: DocumentVersion | null;
 }>) {
   const filename = displayRagFilename(document.filename);
+  const resolvedDeleteHref =
+    deleteHref ??
+    ragDocumentDeleteHref(document.folder_id, document.document_id, DEFAULT_DOCUMENT_QUERY);
   const originalHref = version
     ? `/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(version.document_version_id)}/original`
     : undefined;
@@ -991,14 +1022,7 @@ export function DocumentInspector({
               원본 열기
             </AuthenticatedDownloadLink>
           ) : null}
-          <Link
-            className="civic-danger-action"
-            href={
-              document
-                ? `/admin/rag/delete?folderId=${encodeURIComponent(document.folder_id)}&documentId=${encodeURIComponent(document.document_id)}`
-                : "/admin/rag"
-            }
-          >
+          <Link className="civic-danger-action" href={resolvedDeleteHref}>
             문서 삭제
           </Link>
         </div>
@@ -1029,6 +1053,7 @@ export function DocumentWorkspace({
   onQueryChange,
   onBulk,
   pageState = EMPTY_DOCUMENT_PAGE,
+  initialQuery = DEFAULT_DOCUMENT_QUERY,
   selectedDocumentId,
 }: Readonly<{
   documents: RagDocument[];
@@ -1039,16 +1064,19 @@ export function DocumentWorkspace({
   onQueryChange?: (query: Partial<RagDocumentListQuery>) => void;
   onBulk?: (input: RagBulkActionInput) => void | Promise<void>;
   pageState?: RagDocumentPageState;
+  initialQuery?: RagDocumentListQuery;
   selectedDocumentId: string | undefined;
 }>) {
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>("ALL");
-  const [mediaTypeFilter, setMediaTypeFilter] = useState("");
-  const [createdByFilter, setCreatedByFilter] = useState("");
-  const [includeSubfolders, setIncludeSubfolders] = useState(false);
+  const [searchInput, setSearchInput] = useState(initialQuery.query);
+  const [searchQuery, setSearchQuery] = useState(initialQuery.query);
+  const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>(() =>
+    documentStatusFilter(initialQuery.status),
+  );
+  const [mediaTypeFilter, setMediaTypeFilter] = useState(initialQuery.mediaType ?? "");
+  const [createdByFilter, setCreatedByFilter] = useState(initialQuery.createdBy ?? "");
+  const [includeSubfolders, setIncludeSubfolders] = useState(initialQuery.includeSubfolders);
   const [sortDirection, setSortDirection] = useState<RagDocumentListQuery["direction"]>(
-    DEFAULT_DOCUMENT_QUERY.direction,
+    initialQuery.direction,
   );
   const [selection, setSelection] = useState<
     Readonly<{
@@ -1079,6 +1107,17 @@ export function DocumentWorkspace({
     visibleDocuments.length > 0 &&
     visibleDocuments.every((document) => selectedIds.has(document.document_id));
   const selectedDocumentIds = Array.from(selectedIds);
+  const retainedQuery: RagDocumentListQuery = {
+    page: pageState.page,
+    pageSize: pageState.pageSize,
+    query: searchQuery,
+    status: documentStatusQuery(statusFilter),
+    ...(mediaTypeFilter ? { mediaType: mediaTypeFilter } : {}),
+    ...(createdByFilter ? { createdBy: createdByFilter } : {}),
+    includeSubfolders,
+    sort: initialQuery.sort,
+    direction: sortDirection,
+  };
 
   function replaceSelectedIds(ids: ReadonlySet<string>) {
     setSelection({ scopeKey: selectionScopeKey, ids });
@@ -1308,6 +1347,11 @@ export function DocumentWorkspace({
             <tbody>
               {visibleDocuments.map((document) => (
                 <DocumentRow
+                  deleteHref={ragDocumentDeleteHref(
+                    folder?.folder_id ?? document.folder_id,
+                    document.document_id,
+                    retainedQuery,
+                  )}
                   document={document}
                   folder={folder}
                   creatorLabel={adminUserLabel(creatorLabels, document.created_by)}
@@ -1365,6 +1409,13 @@ function documentStatusQuery(status: DocumentStatusFilter): RagDocumentListQuery
   return "";
 }
 
+function documentStatusFilter(status: RagDocumentListQuery["status"]): DocumentStatusFilter {
+  if (status === "ACTIVE") return "READY";
+  if (status === "PROCESSING") return "PROCESSING";
+  if (status === "FAILED") return "FAILED";
+  return "ALL";
+}
+
 export function searchEnabledFromExcluded(excluded: boolean): boolean {
   return !excluded;
 }
@@ -1389,6 +1440,7 @@ export function filterRagDocuments(
 }
 
 function DocumentRow({
+  deleteHref,
   document,
   folder,
   creatorLabel,
@@ -1398,6 +1450,7 @@ function DocumentRow({
   onInspect,
   selected,
 }: Readonly<{
+  deleteHref: Route;
   document: RagDocument;
   folder: Folder | undefined;
   creatorLabel: string;
@@ -1558,10 +1611,7 @@ function DocumentRow({
                 />
                 <span>검색에서 제외</span>
               </label>
-              <Link
-                className="is-danger"
-                href={`/admin/rag/delete?folderId=${encodeURIComponent(folder?.folder_id ?? document.folder_id)}&documentId=${encodeURIComponent(document.document_id)}`}
-              >
+              <Link className="is-danger" href={deleteHref}>
                 문서 삭제
               </Link>
             </div>
@@ -2903,10 +2953,77 @@ export const RAG_FOLDER_DELETE_NETWORK_MESSAGE =
 export const RAG_RETRY_NETWORK_MESSAGE =
   "네트워크 오류로 재시도 접수를 확인하지 못했습니다. 같은 작업을 다시 시도해 주세요.";
 
-export function ragWorkspaceHref(folderId: string | undefined): Route {
-  return folderId
-    ? (`/admin/rag?folderId=${encodeURIComponent(folderId)}` as Route)
-    : ("/admin/rag" as Route);
+export function ragWorkspaceHref(
+  folderId: string | undefined,
+  query?: RagDocumentListQuery,
+): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  const suffix = parameters.toString();
+  return (suffix ? `/admin/rag?${suffix}` : "/admin/rag") as Route;
+}
+
+export function ragDocumentDeleteHref(
+  folderId: string,
+  documentId: string,
+  query: RagDocumentListQuery,
+): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  parameters.set("documentId", documentId);
+  return `/admin/rag/delete?${parameters.toString()}` as Route;
+}
+
+function ragWorkspaceParameters(
+  folderId: string | undefined,
+  query?: RagDocumentListQuery,
+): URLSearchParams {
+  const parameters = new URLSearchParams();
+  if (folderId) parameters.set("folderId", folderId);
+  if (!query) return parameters;
+  if (query.query) parameters.set("q", query.query);
+  if (query.status) parameters.set("status", query.status);
+  if (query.page > 1) parameters.set("page", String(query.page));
+  if (query.pageSize !== DEFAULT_DOCUMENT_QUERY.pageSize) {
+    parameters.set("pageSize", String(query.pageSize));
+  }
+  if (query.mediaType) parameters.set("mediaType", query.mediaType);
+  if (query.createdBy) parameters.set("createdBy", query.createdBy);
+  if (query.includeSubfolders) parameters.set("includeSubfolders", "true");
+  if (query.sort !== DEFAULT_DOCUMENT_QUERY.sort) parameters.set("sort", query.sort);
+  if (query.direction !== DEFAULT_DOCUMENT_QUERY.direction) {
+    parameters.set("direction", query.direction);
+  }
+  return parameters;
+}
+
+export function ragDocumentQueryFromRoute(query: RagQuery): RagDocumentListQuery {
+  const page = Number(firstQueryValue(query.page));
+  const pageSize = Number(firstQueryValue(query.pageSize));
+  const status = firstQueryValue(query.status);
+  const sort = firstQueryValue(query.sort);
+  const direction = firstQueryValue(query.direction);
+  const mediaType = firstQueryValue(query.mediaType);
+  const createdBy = firstQueryValue(query.createdBy);
+  return {
+    page: Number.isSafeInteger(page) && page > 0 ? page : DEFAULT_DOCUMENT_QUERY.page,
+    pageSize: pageSize === 10 || pageSize === 25 || pageSize === 50 ? pageSize : 25,
+    query: firstQueryValue(query.q) ?? "",
+    status:
+      status === "PENDING" || status === "PROCESSING" || status === "ACTIVE" || status === "FAILED"
+        ? status
+        : "",
+    ...(mediaType ? { mediaType } : {}),
+    ...(createdBy ? { createdBy } : {}),
+    includeSubfolders: firstQueryValue(query.includeSubfolders) === "true",
+    sort:
+      sort === "filename" ||
+      sort === "source_bytes" ||
+      sort === "page_count" ||
+      sort === "version_number" ||
+      sort === "status"
+        ? sort
+        : "created_at",
+    direction: direction === "asc" ? "asc" : "desc",
+  };
 }
 
 export async function deleteRagFolder({
@@ -3045,17 +3162,43 @@ function DeletePanel({
   query,
   onComplete,
   onMessage,
+  returnHref,
 }: Readonly<{
   documents: RagDocument[];
   query: RagQuery;
   onComplete: () => void;
   onMessage: (message: string) => void;
+  returnHref: Route;
 }>) {
   const documentId = firstQueryValue(query.documentId);
-  const document = resolveDeletionDocument(documents, documentId);
-  const [confirmed, setConfirmed] = useState(false);
+  const listedDocument = resolveDeletionDocument(documents, documentId);
+  const [loadedDocument, setLoadedDocument] = useState<
+    Readonly<{ document: RagDocument | null; documentId: string }> | undefined
+  >();
+  const document =
+    listedDocument ??
+    (loadedDocument?.documentId === documentId
+      ? (loadedDocument?.document ?? undefined)
+      : undefined);
+  const loadingDocument = Boolean(
+    documentId && !listedDocument && loadedDocument?.documentId !== documentId,
+  );
+  const [confirmedDocumentId, setConfirmedDocumentId] = useState<string>();
+  const confirmed = confirmedDocumentId === documentId;
   const [busy, setBusy] = useState(false);
   const removeOperation = useRef(createRetryOperation());
+
+  useEffect(() => {
+    if (!documentId || listedDocument) return;
+    let cancelled = false;
+    void loadRagDocumentById(documentId).then((loaded) => {
+      if (cancelled) return;
+      setLoadedDocument({ document: loaded, documentId });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, listedDocument]);
 
   async function remove() {
     if (!document || !confirmed) return;
@@ -3077,7 +3220,11 @@ function DeletePanel({
       <dl>
         <div>
           <dt>문서</dt>
-          <dd>{document?.filename ?? "현재 폴더에서 문서를 찾을 수 없습니다."}</dd>
+          <dd>
+            {loadingDocument
+              ? "문서 정보를 불러오는 중입니다."
+              : (document?.filename ?? "삭제할 문서를 찾을 수 없습니다.")}
+          </dd>
         </div>
         <div>
           <dt>삭제 영향</dt>
@@ -3087,22 +3234,21 @@ function DeletePanel({
       <label className="civic-check-row">
         <input
           checked={confirmed}
-          disabled={!document}
-          onChange={(event) => setConfirmed(event.target.checked)}
+          disabled={loadingDocument || !document}
+          onChange={(event) =>
+            setConfirmedDocumentId(event.target.checked ? documentId : undefined)
+          }
           type="checkbox"
         />
         <span>삭제 후 되돌릴 수 없음을 확인했습니다.</span>
       </label>
       <div className="civic-form-actions">
-        <Link
-          className="civic-secondary-action"
-          href={ragWorkspaceHref(document?.folder_id ?? firstQueryValue(query.folderId))}
-        >
+        <Link className="civic-secondary-action" href={returnHref}>
           취소
         </Link>
         <button
           className="civic-danger-action"
-          disabled={!document || !confirmed || busy}
+          disabled={loadingDocument || !document || !confirmed || busy}
           onClick={() => void remove()}
           type="button"
         >
@@ -3154,6 +3300,31 @@ export async function deleteRagDocument({
 
 export function resolveDeletionDocument(documents: RagDocument[], documentId: string | undefined) {
   return documents.find((item) => item.document_id === documentId);
+}
+
+export async function loadRagDocumentById(
+  documentId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<RagDocument | null> {
+  try {
+    const response = await request(`/api/v1/rag/documents/${encodeURIComponent(documentId)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as Partial<RagDocument>;
+    if (
+      body.document_id !== documentId ||
+      typeof body.folder_id !== "string" ||
+      typeof body.filename !== "string" ||
+      typeof body.deleted !== "boolean" ||
+      !(body.active_version === null || typeof body.active_version === "object")
+    ) {
+      return null;
+    }
+    return body as RagDocument;
+  } catch {
+    return null;
+  }
 }
 
 export async function sha256Blob(

@@ -10,12 +10,15 @@ import {
   type FormEvent,
 } from "react";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
+import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
   ConsoleBadge,
+  ConsolePane,
   ConsoleSearchControl,
   ConsoleTabs,
+  ConsoleWorkspace,
   type ConsoleTabItem,
 } from "@/components/admin/console/console-ui";
 import {
@@ -54,6 +57,21 @@ export function chatInsightsPath(tab: ChatInsightsTab, roomId: string | null): s
 const INSIGHTS_TABS: readonly ConsoleTabItem[] = [
   { id: "analysis", label: "대화 분석" },
   { id: "statistics", label: "통계" },
+];
+
+const CHAT_ROOM_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<AdminRoom>> = [
+  { field: "name", headerName: "토론방", flex: 2, minWidth: 170 },
+  {
+    headerName: "상태",
+    minWidth: 90,
+    valueGetter: (params) => (params.data ? roomStatusLabel(params.data.status) : ""),
+  },
+  {
+    headerName: "활성 참여자",
+    minWidth: 110,
+    valueGetter: (params) =>
+      params.data ? `${params.data.activeMemberCount.toLocaleString("ko-KR")}명` : "",
+  },
 ];
 
 type AdminRouteQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
@@ -181,7 +199,7 @@ export function AdminChatInsightsScreen({
         setAnalysisMessage(
           parsed.warnings.length > 0
             ? "분석은 완료됐지만 대화 기록 건수 일치 여부를 확인해야 합니다."
-            : "대화 기록 무결성을 확인하고 분석을 완료했습니다.",
+            : "",
         );
       } catch (error) {
         if (controller.signal.aborted) return;
@@ -268,6 +286,21 @@ export function AdminChatInsightsScreen({
     setActiveRoomQuery(query);
     setActiveRoomStatus(roomStatus);
     void loadRooms(query, roomStatus);
+  }
+
+  function filterRooms(status: AdminRoomStatus | "") {
+    if (roomsLoading || closingRoom) return;
+    exportAbort.current?.abort();
+    setRoomStatus(status);
+    setSelectedRoom(null);
+    setAnalysis(null);
+    setArchive(null);
+    setAnalysisMessage("");
+    setRoomOperationNotice(null);
+    const query = roomQuery.trim();
+    setActiveRoomQuery(query);
+    setActiveRoomStatus(status);
+    void loadRooms(query, status);
   }
 
   function selectRoom(room: AdminRoom) {
@@ -391,59 +424,50 @@ export function AdminChatInsightsScreen({
   return (
     <ScreenFrame screen={screen} title={screenTitle(screen.id)}>
       <AdminChatOperationsLayout>
-        <div className={styles.workspace}>
-          <aside className={styles.roomPanel}>
-            <header>
-              <strong>운영할 토론방</strong>
-            </header>
-            <form className={styles.search} onSubmit={searchRooms} role="search">
+        <ConsoleWorkspace layout="admin-chat-insights-console">
+          <ConsolePane
+            ariaLabel="토론방 목록"
+            subtitle={`${rooms.length.toLocaleString("ko-KR")}건 표시`}
+            title="토론방 목록"
+          >
+            <form className="console-toolbar" onSubmit={searchRooms} role="search">
               <ConsoleSearchControl
                 ariaLabel="토론방 검색"
-                className={styles.queryField ?? ""}
                 disabled={roomsLoading || closingRoom}
                 onChange={setRoomQuery}
                 placeholder="토론방 이름을 검색해 주세요."
                 value={roomQuery}
               />
-              <label className={styles.statusField}>
-                <span>상태</span>
-                <select
-                  aria-label="토론방 상태"
-                  disabled={roomsLoading || closingRoom}
-                  onChange={(event) =>
-                    setRoomStatus(event.currentTarget.value as AdminRoomStatus | "")
-                  }
-                  value={roomStatus}
-                >
-                  <option value="">전체</option>
-                  <option value="ACTIVE">운영 중</option>
-                  <option value="CLOSED">종료</option>
-                </select>
-              </label>
             </form>
-            <div aria-label="토론방 목록" className={styles.roomList} role="list">
-              {rooms.map((room) => (
-                <div key={room.roomId} role="listitem">
-                  <button
-                    aria-pressed={selectedRoom?.roomId === room.roomId}
-                    className={styles.roomButton}
-                    onClick={() => selectRoom(room)}
-                    type="button"
-                  >
-                    <span className={styles.roomTitle}>
-                      <strong>{room.name}</strong>
-                      <ConsoleBadge tone={room.status === "ACTIVE" ? "success" : "neutral"}>
-                        {roomStatusLabel(room.status)}
-                      </ConsoleBadge>
-                    </span>
-                    <span>활성 참여자 {room.activeMemberCount.toLocaleString("ko-KR")}명</span>
-                  </button>
-                </div>
+            <div aria-label="토론방 상태" className="console-filter-group" role="group">
+              {(
+                [
+                  ["", "전체"],
+                  ["ACTIVE", "운영 중"],
+                  ["CLOSED", "종료"],
+                ] as const
+              ).map(([status, label]) => (
+                <button
+                  aria-pressed={roomStatus === status}
+                  disabled={roomsLoading || closingRoom}
+                  key={status || "ALL"}
+                  onClick={() => filterRooms(status)}
+                  type="button"
+                >
+                  {label}
+                </button>
               ))}
-              {rooms.length === 0 ? (
-                <p>{roomsLoading ? "토론방을 불러오는 중입니다." : "검색된 토론방이 없습니다."}</p>
-              ) : null}
             </div>
+            <ConsoleDataGrid
+              ariaLabel="토론방 목록 표"
+              columnDefs={CHAT_ROOM_GRID_COLUMNS}
+              emptyText={roomsLoading ? "토론방을 불러오는 중입니다." : "검색된 토론방이 없습니다."}
+              getRowId={(room) => room.roomId}
+              height={460}
+              onRowClicked={selectRoom}
+              rowData={rooms}
+              selectedRowId={selectedRoom?.roomId ?? null}
+            />
             {hasNext && nextCursor ? (
               <button
                 className="wf-button wf-button-secondary"
@@ -459,7 +483,7 @@ export function AdminChatInsightsScreen({
                 {roomMessage}
               </p>
             ) : null}
-          </aside>
+          </ConsolePane>
 
           <section aria-label="대화 분석" className={styles.analysisPanel}>
             <ConsoleTabs
@@ -522,7 +546,7 @@ export function AdminChatInsightsScreen({
               selectedRoom={selectedRoom}
             />
           </section>
-        </div>
+        </ConsoleWorkspace>
       </AdminChatOperationsLayout>
       <ConfirmDialog
         busy={closingRoom}
@@ -570,28 +594,30 @@ function AnalysisRangeControls({
           <small>조회 대상</small>
           <strong>{selectedRoom?.name ?? "토론방을 선택하세요"}</strong>
         </div>
-        <ConsoleBadge tone={selectedRoom?.status === "ACTIVE" ? "success" : "neutral"}>
-          {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
-        </ConsoleBadge>
+        <div className={styles.rangeActions}>
+          <div aria-label="분석 기간" className={styles.periodPicker} role="group">
+            <button
+              aria-pressed={period === "all"}
+              disabled={!selectedRoom || closingRoom}
+              onClick={() => onPeriodChange("all")}
+              type="button"
+            >
+              전체 기간
+            </button>
+            <button
+              aria-pressed={period === "custom"}
+              disabled={!selectedRoom || closingRoom}
+              onClick={() => onPeriodChange("custom")}
+              type="button"
+            >
+              기간 지정
+            </button>
+          </div>
+          <ConsoleBadge tone={selectedRoom?.status === "ACTIVE" ? "success" : "neutral"}>
+            {selectedRoom ? roomStatusLabel(selectedRoom.status) : "선택 필요"}
+          </ConsoleBadge>
+        </div>
       </header>
-      <div aria-label="분석 기간" className={styles.periodPicker} role="group">
-        <button
-          aria-pressed={period === "all"}
-          disabled={!selectedRoom || closingRoom}
-          onClick={() => onPeriodChange("all")}
-          type="button"
-        >
-          전체 기간
-        </button>
-        <button
-          aria-pressed={period === "custom"}
-          disabled={!selectedRoom || closingRoom}
-          onClick={() => onPeriodChange("custom")}
-          type="button"
-        >
-          기간 지정
-        </button>
-      </div>
       {period === "custom" ? (
         <div className={styles.rangeFields}>
           <label>
@@ -616,13 +642,7 @@ function AnalysisRangeControls({
             />
           </label>
         </div>
-      ) : (
-        <p className={styles.periodSummary}>
-          {selectedRoom
-            ? `${formatKoreanDate(selectedRoom.createdAt)} 개설 이후의 전체 대화를 자동으로 표시합니다.`
-            : "토론방을 선택하면 개설 이후 전체 대화를 자동으로 표시합니다."}
-        </p>
-      )}
+      ) : null}
       {period === "custom" ? <p>입력한 시각은 현재 기기 시간대 기준입니다.</p> : null}
       <span className="sr-only" aria-live="polite">
         {analyzing ? "대화 분석 중" : ""}
@@ -686,7 +706,13 @@ function AnalysisResult({
           ))}
         </ul>
       ) : null}
-      {tab === "statistics" ? <ChatStatisticsSummary metrics={analysis.metrics} /> : null}
+      {tab === "statistics" ? (
+        <ChatStatisticsSummary
+          messages={analysis.messages}
+          metrics={analysis.metrics}
+          windowEnd={analysis.manifest.range.toExclusive}
+        />
+      ) : null}
       {tab === "analysis" ? <ConversationDetail analysis={analysis} /> : null}
     </div>
   );
@@ -704,24 +730,10 @@ function SnapshotHeader({
   return (
     <section className={styles.snapshot}>
       <div>
-        <span>무결성 확인 완료</span>
         <h2>{analysis.manifest.roomName}</h2>
         <p>{analysis.manifest.roomDescription || "토론방 설명이 없습니다."}</p>
       </div>
       <div className={styles.snapshotMeta}>
-        <dl>
-          <div>
-            <dt>분석 구간</dt>
-            <dd>
-              {formatKoreanDate(analysis.manifest.range.fromInclusive)} —<br />
-              {formatKoreanDate(analysis.manifest.range.toExclusive)}
-            </dd>
-          </div>
-          <div>
-            <dt>수집 시각</dt>
-            <dd>{formatKoreanDate(analysis.manifest.capturedAt)}</dd>
-          </div>
-        </dl>
         <button
           className="civic-primary-action"
           disabled={!archiveReady}
@@ -748,7 +760,7 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
       <section className={styles.conversation}>
         <header>
           <div>
-            <h3>종료 시점 대화 상태</h3>
+            <h3>대화 기록</h3>
           </div>
           <small>최근 {Math.min(analysis.messages.length, 30)}건</small>
         </header>
@@ -774,28 +786,50 @@ function ConversationDetail({ analysis }: Readonly<{ analysis: ConversationExpor
 }
 
 export function ChatStatisticsSummary({
+  messages,
   metrics,
-}: Readonly<{ metrics: ConversationExportMetrics }>) {
+  windowEnd,
+}: Readonly<{
+  messages: readonly ConversationMessage[];
+  metrics: ConversationExportMetrics;
+  windowEnd: string;
+}>) {
+  const recent = recentConversationActivity(messages, windowEnd);
+  const authorBuckets = metrics.authors.map((author, index) => ({
+    key: `author-${index + 1}`,
+    label: author.label,
+    count: author.count,
+  }));
   return (
     <>
       <section aria-label="채팅 통계" className={styles.kpis}>
         <Metric label="전체 메시지" value={`${metrics.totalMessages}건`} />
         <Metric label="작성자" value={`${metrics.authorCount}명`} />
-        <Metric
-          label="수정 메시지"
-          value={`${metrics.editedMessages}건`}
-          note={formatRate(metrics.editRate)}
-        />
-        <Metric
-          label="삭제 메시지"
-          value={`${metrics.deletedMessages}건`}
-          note={formatRate(metrics.deletionRate)}
-          tone="danger"
-        />
+        <Metric label="최근 7일 사용자" value={`${recent.userCount}명`} />
+        <Metric label="최근 7일 메시지" value={`${recent.messageCount}건`} />
       </section>
       <BarChart buckets={metrics.daily} title="일자별 메시지 추이" />
+      <BarChart buckets={authorBuckets} title="사용자별 메시지 수" />
     </>
   );
+}
+
+export function recentConversationActivity(
+  messages: readonly ConversationMessage[],
+  windowEnd: string,
+): Readonly<{ messageCount: number; userCount: number }> {
+  const end = new Date(windowEnd).getTime();
+  if (!Number.isFinite(end)) return { messageCount: 0, userCount: 0 };
+  const start = end - 7 * 24 * 60 * 60 * 1000;
+  const users = new Set<string>();
+  let messageCount = 0;
+  for (const message of messages) {
+    const createdAt = new Date(message.createdAt).getTime();
+    if (!Number.isFinite(createdAt) || createdAt < start || createdAt >= end) continue;
+    messageCount += 1;
+    users.add(message.userId);
+  }
+  return { messageCount, userCount: users.size };
 }
 
 function BarChart({
@@ -846,7 +880,7 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
       <h2>{selected ? "대화 분석을 준비하고 있습니다" : "목록에서 토론방을 선택하세요."}</h2>
       <p>
         {selected
-          ? "전체 기간 기록의 무결성을 확인한 뒤 분석 결과를 자동으로 표시합니다."
+          ? "전체 기간 대화를 불러와 분석 결과를 자동으로 표시합니다."
           : "토론방을 선택하면 대화 분석이 시작됩니다."}
       </p>
     </section>
@@ -988,12 +1022,4 @@ function formatKoreanDate(value: string): string {
     minute: "2-digit",
     hour12: false,
   }).format(new Date(value));
-}
-
-function formatRate(value: number): string {
-  return new Intl.NumberFormat("ko-KR", {
-    style: "percent",
-    minimumFractionDigits: 1,
-    maximumFractionDigits: 2,
-  }).format(value);
 }

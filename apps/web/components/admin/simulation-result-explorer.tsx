@@ -135,7 +135,6 @@ export function SimulationResultExplorer({
   simulationId: string;
 }>) {
   const donutData = buildDonutData(result);
-  const answered = result.summary.answeredPersonaCount;
   const resultCount = result.resultSlots.length;
   const currentPosition = resultIndex >= 0 ? resultIndex + 1 : 0;
   const selectedOption = result.task.question.options.find(
@@ -162,21 +161,6 @@ export function SimulationResultExplorer({
           XLSX 내려받기
         </a>
       </header>
-
-      <dl aria-label="시뮬레이션 결과 요약" className={styles.metrics}>
-        <div>
-          <dt>요청 패널</dt>
-          <dd>{result.run.personaCount.toLocaleString("ko-KR")}명</dd>
-        </div>
-        <div>
-          <dt>현재 집계</dt>
-          <dd>{result.denominators.filtered.toLocaleString("ko-KR")}명</dd>
-        </div>
-        <div>
-          <dt>유효 응답</dt>
-          <dd>{answered.toLocaleString("ko-KR")}명</dd>
-        </div>
-      </dl>
 
       <section className={styles.compareStation}>
         <div className={styles.filterCopy}>

@@ -311,6 +311,7 @@
   color: var(--wf-muted);
   font-size: 11px;
   font-weight: 600;
+  line-height: 1.2;
   white-space: nowrap;
 }
 
@@ -358,6 +359,36 @@
 
 .console-grid .ag-row.is-console-selected {
   background: var(--wf-blue-soft);
+}
+
+/* AG Grid 셀의 행 line-height를 배지가 상속해 세로로 늘어나지 않게 고정한다. */
+.console-grid .console-badge {
+  min-height: 20px;
+  max-height: 20px;
+  vertical-align: middle;
+}
+
+/* 과업 상세의 마지막 16px 패딩이 화면 하단에 빈 띠처럼 남지 않게 한다. */
+[data-wireflow-layout="admin-task-console"] > .console-pane:last-child > .console-pane-body {
+  flex: 1 1 auto;
+  padding-bottom: 0;
+}
+
+@media (min-width: 1101px) {
+  :is(
+    [data-wireflow-layout="admin-task-console"],
+    [data-wireflow-layout="admin-chat-insights-console"]
+  ) {
+    min-height: calc(100dvh - var(--console-header-offset));
+  }
+}
+
+/* 통합 신청 상세는 예전 drawer 전용 레이아웃을 사용하지 않으므로 카드 간격을 명시한다. */
+[data-wireflow-layout="chat-request-admin"]
+  :is(.civic-chat-request-detail-grid, .civic-chat-request-context, .civic-chat-request-decision) {
+  display: grid;
+  gap: var(--console-stack-gap);
+  min-width: 0;
 }
 
 /* ---- 공용 오버레이(ConsoleModal / ConsoleDrawer) ---- */

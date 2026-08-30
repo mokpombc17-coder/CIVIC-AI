@@ -26,7 +26,7 @@ describe("admin chat conversation insights", () => {
 
     expect(html).toContain(`data-wireflow-screen="${screenId}"`);
     expect(html).toContain(`>${title}</h1>`);
-    expect(html).toContain("운영할 토론방");
+    expect(html).toContain("토론방 목록");
     expect(html).not.toContain("ACTIVE · CLOSED");
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).not.toContain('aria-label="토론방 운영 메뉴"');
@@ -38,7 +38,7 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain('aria-label="분석 기간"');
     expect(html).toContain('aria-pressed="true"');
     expect(html).toContain(">전체 기간</button>");
-    expect(html).toContain("개설 이후 전체 대화를 자동으로 표시합니다");
+    expect(html).not.toContain("개설 이후의 전체 대화를 자동으로 표시합니다");
     expect(html).not.toContain('href="/admin/chat/export"');
     expect(html).not.toContain("Export 요청·분석");
     expect(html).not.toContain('type="datetime-local"');
@@ -73,7 +73,7 @@ describe("admin chat conversation insights", () => {
     });
   });
 
-  it("통계는 핵심 지표와 일자별 추이만 표시한다", () => {
+  it("통계는 최근 7일 지표와 일자·사용자별 추이를 표시한다", () => {
     const metrics: ConversationExportMetrics = {
       totalMessages: 42,
       retainedMessages: 38,
@@ -91,15 +91,47 @@ describe("admin chat conversation insights", () => {
       topics: [{ label: "정책·제도", count: 6 }],
     };
 
-    const html = renderToStaticMarkup(<ChatStatisticsSummary metrics={metrics} />);
+    const html = renderToStaticMarkup(
+      <ChatStatisticsSummary
+        messages={[
+          {
+            messageSequence: 1,
+            userId: "user-1",
+            content: "최근 메시지",
+            createdAt: "2026-08-30T00:00:00Z",
+            deleted: false,
+          },
+          {
+            messageSequence: 2,
+            userId: "user-2",
+            content: "최근 메시지",
+            createdAt: "2026-08-29T00:00:00Z",
+            deleted: false,
+          },
+          {
+            messageSequence: 3,
+            userId: "user-3",
+            content: "이전 메시지",
+            createdAt: "2026-08-20T00:00:00Z",
+            deleted: false,
+          },
+        ]}
+        metrics={metrics}
+        windowEnd="2026-08-31T00:00:00Z"
+      />,
+    );
 
-    for (const label of ["전체 메시지", "작성자", "수정 메시지", "삭제 메시지"]) {
+    for (const label of ["전체 메시지", "작성자", "최근 7일 사용자", "최근 7일 메시지"]) {
       expect(html).toContain(label);
     }
+    expect(html).toContain("최근 7일 사용자</span><strong>2명");
+    expect(html).toContain("최근 7일 메시지</span><strong>2건");
     expect(html).toContain("일자별 메시지 추이");
+    expect(html).toContain("사용자별 메시지 수");
+    expect(html).not.toContain("수정 메시지");
+    expect(html).not.toContain("삭제 메시지");
     expect(html).not.toContain("변경 이벤트");
     expect(html).not.toContain("시간대별 메시지");
-    expect(html).not.toContain("사용자별 메시지");
     expect(html).not.toContain("감성 표현 참고치");
     expect(html).not.toContain("자주 등장한 표현");
     expect(html).not.toContain("규칙 기반 주제 묶음");

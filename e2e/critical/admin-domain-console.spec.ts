@@ -239,16 +239,13 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   await page.goto("/admin/chat/requests");
 
   const row = page.getByRole("row", { name: /시민 정책 토론방/ });
-  await expect(row).toContainText("citizen@example.com");
+  await expect(row).not.toContainText("citizen@example.com");
   await expect(page.getByRole("columnheader", { name: "공개·참여 방식" })).toHaveCount(0);
   await expect(row).not.toContainText("목록 공개");
   await expect(row).not.toContainText("바로 참여");
-  const reviewButton = row.getByRole("button", { name: "상세 검토" });
-  await reviewButton.click();
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1$/u);
-  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await row.click();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
+  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
   await expect(page.getByText("공개·참여 방식", { exact: true })).toHaveCount(0);
   await expect(page.getByText("목록 공개", { exact: true })).toHaveCount(0);
   await expect(page.getByText("바로 참여", { exact: true })).toHaveCount(0);
@@ -256,32 +253,25 @@ test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인�
   const requestDecision = page.getByRole("complementary", { name: "신청 처리" });
   await expect(requestInfo).toBeVisible();
   await expect(requestDecision).toBeVisible();
-  const [drawerBox, requestInfoBox, requestDecisionBox] = await Promise.all([
-    drawer.boundingBox(),
+  const [requestInfoBox, requestDecisionBox] = await Promise.all([
     requestInfo.boundingBox(),
     requestDecision.boundingBox(),
   ]);
-  const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
-  expect(drawerBox).not.toBeNull();
   expect(requestInfoBox).not.toBeNull();
   expect(requestDecisionBox).not.toBeNull();
-  expect(drawerBox!.width).toBeLessThanOrEqual(720);
-  expect(Math.abs(drawerBox!.x + drawerBox!.width - viewportWidth)).toBeLessThan(24);
   expect(requestInfoBox!.y).toBeLessThan(requestDecisionBox!.y);
+  expect(
+    requestDecisionBox!.y - (requestInfoBox!.y + requestInfoBox!.height),
+  ).toBeGreaterThanOrEqual(16);
   const categoryGroup = page.getByRole("group", { name: "승인 카테고리" });
   await categoryGroup.getByLabel("정책").check();
   await categoryGroup.getByLabel("지역 현안").check();
-  await drawer.getByRole("button", { name: "승인", exact: true }).click();
+  await requestDecision.getByRole("button", { name: "승인", exact: true }).click();
 
   await expect(page.getByRole("status")).toContainText("승인했습니다");
-  await expect(drawer.getByText("승인", { exact: true })).toBeVisible();
+  await expect(requestDecision.getByText("승인", { exact: true })).toBeVisible();
   expect(approvedCategoryIds).toEqual([policyCategoryId, "category-local"]);
   await expect(page.getByText("request-1", { exact: true })).toHaveCount(0);
-
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(page).toHaveURL(/\/admin\/chat\/requests$/u);
-  await expect(reviewButton).toBeFocused();
 });
 
 test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 중 충돌을 확인한다", async ({

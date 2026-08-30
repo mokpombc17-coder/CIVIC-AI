@@ -6248,6 +6248,150 @@ body {
   }
 }
 
+/* 관리자 문서 작업 공간은 페이지 스크롤 하나를 사용하고, 조밀한 운영 화면으로 정렬한다. */
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+  width: 100%;
+  height: auto;
+  min-height: calc(100dvh - var(--console-header-offset, 150px));
+  box-sizing: border-box;
+  margin: 0;
+  overflow: visible;
+  border-radius: 0;
+  box-shadow: none;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > * {
+  overflow: visible;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
+  padding: 12px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+  max-height: none;
+  overflow: visible;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  overflow: visible;
+  padding: 0;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview {
+  display: grid;
+  grid-template-columns: minmax(150px, 0.55fr) minmax(480px, 1.45fr);
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .civic-rag-workspace-heading {
+  margin: 0;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metrics {
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
+  gap: 6px;
+  margin-left: auto;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metric {
+  gap: 0;
+  min-height: 58px;
+  justify-content: center;
+  padding: 6px 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metric strong {
+  font-size: 16px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metric span {
+  overflow: hidden;
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-inline-upload {
+  margin: 0 12px 6px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-inline-upload > summary {
+  min-height: 38px;
+  padding: 3px 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-inline-upload-toggle {
+  padding: 5px 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-inline-upload-body {
+  padding: 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-form.is-inline .civic-upload-dropzone {
+  min-height: 72px;
+  padding: 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-form.is-inline .civic-check-row {
+  padding: 7px 10px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-document-ledger {
+  gap: 8px;
+  padding: 0 12px 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .wf-document-filters {
+  row-gap: 6px;
+  margin-bottom: 6px;
+}
+
+[data-wireflow-screen^="A-RAG"] .wf-document-filters input,
+[data-wireflow-screen^="A-RAG"] .wf-document-filters select,
+[data-wireflow-screen^="A-RAG"] .wf-document-filters > button {
+  min-height: 36px;
+}
+
+[data-wireflow-screen^="A-RAG"] .wf-filter-advanced {
+  flex: 0 0 auto;
+}
+
+[data-wireflow-screen^="A-RAG"] .wf-filter-advanced[open] {
+  flex-basis: 100%;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-bulk-toolbar {
+  min-height: 42px;
+  padding: 5px 7px;
+}
+
+@media (max-width: 1180px) {
+  [data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metrics {
+    width: 100%;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview .console-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-inline-upload,
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger {
+    margin-inline: 0;
+    padding-inline: 10px;
+  }
+}
+
 /* Figma Wire Flow 74:565 · U-RAG-001 document-grounded AI conversation. */
 [data-platform-shell="true"]:has([data-wireflow-screen="U-RAG-001"]) {
   --platform-shell-header-height: 64px;

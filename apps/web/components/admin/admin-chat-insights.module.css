@@ -2,125 +2,11 @@
    문서 관리와 동일하게 목록·분석을 카드로 감싸지 않고 세퍼레이터로 나눈다.
    좌우 패널의 16px 거터는 admin-console.css의 .console-pane-body(16px)와 맞춘다. */
 
-.workspace {
-  display: grid;
-  grid-template-columns: minmax(17rem, 20rem) minmax(0, 1fr);
-  gap: 0;
-  align-items: start;
-}
-
-.roomPanel {
-  position: sticky;
-  top: 1rem;
-  display: grid;
-  gap: 0.85rem;
-  max-height: calc(100dvh - 2rem);
-  border-right: 1px solid var(--wf-line);
-  padding: 0 16px;
-}
-
-.roomPanel header strong {
-  font-size: 15px;
-  font-weight: 700;
-}
-
 .analysisPanel {
   display: grid;
   gap: 1rem;
   min-width: 0;
   padding: 0 16px;
-}
-
-/* ---- 토론방 검색 ---- */
-
-.search {
-  display: grid;
-  gap: 8px;
-}
-
-.statusField {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
-  gap: 0.45rem;
-  align-items: center;
-  color: var(--wf-muted);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.search select {
-  width: 100%;
-  min-height: 2.65rem;
-  border: 1px solid var(--wf-muted);
-  border-radius: var(--wf-radius);
-  background: #fff;
-  color: var(--wf-ink);
-  padding: 0.6rem 0.7rem;
-}
-
-/* ---- 토론방 목록 ---- */
-
-.roomList {
-  display: grid;
-  gap: 0.4rem;
-  overflow-y: auto;
-  padding-right: 0.15rem;
-}
-
-.roomList > p {
-  margin: 0;
-  color: var(--wf-muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
-
-.roomButton {
-  display: grid;
-  gap: 0.25rem;
-  width: 100%;
-  border: 1px solid transparent;
-  border-radius: var(--wf-radius);
-  background: var(--wf-surface);
-  color: var(--wf-ink);
-  padding: 0.75rem;
-  text-align: left;
-  cursor: pointer;
-}
-
-.roomButton:hover {
-  border-color: var(--wf-blue);
-}
-
-.roomButton[aria-pressed="true"] {
-  border-color: var(--wf-blue);
-  background: var(--wf-blue-soft);
-  box-shadow: inset 3px 0 var(--wf-blue);
-}
-
-.roomButton strong {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.roomButton span {
-  color: var(--wf-muted);
-  font-size: 12px;
-}
-
-.roomButton .roomTitle {
-  display: flex;
-  justify-content: space-between;
-  gap: 0.55rem;
-  align-items: center;
-}
-
-.roomTitle strong {
-  min-width: 0;
-}
-
-.roomTitle :global(.console-badge) {
-  flex: 0 0 auto;
 }
 
 /* ---- 안내·오류 메시지 ---- */
@@ -155,8 +41,8 @@
 
 .rangeForm {
   display: grid;
-  gap: 0.85rem;
-  padding: 16px;
+  gap: 0.75rem;
+  padding: 14px 16px;
 }
 
 .rangeForm > header {
@@ -166,7 +52,7 @@
   align-items: center;
 }
 
-.rangeForm header div {
+.rangeForm > header > div:first-child {
   display: grid;
   gap: 0.2rem;
   min-width: 0;
@@ -189,6 +75,13 @@
   flex: 0 0 auto;
 }
 
+.rangeActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
 .rangeForm > p {
   margin: 0;
 }
@@ -199,16 +92,17 @@
   border: 1px solid var(--wf-line);
   border-radius: var(--wf-radius);
   background: var(--wf-surface);
-  padding: 0.2rem;
+  padding: 2px;
 }
 
 .periodPicker button {
-  min-height: 2.35rem;
+  min-height: 28px;
   border: 0;
   border-radius: var(--wf-radius);
   background: transparent;
   color: var(--wf-muted);
-  padding: 0.5rem 0.8rem;
+  padding: 3px 9px;
+  font-size: 12px;
   font-weight: 700;
   cursor: pointer;
 }
@@ -217,13 +111,6 @@
   background: #fff;
   color: var(--wf-navy-deep);
   box-shadow: 0 1px 4px rgb(30 33 36 / 12%);
-}
-
-.periodSummary {
-  border-left: 3px solid var(--wf-blue);
-  background: var(--wf-surface);
-  padding: 0.65rem 0.75rem;
-  line-height: 1.55;
 }
 
 .rangeFields {
@@ -300,17 +187,10 @@
 
 .snapshot {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(15rem, 0.75fr);
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
   gap: 1rem;
   padding: 16px;
-}
-
-.snapshot > div > span {
-  display: block;
-  color: var(--wf-blue);
-  font-size: 12px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
 }
 
 .snapshot h2 {
@@ -326,39 +206,9 @@
 }
 
 .snapshotMeta {
-  display: grid;
-  gap: 0.8rem;
-  align-content: start;
-}
-
-.snapshotMeta > button {
-  justify-self: end;
-}
-
-.snapshot dl {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
-  margin: 0;
-}
-
-.snapshot dl div {
-  display: grid;
-  gap: 0.25rem;
-  border-left: 2px solid var(--wf-blue);
-  padding-left: 0.65rem;
-}
-
-.snapshot dt {
-  color: var(--wf-muted);
-  font-size: 12px;
-}
-
-.snapshot dd {
-  margin: 0;
-  font-size: 12px;
-  font-weight: 600;
-  line-height: 1.45;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
 }
 
 /* 경고(무결성 확인) 톤은 --wf-* 토큰에 대응 색이 없어 앰버 색상을 유지한다. */
@@ -570,14 +420,12 @@
 
 /* ---- 상호작용 상태 ---- */
 
-.workspace button:disabled {
+.analysisPanel button:disabled {
   cursor: not-allowed;
   opacity: 0.52;
 }
 
-.search select:focus-visible,
 .rangeFields input:focus-visible,
-.roomButton:focus-visible,
 .periodPicker button:focus-visible,
 .roomSettings summary:focus-visible {
   outline: 3px solid var(--wf-focus-ring);
@@ -587,18 +435,6 @@
 /* ---- 반응형 ---- */
 
 @media (max-width: 1100px) {
-  .workspace {
-    grid-template-columns: minmax(0, 1fr);
-  }
-
-  .roomPanel {
-    position: static;
-    max-height: none;
-    border-right: none;
-    border-bottom: 1px solid var(--wf-line);
-    padding: 0 16px 16px;
-  }
-
   .analysisPanel {
     padding: 16px 16px 0;
   }
@@ -611,9 +447,12 @@
 
 @media (max-width: 720px) {
   .snapshot,
-  .snapshot dl,
   .rangeFields {
     grid-template-columns: 1fr;
+  }
+
+  .snapshotMeta {
+    justify-content: flex-start;
   }
 
   .rangeFields > span {
@@ -627,5 +466,9 @@
   .rangeForm > header {
     align-items: flex-start;
     flex-direction: column;
+  }
+
+  .rangeActions {
+    flex-wrap: wrap;
   }
 }
