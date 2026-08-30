@@ -1,8 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
-import type { Route } from "next";
-import Link from "next/link";
+import Image from "next/image";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
@@ -21,6 +20,62 @@ import {
 } from "@/lib/vote/participant-survey";
 
 const voteSurveyRequestTimeoutMs = 15_000;
+
+type SurveySectionPurpose = "input" | "result";
+type SurveyQuestionSection = Readonly<{
+  title: string;
+  questions: readonly VoteSurveyQuestion[];
+}>;
+
+const surveyInputSectionRules: readonly Readonly<{ title: string; pattern: RegExp }>[] = [
+  {
+    title: "일반 개인정보",
+    pattern: /출생|만 나이|성별|주소지|행정구역|거주 지역/u,
+  },
+  {
+    title: "가구 정보",
+    pattern: /혼인|가족 구성|가구원|자녀/u,
+  },
+  {
+    title: "생활 · 경제",
+    pattern: /주거형태|주택|직업|학력|가구\s*소득|건강 상태|종교/u,
+  },
+  {
+    title: "가치 · 정치 성향",
+    pattern: /도덕|정치 성향|지지정당|정치.*관심/u,
+  },
+  {
+    title: "미디어 · 의견 성향",
+    pattern: /선호매체|뉴스.*경로|의견.*(고집|유지)|소득.*만족/u,
+  },
+  {
+    title: "사회 · 기관 신뢰",
+    pattern: /감정적 거리|호감|사회.*신뢰|지방정부.*신뢰|중앙정부.*신뢰/u,
+  },
+  {
+    title: "매체 이용 · 정보 습관",
+    pattern: /매체별.*시간|TV|라디오|SNS|OTT|관심 주제 콘텐츠|동영상 콘텐츠|정보 실천|생활양식/u,
+  },
+];
+
+const surveyResultSectionRules: readonly Readonly<{ title: string; pattern: RegExp }>[] = [
+  {
+    title: "기본 정보",
+    pattern: /성별|주소지|행정구역|거주 지역|출생|만 나이|혼인|주거형태|주택/u,
+  },
+  {
+    title: "사회·경제",
+    pattern: /가구\s*소득|학력|직업/u,
+  },
+  {
+    title: "성향·매체",
+    pattern: /생활양식|선호매체|도덕/u,
+  },
+  {
+    title: "정치·기관 인식",
+    pattern: /정치 성향|지지정당|중앙정부.*신뢰|지방정부.*신뢰/u,
+  },
+];
 
 export function VoteSurveySurface() {
   const [survey, setSurvey] = useState<VoteCurrentSurvey | null>(null);
@@ -43,7 +98,7 @@ export function VoteSurveySurface() {
         if (!active) return;
         setSurvey(null);
         setResponse(null);
-        setMessage(errorMessage(error, "Vote 설문을 불러오지 못했습니다."));
+        setMessage(errorMessage(error, "설문을 불러오지 못했습니다."));
       })
       .finally(() => active && setLoading(false));
     return () => {
@@ -72,7 +127,7 @@ export function VoteSurveySurface() {
   }
 
   if (loading) {
-    return <SurveyStatus message="Vote 서버에서 현재 설문을 불러오는 중입니다…" tone="loading" />;
+    return <SurveyStatus message="현재 설문을 불러오는 중입니다…" tone="loading" />;
   }
   if (!survey) {
     return (
@@ -98,36 +153,32 @@ export function VoteSurveySurface() {
     return <SubmittedVoteSurvey response={response} />;
   }
 
-  const questions = orderedSurveyQuestions(survey.content.questions);
+  const sections = groupSurveyQuestions(survey.content.questions, "input");
   return (
     <form
       className="wf-account-survey wf-vote-survey-form"
       data-wireflow-layout="account-survey"
       onSubmit={submit}
     >
-      <section className="wf-account-notice wf-account-survey-intro">
-        <div>
-          <h2>Vote 서버의 현재 설문입니다.</h2>
-          <p>{surveyRequirementMessage(survey)}</p>
-        </div>
-      </section>
-      <header className="wf-vote-survey-heading">
-        <p>
-          {survey.round.roundNumber}차 설문 · {questions.length}개 질문
-        </p>
+      <header className="sr-only">
         <h2>{survey.content.name}</h2>
         {survey.content.description ? <p>{survey.content.description}</p> : null}
+        <p>{surveyRequirementMessage(survey)}</p>
       </header>
-      <div className="wf-vote-survey-questions">
-        {questions.map((question, index) => (
-          <VoteSurveyQuestionField
-            disabled={submitting}
-            index={index + 1}
-            key={question.id}
-            question={question}
-          />
-        ))}
-      </div>
+      {sections.map((section) => (
+        <section className="wf-vote-survey-section" key={section.title}>
+          <h2>{section.title}</h2>
+          <div className="wf-vote-survey-questions">
+            {section.questions.map((question) => (
+              <VoteSurveyQuestionField
+                disabled={submitting}
+                key={question.id}
+                question={question}
+              />
+            ))}
+          </div>
+        </section>
+      ))}
       {message ? (
         <div aria-live="polite" className="civic-form-alert" role="status">
           <strong>응답을 확인해 주세요</strong>
@@ -146,20 +197,17 @@ export function VoteSurveySurface() {
 
 function VoteSurveyQuestionField({
   disabled,
-  index,
   question,
 }: Readonly<{
   disabled: boolean;
-  index: number;
   question: VoteSurveyQuestion;
 }>) {
   const legendId = `survey-question-${question.id}`;
   return (
     <fieldset aria-labelledby={legendId} className="wf-vote-survey-question" disabled={disabled}>
       <legend id={legendId}>
-        <span>{index}</span>
         {question.prompt}
-        {question.required ? <b aria-label="필수">필수</b> : null}
+        {question.required ? <span className="sr-only">(필수)</span> : null}
       </legend>
       {question.description ? <p>{question.description}</p> : null}
       <VoteSurveyAnswerField question={question} />
@@ -169,14 +217,16 @@ function VoteSurveyQuestionField({
 
 function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQuestion }>) {
   const inputName = surveyFieldName(question.id, fieldKind(question));
-  if (question.type === "SINGLE_CHOICE" || question.type === "MULTIPLE_CHOICE") {
-    const inputType = question.type === "SINGLE_CHOICE" ? "radio" : "checkbox";
+  if (question.type === "SINGLE_CHOICE") {
+    return <VoteSurveySingleChoice inputName={inputName} question={question} />;
+  }
+  if (question.type === "MULTIPLE_CHOICE") {
     return (
       <div className="wf-vote-survey-options">
         {orderedSurveyOptions(question.options).map((option) => (
           <div className="wf-vote-survey-option" key={option.id}>
             <label>
-              <input name={inputName} type={inputType} value={option.id} />
+              <input name={inputName} type="checkbox" value={option.id} />
               <span>{option.label}</span>
             </label>
             {option.kind === "OTHER" ? (
@@ -189,15 +239,14 @@ function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQues
             ) : null}
           </div>
         ))}
-        {question.type === "MULTIPLE_CHOICE" ? (
-          <p className="wf-vote-survey-rule">{multipleChoiceRuleLabel(question.rule)}</p>
-        ) : null}
+        <p className="wf-vote-survey-rule">{multipleChoiceRuleLabel(question.rule)}</p>
       </div>
     );
   }
   if (question.type === "SHORT_TEXT") {
     return (
       <input
+        aria-label={question.prompt}
         maxLength={question.rule.maxLength ?? undefined}
         name={inputName}
         placeholder="응답을 입력해 주세요"
@@ -209,6 +258,7 @@ function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQues
   if (question.type === "LONG_TEXT") {
     return (
       <textarea
+        aria-label={question.prompt}
         maxLength={question.rule.maxLength ?? undefined}
         name={inputName}
         placeholder="응답을 입력해 주세요"
@@ -220,6 +270,7 @@ function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQues
   if (question.type === "NUMBER") {
     return (
       <input
+        aria-label={question.prompt}
         inputMode={question.rule.decimalAllowed === false ? "numeric" : "decimal"}
         max={question.rule.maximum ?? undefined}
         min={question.rule.minimum ?? undefined}
@@ -235,6 +286,7 @@ function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQues
   if (values.length === 0) {
     return (
       <input
+        aria-label={question.prompt}
         inputMode="numeric"
         max={question.rule.maximum ?? undefined}
         min={question.rule.minimum ?? undefined}
@@ -263,37 +315,82 @@ function VoteSurveyAnswerField({ question }: Readonly<{ question: VoteSurveyQues
   );
 }
 
+function VoteSurveySingleChoice({
+  inputName,
+  question,
+}: Readonly<{ inputName: string; question: VoteSurveyQuestion }>) {
+  const [selectedOptionId, setSelectedOptionId] = useState("");
+  const options = orderedSurveyOptions(question.options);
+  const selectedOption = options.find((option) => option.id === selectedOptionId);
+  return (
+    <div className="wf-vote-survey-single-choice">
+      <select
+        aria-label={question.prompt}
+        name={inputName}
+        onChange={(event) => setSelectedOptionId(event.currentTarget.value)}
+        required={question.required}
+        value={selectedOptionId}
+      >
+        <option disabled value="">
+          선택
+        </option>
+        {options.map((option) => (
+          <option key={option.id} value={option.id}>
+            {option.label}
+          </option>
+        ))}
+      </select>
+      {selectedOption?.kind === "OTHER" ? (
+        <input
+          aria-label={`${question.prompt} 기타 내용`}
+          name={surveyOtherFieldName(question.id, selectedOption.id)}
+          placeholder="기타 내용을 입력해 주세요"
+          required
+          type="text"
+        />
+      ) : null}
+    </div>
+  );
+}
+
 function SubmittedVoteSurvey({ response }: Readonly<{ response: VoteSurveyResponseDetail }>) {
   const answers = new Map(response.answers.map((answer) => [answer.questionId, answer]));
+  const sections = groupSurveyQuestions(response.content.questions, "result");
   return (
     <div className="wf-account-survey" data-wireflow-layout="account-survey">
       <section className="wf-account-notice wf-account-survey-intro">
+        <Image
+          alt=""
+          className="wf-account-info-icon"
+          height={24}
+          src="/assets/account/info.png"
+          width={24}
+        />
         <div>
-          <h2>Vote 설문 제출이 완료되었습니다.</h2>
-          <p>당시 적용된 질문과 최종 응답을 읽기 전용으로 표시합니다.</p>
+          <h2>가입 시 제출한 설문입니다.</h2>
+          <p>
+            기존 응답은 확인만 가능하며,
+            <br />
+            수정하거나 추가로 응답할 수 없습니다.
+          </p>
         </div>
       </section>
-      <header className="wf-vote-survey-heading">
-        <p>
-          {response.roundNumber}차 설문 · {formatSubmittedAt(response.submittedAt)} 제출
-        </p>
-        <h2>{response.content.name}</h2>
-        {response.content.description ? <p>{response.content.description}</p> : null}
-      </header>
-      <section className="wf-account-survey-section">
-        <h2>내 응답</h2>
-        <dl>
-          {orderedSurveyQuestions(response.content.questions).map((question) => (
-            <div key={question.id}>
-              <dt>{question.prompt}</dt>
-              <dd>{formatStoredSurveyAnswer(question, answers.get(question.id))}</dd>
-            </div>
-          ))}
-        </dl>
-      </section>
-      <Link className="wf-button wf-button-primary wf-vote-survey-home" href={"/home" as Route}>
-        홈으로 이동
-      </Link>
+      <p className="sr-only">
+        {response.roundNumber}차 설문, {response.submittedAt} 제출
+      </p>
+      {sections.map((section) => (
+        <section className="wf-account-survey-section" key={section.title}>
+          <h2>{section.title}</h2>
+          <dl>
+            {section.questions.map((question) => (
+              <div key={question.id}>
+                <dt>{question.prompt}</dt>
+                <dd>{formatStoredSurveyAnswer(question, answers.get(question.id))}</dd>
+              </div>
+            ))}
+          </dl>
+        </section>
+      ))}
     </div>
   );
 }
@@ -337,9 +434,7 @@ export async function loadVoteSurvey(
     timeoutMs,
   );
   if (!currentResponse.ok) {
-    throw new Error(
-      await responseProblem(currentResponse, "현재 Vote 설문을 불러오지 못했습니다."),
-    );
+    throw new Error(await responseProblem(currentResponse, "현재 설문을 불러오지 못했습니다."));
   }
   const survey = (await currentResponse.json()) as VoteCurrentSurvey;
   if (!survey.submitted) return { survey, response: null };
@@ -351,9 +446,7 @@ export async function loadVoteSurvey(
     timeoutMs,
   );
   if (!latestResponse.ok) {
-    throw new Error(
-      await responseProblem(latestResponse, "제출한 Vote 설문을 불러오지 못했습니다."),
-    );
+    throw new Error(await responseProblem(latestResponse, "제출한 설문을 불러오지 못했습니다."));
   }
   return { survey, response: (await latestResponse.json()) as VoteSurveyResponseDetail };
 }
@@ -401,11 +494,32 @@ function fieldKind(question: VoteSurveyQuestion): "number" | "scale" | "selectio
   return "text";
 }
 
+export function groupSurveyQuestions(
+  questions: readonly VoteSurveyQuestion[],
+  purpose: SurveySectionPurpose,
+): readonly SurveyQuestionSection[] {
+  const rules = purpose === "input" ? surveyInputSectionRules : surveyResultSectionRules;
+  const fallbackTitle = purpose === "input" ? "설문 항목" : "기타 응답";
+  const groups = new Map<string, VoteSurveyQuestion[]>();
+
+  for (const question of orderedSurveyQuestions(questions)) {
+    const title = rules.find((rule) => rule.pattern.test(question.prompt))?.title ?? fallbackTitle;
+    const group = groups.get(title);
+    if (group) group.push(question);
+    else groups.set(title, [question]);
+  }
+
+  return [...rules.map((rule) => rule.title), fallbackTitle].flatMap((title) => {
+    const groupedQuestions = groups.get(title);
+    return groupedQuestions ? [{ title, questions: groupedQuestions }] : [];
+  });
+}
+
 function surveyRequirementMessage(survey: VoteCurrentSurvey): string {
   if (survey.eligibility.surveyRequirement === "REQUIRED") {
     return "서비스 이용을 계속하려면 모든 질문에 응답해 주세요.";
   }
-  return "응답 내용은 Vote 서버에 최종 제출되며, 제출 후에는 수정할 수 없습니다.";
+  return "응답 내용은 최종 제출되며, 제출 후에는 수정할 수 없습니다.";
 }
 
 function multipleChoiceRuleLabel(rule: VoteSurveyRule): string {
@@ -439,15 +553,6 @@ function scaleValues(rule: VoteSurveyRule): readonly number[] {
   return Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index);
 }
 
-function formatSubmittedAt(value: string): string {
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return value;
-  return new Intl.DateTimeFormat("ko-KR", {
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(date);
-}
-
 function errorMessage(error: unknown, fallback: string): string {
   return error instanceof Error && error.message ? error.message : fallback;
 }
@@ -464,7 +569,7 @@ async function requestWithTimeout(
     return await request(input, { ...init, signal: controller.signal });
   } catch (error) {
     if (controller.signal.aborted) {
-      throw new Error("Vote 서버 응답 시간이 초과되었습니다. 다시 시도해 주세요.");
+      throw new Error("설문 응답 시간이 초과되었습니다. 다시 시도해 주세요.");
     }
     throw error;
   } finally {

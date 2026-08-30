@@ -155,7 +155,7 @@ function AccountHubSurface() {
         </Link>
         <Link className="wf-account-hub-card" href={"/mypage/survey" as Route}>
           <strong>내 설문 보기</strong>
-          <span>Vote 설문 응답을 작성·확인합니다.</span>
+          <span>가입 시 제출한 설문 응답을 확인합니다.</span>
         </Link>
       </nav>
       <div className="wf-account-logout">

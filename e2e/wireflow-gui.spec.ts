@@ -638,7 +638,7 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
 
   await page.goto("/account/survey");
   await expect(page.getByRole("heading", { name: "내 설문 보기" })).toBeVisible();
-  await expect(page.getByText("Vote 설문 제출이 완료되었습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
   const surveyIntro = page.locator(".wf-account-survey-intro");
   await expectBox(surveyIntro, {
     x: [16, 18],
@@ -661,12 +661,13 @@ test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dial
   });
   expect(surveyIntroLayout).toEqual({
     copyLeft: 16,
-    copyTop: 16,
+    copyTop: 52,
     headingColor: "rgb(8, 89, 133)",
     headingFontSize: "16px",
     headingLineHeight: "24px",
   });
-  await expect(page.getByRole("heading", { name: "사용자 특성 설문" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기본 정보" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "기타 응답" })).toBeVisible();
   await expect(page.getByText("서울특별시 종로구", { exact: true })).toBeVisible();
   const policyInterest = page.getByText("4", { exact: true }).last();
   await policyInterest.scrollIntoViewIfNeeded();
@@ -681,20 +682,29 @@ test("U-ACCOUNT Vote 미제출 설문은 동적 질문을 최종 제출하고 �
   await authenticate(context, "participant.payload.signature");
   await page.goto("/account/survey");
 
-  await expect(page.getByText("Vote 서버의 현재 설문입니다.", { exact: true })).toBeVisible();
   const questions = page.locator(".wf-vote-survey-question");
   await expect(questions).toHaveCount(6);
-  await questions.nth(0).getByRole("radio", { name: "온라인 참여" }).check();
-  await questions.nth(1).getByRole("checkbox", { name: "주거" }).check();
-  await questions.nth(1).getByRole("checkbox", { name: "기타" }).check();
-  await questions.nth(1).getByPlaceholder("기타 내용을 입력해 주세요").fill("교통");
-  await questions.nth(2).getByPlaceholder("응답을 입력해 주세요").fill("서울특별시 종로구");
-  await questions.nth(3).getByPlaceholder("응답을 입력해 주세요").fill("보행 환경 개선");
-  await questions.nth(4).locator('input[type="number"]').fill("36");
-  await questions.nth(5).getByRole("radio", { name: "4" }).check();
+  await expect(page.getByRole("heading", { name: "일반 개인정보" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "설문 항목" })).toBeVisible();
+  await page
+    .getByRole("combobox", { name: "가장 선호하는 참여 방식은 무엇인가요?" })
+    .selectOption({ label: "온라인 참여" });
+  const policyQuestion = questions.filter({ hasText: "관심 있는 정책 분야" });
+  await policyQuestion.getByRole("checkbox", { name: "주거" }).check();
+  await policyQuestion.getByRole("checkbox", { name: "기타" }).check();
+  await policyQuestion.getByPlaceholder("기타 내용을 입력해 주세요").fill("교통");
+  await page.getByRole("textbox", { name: "거주 지역을 입력해 주세요." }).fill("서울특별시 종로구");
+  await page
+    .getByRole("textbox", { name: "지역에서 개선되길 바라는 점을 적어 주세요." })
+    .fill("보행 환경 개선");
+  await page.getByRole("spinbutton", { name: "만 나이를 입력해 주세요." }).fill("36");
+  await questions
+    .filter({ hasText: "지역 정책에 대한 관심도" })
+    .getByRole("radio", { name: "4" })
+    .check();
   await page.getByRole("button", { name: "설문 최종 제출" }).click();
 
-  await expect(page.getByText("Vote 설문 제출이 완료되었습니다.", { exact: true })).toBeVisible();
+  await expect(page.getByText("가입 시 제출한 설문입니다.", { exact: true })).toBeVisible();
   await expect.poll(() => surveySubmissionBodies.length).toBe(1);
   expect(surveyIdempotencyKeys).toHaveLength(1);
   expect(surveyIdempotencyKeys[0]).toMatch(
