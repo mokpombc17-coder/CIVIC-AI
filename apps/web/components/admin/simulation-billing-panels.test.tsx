@@ -74,7 +74,7 @@ describe("simulation billing navigation", () => {
     const html = renderToStaticMarkup(<SimulationBillingSection section="usage" />);
 
     expect(html).toContain("과금액");
-    expect(html).toContain("처리한 가상 패널");
+    expect(html).toContain("처리한 페르소나");
     expect(html).toContain("CSV 내려받기");
     expect(html).not.toContain("서비스 부담액");
     expect(html).not.toContain("공급자 비용");
@@ -87,7 +87,7 @@ describe("simulation billing navigation", () => {
       "일자",
       "과업",
       "실행 관리자",
-      "가상 패널",
+      "페르소나",
       "과금액",
     ]);
 

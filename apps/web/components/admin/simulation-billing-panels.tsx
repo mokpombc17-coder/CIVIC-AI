@@ -198,7 +198,7 @@ export const USAGE_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<UsageGridRow>> = [
   { field: "day", headerName: "일자", minWidth: 110 },
   { field: "taskTitle", headerName: "과업", flex: 2, minWidth: 160 },
   { field: "actorEmail", headerName: "실행 관리자", flex: 2, minWidth: 160 },
-  { field: "personaLabel", headerName: "가상 패널", minWidth: 90 },
+  { field: "personaLabel", headerName: "페르소나", minWidth: 90 },
   { field: "chargedLabel", headerName: "과금액", minWidth: 110 },
 ];
 
@@ -274,7 +274,7 @@ function UsagePanel() {
         ariaLabel="사용량 합계"
         metrics={[
           { label: "과금액", value: formatKrw(totals.charged) },
-          { label: "처리한 가상 패널", value: `${totals.personas.toLocaleString("ko-KR")}명` },
+          { label: "처리한 페르소나", value: `${totals.personas.toLocaleString("ko-KR")}명` },
           { label: "정산 내역", value: `${rows.length.toLocaleString("ko-KR")}건` },
         ]}
       />

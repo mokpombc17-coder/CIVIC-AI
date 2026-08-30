@@ -405,7 +405,7 @@ function simulationOperationMeta(
   personaCount: number,
   estimatedCompletionAt: string | null,
 ): string {
-  const count = `가상 패널 ${personaCount.toLocaleString("ko-KR")}명`;
+  const count = `페르소나 ${personaCount.toLocaleString("ko-KR")}명`;
   if (!estimatedCompletionAt) return count;
   const timestamp = Date.parse(estimatedCompletionAt);
   if (!Number.isFinite(timestamp)) return count;

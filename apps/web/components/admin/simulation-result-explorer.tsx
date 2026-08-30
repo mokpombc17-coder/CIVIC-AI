@@ -305,7 +305,7 @@ export function SimulationResultExplorer({
             <div className={styles.respondentIdentity}>
               <span className={styles.avatar}>{String(detail.resultSlot).padStart(2, "0")}</span>
               <div>
-                <h4>{detail.resultSlot}번 익명 가상 패널</h4>
+                <h4>{detail.resultSlot}번 익명 페르소나</h4>
                 <div className={styles.demographics}>
                   <span>{detail.demographics.gender ?? "성별 미상"}</span>
                   <span>{detail.demographics.ageGroup ?? "연령 미상"}</span>

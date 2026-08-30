@@ -20,11 +20,11 @@ vi.mock("next/navigation", () => ({
 
 describe("simulation setup", () => {
   it("정본 Simulation API에 taskId를 포함한 요청을 만든다", () => {
-    const input = buildDefaultSimulationRunInput(10, {
+    const input = buildDefaultSimulationRunInput(100, {
       defaultModel: "anthropic/claude-sonnet-4.6",
       models: ["anthropic/claude-sonnet-4.6"],
-      minPersonaCount: 10,
-      maxPersonaCount: 100,
+      minPersonaCount: 20,
+      maxPersonaCount: 800,
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
@@ -41,14 +41,14 @@ describe("simulation setup", () => {
     expect(buildAdminSimulationRequest("task-1", input)).toEqual({
       taskId: "task-1",
       modelType: "anthropic/claude-sonnet-4.6",
-      personaCount: 10,
+      personaCount: 100,
       sampleSeed: null,
       filters: { regions: ["전남", "광주"] },
     });
     expect(buildAdminSimulationRequest("task-1", input, "pricing-v1")).toEqual({
       taskId: "task-1",
       modelType: "anthropic/claude-sonnet-4.6",
-      personaCount: 10,
+      personaCount: 100,
       sampleSeed: null,
       filters: { regions: ["전남", "광주"] },
       pricingFingerprint: "pricing-v1",
@@ -56,11 +56,11 @@ describe("simulation setup", () => {
   });
 
   it("실행 요청은 정본 URL, taskId 본문과 멱등 키를 실제 fetch 경계에 전달한다", async () => {
-    const input = buildDefaultSimulationRunInput(10, {
+    const input = buildDefaultSimulationRunInput(100, {
       defaultModel: "anthropic/claude-sonnet-4.6",
       models: ["anthropic/claude-sonnet-4.6"],
-      minPersonaCount: 10,
-      maxPersonaCount: 100,
+      minPersonaCount: 20,
+      maxPersonaCount: 800,
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
@@ -89,7 +89,7 @@ describe("simulation setup", () => {
     expect(JSON.parse(String(calls[0]?.[1]?.body))).toEqual({
       taskId: "task-1",
       modelType: "anthropic/claude-sonnet-4.6",
-      personaCount: 10,
+      personaCount: 100,
       sampleSeed: null,
       filters: { regions: ["전남", "광주"] },
       pricingFingerprint: "pricing-v1",
@@ -126,11 +126,11 @@ describe("simulation setup", () => {
   });
 
   it("서버가 승인한 기본 모델과 null 시드로 실행 입력을 만든다", () => {
-    const input = buildDefaultSimulationRunInput(10, {
+    const input = buildDefaultSimulationRunInput(100, {
       defaultModel: "anthropic/claude-sonnet-4.6",
       models: ["anthropic/claude-sonnet-4.6"],
-      minPersonaCount: 10,
-      maxPersonaCount: 100,
+      minPersonaCount: 20,
+      maxPersonaCount: 800,
       filters: {
         genders: ["여성", "남성"],
         ageGroups: ["30대"],
@@ -141,13 +141,13 @@ describe("simulation setup", () => {
 
     expect(input).toEqual({
       modelType: "anthropic/claude-sonnet-4.6",
-      personaCount: 10,
+      personaCount: 100,
       sampleSeed: null,
       filters: { regions: ["전남", "광주"] },
     });
   });
 
-  it("관리자에게 가상 패널 수만 받고 불필요한 안내와 실행 정책 입력은 숨긴다", () => {
+  it("관리자에게 페르소나 수만 받고 불필요한 안내와 실행 정책 입력은 숨긴다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
     if (!screen) throw new Error("Missing simulation setup screen");
 
@@ -155,9 +155,10 @@ describe("simulation setup", () => {
       <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
     );
 
-    expect(html).toContain("가상 패널 수");
-    expect(html).toContain("전남·광주 가상 패널만 기준으로 계산");
-    expect(html).not.toContain("페르소나 수");
+    expect(html).toContain("페르소나 수");
+    expect(html).toContain("전남·광주 페르소나만 기준으로 계산");
+    expect(html).toContain("최소 100명 이상 최대 800명 이하");
+    expect(html).toContain("가능한 페르소나 수");
     expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
     expect(html).not.toContain(
       "개별 CIVIC 사용자의 Persona 생성이나 사용자별 예측에는 사용되지 않습니다.",
@@ -194,7 +195,7 @@ describe("simulation setup", () => {
     );
   });
 
-  it("가상 패널 표본 조건은 설정 단계 안에서 선택 섹션으로 제공한다", () => {
+  it("페르소나 선정 조건은 설정 단계 안에서 선택 섹션으로 제공한다", () => {
     const screen = screenRegistry.find((candidate) => candidate.id === "A-SIM-002");
     if (!screen) throw new Error("Missing simulation setup screen");
 
@@ -202,8 +203,8 @@ describe("simulation setup", () => {
       <AdminSimulationScreen screen={screen} query={{ taskId: "task-1" }} />,
     );
 
-    expect(html).toContain("가상 패널 표본 조건 (선택)");
-    expect(html).toContain("거주 지역은 전남·광주로 고정됩니다.");
+    expect(html).toContain("페르소나 선정 (선택)");
+    expect(html).not.toContain("거주 지역은 전남·광주로 고정됩니다.");
   });
 
   it("예상 비용에는 실행 결정에 필요한 값만 표시한다", () => {
