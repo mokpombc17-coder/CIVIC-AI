@@ -61,8 +61,11 @@ export function MainFunctionalScreen({
       <ScreenFrame screen={screen}>
         <PwaInstallTriggerCard>
           <WireflowBadge>참여 안내</WireflowBadge>
-          <h2>의견을 가다듬고, 나누고, 담아내는 곳</h2>
-          <p>자료 속 근거를 찾아보고, 다른 참여자와 이야기하며, 내 의견을 남겨보세요.</p>
+          <h2>배우고, 토론하고, 함께 결정합니다.</h2>
+          <p>
+            CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
+            투표로 남겨보세요.
+          </p>
         </PwaInstallTriggerCard>
         <ParticipantHomeLayout
           actions={[
