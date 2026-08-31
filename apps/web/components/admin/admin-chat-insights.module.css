@@ -301,9 +301,9 @@
 }
 
 .conversation li {
-  border-left: 3px solid var(--wf-blue);
-  background: var(--wf-surface);
-  padding: 0.75rem 0.85rem;
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
 }
 
 .conversation li > div {
@@ -311,6 +311,7 @@
   flex-wrap: wrap;
   gap: 0.5rem;
   align-items: center;
+  padding-left: 0.75rem;
 }
 
 .conversation time {
@@ -327,21 +328,39 @@
   font-weight: 700;
 }
 
-.conversation li p {
-  margin: 0.45rem 0 0;
+.conversation .messageBubble {
+  position: relative;
+  max-width: min(100%, 44rem);
+  margin: 0;
+  border: 1px solid #c9d9ef;
+  border-radius: 4px 14px 14px;
+  background: var(--wf-blue-soft);
+  padding: 0.7rem 0.9rem;
   line-height: 1.6;
   overflow-wrap: anywhere;
   white-space: pre-wrap;
 }
 
-.conversation .deletedMessage {
-  border-left-color: var(--wf-danger);
-  background: var(--wf-danger-soft);
+.conversation .messageBubble::before {
+  position: absolute;
+  top: -1px;
+  left: -9px;
+  width: 10px;
+  height: 12px;
+  background: var(--wf-blue-soft);
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+  content: "";
 }
 
-.deletedMessage p {
+.conversation .deletedMessage .messageBubble {
+  border-color: #efc5c5;
+  background: var(--wf-danger-soft);
   color: var(--wf-muted);
   text-decoration: line-through;
+}
+
+.conversation .deletedMessage .messageBubble::before {
+  background: var(--wf-danger-soft);
 }
 
 /* ---- 일자별 추이 ---- */
