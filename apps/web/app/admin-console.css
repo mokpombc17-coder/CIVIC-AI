@@ -127,6 +127,14 @@
   min-width: 0;
 }
 
+[data-wireflow-shell="admin"] .civic-detail-actions .civic-task-results-action {
+  margin-left: auto;
+}
+
+[data-wireflow-shell="admin"] .civic-user-summary-grid .civic-detail-fallback {
+  color: var(--wf-muted);
+}
+
 .console-toolbar {
   display: flex;
   flex-direction: row;

@@ -20,6 +20,7 @@ import {
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import {
   AdminTaskScreen,
+  lifecycleActionLabel,
   lifecycleActions,
   TASK_GRID_COLUMNS,
   taskWorkspacePath,
@@ -117,7 +118,10 @@ describe("latest Wire Flow shared product UI", () => {
 
   it("renders the latest admin navigation without the legacy auth explainer", () => {
     const html = renderToStaticMarkup(
-      <AdminShell activeRoute="/admin/users" permissions={["RAG_ADMIN"]}>
+      <AdminShell
+        activeRoute="/admin/users"
+        permissions={["VOTE_ADMIN", "RAG_ADMIN", "CHAT_ADMIN", "SIMULATION_ADMIN"]}
+      >
         <p>content</p>
       </AdminShell>,
     );
@@ -125,8 +129,13 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain("CIVIC AI");
     expect(html).toContain("ADMIN");
     expect(html).toContain('aria-current="page"');
-    expect(html).toContain("사용자·권한");
-    expect(html).toContain("문서 관리");
+    const labels = ["관리 홈", "사용자", "과업", "문서", "토론방", "시뮬레이션"];
+    for (const label of labels) expect(html).toContain(`>${label}</span>`);
+    for (let index = 1; index < labels.length; index += 1) {
+      expect(html.indexOf(`>${labels[index - 1]}</span>`)).toBeLessThan(
+        html.indexOf(`>${labels[index]}</span>`),
+      );
+    }
     expect(html).not.toContain("관리자 세션");
     expect(html).not.toContain("요청마다 권한 재확인");
   });
@@ -139,7 +148,7 @@ describe("latest Wire Flow shared product UI", () => {
     );
 
     expect(html).toMatch(/aria-current="page"[^>]*href="\/admin\/chat"/u);
-    expect(html).toContain(">토론방 운영<");
+    expect(html).toContain(">토론방<");
     expect(html).not.toContain("civic-admin-nav-sub-link");
     expect(html).not.toContain(">토론방 신청 목록<");
     expect(html).not.toContain(">카테고리 관리<");
@@ -240,6 +249,19 @@ describe("latest Wire Flow shared product UI", () => {
 
   it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
     expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
+    expect(lifecycleActionLabel("deadline")).toBe("마감 변경");
+  });
+
+  it("새 과업 화면은 배경을 입력하고 초안을 저장하도록 안내한다", () => {
+    const taskCreate = screenRegistry.find((screen) => screen.id === "A-TASK-002");
+    if (!taskCreate) throw new Error("A-TASK-002 missing");
+
+    const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={taskCreate} />);
+
+    expect(html).toContain(">배경</span>");
+    expect(html).toContain(">초안 저장</button>");
+    expect(html).not.toContain("상황 또는 사건");
+    expect(html).not.toContain("초안 생성");
   });
 
   it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {

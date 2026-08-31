@@ -19,12 +19,12 @@ const adminNavigation = [
   {
     type: "link",
     href: "/admin/users" as Route,
-    label: "사용자·권한",
+    label: "사용자",
     access: "HIGHEST_ADMIN",
   },
-  { type: "link", href: "/admin/rag" as Route, label: "문서 관리", access: "RAG_ADMIN" },
-  { type: "link", href: "/admin/chat" as Route, label: "토론방 운영", access: "CHAT_ADMIN" },
-  { type: "link", href: "/admin/tasks" as Route, label: "과업 관리", access: "VOTE_ADMIN" },
+  { type: "link", href: "/admin/tasks" as Route, label: "과업", access: "VOTE_ADMIN" },
+  { type: "link", href: "/admin/rag" as Route, label: "문서", access: "RAG_ADMIN" },
+  { type: "link", href: "/admin/chat" as Route, label: "토론방", access: "CHAT_ADMIN" },
   {
     type: "link",
     href: "/admin/simulations" as Route,

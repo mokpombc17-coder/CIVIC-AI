@@ -23,13 +23,13 @@ import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 export type SimulationSection = "run" | "wallet" | "usage";
 
 const sections: readonly Readonly<{ id: SimulationSection; label: string; href: Route }>[] = [
-  { id: "run", label: "실행 관리", href: "/admin/simulations" as Route },
+  { id: "run", label: "시뮬레이션 목록", href: "/admin/simulations" as Route },
+  { id: "usage", label: "사용 내역", href: "/admin/simulations?section=usage" as Route },
   {
     id: "wallet",
-    label: "공용 지갑",
+    label: "등록",
     href: "/admin/simulations?section=wallet" as Route,
   },
-  { id: "usage", label: "사용량", href: "/admin/simulations?section=usage" as Route },
 ];
 
 export function readSimulationSection(value: string | null): SimulationSection {
@@ -264,17 +264,17 @@ function UsagePanel() {
           onClick={() => void load().catch((error: unknown) => setMessage(messageOf(error)))}
           type="button"
         >
-          조회
+          확인
         </button>
         <Link className="civic-secondary-action" href={exportHref} prefetch={false}>
-          CSV 내려받기
+          CSV 다운로드
         </Link>
       </div>
       <ConsoleMetricStrip
         ariaLabel="사용량 합계"
         metrics={[
           { label: "과금액", value: formatKrw(totals.charged) },
-          { label: "처리한 페르소나", value: `${totals.personas.toLocaleString("ko-KR")}명` },
+          { label: "사용한 페르소나", value: `${totals.personas.toLocaleString("ko-KR")}명` },
           { label: "정산 내역", value: `${rows.length.toLocaleString("ko-KR")}건` },
         ]}
       />

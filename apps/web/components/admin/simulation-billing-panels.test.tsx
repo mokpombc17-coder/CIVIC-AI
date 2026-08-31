@@ -13,14 +13,19 @@ describe("simulation billing navigation", () => {
   it("운영자가 직접 다루는 세 섹션만 메뉴에 표시한다", () => {
     const html = renderToStaticMarkup(<SimulationSectionTabs active="run" />);
 
-    expect(html).toContain("실행 관리");
-    expect(html).toContain("공용 지갑");
-    expect(html).toContain("사용량");
+    expect(html).toContain("시뮬레이션 목록");
+    expect(html).toContain("사용 내역");
+    expect(html).toContain("등록");
+    expect(html.indexOf("시뮬레이션 목록")).toBeLessThan(html.indexOf("사용 내역"));
+    expect(html.indexOf("사용 내역")).toBeLessThan(html.indexOf("등록"));
+    expect(html).not.toContain("실행 관리");
+    expect(html).not.toContain("공용 지갑");
+    expect(html).not.toContain(">사용량<");
     expect(html).not.toContain("가격 정책");
     expect(html).not.toContain("근거 이관");
   });
 
-  it("숨긴 관리 섹션 주소는 실행 관리로 돌아간다", () => {
+  it("숨긴 관리 섹션 주소는 시뮬레이션 목록으로 돌아간다", () => {
     expect(readSimulationSection("policies")).toBe("run");
     expect(readSimulationSection("imports")).toBe("run");
     expect(readSimulationSection("wallet")).toBe("wallet");
@@ -74,8 +79,11 @@ describe("simulation billing navigation", () => {
     const html = renderToStaticMarkup(<SimulationBillingSection section="usage" />);
 
     expect(html).toContain("과금액");
-    expect(html).toContain("처리한 페르소나");
-    expect(html).toContain("CSV 내려받기");
+    expect(html).toContain("사용한 페르소나");
+    expect(html).toContain("CSV 다운로드");
+    expect(html).toContain(">확인</button>");
+    expect(html).not.toContain("처리한 페르소나");
+    expect(html).not.toContain("CSV 내려받기");
     expect(html).not.toContain("서비스 부담액");
     expect(html).not.toContain("공급자 비용");
     expect(html).not.toContain(">모델<");

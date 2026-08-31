@@ -423,7 +423,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
         </label>
         <label className="civic-field">
-          <span>상황 또는 사건</span>
+          <span>배경</span>
           <textarea
             disabled={pending}
             onChange={(event) => setDescription(event.currentTarget.value)}
@@ -531,7 +531,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           취소
         </Link>
         <button className="civic-primary-action" disabled={pending} type="submit">
-          {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 생성"}
+          {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 저장"}
         </button>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -693,7 +693,7 @@ function TaskOverviewTab({
             ) : null}
             {canReadTaskResult(task) ? (
               <button
-                className="wf-button wf-button-secondary"
+                className="wf-button wf-button-secondary civic-task-results-action"
                 onClick={onOpenResults}
                 type="button"
               >
@@ -719,7 +719,7 @@ function TaskOverviewTab({
                   </div>
                 </dl>
                 <label className="civic-field">
-                  <span>운영 사유</span>
+                  <span>운영 메모</span>
                   <textarea
                     aria-describedby={
                       adminFieldError(closeProblem, "reason")
@@ -801,7 +801,7 @@ function LifecyclePanel({
         onSubmit(action, { opensAt, closesAt, reason });
       }}
     >
-      <h2>상태 변경</h2>
+      <h2>과업 발행</h2>
       <label className="civic-field">
         <span>동작</span>
         <select
@@ -851,7 +851,7 @@ function LifecyclePanel({
         </label>
       ) : null}
       <label className="civic-field">
-        <span>운영 사유</span>
+        <span>운영 메모</span>
         <textarea
           aria-describedby={adminFieldError(problem, "reason") ? "task-reason-error" : undefined}
           aria-invalid={Boolean(adminFieldError(problem, "reason"))}
@@ -867,7 +867,7 @@ function LifecyclePanel({
         disabled={pending}
         type="submit"
       >
-        {pending ? "최신 상태 확인 중…" : lifecycleActionLabel(action)}
+        {pending ? "최신 상태 확인 중…" : "적용하기"}
       </button>
     </form>
   );
@@ -938,7 +938,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
           className="civic-primary-action"
           href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
         >
-          상세 결과 내려받기
+          결과 다운로드
         </AuthenticatedDownloadLink>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -949,11 +949,9 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
 function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
   return (
     <div aria-label="과업 요약" className="civic-user-summary-grid" role="group">
-      <Detail label="과업" value={task.title} />
-      <Detail label="현재 상태" value={taskStatusLabel(task.status)} />
       <Detail label="시작" value={formatDate(task.openedAt ?? task.schedule?.opensAt ?? null)} />
       <Detail label="마감" value={formatDate(task.schedule?.closesAt ?? task.closedAt)} />
-      <Detail label="종료 유형" value={closureLabel(task.closureType)} />
+      <Detail label="마감 사유" value={closureLabel(task.closureType)} />
       <Detail label="최근 변경" value={formatDate(task.updatedAt)} />
     </div>
   );
@@ -1077,13 +1075,13 @@ function closureLabel(value: Task["closureType"]): string {
   }[value];
 }
 
-function lifecycleActionLabel(action: LifecycleAction): string {
+export function lifecycleActionLabel(action: LifecycleAction): string {
   return {
     schedule: "예약 발행",
     reschedule: "예약 변경",
     "open-now": "즉시 발행",
     "start-now": "지금 시작",
-    deadline: "즉시 반영",
+    deadline: "마감 변경",
     cancel: "과업 취소",
   }[action];
 }
@@ -1110,7 +1108,7 @@ function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong className={value === "—" ? "civic-detail-fallback" : undefined}>{value}</strong>
     </div>
   );
 }
