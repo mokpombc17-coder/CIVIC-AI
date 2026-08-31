@@ -262,7 +262,7 @@ function AdminTaskWorkspace({
         }
         title={
           editing
-            ? (editorSummary?.title ?? (editorTaskId ? "초안 수정" : "새 과업 만들기"))
+            ? (editorSummary?.title ?? (editorTaskId ? "내용 수정" : "새 과업 만들기"))
             : (selectedSummary?.title ??
               (selectedTaskId ? "과업 상세" : "목록에서 과업을 선택하세요."))
         }
@@ -679,7 +679,7 @@ function TaskOverviewTab({
                 onClick={() => onEditDraft(task.id)}
                 type="button"
               >
-                초안 수정
+                내용 수정
               </button>
             ) : null}
             {task.status === "OPEN" && !earlyCloseOpen ? (

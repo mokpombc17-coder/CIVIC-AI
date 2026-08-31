@@ -66,6 +66,7 @@ export function ConsoleDataGrid<T>({
     return () => window.clearTimeout(timer);
   }, []);
   const styleNonce = useStyleNonce();
+  const gridClassName = `console-grid${onRowClicked ? " is-row-clickable" : ""}`;
 
   const defaultColDef = useMemo<ColDef<T>>(
     () => ({
@@ -88,14 +89,14 @@ export function ConsoleDataGrid<T>({
 
   if (!mounted) {
     return (
-      <div aria-label={ariaLabel} className="console-grid" role="region" style={{ height }}>
+      <div aria-label={ariaLabel} className={gridClassName} role="region" style={{ height }}>
         <p className="console-status">목록을 준비하는 중입니다…</p>
       </div>
     );
   }
 
   return (
-    <div aria-label={ariaLabel} className="console-grid" role="region" style={{ height }}>
+    <div aria-label={ariaLabel} className={gridClassName} role="region" style={{ height }}>
       <AgGridReact<T>
         columnDefs={columnDefs as ColDef<T>[]}
         defaultColDef={defaultColDef}
