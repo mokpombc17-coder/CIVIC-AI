@@ -724,6 +724,10 @@
   white-space: nowrap;
 }
 
+.civic-home-section-action--dark {
+  color: var(--wf-ink);
+}
+
 .civic-home-list {
   display: flex;
   flex-direction: column;

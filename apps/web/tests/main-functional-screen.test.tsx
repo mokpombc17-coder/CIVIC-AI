@@ -17,6 +17,7 @@ import {
   AdminHome,
   AdminPendingChatRequests,
   filterAdminUsers,
+  formatAdminHomeDate,
   hasAdminAccessRevocation,
   loadRequestedAdminUser,
   loadRoleConflictUser,
@@ -615,6 +616,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(chatHtml).toContain("one@example.com");
     expect(chatHtml).toContain("검토하기");
     expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
+    expect(chatHtml).toContain(
+      '<a class="civic-home-section-action civic-home-section-action--dark" href="/admin/chat/requests">전체 보기</a>',
+    );
     expect(chatHtml).toContain('토론방 승인 대기<span class="civic-home-section-count">2건</span>');
     await expect(loadActiveTaskSummary(tasks as typeof fetch)).resolves.toEqual({
       status: "ready",
@@ -1296,9 +1300,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("예약된 교통 과업");
     expect(html).toContain("확인 필요 시뮬레이션");
     expect(html).toContain('확인 필요 시뮬레이션<span class="civic-home-section-count">2건</span>');
+    expect(html).toContain(
+      '<a class="civic-home-section-action civic-home-section-action--dark" href="/admin/simulations">전체 보기</a>',
+    );
     expect(html).toContain("교통 정책 과업");
     expect(html).toContain("주거 정책 과업");
     expect(html).not.toContain("최근 권한 변경");
+  });
+
+  it("관리 홈의 올해 날짜는 연도를 생략하고 과거 날짜는 연도를 표시한다", () => {
+    const now = new Date("2026-08-31T00:00:00Z");
+
+    expect(formatAdminHomeDate("2026-08-29T12:38:00Z", now)).toBe("8. 29. 오후 9:38");
+    expect(formatAdminHomeDate("2025-08-29T12:38:00Z", now)).toBe("25. 8. 29. 오후 9:38");
   });
 
   it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {

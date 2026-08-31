@@ -339,8 +339,11 @@ export function AdminHome({
         {attentionItems.length > 0 ? (
           <HomeSection
             action={
-              <Link className="civic-home-section-action" href="/admin/simulations">
-                시뮬레이션
+              <Link
+                className="civic-home-section-action civic-home-section-action--dark"
+                href="/admin/simulations"
+              >
+                전체 보기
               </Link>
             }
             countLabel={`${attentionSimulations.status === "ready" ? attentionSimulations.count : attentionItems.length}건`}
@@ -367,6 +370,26 @@ export function pendingAgeLabel(requestedAt: string, now = Date.now()): string {
   if (!Number.isFinite(timestamp)) return "";
   const days = Math.floor((now - timestamp) / (24 * 60 * 60 * 1_000));
   return days >= 2 ? ` · ${days}일째 대기` : "";
+}
+
+export function formatAdminHomeDate(value?: string | null, now = new Date()): string {
+  if (!value) return formatAdminDate(value);
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return formatAdminDate(value);
+
+  const yearFormatter = new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    timeZone: "Asia/Seoul",
+  });
+  if (yearFormatter.format(date) !== yearFormatter.format(now)) return formatAdminDate(value);
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Seoul",
+  }).format(date);
 }
 
 function HomeSection({
@@ -418,8 +441,11 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
           ) : null}
         </h2>
         {state.status !== "forbidden" ? (
-          <Link className="civic-home-section-action" href="/admin/chat/requests">
-            전체 목록
+          <Link
+            className="civic-home-section-action civic-home-section-action--dark"
+            href="/admin/chat/requests"
+          >
+            전체 보기
           </Link>
         ) : null}
       </header>
@@ -451,7 +477,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
                 <strong>{item.name}</strong>
                 <small>
                   {adminUserLabel(state.labels, item.requesterUserId)} ·{" "}
-                  {formatAdminDate(item.requestedAt)}
+                  {formatAdminHomeDate(item.requestedAt)}
                   {pendingAgeLabel(item.requestedAt)}
                 </small>
               </div>
