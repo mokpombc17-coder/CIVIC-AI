@@ -113,7 +113,7 @@
 }
 
 .filterPill {
-  min-width: 50px;
+  min-width: 66px;
   height: 44px;
   border: 1px solid #8a949e;
   border-radius: 999px;
@@ -126,7 +126,6 @@
 }
 
 .filterPill[aria-selected="true"] {
-  min-width: 66px;
   border-color: var(--vote-primary);
   background: var(--vote-soft);
   color: var(--vote-primary-emphasis);

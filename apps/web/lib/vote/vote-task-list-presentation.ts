@@ -12,6 +12,16 @@ export type VoteTaskListItemPresentation = Readonly<{
   sourceLabel?: "디자인 샘플" | "실제 API";
 }>;
 
+export function sortOpenTasksByLatest(tasks: readonly UserTaskSummary[]): UserTaskSummary[] {
+  return sortTasksByTimestamp(tasks, (task) => task.openedAt);
+}
+
+export function sortCompletedTasksByLatest(
+  tasks: readonly CompletedTaskSummary[],
+): CompletedTaskSummary[] {
+  return sortTasksByTimestamp(tasks, (task) => task.closedAt);
+}
+
 export function presentOpenTask(task: UserTaskSummary): VoteTaskListItemPresentation {
   if (task.submission.submitted) {
     return {
@@ -44,4 +54,15 @@ export function presentCompletedTask(task: CompletedTaskSummary): VoteTaskListIt
     actionHref: `/vote/${task.taskId}/result`,
     sourceLabel: "실제 API",
   };
+}
+
+function sortTasksByTimestamp<T extends { taskId: string }>(
+  tasks: readonly T[],
+  getTimestamp: (task: T) => string,
+): T[] {
+  return [...tasks].sort((left, right) => {
+    const timestampOrder = Date.parse(getTimestamp(right)) - Date.parse(getTimestamp(left));
+    if (Number.isFinite(timestampOrder) && timestampOrder !== 0) return timestampOrder;
+    return left.taskId.localeCompare(right.taskId);
+  });
 }

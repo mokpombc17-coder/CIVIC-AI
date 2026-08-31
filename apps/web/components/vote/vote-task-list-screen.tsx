@@ -14,6 +14,8 @@ import {
 import {
   presentCompletedTask,
   presentOpenTask,
+  sortCompletedTasksByLatest,
+  sortOpenTasksByLatest,
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
 import styles from "./vote.module.css";
@@ -29,11 +31,14 @@ export function VoteTaskListScreen() {
   const openTasksQuery = useOpenTasksQuery();
   const completedTasksQuery = useCompletedTasksQuery(20, tab === "completed");
   const activeTasks = useMemo(
-    () => openTasksQuery.data?.map(presentOpenTask) ?? [],
+    () => sortOpenTasksByLatest(openTasksQuery.data ?? []).map(presentOpenTask),
     [openTasksQuery.data],
   );
   const actualCompletedTasks = useMemo(
-    () => flattenCompletedTaskPages(completedTasksQuery.data?.pages).map(presentCompletedTask),
+    () =>
+      sortCompletedTasksByLatest(flattenCompletedTaskPages(completedTasksQuery.data?.pages)).map(
+        presentCompletedTask,
+      ),
     [completedTasksQuery.data?.pages],
   );
   const completedTasks = useMemo(
