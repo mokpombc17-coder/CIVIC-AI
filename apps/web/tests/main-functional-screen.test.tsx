@@ -1326,7 +1326,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(detail).toContain('data-wireflow-layout="admin-user-console"');
     expect(detail).toContain('aria-label="사용자 상세 탭"');
     expect(detail).toContain(">개요</button>");
-    expect(detail).toContain(">활동</button>");
+    expect(detail).not.toContain(">활동</button>");
+    expect(detail).not.toContain("활동 요약");
 
     const roles = renderAdmin("A-USER-003");
     expect(roles).toContain('data-wireflow-layout="admin-user-console"');

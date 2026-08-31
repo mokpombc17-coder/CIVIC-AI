@@ -8,7 +8,6 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import {
   ConsoleBadge,
   ConsoleEmpty,
-  ConsoleMetricStrip,
   ConsolePane,
   ConsoleSearchControl,
   ConsoleStatus,
@@ -358,7 +357,6 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     { id: "overview", label: "개요" },
     { id: "roles", label: "권한 편집" },
     { id: "audit", label: "권한 이력" },
-    { id: "activity", label: "활동" },
   ];
 
   return (
@@ -421,14 +419,10 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         {tab === "overview" ? (
           <UserOverviewTab
             audits={audits}
-            chatScan={chatScan}
             onOpenAudit={() => switchTab("audit")}
             onOpenRoles={() => switchTab("roles")}
-            onStartChatScan={startChatScan}
-            ragUsage={ragUsage}
             selected={selected}
             userLabels={auditUserLabels}
-            voteScan={voteScan}
           />
         ) : null}
         {tab === "roles" ? (
@@ -533,20 +527,12 @@ function UserOverviewTab({
   userLabels,
   onOpenRoles,
   onOpenAudit,
-  chatScan,
-  voteScan,
-  ragUsage,
-  onStartChatScan,
 }: Readonly<{
   selected: AdminUser | null;
   audits: readonly AuditEvent[];
   userLabels: ReadonlyMap<string, string>;
   onOpenRoles: () => void;
   onOpenAudit: () => void;
-  chatScan: ActivityScanState<UserChatScanResult>;
-  voteScan: ActivityScanState<UserVoteScanResult>;
-  ragUsage: UserRagUsageState;
-  onStartChatScan: () => void;
 }>) {
   if (!selected) {
     return <ConsoleEmpty title="목록에서 사용자를 선택하세요." />;
@@ -585,35 +571,6 @@ function UserOverviewTab({
           권한 편집
         </button>
       </div>
-      <section className="console-section">
-        <h4>활동 요약</h4>
-        <ConsoleMetricStrip
-          ariaLabel="활동 요약"
-          metrics={[
-            {
-              label: "참여 토론방",
-              value: chatSummaryValue(chatScan),
-              ...(chatScan.status === "idle"
-                ? {
-                    description: (
-                      <button className="civic-text-action" onClick={onStartChatScan} type="button">
-                        대화 기록으로 확인
-                      </button>
-                    ),
-                  }
-                : {}),
-            },
-            { label: "투표 참여", value: voteSummaryValue(voteScan) },
-            {
-              label: "AI 질의",
-              value: ragSummaryValue(ragUsage),
-              ...(ragUsage.status === "ready" && ragUsage.usage.lastQueryAt
-                ? { description: `마지막 질의 ${formatAdminDate(ragUsage.usage.lastQueryAt)}` }
-                : {}),
-            },
-          ]}
-        />
-      </section>
       <section className="console-section">
         <h4>최근 권한 변경 이력</h4>
         {recent.length === 0 ? (
