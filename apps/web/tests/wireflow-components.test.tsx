@@ -20,6 +20,7 @@ import {
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import {
   AdminTaskScreen,
+  lifecycleActionLabel,
   lifecycleActions,
   TASK_GRID_COLUMNS,
   taskWorkspacePath,
@@ -240,6 +241,19 @@ describe("latest Wire Flow shared product UI", () => {
 
   it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
     expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
+    expect(lifecycleActionLabel("deadline")).toBe("마감 변경");
+  });
+
+  it("새 과업 화면은 배경을 입력하고 초안을 저장하도록 안내한다", () => {
+    const taskCreate = screenRegistry.find((screen) => screen.id === "A-TASK-002");
+    if (!taskCreate) throw new Error("A-TASK-002 missing");
+
+    const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={taskCreate} />);
+
+    expect(html).toContain(">배경</span>");
+    expect(html).toContain(">초안 저장</button>");
+    expect(html).not.toContain("상황 또는 사건");
+    expect(html).not.toContain("초안 생성");
   });
 
   it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {
