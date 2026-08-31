@@ -6560,10 +6560,10 @@ body {
   flex: 1 1 auto;
   align-items: center;
   gap: 12px;
-  border: 1px solid #e7ebf0;
-  border-radius: 12px;
-  background: #f5f7fa;
-  padding: 8px 8px 8px 12px;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-intro-banner .civic-rag-intro {
