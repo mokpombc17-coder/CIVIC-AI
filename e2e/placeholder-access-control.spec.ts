@@ -113,7 +113,7 @@ function collectDeferredBackendRequests(page: Page): string[] {
     "/chat/api/",
     "/chat/ws",
     "/subscriptions/",
-    "/votes/api/",
+    "/vote/api/",
     "/admin/tasks/api/",
     "/admin/simulations/api/",
   ];

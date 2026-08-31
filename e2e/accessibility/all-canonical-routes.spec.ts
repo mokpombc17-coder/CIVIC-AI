@@ -197,7 +197,7 @@ function collectDeferredRequests(page: Page): { requests: string[]; stop: () => 
         "/chat/api/",
         "/chat/ws",
         "/subscriptions/",
-        "/votes/api/",
+        "/vote/api/",
         "/admin/tasks/api/",
         "/admin/simulations/api/",
       ].some((prefix) => url.pathname.startsWith(prefix))

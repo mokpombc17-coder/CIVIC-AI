@@ -91,7 +91,7 @@ export function MainFunctionalScreen({
             },
             {
               action: (
-                <Link className="wf-button wf-button-primary" href={protectedHref("/votes")}>
+                <Link className="wf-button wf-button-primary" href={protectedHref("/vote")}>
                   투표하기
                 </Link>
               ),
@@ -107,7 +107,7 @@ export function MainFunctionalScreen({
   if (screen.id === "COMMON-002") {
     return (
       <ScreenFrame screen={screen}>
-        <WireflowConflictState latestHref={screen.route as Route} listHref={"/votes" as Route} />
+        <WireflowConflictState latestHref={screen.route as Route} listHref={"/vote" as Route} />
       </ScreenFrame>
     );
   }

@@ -11,6 +11,13 @@ test("루트는 공개 홈으로 직접 이동한다", async ({ page }) => {
   await expect(page.getByRole("heading", { name: "CIVIC.AI", exact: true })).toBeVisible();
 });
 
+test("레거시 투표 경로는 표준 단수형 경로로 이동한다", async ({ page }) => {
+  const response = await page.request.get("/votes/results", { maxRedirects: 0 });
+
+  expect(response.status()).toBe(308);
+  expect(response.headers().location).toBe("/vote/results");
+});
+
 test("비로그인 사용자는 홈을 보고 보호 기능 링크에서 로그인으로 이동한다", async ({ page }) => {
   await page.goto("/home");
 
@@ -33,7 +40,7 @@ test("비로그인 사용자는 홈을 보고 보호 기능 링크에서 로그�
   );
   await expect(page.getByRole("link", { name: "투표하기", exact: true })).toHaveAttribute(
     "href",
-    "/login?returnTo=%2Fvotes",
+    "/login?returnTo=%2Fvote",
   );
 
   await page.getByRole("link", { name: "AI", exact: true }).click();
@@ -55,7 +62,7 @@ test("Access Token 쿠키가 있으면 홈의 보호 기능 링크를 그대로 
   await expect(page.getByRole("link", { name: "AI", exact: true })).toHaveAttribute("href", "/rag");
   await expect(page.getByRole("link", { name: "투표하기", exact: true })).toHaveAttribute(
     "href",
-    "/votes",
+    "/vote",
   );
 });
 
@@ -149,7 +156,7 @@ test("공통 Shell은 모바일 viewport와 데스크톱 frame 배경을 원본�
 }) => {
   await page.setViewportSize({ height: 800, width: 480 });
   await page.goto("/home");
-  await expect(page.getByText("배우고, 함께 토론하고, 결정합니다.")).toBeVisible();
+  await expect(page.getByText("배우고, 토론하고, 함께 결정합니다.")).toBeVisible();
 
   const shell = page.locator('[data-platform-shell="true"]');
   const surface = page.locator('[data-platform-shell-surface="true"]');

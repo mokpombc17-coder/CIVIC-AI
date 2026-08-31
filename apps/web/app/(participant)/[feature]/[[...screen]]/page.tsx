@@ -108,7 +108,7 @@ export default async function ParticipantPlaceholderPage({
 
 function participantPlaceholderTitle(pathname: string): string {
   if (pathname.startsWith("/chat")) return "토론방";
-  if (pathname.startsWith("/vote") || pathname.startsWith("/votes")) return "투표";
+  if (pathname.startsWith("/vote")) return "투표";
   return "홈";
 }
 

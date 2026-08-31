@@ -464,7 +464,7 @@ async function assertDeferredWireFlowRoutesStayInert(admin: Page, participant: P
   admin.on("request", record);
   await participant.goto("/chat");
   await expect(participant.getByText("준비 중")).toBeVisible();
-  await participant.goto("/votes");
+  await participant.goto("/vote");
   await expect(participant.getByText("준비 중")).toBeVisible();
   await admin.goto("/admin/chat");
   await expect(admin.getByText("준비 중")).toBeVisible();

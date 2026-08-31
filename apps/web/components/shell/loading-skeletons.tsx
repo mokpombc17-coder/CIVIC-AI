@@ -631,9 +631,7 @@ function participantHeader(
 ): Readonly<{ backDisabled?: boolean; backHref?: string; title: string }> {
   if (screen.id.startsWith("AUTH-")) return authHeader(screen.id);
   const heading = screenFrameHeading(screen);
-  const normalized = pathname
-    .replace(/^\/votes(?=\/|$)/u, "/vote")
-    .replace(/^\/account(?=\/|$)/u, "/mypage");
+  const normalized = pathname.replace(/^\/account(?=\/|$)/u, "/mypage");
   const sectionRoot = normalized.startsWith("/rag")
     ? "/rag"
     : normalized.startsWith("/chat")
