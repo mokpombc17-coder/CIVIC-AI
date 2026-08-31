@@ -389,6 +389,10 @@
   background: var(--wf-blue-soft);
 }
 
+.console-grid.is-row-clickable .ag-row {
+  cursor: pointer;
+}
+
 /* AG Grid 셀의 행 line-height를 배지가 상속해 세로로 늘어나지 않게 고정한다. */
 .console-grid .console-badge {
   min-height: 20px;
