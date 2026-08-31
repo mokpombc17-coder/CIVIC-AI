@@ -5097,6 +5097,27 @@ body {
   height: 14px;
 }
 
+.civic-account-loading {
+  display: grid;
+  min-height: clamp(18rem, 55dvh, 36rem);
+  place-items: center;
+}
+
+.civic-account-loading-spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e6ea;
+  border-top-color: var(--wf-ink);
+  border-radius: 50%;
+  animation: wf-progress-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .civic-account-loading-spinner {
+    animation: none;
+  }
+}
+
 /* 로딩 화면은 고정 셸·검색·필터를 그대로 유지하고, 데이터 자리만 shimmer 처리한다. */
 .civic-loading-static-surface :is(input, textarea, select, button):disabled {
   cursor: default;
