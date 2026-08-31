@@ -264,17 +264,17 @@ function UsagePanel() {
           onClick={() => void load().catch((error: unknown) => setMessage(messageOf(error)))}
           type="button"
         >
-          조회
+          확인
         </button>
         <Link className="civic-secondary-action" href={exportHref} prefetch={false}>
-          CSV 내려받기
+          CSV 다운로드
         </Link>
       </div>
       <ConsoleMetricStrip
         ariaLabel="사용량 합계"
         metrics={[
           { label: "과금액", value: formatKrw(totals.charged) },
-          { label: "처리한 페르소나", value: `${totals.personas.toLocaleString("ko-KR")}명` },
+          { label: "사용한 페르소나", value: `${totals.personas.toLocaleString("ko-KR")}명` },
           { label: "정산 내역", value: `${rows.length.toLocaleString("ko-KR")}건` },
         ]}
       />

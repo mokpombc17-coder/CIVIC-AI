@@ -79,8 +79,11 @@ describe("simulation billing navigation", () => {
     const html = renderToStaticMarkup(<SimulationBillingSection section="usage" />);
 
     expect(html).toContain("과금액");
-    expect(html).toContain("처리한 페르소나");
-    expect(html).toContain("CSV 내려받기");
+    expect(html).toContain("사용한 페르소나");
+    expect(html).toContain("CSV 다운로드");
+    expect(html).toContain(">확인</button>");
+    expect(html).not.toContain("처리한 페르소나");
+    expect(html).not.toContain("CSV 내려받기");
     expect(html).not.toContain("서비스 부담액");
     expect(html).not.toContain("공급자 비용");
     expect(html).not.toContain(">모델<");

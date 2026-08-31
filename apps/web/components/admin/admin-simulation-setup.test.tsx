@@ -165,6 +165,8 @@ describe("simulation setup", () => {
     );
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("표본 시드");
+    expect(html).toContain('aria-label="시뮬레이션 실행 단계"');
+    expect(html).toContain(">동작</button>");
   });
 
   it("실행 관리 표 열 정의는 과업 실행에 필요한 정보만 다룬다", () => {
@@ -172,7 +174,6 @@ describe("simulation setup", () => {
       "과업 제목",
       "시뮬레이션 진행 상태",
       "최근 변경",
-      "실행",
     ]);
   });
 

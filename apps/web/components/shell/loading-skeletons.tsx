@@ -785,7 +785,7 @@ function adminListPresentation(kind: AdminListKind): Readonly<{
   if (kind === "SIMULATIONS") {
     return {
       filters: [],
-      headers: ["과업 제목", "시뮬레이션 진행 상태", "최근 변경", "실행"],
+      headers: ["과업 제목", "시뮬레이션 진행 상태", "최근 변경"],
       label: "시뮬레이션 과업 목록",
       placeholder: "과업 제목 입력…",
       searchLabel: "시뮬레이션할 과업 찾기",

@@ -201,7 +201,7 @@ function SimulationRunWorkspace({
 
   const tabs: readonly ConsoleTabItem[] = [
     { id: "setup", label: "설정", disabled: !knownTaskId },
-    { id: "status", label: "실행", disabled: !simulationId },
+    { id: "status", label: "동작", disabled: !simulationId },
     { id: "results", label: "결과", disabled: !simulationId },
   ];
 
@@ -246,7 +246,6 @@ export type SimulationTargetRow = Readonly<{
   stateLabel: string;
   stateTone: SimulationStateTone;
   updatedLabel: string;
-  actionLabel: string;
   href: string;
 }>;
 
@@ -264,7 +263,6 @@ export const SIMULATION_TARGET_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<Simulat
       ) : null,
   },
   { field: "updatedLabel", headerName: "최근 변경", minWidth: 150 },
-  { field: "actionLabel", headerName: "실행", minWidth: 110 },
 ];
 
 export function simulationTargetRow(task: SimulationTaskSummary): SimulationTargetRow {
@@ -276,7 +274,6 @@ export function simulationTargetRow(task: SimulationTaskSummary): SimulationTarg
     stateLabel: presentation.label,
     stateTone: simulationStateTone(state),
     updatedLabel: formatDate(simulationTargetUpdatedAt(task)),
-    actionLabel: presentation.action,
     href: simulationTargetHref(task.taskId, task.latestSimulation),
   };
 }
