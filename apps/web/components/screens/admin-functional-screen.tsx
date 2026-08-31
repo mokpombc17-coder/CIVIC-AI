@@ -97,7 +97,7 @@ export type HomeAttentionSimulation = Readonly<{
 }>;
 export type HomeAttentionSimulationState =
   | { status: "loading" }
-  | { status: "ready"; items: readonly HomeAttentionSimulation[] }
+  | { status: "ready"; count: number; items: readonly HomeAttentionSimulation[] }
   | { status: "unavailable" }
   | { status: "forbidden" };
 export type SimulationWalletMetricState =
@@ -343,6 +343,7 @@ export function AdminHome({
                 시뮬레이션
               </Link>
             }
+            countLabel={`${attentionSimulations.status === "ready" ? attentionSimulations.count : attentionItems.length}건`}
             title="확인 필요 시뮬레이션"
           >
             {attentionItems.map((item) => (
@@ -372,11 +373,15 @@ function HomeSection({
   title,
   action,
   children,
-}: Readonly<{ title: string; action?: ReactNode; children: ReactNode }>) {
+  countLabel,
+}: Readonly<{ title: string; action?: ReactNode; children: ReactNode; countLabel?: string }>) {
   return (
     <section aria-label={title} className="civic-home-section">
       <header className="civic-home-section-header">
-        <h2>{title}</h2>
+        <h2>
+          {title}
+          {countLabel ? <span className="civic-home-section-count">{countLabel}</span> : null}
+        </h2>
         {action ?? null}
       </header>
       <ul className="civic-home-list">{children}</ul>
@@ -406,7 +411,12 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
   return (
     <section aria-labelledby="civic-pending-chat-requests-title" className="civic-home-section">
       <header className="civic-home-section-header">
-        <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
+        <h2 id="civic-pending-chat-requests-title">
+          토론방 승인 대기
+          {state.status === "ready" ? (
+            <span className="civic-home-section-count">{metricCount(state)}</span>
+          ) : null}
+        </h2>
         {state.status !== "forbidden" ? (
           <Link className="civic-home-section-action" href="/admin/chat/requests">
             전체 목록
@@ -688,23 +698,25 @@ export async function loadAttentionSimulations(
     if (!response.ok) return { status: "unavailable" };
     const tasks = readSimulationTaskSummaries(await response.json());
     if (!tasks) return { status: "unavailable" };
-    const items = tasks
-      .flatMap((task): readonly HomeAttentionSimulation[] => {
-        const latest = task.latestSimulation;
-        if (!latest) return [];
-        const presentation = simulationTargetPresentation(latest.state);
-        if (presentation.tone !== "attention") return [];
-        return [
-          {
-            taskId: task.taskId,
-            title: task.title,
-            stateLabel: presentation.label,
-            href: simulationTargetHref(task.taskId, latest),
-          },
-        ];
-      })
-      .slice(0, 3);
-    return { status: "ready", items };
+    const attentionItems = tasks.flatMap((task): readonly HomeAttentionSimulation[] => {
+      const latest = task.latestSimulation;
+      if (!latest) return [];
+      const presentation = simulationTargetPresentation(latest.state);
+      if (presentation.tone !== "attention") return [];
+      return [
+        {
+          taskId: task.taskId,
+          title: task.title,
+          stateLabel: presentation.label,
+          href: simulationTargetHref(task.taskId, latest),
+        },
+      ];
+    });
+    return {
+      status: "ready",
+      count: attentionItems.length,
+      items: attentionItems.slice(0, 3),
+    };
   } catch {
     return { status: "unavailable" };
   }

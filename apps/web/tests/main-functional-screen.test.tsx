@@ -615,6 +615,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(chatHtml).toContain("one@example.com");
     expect(chatHtml).toContain("검토하기");
     expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
+    expect(chatHtml).toContain('토론방 승인 대기<span class="civic-home-section-count">2건</span>');
     await expect(loadActiveTaskSummary(tasks as typeof fetch)).resolves.toEqual({
       status: "ready",
       count: 2,
@@ -1236,12 +1237,19 @@ describe("25 functional Main/Auth screens", () => {
         activeTaskSummary: { status: "ready", count: 1, hasMore: false },
         attentionSimulations: {
           status: "ready",
+          count: 2,
           items: [
             {
               taskId: "task-1",
               title: "교통 정책 과업",
               stateLabel: "확인 필요",
               href: "/admin/simulations/status?simulationId=sim-1",
+            },
+            {
+              taskId: "task-4",
+              title: "주거 정책 과업",
+              stateLabel: "확인 필요",
+              href: "/admin/simulations/status?simulationId=sim-2",
             },
           ],
         },
@@ -1287,7 +1295,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("시작 예정 과업");
     expect(html).toContain("예약된 교통 과업");
     expect(html).toContain("확인 필요 시뮬레이션");
+    expect(html).toContain('확인 필요 시뮬레이션<span class="civic-home-section-count">2건</span>');
     expect(html).toContain("교통 정책 과업");
+    expect(html).toContain("주거 정책 과업");
     expect(html).not.toContain("최근 권한 변경");
   });
 

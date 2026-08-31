@@ -709,6 +709,13 @@
   color: var(--wf-ink);
 }
 
+.civic-home-section-count {
+  margin-left: 6px;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .civic-home-section-action {
   font-size: 12px;
   font-weight: 600;
