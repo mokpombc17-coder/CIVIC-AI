@@ -951,7 +951,7 @@ function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
     <div aria-label="과업 요약" className="civic-user-summary-grid" role="group">
       <Detail label="시작" value={formatDate(task.openedAt ?? task.schedule?.opensAt ?? null)} />
       <Detail label="마감" value={formatDate(task.schedule?.closesAt ?? task.closedAt)} />
-      <Detail label="종료 유형" value={closureLabel(task.closureType)} />
+      <Detail label="마감 사유" value={closureLabel(task.closureType)} />
       <Detail label="최근 변경" value={formatDate(task.updatedAt)} />
     </div>
   );
@@ -1108,7 +1108,7 @@ function Detail({ label, value }: Readonly<{ label: string; value: string }>) {
   return (
     <div>
       <span>{label}</span>
-      <strong>{value}</strong>
+      <strong className={value === "—" ? "civic-detail-fallback" : undefined}>{value}</strong>
     </div>
   );
 }
