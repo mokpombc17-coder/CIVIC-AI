@@ -118,7 +118,10 @@ describe("latest Wire Flow shared product UI", () => {
 
   it("renders the latest admin navigation without the legacy auth explainer", () => {
     const html = renderToStaticMarkup(
-      <AdminShell activeRoute="/admin/users" permissions={["RAG_ADMIN"]}>
+      <AdminShell
+        activeRoute="/admin/users"
+        permissions={["VOTE_ADMIN", "RAG_ADMIN", "CHAT_ADMIN", "SIMULATION_ADMIN"]}
+      >
         <p>content</p>
       </AdminShell>,
     );
@@ -126,8 +129,13 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain("CIVIC AI");
     expect(html).toContain("ADMIN");
     expect(html).toContain('aria-current="page"');
-    expect(html).toContain("사용자·권한");
-    expect(html).toContain("문서 관리");
+    const labels = ["관리 홈", "사용자", "과업", "문서", "토론방", "시뮬레이션"];
+    for (const label of labels) expect(html).toContain(`>${label}</span>`);
+    for (let index = 1; index < labels.length; index += 1) {
+      expect(html.indexOf(`>${labels[index - 1]}</span>`)).toBeLessThan(
+        html.indexOf(`>${labels[index]}</span>`),
+      );
+    }
     expect(html).not.toContain("관리자 세션");
     expect(html).not.toContain("요청마다 권한 재확인");
   });
@@ -140,7 +148,7 @@ describe("latest Wire Flow shared product UI", () => {
     );
 
     expect(html).toMatch(/aria-current="page"[^>]*href="\/admin\/chat"/u);
-    expect(html).toContain(">토론방 운영<");
+    expect(html).toContain(">토론방<");
     expect(html).not.toContain("civic-admin-nav-sub-link");
     expect(html).not.toContain(">토론방 신청 목록<");
     expect(html).not.toContain(">카테고리 관리<");

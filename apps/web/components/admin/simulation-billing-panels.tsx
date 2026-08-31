@@ -23,13 +23,13 @@ import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 export type SimulationSection = "run" | "wallet" | "usage";
 
 const sections: readonly Readonly<{ id: SimulationSection; label: string; href: Route }>[] = [
-  { id: "run", label: "실행 관리", href: "/admin/simulations" as Route },
+  { id: "run", label: "시뮬레이션 목록", href: "/admin/simulations" as Route },
+  { id: "usage", label: "사용 내역", href: "/admin/simulations?section=usage" as Route },
   {
     id: "wallet",
-    label: "공용 지갑",
+    label: "등록",
     href: "/admin/simulations?section=wallet" as Route,
   },
-  { id: "usage", label: "사용량", href: "/admin/simulations?section=usage" as Route },
 ];
 
 export function readSimulationSection(value: string | null): SimulationSection {

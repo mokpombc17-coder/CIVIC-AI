@@ -1068,15 +1068,15 @@ describe("25 functional Main/Auth screens", () => {
     expect(adminHtml).toContain('data-wireflow-shell="admin"');
     expect(adminHtml).toContain("<strong>CIVIC AI</strong>");
     expect(adminHtml).toContain("<small>ADMIN</small>");
-    expect(adminHtml).toContain("문서 관리");
+    expect(adminHtml).toContain(">문서</span>");
     expect(adminHtml).toContain("로그아웃");
     const ragAdminHtml = renderToStaticMarkup(
       <AdminShell activeRoute="/forbidden" permissions={["RAG_ADMIN"]} role="ADMIN">
         본문
       </AdminShell>,
     );
-    expect(ragAdminHtml).toContain("문서 관리");
-    expect(ragAdminHtml).not.toContain("사용자·권한");
+    expect(ragAdminHtml).toContain(">문서</span>");
+    expect(ragAdminHtml).not.toContain(">사용자</span>");
   });
 
   it("U-HOME-001은 최신 Wire Flow의 세 행동 카드와 텍스트 버튼을 사용한다", () => {
