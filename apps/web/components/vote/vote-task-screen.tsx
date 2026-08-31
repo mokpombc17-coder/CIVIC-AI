@@ -814,7 +814,7 @@ function ResponseComposer(props: ComposerProps) {
                         />
                         <div className={styles.directFieldMeta}>
                           <span className={styles.directFieldHint}>
-                            {props.directReasonLength}/{DIRECT_REASON_MAX_LENGTH}자
+                            {props.directReasonLength} / {DIRECT_REASON_MAX_LENGTH}자
                           </span>
                           {props.directReasonError ? (
                             <span className={styles.fieldError}>{props.directReasonError}</span>
@@ -869,11 +869,7 @@ function ResponseConfirmation({
         <span>응답 이유</span>
         <strong>{reason}</strong>
       </section>
-      <p className={styles.confirmNotice}>
-        제출한 응답은 수정할 수 없습니다.
-        <br />
-        내용을 다시 한번 확인해 주세요.
-      </p>
+      <p className={styles.confirmNotice}>제출 후에는 선택지와 이유를 수정할 수 없습니다.</p>
       {errorMessage ? (
         <p aria-live="polite" className={styles.submissionError} role="alert">
           {errorMessage}
