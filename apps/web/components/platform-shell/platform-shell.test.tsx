@@ -81,6 +81,20 @@ describe("PlatformHeader", () => {
     expect(markup).toContain('href="/home"');
     expect(markup).not.toContain("disabled");
   });
+
+  it("비활성 back action은 회색 스타일을 적용할 수 있는 disabled 버튼으로 표현한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformHeader
+        backAction={{ ariaLabel: "이전 화면으로 돌아가기", disabled: true }}
+        title="목록"
+      />,
+    );
+
+    expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
+    expect(markup).toContain('data-state="disabled"');
+    expect(markup).toContain("disabled");
+    expect(markup).not.toContain("href=");
+  });
 });
 
 describe("PlatformBottomNavigation", () => {

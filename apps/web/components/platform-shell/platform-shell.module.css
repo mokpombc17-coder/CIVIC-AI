@@ -41,6 +41,16 @@
   }
 }
 
+@media (display-mode: standalone) {
+  .stage {
+    min-height: 100vh;
+  }
+
+  .shell {
+    height: 100vh;
+  }
+}
+
 .surface {
   display: grid;
   width: 100%;

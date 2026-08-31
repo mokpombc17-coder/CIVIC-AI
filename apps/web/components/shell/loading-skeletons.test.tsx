@@ -26,6 +26,18 @@ describe("route-aware loading skeletons", () => {
     expect(markup).toContain("civic-skeleton-chat-question");
     expect(markup).toContain("civic-skeleton-chat-answer");
     expect(markup).not.toContain("civic-skeleton-header-title");
+    expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
+    expect(markup).toContain('data-state="disabled"');
+    expect(markup).toContain("disabled");
+  });
+
+  it("계정 루트 로딩 화면도 비활성 뒤로가기를 유지한다", () => {
+    const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/mypage" />);
+
+    expect(markup).toMatch(/<h1[^>]*>계정<\/h1>/);
+    expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
+    expect(markup).toContain('data-state="disabled"');
+    expect(markup).toContain("disabled");
   });
 
   it("하위 참여자 화면의 제목과 뒤로가기를 현재 경로에 맞춘다", () => {

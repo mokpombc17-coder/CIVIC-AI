@@ -158,7 +158,8 @@ Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
 `/vote`, `/mypage` navigation을 그대로 사용한다. 이관 전 실제 UI의 `/votes`, `/account` 주소도
-호환 별칭으로 같은 화면과 active menu에 매핑한다.
+호환 별칭으로 같은 화면과 active menu에 매핑한다. 참여자 섹션 루트는 header 자리를 유지하는
+비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
 
 계정 본문은 Figma `U-ACCOUNT-001..004`에 맞춰 `/mypage`, `/mypage/profile`,
 `/mypage/survey`, `/mypage/deactivate`로 나뉜다. 기존 강제 비밀번호 변경 복귀 주소인
