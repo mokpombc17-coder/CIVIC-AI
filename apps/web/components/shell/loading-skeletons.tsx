@@ -225,23 +225,8 @@ function RagSourceLoadingSurface() {
 
 function AccountHubLoadingSurface() {
   return (
-    <div
-      aria-busy="true"
-      aria-label="계정 화면을 불러오는 중"
-      className="wf-account-hub civic-loading-static-surface"
-      data-wireflow-layout="account-hub"
-    >
-      <nav aria-label="계정 항목" className="wf-account-hub-menu">
-        <div className="wf-account-hub-card">
-          <strong>내 정보 관리</strong>
-          <span>비밀번호와 2단계 인증을 관리합니다.</span>
-        </div>
-        <div className="wf-account-hub-card">
-          <strong>내 설문 보기</strong>
-          <span>Vote 설문 응답을 작성·확인합니다.</span>
-        </div>
-      </nav>
-      <AccountSessionActionsLoading />
+    <div aria-busy="true" aria-label="계정 화면을 불러오는 중" className="civic-account-loading">
+      <span aria-hidden="true" className="civic-account-loading-spinner" />
       <LoadingAnnouncement />
     </div>
   );

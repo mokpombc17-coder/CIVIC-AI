@@ -31,13 +31,16 @@ describe("route-aware loading skeletons", () => {
     expect(markup).toContain("disabled");
   });
 
-  it("계정 루트 로딩 화면도 비활성 뒤로가기를 유지한다", () => {
+  it("계정 루트 로딩 화면은 안내 문구 대신 스피너를 표시하고 비활성 뒤로가기를 유지한다", () => {
     const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/mypage" />);
 
     expect(markup).toMatch(/<h1[^>]*>계정<\/h1>/);
     expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
     expect(markup).toContain('data-state="disabled"');
     expect(markup).toContain("disabled");
+    expect(markup).toContain('class="civic-account-loading-spinner"');
+    expect(markup).not.toContain("비밀번호와 2단계 인증을 관리합니다.");
+    expect(markup).not.toContain("Vote 설문 응답을 작성·확인합니다.");
   });
 
   it("하위 참여자 화면의 제목과 뒤로가기를 현재 경로에 맞춘다", () => {
