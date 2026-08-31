@@ -455,10 +455,10 @@ function RagConversation({
             <div className="civic-rag-intro-banner">
               <p className="civic-rag-intro">
                 <strong className="civic-rag-intro-title">
-                  문서에서 궁금한 내용을 물어보세요.
+                  알고 싶은 내용을 자유롭게 질문해 보세요.
                 </strong>
                 <br />
-                AI가 관련 내용을 찾아 답변해 드립니다.
+                AI가 관련 문서를 찾아 답변해 드립니다.
               </p>
               <button
                 aria-label="안내 닫기"
@@ -647,9 +647,11 @@ function ConversationBackdrop() {
       <header className="civic-rag-session-bar">
         <div className="civic-rag-intro-banner">
           <p className="civic-rag-intro">
-            <strong className="civic-rag-intro-title">문서에서 궁금한 내용을 물어보세요.</strong>
+            <strong className="civic-rag-intro-title">
+              알고 싶은 내용을 자유롭게 질문해 보세요.
+            </strong>
             <br />
-            AI가 관련 내용을 찾아 답변해 드립니다.
+            AI가 관련 문서를 찾아 답변해 드립니다.
           </p>
           <span aria-hidden="true" className="civic-rag-intro-dismiss">
             <CloseIcon />
