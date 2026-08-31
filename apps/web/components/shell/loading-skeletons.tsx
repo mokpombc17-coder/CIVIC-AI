@@ -165,9 +165,9 @@ function RagConversationLoadingSurface() {
       <header className="civic-rag-session-bar">
         <div className="civic-rag-intro-banner">
           <p className="civic-rag-intro">
-            궁금한 정보를 질문하세요.
+            <strong className="civic-rag-intro-title">문서에서 궁금한 내용을 물어보세요.</strong>
             <br />
-            AI가 실제 문서를 기반으로 답변해드립니다.
+            AI가 관련 내용을 찾아 답변해 드립니다.
           </p>
           <span aria-hidden="true" className="civic-rag-intro-dismiss">
             <svg fill="none" viewBox="0 0 20 20">

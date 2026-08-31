@@ -373,7 +373,7 @@ function RagConversation({
     setQuestion("");
     setBusy(false);
     setNewQuestionDialogOpen(false);
-    setNotice("새 질문을 시작했습니다.");
+    setNotice("새 대화를 시작했습니다.");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -454,9 +454,11 @@ function RagConversation({
           <header className="civic-rag-session-bar">
             <div className="civic-rag-intro-banner">
               <p className="civic-rag-intro">
-                궁금한 정보를 질문하세요.
+                <strong className="civic-rag-intro-title">
+                  문서에서 궁금한 내용을 물어보세요.
+                </strong>
                 <br />
-                AI가 실제 문서를 기반으로 답변해드립니다.
+                AI가 관련 내용을 찾아 답변해 드립니다.
               </p>
               <button
                 aria-label="안내 닫기"
@@ -522,12 +524,12 @@ function RagConversation({
       </section>
       <ConfirmDialog
         cancelLabel="취소"
-        confirmLabel="새 질문 시작"
-        description="새 질문을 시작하면 대화 기록이 초기화 됩니다."
+        confirmLabel="새 대화 시작"
+        description="현재 대화 내용은 저장되지 않습니다."
         onCancel={() => setNewQuestionDialogOpen(false)}
         onConfirm={startNewQuestion}
         open={newQuestionDialogOpen}
-        title="새 질문을 시작할까요?"
+        title="새 대화를 시작할까요?"
       />
       {activeCitation ? (
         <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
@@ -645,9 +647,9 @@ function ConversationBackdrop() {
       <header className="civic-rag-session-bar">
         <div className="civic-rag-intro-banner">
           <p className="civic-rag-intro">
-            궁금한 정보를 질문하세요.
+            <strong className="civic-rag-intro-title">문서에서 궁금한 내용을 물어보세요.</strong>
             <br />
-            AI가 실제 문서를 기반으로 답변해드립니다.
+            AI가 관련 내용을 찾아 답변해 드립니다.
           </p>
           <span aria-hidden="true" className="civic-rag-intro-dismiss">
             <CloseIcon />
@@ -689,10 +691,8 @@ export function RagMessage({
 }>) {
   const statusMessage = ragJobStatusMessage(message.job);
   const citations = message.job?.citations ?? [];
-  const showStreamingAnswer = liveJob
-    ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
-    : false;
-  const showOnlyLoadingLabel = Boolean(liveJob && liveJob.streamedAnswer.length === 0);
+  const showStreamingAnswer = Boolean(liveJob?.streamedAnswer);
+  const showProgress = Boolean(liveJob && !showStreamingAnswer);
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
@@ -707,17 +707,11 @@ export function RagMessage({
         <div
           aria-busy={liveJob ? true : undefined}
           aria-label={liveJob && showStreamingAnswer ? "실시간 답변" : undefined}
-          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showOnlyLoadingLabel ? " is-loading-label-only" : ""}`}
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showProgress ? " is-progress-only" : ""}`}
         >
           {liveJob ? (
             showStreamingAnswer ? (
-              liveJob.streamedAnswer ? (
-                <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
-              ) : (
-                <p className="civic-rag-stream-starting civic-rag-loading-label">
-                  답변을 작성하는 중...
-                </p>
-              )
+              <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
             ) : (
               <RagLiveProgress liveJob={liveJob} />
             )
@@ -745,37 +739,87 @@ export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): vo
   messages.scrollTo({ behavior: "smooth", top: messages.scrollHeight });
 }
 
-const ANSWER_GENERATION_STAGES = new Set<RagProgressStage>(["COMPOSING", "VERIFYING", "STREAMING"]);
+const RAG_PROGRESS_STEPS = [
+  {
+    active: "어떤 정보가 필요한지 파악하는 중입니다.",
+    completed: "어떤 정보가 필요한지 파악했습니다.",
+    pending: "필요한 정보 파악",
+  },
+  {
+    active: "관련 문서를 찾는 중입니다.",
+    completed: "관련 문서를 찾았습니다.",
+    pending: "관련 문서 찾기",
+  },
+  {
+    active: "문서에서 근거를 확인하는 중입니다.",
+    completed: "문서에서 근거를 확인했습니다.",
+    pending: "문서에서 근거 확인",
+  },
+  {
+    active: "근거를 바탕으로 답변을 작성하는 중입니다.",
+    completed: "답변 작성을 완료했습니다.",
+    pending: "답변 작성",
+  },
+] as const;
 
-export function shouldShowRagStreamingAnswer(
-  stage: RagProgressStage,
-  streamedAnswer: string,
-): boolean {
-  return streamedAnswer.length > 0 || ANSWER_GENERATION_STAGES.has(stage);
-}
-
-export function ragLoadingLabel(stage: RagProgressStage): string {
+function ragProgressStepIndex(stage: RagProgressStage): 0 | 1 | 2 | 3 {
   switch (stage) {
     case "QUEUED":
     case "UNDERSTANDING":
-      return "질문을 이해하는 중...";
+      return 0;
     case "SEARCHING":
-      return "관련 자료를 찾는 중...";
+      return 1;
     case "READING":
-      return "근거를 검토하는 중...";
+      return 2;
     case "COMPOSING":
     case "VERIFYING":
     case "STREAMING":
-      return "답변을 작성하는 중...";
+      return 3;
   }
 }
 
+export function ragLoadingLabel(stage: RagProgressStage): string {
+  return RAG_PROGRESS_STEPS[ragProgressStepIndex(stage)].active;
+}
+
 export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
+  const currentStep = ragProgressStepIndex(liveJob.progress.stage);
   return (
     <section aria-label="RAG 답변 생성 중" className="civic-rag-live-progress" role="status">
-      <strong aria-live="polite" className="civic-rag-loading-label">
-        {ragLoadingLabel(liveJob.progress.stage)}
-      </strong>
+      <ol className="civic-rag-progress-steps">
+        {RAG_PROGRESS_STEPS.map((step, index) => {
+          const state =
+            index < currentStep ? "completed" : index === currentStep ? "current" : "pending";
+          const label =
+            state === "completed"
+              ? step.completed
+              : state === "current"
+                ? step.active
+                : step.pending;
+          return (
+            <li
+              aria-current={state === "current" ? "step" : undefined}
+              data-state={state}
+              key={step.pending}
+            >
+              {state === "completed" ? (
+                <span aria-hidden="true" className="civic-rag-progress-completed">
+                  ✓
+                </span>
+              ) : state === "current" ? (
+                <span aria-hidden="true" className="civic-rag-loading-spinner" />
+              ) : (
+                <span aria-hidden="true" className="civic-rag-progress-placeholder" />
+              )}
+              {state === "current" ? (
+                <strong className="civic-rag-loading-label">{label}</strong>
+              ) : (
+                <span className="civic-rag-progress-label">{label}</span>
+              )}
+            </li>
+          );
+        })}
+      </ol>
     </section>
   );
 }

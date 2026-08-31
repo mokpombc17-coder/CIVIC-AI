@@ -97,7 +97,6 @@ import {
   readRagProgress,
   safeExternalSourceUrl,
   scrollRagMessagesToLatest,
-  shouldShowRagStreamingAnswer,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -851,7 +850,7 @@ describe("9 functional RAG screens", () => {
     expect(source.close).toHaveBeenCalledOnce();
   });
 
-  it("답변 생성 전에는 단계 목록 없이 현재 작업을 한 줄로 표시한다", () => {
+  it("답변 생성 전에는 완료·현재·예정 작업을 단계 목록으로 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagLiveProgress, {
         liveJob: {
@@ -869,25 +868,27 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain("관련 자료를 찾는 중...");
+    expect(html).toContain("어떤 정보가 필요한지 파악했습니다.");
+    expect(html).toContain("관련 문서를 찾는 중입니다.");
+    expect(html).toContain("문서에서 근거 확인");
+    expect(html).toContain("답변 작성");
+    expect(html).toContain("✓");
+    expect(html).toContain('class="civic-rag-loading-spinner"');
+    expect(html).toContain('aria-hidden="true"');
     expect(html).toContain("civic-rag-loading-label");
-    expect(html).not.toContain("<ol");
+    expect(html).toContain('<ol class="civic-rag-progress-steps">');
+    expect(html.match(/<li/g)).toHaveLength(4);
+    expect(html).toContain('aria-current="step" data-state="current"');
+    expect(html).toContain('data-state="completed"');
+    expect(html).toContain('data-state="pending"');
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain("관련 자료를 좁힙니다.");
     expect(html).not.toMatch(/[0-9]+초/u);
-    expect(ragLoadingLabel("QUEUED")).toBe("질문을 이해하는 중...");
-    expect(ragLoadingLabel("UNDERSTANDING")).toBe("질문을 이해하는 중...");
-    expect(ragLoadingLabel("SEARCHING")).toBe("관련 자료를 찾는 중...");
-    expect(ragLoadingLabel("READING")).toBe("근거를 검토하는 중...");
-    expect(ragLoadingLabel("COMPOSING")).toBe("답변을 작성하는 중...");
-  });
-
-  it("3단계 이후에는 빈 첫 조각을 기다리지 않고 스트리밍 답변 영역으로 전환한다", () => {
-    expect(shouldShowRagStreamingAnswer("READING", "")).toBe(false);
-    expect(shouldShowRagStreamingAnswer("COMPOSING", "")).toBe(true);
-    expect(shouldShowRagStreamingAnswer("VERIFYING", "")).toBe(true);
-    expect(shouldShowRagStreamingAnswer("STREAMING", "")).toBe(true);
-    expect(shouldShowRagStreamingAnswer("READING", "첫 답변 조각")).toBe(true);
+    expect(ragLoadingLabel("QUEUED")).toBe("어떤 정보가 필요한지 파악하는 중입니다.");
+    expect(ragLoadingLabel("UNDERSTANDING")).toBe("어떤 정보가 필요한지 파악하는 중입니다.");
+    expect(ragLoadingLabel("SEARCHING")).toBe("관련 문서를 찾는 중입니다.");
+    expect(ragLoadingLabel("READING")).toBe("문서에서 근거를 확인하는 중입니다.");
+    expect(ragLoadingLabel("COMPOSING")).toBe("근거를 바탕으로 답변을 작성하는 중입니다.");
   });
 
   it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {
@@ -2346,14 +2347,16 @@ describe("9 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
-    expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
+    expect(participantHtml).toContain(
+      '<strong class="civic-rag-intro-title">문서에서 궁금한 내용을 물어보세요.</strong>',
+    );
+    expect(participantHtml).toContain("AI가 관련 내용을 찾아 답변해 드립니다.");
     expect(participantHtml).toContain('aria-label="안내 닫기"');
-    expect(participantHtml).not.toContain('aria-label="새 질문"');
-    expect(headerActionHtml).toContain('aria-label="새 질문"');
+    expect(participantHtml).not.toContain('aria-label="새 대화"');
+    expect(headerActionHtml).toContain('aria-label="새 대화"');
     expect(headerActionHtml).toContain('aria-haspopup="dialog"');
     expect(headerActionHtml).toContain('class="civic-rag-header-new-question-action"');
-    expect(headerActionHtml).not.toContain(">새 질문</button>");
+    expect(headerActionHtml).not.toContain(">새 대화</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
