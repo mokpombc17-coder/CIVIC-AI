@@ -133,6 +133,7 @@
 
 [data-wireflow-shell="admin"] .civic-user-summary-grid .civic-detail-fallback {
   color: var(--wf-muted);
+  opacity: 0.55;
 }
 
 .console-toolbar {
