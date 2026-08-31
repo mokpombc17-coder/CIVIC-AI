@@ -1,3 +1,8 @@
+.surface,
+.voteHeader {
+  font-family: var(--font-pretendard), Pretendard, Inter, sans-serif;
+}
+
 .surface {
   --vote-text: #121417;
   --vote-muted: #59616b;
@@ -8,11 +13,14 @@
   --vote-disabled: #e5e8eb;
   min-height: 100%;
   color: var(--vote-text);
-  font-family: var(--font-pretendard), Pretendard, Inter, sans-serif;
 }
 
 .voteHeader {
   --platform-shell-header-height: 64px;
+}
+
+.voteHeaderTall {
+  --platform-shell-header-height: 69px;
 }
 
 .voteContent {
@@ -463,6 +471,17 @@
   font-weight: 700;
 }
 
+.overviewInfoCard .infoRow dt {
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+}
+
+.overviewInfoCard .infoRow dd {
+  font-size: 14px;
+  line-height: 18.9px;
+}
+
 .overviewOptions {
   display: grid;
   gap: 10px;
@@ -496,6 +515,8 @@
   background: var(--vote-soft);
   padding: 0 4px;
   color: var(--vote-primary-emphasis);
+  font-size: 11px;
+  line-height: 16.5px;
 }
 
 .overviewOption strong,
@@ -510,6 +531,11 @@
   text-align: left;
 }
 
+.overviewOption strong {
+  font-size: 17px;
+  line-height: 23.8px;
+}
+
 .compactPrimaryButton,
 .fullPrimaryButton,
 .fullSecondaryButton {
@@ -519,8 +545,9 @@
   justify-content: center;
   border-radius: 6px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 700;
+  line-height: 20px;
   text-decoration: none;
 }
 
@@ -864,11 +891,23 @@
   padding: 18px 16px;
 }
 
+.confirmCard span {
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 19.5px;
+}
+
+.confirmCard strong {
+  font-size: 16px;
+  line-height: 24px;
+}
+
 .confirmNotice {
   margin: 0;
-  color: var(--vote-muted);
-  font-size: 13px;
-  line-height: 20px;
+  color: var(--vote-text);
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 21px;
 }
 
 .submissionError {

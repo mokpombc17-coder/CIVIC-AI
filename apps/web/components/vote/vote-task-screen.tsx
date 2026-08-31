@@ -228,7 +228,14 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       header={
         <PlatformHeader
           backAction={backAction}
-          className={styles.voteHeader!}
+          className={[
+            styles.voteHeader,
+            !isViewingSubmittedResponse && (step === 1 || step === 3)
+              ? styles.voteHeaderTall
+              : undefined,
+          ]
+            .filter(Boolean)
+            .join(" ")}
           leading={step === 4 ? null : undefined}
           title={isViewingSubmittedResponse ? "응답 보기" : "투표 참여하기"}
         />
@@ -540,7 +547,7 @@ function TaskOverview({
     <div className={styles.flowBody}>
       <section className={styles.flowSection}>
         <h2 className={styles.sectionTitle}>주제</h2>
-        <dl className={styles.infoCard}>
+        <dl className={`${styles.infoCard} ${styles.overviewInfoCard}`}>
           <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
           <InfoRow label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
@@ -863,7 +870,9 @@ function ResponseConfirmation({
         <strong>{reason}</strong>
       </section>
       <p className={styles.confirmNotice}>
-        제출한 응답은 수정할 수 없습니다. 내용을 다시 한번 확인해 주세요.
+        제출한 응답은 수정할 수 없습니다.
+        <br />
+        내용을 다시 한번 확인해 주세요.
       </p>
       {errorMessage ? (
         <p aria-live="polite" className={styles.submissionError} role="alert">
