@@ -97,7 +97,7 @@ export type HomeAttentionSimulation = Readonly<{
 }>;
 export type HomeAttentionSimulationState =
   | { status: "loading" }
-  | { status: "ready"; items: readonly HomeAttentionSimulation[] }
+  | { status: "ready"; count: number; items: readonly HomeAttentionSimulation[] }
   | { status: "unavailable" }
   | { status: "forbidden" };
 export type SimulationWalletMetricState =
@@ -339,10 +339,14 @@ export function AdminHome({
         {attentionItems.length > 0 ? (
           <HomeSection
             action={
-              <Link className="civic-home-section-action" href="/admin/simulations">
-                시뮬레이션
+              <Link
+                className="civic-home-section-action civic-home-section-action--dark"
+                href="/admin/simulations"
+              >
+                전체 보기
               </Link>
             }
+            countLabel={`${attentionSimulations.status === "ready" ? attentionSimulations.count : attentionItems.length}건`}
             title="확인 필요 시뮬레이션"
           >
             {attentionItems.map((item) => (
@@ -368,15 +372,39 @@ export function pendingAgeLabel(requestedAt: string, now = Date.now()): string {
   return days >= 2 ? ` · ${days}일째 대기` : "";
 }
 
+export function formatAdminHomeDate(value?: string | null, now = new Date()): string {
+  if (!value) return formatAdminDate(value);
+  const date = new Date(value);
+  if (Number.isNaN(date.valueOf())) return formatAdminDate(value);
+
+  const yearFormatter = new Intl.DateTimeFormat("ko-KR", {
+    year: "numeric",
+    timeZone: "Asia/Seoul",
+  });
+  if (yearFormatter.format(date) !== yearFormatter.format(now)) return formatAdminDate(value);
+
+  return new Intl.DateTimeFormat("ko-KR", {
+    month: "numeric",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZone: "Asia/Seoul",
+  }).format(date);
+}
+
 function HomeSection({
   title,
   action,
   children,
-}: Readonly<{ title: string; action?: ReactNode; children: ReactNode }>) {
+  countLabel,
+}: Readonly<{ title: string; action?: ReactNode; children: ReactNode; countLabel?: string }>) {
   return (
     <section aria-label={title} className="civic-home-section">
       <header className="civic-home-section-header">
-        <h2>{title}</h2>
+        <h2>
+          {title}
+          {countLabel ? <span className="civic-home-section-count">{countLabel}</span> : null}
+        </h2>
         {action ?? null}
       </header>
       <ul className="civic-home-list">{children}</ul>
@@ -406,10 +434,18 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
   return (
     <section aria-labelledby="civic-pending-chat-requests-title" className="civic-home-section">
       <header className="civic-home-section-header">
-        <h2 id="civic-pending-chat-requests-title">토론방 승인 대기</h2>
+        <h2 id="civic-pending-chat-requests-title">
+          토론방 승인 대기
+          {state.status === "ready" ? (
+            <span className="civic-home-section-count">{metricCount(state)}</span>
+          ) : null}
+        </h2>
         {state.status !== "forbidden" ? (
-          <Link className="civic-home-section-action" href="/admin/chat/requests">
-            전체 목록
+          <Link
+            className="civic-home-section-action civic-home-section-action--dark"
+            href="/admin/chat/requests"
+          >
+            전체 보기
           </Link>
         ) : null}
       </header>
@@ -441,7 +477,7 @@ export function AdminPendingChatRequests({ state }: Readonly<{ state: ChatReques
                 <strong>{item.name}</strong>
                 <small>
                   {adminUserLabel(state.labels, item.requesterUserId)} ·{" "}
-                  {formatAdminDate(item.requestedAt)}
+                  {formatAdminHomeDate(item.requestedAt)}
                   {pendingAgeLabel(item.requestedAt)}
                 </small>
               </div>
@@ -688,23 +724,25 @@ export async function loadAttentionSimulations(
     if (!response.ok) return { status: "unavailable" };
     const tasks = readSimulationTaskSummaries(await response.json());
     if (!tasks) return { status: "unavailable" };
-    const items = tasks
-      .flatMap((task): readonly HomeAttentionSimulation[] => {
-        const latest = task.latestSimulation;
-        if (!latest) return [];
-        const presentation = simulationTargetPresentation(latest.state);
-        if (presentation.tone !== "attention") return [];
-        return [
-          {
-            taskId: task.taskId,
-            title: task.title,
-            stateLabel: presentation.label,
-            href: simulationTargetHref(task.taskId, latest),
-          },
-        ];
-      })
-      .slice(0, 3);
-    return { status: "ready", items };
+    const attentionItems = tasks.flatMap((task): readonly HomeAttentionSimulation[] => {
+      const latest = task.latestSimulation;
+      if (!latest) return [];
+      const presentation = simulationTargetPresentation(latest.state);
+      if (presentation.tone !== "attention") return [];
+      return [
+        {
+          taskId: task.taskId,
+          title: task.title,
+          stateLabel: presentation.label,
+          href: simulationTargetHref(task.taskId, latest),
+        },
+      ];
+    });
+    return {
+      status: "ready",
+      count: attentionItems.length,
+      items: attentionItems.slice(0, 3),
+    };
   } catch {
     return { status: "unavailable" };
   }

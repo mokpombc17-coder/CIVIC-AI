@@ -6,11 +6,11 @@ export function RagNewQuestionHeaderAction({ disabled = false }: Readonly<{ disa
   return (
     <button
       aria-haspopup="dialog"
-      aria-label="새 질문"
+      aria-label="새 대화"
       className="civic-rag-header-new-question-action"
       disabled={disabled}
       onClick={() => window.dispatchEvent(new Event(RAG_NEW_QUESTION_REQUEST_EVENT))}
-      title="새 질문"
+      title="새 대화"
       type="button"
     >
       <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">

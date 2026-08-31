@@ -709,12 +709,23 @@
   color: var(--wf-ink);
 }
 
+.civic-home-section-count {
+  margin-left: 6px;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
 .civic-home-section-action {
   font-size: 12px;
   font-weight: 600;
   color: var(--wf-blue-dark);
   text-decoration: none;
   white-space: nowrap;
+}
+
+.civic-home-section-action--dark {
+  color: var(--wf-ink);
 }
 
 .civic-home-list {
