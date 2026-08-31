@@ -3,7 +3,7 @@ import type { RoomCategorySummary } from "@/lib/chat/chat-room-contracts";
 
 const CATEGORY_GAP_PX = 4;
 const CATEGORY_BADGE_CLASS_NAME =
-  "max-w-28 truncate rounded-full bg-[var(--chat-publishing-color-accent-soft)] px-2 py-0.5 text-xs font-bold leading-4 text-[var(--chat-publishing-color-primary-emphasis)]";
+  "max-w-28 truncate rounded-[4px] bg-[var(--chat-publishing-color-accent-soft)] px-1.5 py-0.5 text-xs font-bold leading-[18px] text-[var(--chat-publishing-color-primary-emphasis)]";
 const HIDDEN_COUNT_CLASS_NAME =
   "shrink-0 text-xs font-medium text-[var(--chat-publishing-color-muted)]";
 

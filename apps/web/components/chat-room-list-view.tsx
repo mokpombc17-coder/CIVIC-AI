@@ -432,7 +432,11 @@ function RoomListNotice({
       data-chat-room-list-empty-variant={variant}
     >
       {isIllustrated ? (
-        <div className="grid justify-items-center gap-1.5">
+        <div
+          className={`grid justify-items-center gap-1.5 ${
+            variant === "no-available-rooms" ? "-translate-y-6" : ""
+          }`}
+        >
           <span
             aria-hidden="true"
             className="mb-2 flex size-10 items-center justify-center rounded-full bg-[var(--chat-publishing-color-primary)] text-xl font-bold text-white shadow-sm"

@@ -39,9 +39,10 @@ describe("chat room list publishing layout", () => {
     expect(filterIndex).toBeLessThan(participatingRoomsIndex);
     expect(participatingRoomsIndex).toBeLessThan(publicRoomSearchIndex);
     expect(publicRoomSearchIndex).toBeLessThan(availableRoomsIndex);
-    expect(html).toContain("지금 참여할 수 있는 방이 없어요");
+    expect(html).toContain("현재 참여 가능한 방이 없어요");
     expect(html).toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
     expect(html).toContain('data-chat-room-list-empty-variant="no-available-rooms"');
+    expect(html).toContain("-translate-y-6");
     expect(html.match(/data-chat-room-list-state="empty"/g)).toHaveLength(2);
     expect(emptyStateClassNames).toHaveLength(2);
     expect(emptyStateClassNames).toEqual(
@@ -72,7 +73,7 @@ describe("chat room list publishing layout", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, "기후");
 
     expect(html).toContain("검색 결과가 없어요");
-    expect(html).not.toContain("지금 참여할 수 있는 방이 없어요");
+    expect(html).not.toContain("현재 참여 가능한 방이 없어요");
     expect(html).not.toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
   });
 

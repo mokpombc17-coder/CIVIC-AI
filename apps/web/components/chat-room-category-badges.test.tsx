@@ -20,6 +20,10 @@ describe("ChatRoomCategoryBadges", () => {
     expect(html).toContain('aria-label="카테고리: 정책, 환경"');
     expect(html).toContain("정책");
     expect(html).toContain("외 1");
+    expect(html).toContain("rounded-[4px]");
+    expect(html).toContain("px-1.5 py-0.5");
+    expect(html).toContain("leading-[18px]");
+    expect(html).not.toContain("rounded-full");
   });
 
   it("표시 개수를 늘리면 상세 화면에서 전체 카테고리를 노출한다", () => {
