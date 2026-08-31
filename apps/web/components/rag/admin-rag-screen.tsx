@@ -406,6 +406,7 @@ export function AdminRagScreen({
             documentQuery,
           )}
           document={inspected.document}
+          onBulk={runBulk}
           onClose={() => setDocumentSelection(undefined)}
           version={inspected.version}
         />
@@ -905,12 +906,14 @@ export function DocumentInspector({
   creatorLabel,
   deleteHref,
   document,
+  onBulk,
   onClose,
   version,
 }: Readonly<{
   creatorLabel: string;
   deleteHref?: Route;
   document: RagDocument;
+  onBulk?: (input: RagBulkActionInput) => void | Promise<void>;
   onClose: () => void;
   version: DocumentVersion | null;
 }>) {
@@ -923,6 +926,9 @@ export function DocumentInspector({
     : undefined;
   const previewHref = version
     ? `/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(version.document_version_id)}/preview?disposition=inline`
+    : undefined;
+  const newVersionHref = version
+    ? (`/admin/rag/upload?folderId=${encodeURIComponent(document.folder_id)}&mode=NEW_VERSION&documentId=${encodeURIComponent(document.document_id)}&versionId=${encodeURIComponent(version.document_version_id)}` as Route)
     : undefined;
   return (
     <ConsoleDrawer ariaLabel={`${filename} 문서 미리보기`} onClose={onClose} open>
@@ -1009,6 +1015,39 @@ export function DocumentInspector({
             <AuthenticatedDownloadLink className="civic-secondary-action" href={originalHref}>
               원본 열기
             </AuthenticatedDownloadLink>
+          ) : null}
+          {newVersionHref ? (
+            <Link className="civic-secondary-action" href={newVersionHref}>
+              새 버전
+            </Link>
+          ) : null}
+          {onBulk ? (
+            <button
+              className="civic-secondary-action"
+              onClick={() =>
+                void onBulk({ action: "REINDEX", documentIds: [document.document_id] })
+              }
+              type="button"
+            >
+              다시 처리
+            </button>
+          ) : null}
+          {onBulk ? (
+            <label className="civic-secondary-action civic-inspector-search-toggle">
+              <input
+                aria-label={`${filename} 검색에서 제외`}
+                checked={document.search_enabled === false}
+                onChange={(event) =>
+                  void onBulk({
+                    action: "SET_SEARCH_ENABLED",
+                    documentIds: [document.document_id],
+                    searchEnabled: searchEnabledFromExcluded(event.target.checked),
+                  })
+                }
+                type="checkbox"
+              />
+              <span>검색에서 제외</span>
+            </label>
           ) : null}
           <Link className="civic-danger-action" href={resolvedDeleteHref}>
             문서 삭제
@@ -1141,7 +1180,7 @@ export function DocumentWorkspace({
           value={searchInput}
         />
         <label>
-          <span>처리 상태</span>
+          <span>검색 준비 상태</span>
           <select
             onChange={(event) => {
               const next = event.target.value as DocumentStatusFilter;
@@ -1230,7 +1269,7 @@ export function DocumentWorkspace({
             onClick={() => submitBulk({ action: "REINDEX" })}
             type="button"
           >
-            선택 문서 재색인
+            선택 문서 다시 처리
           </button>
           <button
             className="civic-danger-action"
@@ -1253,7 +1292,7 @@ export function DocumentWorkspace({
             onChange={(event) => setMoveFolderId(event.target.value)}
             value={moveFolderId}
           >
-            <option value="">이동할 폴더 선택</option>
+            <option value="">이동할 폴더</option>
             {folders
               .filter((candidate) => candidate.folder_id !== folder?.folder_id)
               .map((candidate) => (
@@ -1294,7 +1333,7 @@ export function DocumentWorkspace({
       ) : visibleDocuments.length === 0 ? (
         <div className="civic-admin-empty">
           <strong>검색 조건에 맞는 문서가 없습니다.</strong>
-          <p>문서명 또는 처리 상태를 변경해 다시 확인해 주세요.</p>
+          <p>문서명 또는 검색 준비 상태를 변경해 다시 확인해 주세요.</p>
         </div>
       ) : (
         <div aria-label="문서 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
@@ -1316,6 +1355,8 @@ export function DocumentWorkspace({
                   />
                 </th>
                 <th>문서명</th>
+                <th>페이지</th>
+                <th>검색 준비 상태</th>
                 <th>등록자</th>
                 <th aria-sort={sortDirection === "desc" ? "descending" : "ascending"}>
                   <button
@@ -1334,20 +1375,12 @@ export function DocumentWorkspace({
                     등록일 {sortDirection === "desc" ? "↓" : "↑"}
                   </button>
                 </th>
-                <th>페이지</th>
-                <th>처리 상태</th>
                 <th>버전</th>
-                <th>작업</th>
               </tr>
             </thead>
             <tbody>
               {visibleDocuments.map((document) => (
                 <DocumentRow
-                  deleteHref={ragDocumentDeleteHref(
-                    folder?.folder_id ?? document.folder_id,
-                    document.document_id,
-                    retainedQuery,
-                  )}
                   document={document}
                   folder={folder}
                   creatorLabel={adminUserLabel(creatorLabels, document.created_by)}
@@ -1361,7 +1394,6 @@ export function DocumentWorkspace({
                       return next;
                     })
                   }
-                  {...(onBulk ? { onBulk } : {})}
                   onInspect={onInspect}
                   selected={document.document_id === selectedDocumentId}
                 />
@@ -1436,23 +1468,19 @@ export function filterRagDocuments(
 }
 
 function DocumentRow({
-  deleteHref,
   document,
   folder,
   creatorLabel,
   checked,
   onCheckedChange,
-  onBulk,
   onInspect,
   selected,
 }: Readonly<{
-  deleteHref: Route;
   document: RagDocument;
   folder: Folder | undefined;
   creatorLabel: string;
   checked: boolean;
   onCheckedChange: (checked: boolean) => void;
-  onBulk?: (input: RagBulkActionInput) => void | Promise<void>;
   onInspect: (document: RagDocument, version: DocumentVersion | null) => void;
   selected: boolean;
 }>) {
@@ -1489,7 +1517,25 @@ function DocumentRow({
   }
 
   return (
-    <tr aria-selected={selected}>
+    <tr
+      aria-label={`${filename} 미리보기`}
+      aria-selected={selected}
+      className="civic-document-row"
+      onClick={(event) => {
+        if (
+          event.target instanceof Element &&
+          event.target.closest("a, button, input, select, textarea, label, details, summary")
+        )
+          return;
+        onInspect(document, selectedVersion);
+      }}
+      onKeyDown={(event) => {
+        if (event.target !== event.currentTarget || !["Enter", " "].includes(event.key)) return;
+        event.preventDefault();
+        onInspect(document, selectedVersion);
+      }}
+      tabIndex={0}
+    >
       <td>
         <input
           aria-label={`${filename} 선택`}
@@ -1510,8 +1556,6 @@ function DocumentRow({
           </span>
         </span>
       </td>
-      <td>{creatorLabel}</td>
-      <td>{formatAdminDate(document.created_at)}</td>
       <td>{formatPageCount(selectedVersion?.page_count)}</td>
       <td>
         {selectedVersion?.job_id ? (
@@ -1532,6 +1576,8 @@ function DocumentRow({
           <span className="civic-search-toggle">검색에서 제외</span>
         ) : null}
       </td>
+      <td>{creatorLabel}</td>
+      <td>{formatAdminDate(document.created_at)}</td>
       <td>
         {(activeVersion?.version_number ?? 1) <= 1 && displayVersions.length <= 1 ? (
           <span className="civic-version-single">v{activeVersion?.version_number ?? 1}</span>
@@ -1558,61 +1604,6 @@ function DocumentRow({
           </select>
         )}
         {versionLoadMessage ? <small role="status">{versionLoadMessage}</small> : null}
-      </td>
-      <td>
-        <div className="civic-row-actions">
-          <button
-            className="civic-text-action"
-            onClick={() => onInspect(document, selectedVersion)}
-            type="button"
-          >
-            미리보기
-          </button>
-          <details className="civic-row-menu">
-            <summary aria-label={`${filename} 추가 작업`}>⋯</summary>
-            <div className="civic-row-menu-list" role="menu">
-              {selectedVersionId ? (
-                <AuthenticatedDownloadLink
-                  href={`/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(selectedVersionId)}/original`}
-                >
-                  원본 내려받기
-                </AuthenticatedDownloadLink>
-              ) : null}
-              <Link
-                href={`/admin/rag/upload?folderId=${encodeURIComponent(folder?.folder_id ?? document.folder_id)}&mode=NEW_VERSION&documentId=${encodeURIComponent(document.document_id)}&versionId=${encodeURIComponent(selectedVersionId)}`}
-              >
-                새 버전
-              </Link>
-              <button
-                onClick={(event) => {
-                  event.currentTarget.closest("details")?.removeAttribute("open");
-                  void onBulk?.({ action: "REINDEX", documentIds: [document.document_id] });
-                }}
-                type="button"
-              >
-                재색인
-              </button>
-              <label className="civic-search-toggle">
-                <input
-                  aria-label={`${filename} 검색에서 제외`}
-                  checked={document.search_enabled === false}
-                  onChange={(event) =>
-                    void onBulk?.({
-                      action: "SET_SEARCH_ENABLED",
-                      documentIds: [document.document_id],
-                      searchEnabled: searchEnabledFromExcluded(event.target.checked),
-                    })
-                  }
-                  type="checkbox"
-                />
-                <span>검색에서 제외</span>
-              </label>
-              <Link className="is-danger" href={deleteHref}>
-                문서 삭제
-              </Link>
-            </div>
-          </details>
-        </div>
       </td>
     </tr>
   );

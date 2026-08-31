@@ -3687,6 +3687,22 @@ body {
   background: #f8fbff;
 }
 
+[data-wireflow-screen^="A-RAG"] .civic-document-row {
+  cursor: pointer;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-document-row:focus-visible {
+  outline: none;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-document-row:focus-visible td {
+  background: #eef5ff;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-document-row:focus-visible td:first-child {
+  box-shadow: inset 3px 0 var(--wf-blue);
+}
+
 [data-wireflow-screen^="A-RAG"] .civic-row-actions {
   min-width: 110px;
   align-items: center;
@@ -3829,6 +3845,12 @@ body {
 .civic-document-drawer-layer .wf-inspector-actions {
   grid-template-columns: repeat(3, minmax(0, 1fr));
   margin-top: 0;
+}
+
+.civic-document-drawer-layer .civic-inspector-search-toggle {
+  justify-content: center;
+  margin-top: 0;
+  cursor: pointer;
 }
 
 @media (max-width: 900px) {
