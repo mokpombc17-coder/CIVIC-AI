@@ -380,6 +380,7 @@ describe("9 functional RAG screens", () => {
           deleted: false,
           active_version: null,
         },
+        onBulk: vi.fn(),
         onClose: vi.fn(),
         version: {
           document_version_id: versionId,
@@ -409,6 +410,12 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
     expect(html).toContain("처리 완료");
+    expect(html).toContain("다운로드");
+    expect(html).not.toContain("원본 열기");
+    expect(html).toContain("새 버전");
+    expect(html).toContain("다시 처리");
+    expect(html).toContain("검색에서 제외");
+    expect(html).toContain("문서 삭제");
     const text = renderedText(html);
     expect(text).not.toContain(documentId);
     expect(text).not.toContain(versionId);
@@ -535,7 +542,7 @@ describe("9 functional RAG screens", () => {
     );
   });
 
-  it("문서 목록은 UUID 대신 등록자 이메일·등록일·페이지 수·파일 크기를 표시한다", () => {
+  it("문서 목록은 행 미리보기와 핵심 정보 뒤의 등록 정보·버전을 제공한다", () => {
     const documentId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
@@ -581,14 +588,25 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
-    expect(html).toContain("미리보기");
-    expect(html).toContain("문서 삭제");
-    expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(3);
+    expect(html).toContain('aria-label="시민참여 정책.pdf 미리보기"');
+    expect(html).toContain('class="civic-document-row"');
+    expect(html).toContain('tabindex="0"');
+    expect(html).toContain("검색 준비 상태");
+    expect(html).not.toContain("<th>작업</th>");
+    expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(2);
     expect(html).not.toContain("검색 사용");
     expect(html).not.toContain("검색 제외");
-    expect(html).toContain(
-      "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
-    );
+    const documentNameColumn = html.indexOf("<th>문서명</th>");
+    const pageColumn = html.indexOf("<th>페이지</th>");
+    const statusColumn = html.indexOf("<th>검색 준비 상태</th>");
+    const creatorColumn = html.indexOf("<th>등록자</th>");
+    const createdAtColumn = html.indexOf("등록일 ");
+    const versionColumn = html.indexOf("<th>버전</th>");
+    expect(documentNameColumn).toBeLessThan(pageColumn);
+    expect(pageColumn).toBeLessThan(statusColumn);
+    expect(statusColumn).toBeLessThan(creatorColumn);
+    expect(creatorColumn).toBeLessThan(createdAtColumn);
+    expect(createdAtColumn).toBeLessThan(versionColumn);
     const text = renderedText(html);
     expect(text).not.toContain(documentId);
     expect(text).not.toContain(creatorId);
@@ -609,7 +627,8 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("하위 폴더 포함");
     expect(html).toContain("문서 목록 페이지당 표시 개수");
-    expect(html).toContain("선택 문서 재색인");
+    expect(html).toContain("선택 문서 다시 처리");
+    expect(html).toContain("이동할 폴더");
     expect(html).toContain("선택 문서 이동");
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");

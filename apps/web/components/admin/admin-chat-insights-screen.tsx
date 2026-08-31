@@ -56,7 +56,7 @@ export function chatInsightsPath(tab: ChatInsightsTab, roomId: string | null): s
 }
 
 const INSIGHTS_TABS: readonly ConsoleTabItem[] = [
-  { id: "analysis", label: "대화 분석" },
+  { id: "analysis", label: "대화 내역" },
   { id: "statistics", label: "통계" },
 ];
 const EMPTY_AUTHOR_EMAIL_LABELS: ReadonlyMap<string, string> = new Map();
@@ -495,7 +495,7 @@ export function AdminChatInsightsScreen({
             ) : null}
           </ConsolePane>
 
-          <section aria-label="대화 분석" className={`${styles.analysisPanel} console-pane`}>
+          <section aria-label="대화 내역" className={`${styles.analysisPanel} console-pane`}>
             <ConsoleTabs
               activeId={tab}
               ariaLabel="분석 보기 탭"
@@ -527,10 +527,10 @@ export function AdminChatInsightsScreen({
             {analyzing ? (
               <p aria-live="polite" className={styles.statusMessage} role="status">
                 {analysisRetryCount > 0
-                  ? `대화 분석 서버의 응답을 기다리며 자동 재시도하고 있습니다. (${analysisRetryCount}번째)`
+                  ? `대화 내역을 불러오는 서버의 응답을 기다리며 자동 재시도하고 있습니다. (${analysisRetryCount}번째)`
                   : analysisPeriod === "all"
-                    ? "전체 기간의 대화를 자동으로 분석하고 있습니다."
-                    : "선택한 기간의 대화를 자동으로 분석하고 있습니다."}
+                    ? "전체 기간의 대화 내역을 불러오고 있습니다."
+                    : "선택한 기간의 대화 내역을 불러오고 있습니다."}
               </p>
             ) : null}
             {!analyzing && (customRangeInvalid || analysisMessage) ? (
@@ -656,7 +656,7 @@ function AnalysisRangeControls({
       ) : null}
       {period === "custom" ? <p>입력한 시각은 현재 기기 시간대 기준입니다.</p> : null}
       <span className="sr-only" aria-live="polite">
-        {analyzing ? "대화 분석 중" : ""}
+        {analyzing ? "대화 내역 불러오는 중" : ""}
       </span>
     </section>
   );
@@ -696,7 +696,7 @@ function RoomOperationSettings({
   );
 }
 
-function AnalysisResult({
+export function AnalysisResult({
   analysis,
   archiveReady,
   authorEmailLabels,
@@ -756,7 +756,7 @@ function SnapshotHeader({
           onClick={onDownload}
           type="button"
         >
-          대화 원본 내려받기
+          대화 내역 다운로드
         </button>
       </div>
     </section>
@@ -800,7 +800,9 @@ function ConversationDetail({
                 <time dateTime={message.createdAt}>{formatKoreanDate(message.createdAt)}</time>
                 {message.deleted ? <span>삭제됨</span> : null}
               </div>
-              <p>{message.content ?? "본문이 Export에 포함되지 않았습니다."}</p>
+              <p className={styles.messageBubble} data-chat-message-bubble="true">
+                {message.content ?? "본문이 Export에 포함되지 않았습니다."}
+              </p>
             </li>
           ))}
         </ol>
@@ -900,11 +902,11 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
   return (
     <section className={styles.empty}>
       <span aria-hidden="true">↗</span>
-      <h2>{selected ? "대화 분석을 준비하고 있습니다" : "목록에서 토론방을 선택하세요."}</h2>
+      <h2>{selected ? "대화 내역을 준비하고 있습니다" : "목록에서 토론방을 선택하세요."}</h2>
       <p>
         {selected
           ? "전체 기간 대화를 불러와 분석 결과를 자동으로 표시합니다."
-          : "토론방을 선택하면 대화 분석이 시작됩니다."}
+          : "토론방을 선택하면 대화 내역을 불러옵니다."}
       </p>
     </section>
   );

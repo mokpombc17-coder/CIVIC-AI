@@ -3,21 +3,25 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   AdminChatInsightsScreen,
+  AnalysisResult,
   ChatStatisticsSummary,
   chatInsightsPath,
   chatInsightsTabForScreen,
   conversationAuthorBuckets,
   resolveConversationAnalysisRange,
 } from "@/components/admin/admin-chat-insights-screen";
-import type { ConversationExportMetrics } from "@/lib/chat/conversation-export";
+import type {
+  ConversationExportAnalysis,
+  ConversationExportMetrics,
+} from "@/lib/chat/conversation-export";
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("admin chat conversation insights", () => {
   it.each([
-    ["A-CHAT-001", "토론방 운영", "대화 분석"],
-    ["A-CHAT-002", "토론방 상세", "대화 분석"],
+    ["A-CHAT-001", "토론방 운영", "대화 내역"],
+    ["A-CHAT-002", "토론방 상세", "대화 내역"],
     ["A-CHAT-008", "채팅 통계", "통계"],
-    ["A-CHAT-009", "토론방 운영", "대화 분석"],
+    ["A-CHAT-009", "토론방 운영", "대화 내역"],
   ])("%s 화면에서 방 선택 중심의 자동 분석 흐름을 제공한다", (screenId, title, activeTab) => {
     const screen = screenRegistry.find((candidate) => candidate.id === screenId);
     expect(screen?.status).toBe("FUNCTIONAL");
@@ -32,6 +36,8 @@ describe("admin chat conversation insights", () => {
     expect(html).not.toContain("운영 상태와 대화 맥락을 함께 확인합니다");
     expect(html).not.toContain('aria-label="토론방 운영 메뉴"');
     expect(html).toContain('aria-label="토론방 운영 섹션"');
+    expect(html).toContain(">현황</a>");
+    expect(html).not.toContain(">토론방</a>");
     expect(html).toContain('aria-label="분석 보기 탭"');
     expect(html).toMatch(
       new RegExp(`<button aria-selected="true"[^>]*class="console-tab"[^>]*>${activeTab}</button>`),
@@ -57,6 +63,55 @@ describe("admin chat conversation insights", () => {
     expect(chatInsightsPath("statistics", null)).toBe("/admin/chat/statistics");
     expect(chatInsightsPath("analysis", "room-1")).toBe("/admin/chat?roomId=room-1");
     expect(chatInsightsPath("statistics", "room 1")).toBe("/admin/chat/statistics?roomId=room%201");
+  });
+
+  it("대화 내역은 다운로드 행동과 말풍선 형태의 메시지를 제공한다", () => {
+    const metrics: ConversationExportMetrics = {
+      totalMessages: 1,
+      retainedMessages: 1,
+      deletedMessages: 0,
+      authorCount: 1,
+      editedMessages: 0,
+      editRate: 0,
+      deletionRate: 0,
+      events: { created: 1, updated: 0, deleted: 0 },
+      authors: [],
+      hourly: [],
+      daily: [],
+      keywords: [],
+      sentiment: { positive: 0, neutral: 1, negative: 0 },
+      topics: [],
+    };
+    const analysis = {
+      manifest: { roomName: "시민 정책 토론방", roomDescription: "정책 의견을 나눕니다." },
+      messages: [
+        {
+          messageSequence: 1,
+          userId: "user-1",
+          content: "첫 번째 의견입니다.",
+          createdAt: "2026-08-30T00:00:00Z",
+          deleted: false,
+        },
+      ],
+      metrics,
+      warnings: [],
+    } as unknown as ConversationExportAnalysis;
+
+    const html = renderToStaticMarkup(
+      <AnalysisResult
+        analysis={analysis}
+        archiveReady
+        authorEmailLabels={new Map([["user-1", "alpha@civic.test"]])}
+        onDownload={() => undefined}
+        tab="analysis"
+      />,
+    );
+
+    expect(html).toContain("대화 내역 다운로드");
+    expect(html).not.toContain("대화 원본 내려받기");
+    expect(html).toContain('data-chat-message-bubble="true"');
+    expect(html).toContain("첫 번째 의견입니다.");
+    expect(html).toContain("alpha@civic.test");
   });
 
   it("전체 기간은 토론방 개설 시각부터 현재까지로 계산한다", () => {

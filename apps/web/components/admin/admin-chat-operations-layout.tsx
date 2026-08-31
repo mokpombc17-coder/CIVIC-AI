@@ -6,10 +6,10 @@ import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 import styles from "./admin-chat-operations-layout.module.css";
 
-// 토론방 운영은 사이드바에서 단일 메뉴이고, 토론방·개설 신청·카테고리 전환은
+// 토론방 운영은 사이드바에서 단일 메뉴이고, 현황·개설 신청·카테고리 전환은
 // 워크스페이스 상단의 섹션 탭으로 한 화면 안에서 이루어진다.
 const CHAT_SECTIONS = [
-  { href: "/admin/chat" as Route, label: "토론방" },
+  { href: "/admin/chat" as Route, label: "현황" },
   { href: "/admin/chat/requests" as Route, label: "개설 신청" },
   { href: "/admin/chat/categories" as Route, label: "카테고리" },
 ] as const;
