@@ -276,7 +276,7 @@ export function MyRoomCard({
         <span className="sr-only">{room.name} 채팅방 입장</span>
       </Link>
       <span className="pointer-events-none relative z-[1] min-w-0 flex-1">
-        <ChatRoomCategoryBadges categories={room.categorySummaries} />
+        <ChatRoomCategoryBadges categories={room.categorySummaries} fitAvailableWidth />
         <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
           {room.name}
         </strong>
@@ -342,7 +342,7 @@ function RoomSummary({ room }: { room: PublicRoomListItem }) {
 
   return (
     <span className="min-w-0 flex-1">
-      <ChatRoomCategoryBadges categories={room.categorySummaries} />
+      <ChatRoomCategoryBadges categories={room.categorySummaries} fitAvailableWidth />
       <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
         {room.name}
       </strong>
