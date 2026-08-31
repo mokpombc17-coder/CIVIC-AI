@@ -410,6 +410,8 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
     expect(html).toContain("처리 완료");
+    expect(html).toContain("다운로드");
+    expect(html).not.toContain("원본 열기");
     expect(html).toContain("새 버전");
     expect(html).toContain("다시 처리");
     expect(html).toContain("검색에서 제외");

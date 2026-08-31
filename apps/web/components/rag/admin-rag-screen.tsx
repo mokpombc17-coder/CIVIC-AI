@@ -951,7 +951,7 @@ export function DocumentInspector({
         ) : (
           <div className="civic-document-preview-empty">
             <strong>브라우저 미리보기를 지원하지 않는 형식입니다.</strong>
-            <p>원본 열기를 이용해 문서를 확인하세요.</p>
+            <p>다운로드를 이용해 문서를 확인하세요.</p>
           </div>
         )}
         <dl>
@@ -1013,7 +1013,7 @@ export function DocumentInspector({
           </Link>
           {originalHref ? (
             <AuthenticatedDownloadLink className="civic-secondary-action" href={originalHref}>
-              원본 열기
+              다운로드
             </AuthenticatedDownloadLink>
           ) : null}
           {newVersionHref ? (
