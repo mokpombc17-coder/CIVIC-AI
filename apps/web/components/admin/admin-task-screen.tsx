@@ -693,7 +693,7 @@ function TaskOverviewTab({
             ) : null}
             {canReadTaskResult(task) ? (
               <button
-                className="wf-button wf-button-secondary"
+                className="wf-button wf-button-secondary civic-task-results-action"
                 onClick={onOpenResults}
                 type="button"
               >
@@ -938,7 +938,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
           className="civic-primary-action"
           href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
         >
-          상세 결과 내려받기
+          결과 다운로드
         </AuthenticatedDownloadLink>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
@@ -949,8 +949,6 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
 function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
   return (
     <div aria-label="과업 요약" className="civic-user-summary-grid" role="group">
-      <Detail label="과업" value={task.title} />
-      <Detail label="현재 상태" value={taskStatusLabel(task.status)} />
       <Detail label="시작" value={formatDate(task.openedAt ?? task.schedule?.opensAt ?? null)} />
       <Detail label="마감" value={formatDate(task.schedule?.closesAt ?? task.closedAt)} />
       <Detail label="종료 유형" value={closureLabel(task.closureType)} />
