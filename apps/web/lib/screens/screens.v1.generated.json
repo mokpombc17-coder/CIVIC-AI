@@ -185,7 +185,7 @@
       "id": "U-VOTE-001",
       "canonical_title": "과업 목록",
       "audience": "PARTICIPANT",
-      "route": "/votes",
+      "route": "/vote",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-001 과업 목록"
@@ -194,7 +194,7 @@
       "id": "U-VOTE-002",
       "canonical_title": "과업 상세·투표 시작",
       "audience": "PARTICIPANT",
-      "route": "/votes/detail",
+      "route": "/vote/detail",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-002 과업 상세·투표 시작"
@@ -203,7 +203,7 @@
       "id": "U-VOTE-003",
       "canonical_title": "AI 예상 답변 생성",
       "audience": "PARTICIPANT",
-      "route": "/votes/prediction",
+      "route": "/vote/prediction",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-003 AI 예상 답변 생성"
@@ -212,7 +212,7 @@
       "id": "U-VOTE-004",
       "canonical_title": "AI 예상 답변 선택",
       "audience": "PARTICIPANT",
-      "route": "/votes/prediction/select",
+      "route": "/vote/prediction/select",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-004 AI 예상 답변 선택"
@@ -221,7 +221,7 @@
       "id": "U-VOTE-005",
       "canonical_title": "직접 응답 입력",
       "audience": "PARTICIPANT",
-      "route": "/votes/direct",
+      "route": "/vote/direct",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-005 직접 응답 입력"
@@ -230,7 +230,7 @@
       "id": "U-VOTE-006",
       "canonical_title": "투표 제출 확인",
       "audience": "PARTICIPANT",
-      "route": "/votes/confirm",
+      "route": "/vote/confirm",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-006 투표 제출 확인"
@@ -239,7 +239,7 @@
       "id": "U-VOTE-007",
       "canonical_title": "투표 제출 완료",
       "audience": "PARTICIPANT",
-      "route": "/votes/complete",
+      "route": "/vote/complete",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-007 투표 제출 완료"
@@ -248,7 +248,7 @@
       "id": "U-VOTE-008",
       "canonical_title": "투표 중 이탈 복귀 안내",
       "audience": "PARTICIPANT",
-      "route": "/votes/resume",
+      "route": "/vote/resume",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-008 투표 중 이탈 복귀 안내"
@@ -257,7 +257,7 @@
       "id": "U-VOTE-009",
       "canonical_title": "마감 과업 실제 결과",
       "audience": "PARTICIPANT",
-      "route": "/votes/results",
+      "route": "/vote/results",
       "status": "PLACEHOLDER",
       "owner": "DECISION",
       "source_heading": "### U-VOTE-009 마감 과업 실제 결과"

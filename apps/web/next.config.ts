@@ -87,7 +87,10 @@ const nextConfig: NextConfig = {
   transpilePackages: ["@repo/bridge"],
 
   async redirects() {
-    return [{ source: "/", destination: "/home", permanent: false }];
+    return [
+      { source: "/", destination: "/home", permanent: false },
+      { source: "/votes/:path*", destination: "/vote/:path*", permanent: true },
+    ];
   },
 
   async rewrites() {

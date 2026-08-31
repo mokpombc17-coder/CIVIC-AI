@@ -65,9 +65,7 @@ export function PlatformNavigation({
 }
 
 export function isPlatformNavigationItemActive(currentPathname: string, href: string): boolean {
-  const pathname = currentPathname
-    .replace(/^\/votes(?=\/|$)/u, "/vote")
-    .replace(/^\/account(?=\/|$)/u, "/mypage");
+  const pathname = currentPathname.replace(/^\/account(?=\/|$)/u, "/mypage");
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 

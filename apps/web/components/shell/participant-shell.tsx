@@ -65,7 +65,7 @@ function participantSection(
       ? { root: "/rag" as Route, title: "AI" }
       : segment === "chat"
         ? { root: "/chat" as Route, title: "토론방" }
-        : segment === "vote" || segment === "votes"
+        : segment === "vote"
           ? { root: "/vote" as Route, title: "투표" }
           : segment === "mypage" || segment === "account"
             ? { root: "/mypage" as Route, title: "계정" }
@@ -73,9 +73,7 @@ function participantSection(
               ? { root: "/home" as Route, title: "접근 제한" }
               : { root: "/home" as Route, title: "홈" };
 
-  const normalizedRoute = activeRoute
-    .replace(/^\/votes(?=\/|$)/u, "/vote")
-    .replace(/^\/account(?=\/|$)/u, "/mypage");
+  const normalizedRoute = activeRoute.replace(/^\/account(?=\/|$)/u, "/mypage");
   return normalizedRoute === section.root
     ? { ...(section.root === "/home" ? {} : { backDisabled: true }), title: section.title }
     : { title: section.title, backHref: section.root };
