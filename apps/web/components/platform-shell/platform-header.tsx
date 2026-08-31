@@ -4,11 +4,19 @@ import styles from "./platform-shell.module.css";
 export type PlatformHeaderBackAction =
   | Readonly<{
       ariaLabel?: string;
+      disabled: true;
+      href?: never;
+      onClick?: never;
+    }>
+  | Readonly<{
+      ariaLabel?: string;
+      disabled?: false;
       href: string;
       onClick?: never;
     }>
   | Readonly<{
       ariaLabel?: string;
+      disabled?: false;
       href?: never;
       onClick: MouseEventHandler<HTMLButtonElement>;
     }>;
@@ -52,6 +60,20 @@ function PlatformHeaderBackControl({ action }: { action: PlatformHeaderBackActio
   if (!action) return null;
   const ariaLabel = action.ariaLabel ?? "뒤로 가기";
   const icon = <span aria-hidden="true" className={styles.headerBackIcon} />;
+
+  if (action.disabled) {
+    return (
+      <button
+        aria-label={ariaLabel}
+        className={styles.headerBackControl}
+        data-state="disabled"
+        disabled
+        type="button"
+      >
+        {icon}
+      </button>
+    );
+  }
 
   if (action.href) {
     return (

@@ -39,19 +39,20 @@ export function ParticipantScreenSkeleton() {
 export function ParticipantLoadingView({ pathname }: Readonly<{ pathname: string }>) {
   const screen = participantScreen(pathname);
   const header = participantHeader(screen, pathname);
+  const backAction = header.backHref
+    ? {
+        ariaLabel: "이전 화면으로 돌아가기",
+        href: header.backHref,
+      }
+    : header.backDisabled
+      ? { ariaLabel: "이전 화면으로 돌아가기", disabled: true as const }
+      : undefined;
   const authRoute = screen.id.startsWith("AUTH-");
   const content = <ParticipantLoadingContent screen={screen} />;
 
   return (
     <PlatformPageShell
-      {...(header.backHref
-        ? {
-            backAction: {
-              ariaLabel: "이전 화면으로 돌아가기",
-              href: header.backHref,
-            },
-          }
-        : {})}
+      {...(backAction ? { backAction } : {})}
       {...(screen.id === "AUTH-001"
         ? { className: "civic-login-shell" }
         : screen.id === "AUTH-002"
@@ -640,7 +641,7 @@ function fallbackScreen(
 function participantHeader(
   screen: ScreenDefinition,
   pathname: string,
-): Readonly<{ backHref?: string; title: string }> {
+): Readonly<{ backDisabled?: boolean; backHref?: string; title: string }> {
   if (screen.id.startsWith("AUTH-")) return authHeader(screen.id);
   const heading = screenFrameHeading(screen);
   const normalized = pathname
@@ -657,7 +658,14 @@ function participantHeader(
           : undefined;
   const backHref =
     heading.backHref ?? (sectionRoot && normalized !== sectionRoot ? sectionRoot : undefined);
-  return { ...(backHref ? { backHref } : {}), title: heading.title };
+  return {
+    ...(backHref
+      ? { backHref }
+      : sectionRoot && normalized === sectionRoot
+        ? { backDisabled: true }
+        : {}),
+    title: heading.title,
+  };
 }
 
 function authHeader(id: string): Readonly<{ backHref?: string; title: string }> {

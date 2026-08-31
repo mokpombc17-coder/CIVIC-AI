@@ -1051,6 +1051,15 @@ describe("25 functional Main/Auth screens", () => {
     expect(participantHtml.match(/data-platform-shell="true"/g)).toHaveLength(1);
     expect(participantHtml).toContain('aria-label="참여자 주요 메뉴"');
     expect(participantHtml).toContain("AI");
+    expect(participantHtml).toContain('data-state="disabled"');
+    for (const route of ["/chat", "/vote", "/mypage"]) {
+      const sectionHtml = renderToStaticMarkup(
+        <ParticipantShell activeRoute={route}>본문</ParticipantShell>,
+      );
+      expect(sectionHtml).toContain('aria-label="이전 화면으로 돌아가기"');
+      expect(sectionHtml).toContain('data-state="disabled"');
+      expect(sectionHtml).toContain("disabled");
+    }
     expect(adminHtml).toContain('data-wireflow-shell="admin"');
     expect(adminHtml).toContain("<strong>CIVIC AI</strong>");
     expect(adminHtml).toContain("<small>ADMIN</small>");
