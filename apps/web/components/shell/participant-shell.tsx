@@ -24,13 +24,14 @@ export function ParticipantShell({
 }: ParticipantShellProps) {
   const section = participantSection(activeRoute);
   const resolvedBackHref = backHref ?? section.backHref;
+  const backAction = resolvedBackHref
+    ? { ariaLabel: "이전 화면으로 돌아가기", href: resolvedBackHref }
+    : section.backDisabled
+      ? { ariaLabel: "이전 화면으로 돌아가기", disabled: true as const }
+      : undefined;
   return (
     <PlatformPageShell
-      {...(resolvedBackHref
-        ? {
-            backAction: { ariaLabel: "이전 화면으로 돌아가기", href: resolvedBackHref },
-          }
-        : {})}
+      {...(backAction ? { backAction } : {})}
       bottomNavigation={
         <PlatformNavigation
           currentPathname={activeRoute}
@@ -55,7 +56,9 @@ export function ParticipantShell({
   );
 }
 
-function participantSection(activeRoute: string): Readonly<{ title: string; backHref?: Route }> {
+function participantSection(
+  activeRoute: string,
+): Readonly<{ backDisabled?: boolean; backHref?: Route; title: string }> {
   const [segment] = activeRoute.split("/").filter(Boolean);
   const section =
     segment === "rag"
@@ -74,6 +77,6 @@ function participantSection(activeRoute: string): Readonly<{ title: string; back
     .replace(/^\/votes(?=\/|$)/u, "/vote")
     .replace(/^\/account(?=\/|$)/u, "/mypage");
   return normalizedRoute === section.root
-    ? { title: section.title }
+    ? { ...(section.root === "/home" ? {} : { backDisabled: true }), title: section.title }
     : { title: section.title, backHref: section.root };
 }
