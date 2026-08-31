@@ -1442,7 +1442,7 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain("실패 파일 다시 처리");
   });
 
-  it("다중 업로드 작업을 한 문서 준비 상태 화면에 함께 표시한다", () => {
+  it("다중 업로드 작업을 한 문서 준비 상태 화면에서 순차 이동한다", () => {
     const screen = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!screen) throw new Error("A-RAG-005 missing");
     const html = renderToStaticMarkup(
@@ -1456,11 +1456,12 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html.match(/class="civic-job-panel/g)).toHaveLength(2);
+    expect(html.match(/class="civic-job-panel/g)).toHaveLength(1);
     expect(html).toContain("정책.pdf");
-    expect(html).toContain("통계.xlsx");
+    expect(html).toContain("1 / 2");
+    expect(html).not.toContain("통계.xlsx");
     expect(html).toContain('id="civic-job-status-title-0"');
-    expect(html).toContain('id="civic-job-status-title-1"');
+    expect(html).not.toContain('id="civic-job-status-title-1"');
   });
 
   it("실패 진행률은 완료된 단계와 모순되지 않게 표시한다", () => {
@@ -2165,17 +2166,17 @@ describe("9 functional RAG screens", () => {
     expect(ragJobHref("replacement-job", "folder-1")).toBe(
       "/admin/rag/jobs?jobId=replacement-job&folderId=folder-1",
     );
-    expect(
-      ragJobsHref(
-        [
-          { jobId: "job-1", filename: "정책 1.pdf" },
-          { jobId: "job-2", filename: "정책 2.docx" },
-        ],
-        "folder-1",
-      ),
-    ).toBe(
-      "/admin/rag/jobs?jobId=job-1&filename=%EC%A0%95%EC%B1%85+1.pdf&jobId=job-2&filename=%EC%A0%95%EC%B1%85+2.docx&folderId=folder-1",
+    const jobsHref = ragJobsHref(
+      [
+        { jobId: "job-1", filename: "정책 1.pdf" },
+        { jobId: "job-2", filename: "정책 2.docx" },
+      ],
+      "folder-1",
     );
+    const jobsQuery = new URL(jobsHref, "https://example.test").searchParams;
+    expect(jobsQuery.get("folderId")).toBe("folder-1");
+    expect(jobsQuery.getAll("jobId")).toEqual(["job-1", "job-2"]);
+    expect(jobsQuery.getAll("filename")).toEqual(["정책 1.pdf", "정책 2.docx"]);
     const statusScreen = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!statusScreen) throw new Error("A-RAG-005 missing");
     const statusHtml = renderToStaticMarkup(
