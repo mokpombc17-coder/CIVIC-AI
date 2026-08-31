@@ -1,7 +1,9 @@
 import { defineConfig, devices } from "@playwright/test";
 
-const WEB_BASE_URL = "https://localhost:3109";
-const MOCK_API_URL = "http://127.0.0.1:4791";
+const WEB_PORT = process.env.CIVIC_E2E_WEB_PORT ?? "3109";
+const WEB_BASE_URL = process.env.CIVIC_E2E_WEB_BASE_URL ?? `https://localhost:${WEB_PORT}`;
+const MOCK_API_PORT = process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791";
+const MOCK_API_URL = `http://127.0.0.1:${MOCK_API_PORT}`;
 
 export default defineConfig({
   testDir: "./e2e",
@@ -29,8 +31,7 @@ export default defineConfig({
     viewport: { width: 394, height: 853 },
   },
   webServer: {
-    command:
-      "corepack pnpm --filter @app/web exec next dev --experimental-https --hostname localhost --port 3109",
+    command: `corepack pnpm --filter @app/web exec next dev --experimental-https --hostname localhost --port ${WEB_PORT}`,
     reuseExistingServer: false,
     env: {
       CIVIC_BROWSER_ORIGIN: WEB_BASE_URL,

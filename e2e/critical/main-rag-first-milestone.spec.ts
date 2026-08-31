@@ -201,7 +201,6 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     ).toBeGreaterThanOrEqual(400);
     await admin.locator("details[data-rag-inline-upload] > summary").click();
     await admin.locator('input[type="file"]').setInputFiles(fixture);
-    await admin.getByLabel("문서 이용 권한을 보유하고 있습니다.").check();
     const [completedUpload] = await Promise.all([
       admin.waitForResponse(
         (response) =>
@@ -212,14 +211,10 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
       admin.getByRole("button", { name: "업로드 시작" }).click(),
     ]);
     expect(completedUpload.status()).toBe(202);
-    await expect(admin.getByText("모든 파일을 접수했습니다")).toBeVisible();
-    const statusLink = admin.getByRole("link", { name: "처리 상태 보기" }).first();
-    await expect(statusLink).toBeVisible();
-    const statusHref = await statusLink.getAttribute("href");
-    const jobId = new URL(statusHref!, admin.url()).searchParams.get("jobId");
+    await expect(admin).toHaveURL(/\/admin\/rag\/jobs\?.*jobId=/u);
+    const jobId = new URL(admin.url()).searchParams.get("jobId");
     expect(jobId).toMatch(/^[0-9a-f-]{36}$/u);
     await waitForJob(admin, jobId!, "SUCCEEDED");
-    await statusLink.click();
     await admin.getByRole("button", { name: "상태 새로고침" }).click();
     await expect(admin.locator(".civic-job-summary")).toContainText("검색 준비완료");
     await expect(admin.locator(".civic-job-summary")).not.toContainText("SUCCEEDED");
@@ -227,7 +222,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     // participant query and citation source
     await participant.goto("/rag");
     await participant
-      .getByPlaceholder("문서에 대해 질문하세요...")
+      .getByPlaceholder("문서에 대해 질문하세요…")
       .fill(`${canaries.rag} 합성 CIVIC 정책 문서의 근거를 알려주세요.`);
     const [queryResponse] = await Promise.all([
       participant.waitForResponse(
@@ -245,7 +240,9 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await expect(
       participant.getByText("합성 문서에 근거한 CIVIC 정책 내용을 확인했습니다."),
     ).toBeVisible({ timeout: 120_000 });
-    const citation = participant.getByRole("link", { name: /synthetic\.pdf 1쪽/u });
+    const citation = participant.getByRole("button", {
+      name: /출처 synthetic\.pdf p\.1 열기/u,
+    });
     await expect(citation).toBeVisible();
     await citation.click();
     await expect(participant).toHaveURL(/\/rag$/u);

@@ -32,6 +32,106 @@ body {
     radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
 }
 
+.civic-confirm-dialog::backdrop {
+  background: rgb(16 17 20 / 56%);
+}
+
+.civic-confirm-dialog {
+  position: fixed;
+  inset: 0;
+  width: min(30rem, 100%);
+  max-height: calc(100dvh - 2.5rem);
+  margin: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  gap: 1.25rem;
+  border: 1px solid var(--civic-ink, #172033);
+  border-radius: 0.75rem;
+  background: #fff;
+  padding: 1.5rem;
+  box-shadow: 0 1rem 2.25rem rgb(16 17 20 / 28%);
+}
+
+.civic-confirm-dialog[open] {
+  display: grid;
+}
+
+.civic-confirm-dialog > header h2 {
+  margin: 0;
+  color: var(--civic-ink, #172033);
+  font-size: 1.5rem;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+  text-wrap: balance;
+}
+
+.civic-confirm-dialog-description {
+  color: #4b5563;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+}
+
+.civic-confirm-dialog-confirmation {
+  display: grid;
+  gap: 0.5rem;
+  color: #4b5563;
+  font-size: 0.9rem;
+  line-height: 1.5;
+}
+
+.civic-confirm-dialog-confirmation strong {
+  color: var(--civic-ink, #172033);
+}
+
+.civic-confirm-dialog-confirmation input {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid #6b7280;
+  border-radius: 0.4rem;
+  background: #fff;
+  color: var(--civic-ink, #172033);
+  padding: 0.7rem 0.8rem;
+}
+
+.civic-confirm-dialog-confirmation input:focus-visible {
+  border-color: var(--civic-blue, #1d4ed8);
+  outline: 3px solid rgb(37 110 244 / 22%);
+  outline-offset: 1px;
+}
+
+.civic-confirm-dialog-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.75rem;
+}
+
+.civic-confirm-dialog-actions > button {
+  min-width: 7.5rem;
+  touch-action: manipulation;
+}
+
+.civic-confirm-dialog-actions > button:focus-visible {
+  outline: 3px solid var(--civic-blue, #1d4ed8);
+  outline-offset: 3px;
+}
+
+@media (max-width: 640px) {
+  .civic-confirm-dialog {
+    inset: auto max(1rem, env(safe-area-inset-right)) max(1rem, env(safe-area-inset-bottom))
+      max(1rem, env(safe-area-inset-left));
+    width: auto;
+    max-height: calc(100dvh - max(2rem, env(safe-area-inset-bottom)));
+    margin: 0;
+    padding: 1.25rem;
+  }
+
+  .civic-confirm-dialog-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
 button,
 input {
   font: inherit;
@@ -375,17 +475,13 @@ th {
 
 /* CIVIC milestone shells --------------------------------------------------- */
 
+/* --civic-ink/paper/line/blue/muted 등 공통 토큰의 유효 정의는 아래
+   "Wire Flow Atlas product surfaces" :root 블록 하나다. (같은 이름을 여기서
+   다른 값으로 이중 정의하던 것을 제거 — 뒤 블록이 항상 이겨 죽은 값이었다.) */
 :root {
-  --civic-ink: #12211d;
-  --civic-paper: #f3f0e7;
-  --civic-paper-strong: #fffdf6;
-  --civic-line: #c9c3b4;
-  --civic-blue: #1846d1;
-  --civic-blue-dark: #112e87;
   --civic-citrus: #d9f553;
   --civic-coral: #df563e;
   --civic-sky: #8ed8f0;
-  --civic-muted: #5d665f;
 }
 
 .app-shell {
@@ -642,11 +738,9 @@ th {
   text-decoration: none;
 }
 
-.civic-shell-admin {
-  display: grid;
-  grid-template-columns: 18rem minmax(0, 1fr);
-  background: #e9e7df;
-}
+/* 관리자 셸 레이아웃(그리드·사이드바 폭·접힘 브레이크포인트)은 wireflow.css가
+   단독 관할한다. 여기 있던 .civic-shell-admin 18rem 그리드는 wireflow의 240px
+   그리드에 항상 덮여 죽은 규칙이라 제거했다. */
 
 .civic-admin-sidebar {
   position: sticky;
@@ -791,20 +885,9 @@ th {
     border-bottom: 1px solid var(--civic-ink);
   }
 
-  .civic-shell-admin {
-    display: block;
-  }
-
-  .civic-admin-sidebar {
-    position: static;
-    height: auto;
-    border-right: 0;
-  }
-
-  .civic-admin-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
+  /* 관리자 사이드바 접힘은 wireflow.css의 720px 브레이크포인트 하나만 사용한다.
+     (여기 있던 820px 접힘 규칙은 wireflow 기본 규칙에 덮이거나 720~820px 구간에서
+     내비게이션만 2열로 찌그러뜨리는 부작용을 냈다.) */
   .civic-admin-boundary {
     display: none;
   }
@@ -1082,6 +1165,7 @@ th {
 
 .civic-field input,
 .civic-field select,
+.civic-field textarea,
 .civic-admin-search input,
 .civic-rag-composer textarea {
   min-height: 3rem;
@@ -1477,6 +1561,27 @@ th {
   color: var(--civic-navy);
 }
 
+.civic-admin-nav-group {
+  display: grid;
+  gap: 0.25rem;
+  padding: 0.35rem 0;
+}
+
+.civic-admin-nav-group-label {
+  color: #b1cefb;
+  padding: 0 0.8rem 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 750;
+  letter-spacing: 0.04em;
+}
+
+.civic-admin-nav-sub-link {
+  min-height: 2.6rem;
+  margin-left: 0.55rem;
+  padding-block: 0.55rem;
+  font-size: 0.82rem;
+}
+
 .civic-admin-identity {
   display: grid;
   gap: 0.2rem;
@@ -1757,28 +1862,6 @@ th {
   padding: 0;
 }
 
-.civic-rag-citations {
-  display: grid;
-  gap: 0.4rem;
-}
-
-.civic-rag-citations strong {
-  color: var(--civic-muted);
-  font-size: 0.72rem;
-}
-
-.civic-rag-citations a {
-  display: flex;
-  min-height: 2.6rem;
-  align-items: center;
-  border: 1px solid #b1cefb;
-  border-radius: 0.38rem;
-  background: #ecf2fe;
-  padding: 0.6rem;
-  font-size: 0.78rem;
-  text-decoration: none;
-}
-
 .civic-rag-conversation > .civic-form-message {
   margin: 0 1rem 0.6rem;
 }
@@ -1981,6 +2064,19 @@ th {
 
   .civic-admin-nav {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .civic-admin-nav-group {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .civic-admin-nav-group-label {
+    grid-column: 1 / -1;
+  }
+
+  .civic-admin-nav-sub-link {
+    margin-left: 0;
   }
 
   .civic-admin-identity {
@@ -2488,13 +2584,6 @@ th {
   font-weight: 850;
 }
 
-.civic-rag-citations {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.45rem;
-}
-
-.civic-rag-citations a,
 .civic-text-action,
 .civic-row-actions a {
   color: var(--civic-blue-dark);
@@ -2616,31 +2705,14 @@ th {
   color: var(--civic-citrus);
 }
 
-.civic-pdf-controls {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 0.5rem;
-  border-top: 1px solid #55625e;
-  border-bottom: 1px solid #55625e;
-  padding: 0.7rem;
-}
-
-.civic-pdf-controls .civic-icon-action {
-  min-height: 2.25rem;
-  padding: 0.4rem 0.65rem;
-}
-.civic-pdf-controls a[aria-disabled="true"] {
-  pointer-events: none;
-  opacity: 0.4;
-}
-
 .civic-pdf-canvas {
   min-height: 32rem;
   overflow: auto;
   background: #363f3b;
   padding: 1rem;
+  /* Chromium serializes this equivalent pan + pinch combination as `manipulation`. */
+  touch-action: pan-x pan-y pinch-zoom;
+  -webkit-overflow-scrolling: touch;
 }
 
 .civic-pdf-canvas iframe {
@@ -2850,9 +2922,20 @@ th {
 
 .civic-policy-strip,
 .civic-upload-mode {
+  padding: 0.85rem 1rem;
+}
+
+.civic-policy-strip {
   border-left: 6px solid var(--civic-citrus);
   background: color-mix(in srgb, var(--civic-citrus) 18%, white);
-  padding: 0.85rem 1rem;
+}
+
+.civic-upload-mode {
+  background: transparent;
+}
+
+.civic-upload-mode p:first-child {
+  margin-top: 0;
 }
 .civic-policy-strip p,
 .civic-upload-mode p {
@@ -2889,10 +2972,44 @@ th {
 }
 .civic-upload-queue li {
   display: flex;
+  align-items: center;
   justify-content: space-between;
   gap: 1rem;
   border-top: 1px solid var(--civic-line);
   padding: 0.7rem 0;
+}
+.civic-upload-queue-meta {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.65rem;
+  color: var(--civic-muted);
+  text-align: right;
+}
+.civic-upload-remove {
+  display: inline-grid;
+  width: 2.25rem;
+  height: 2.25rem;
+  flex: none;
+  place-items: center;
+  border: 1px solid #e4b8b5;
+  border-radius: 0.5rem;
+  background: #fff;
+  color: #ad3028;
+  cursor: pointer;
+}
+.civic-upload-remove:hover:not(:disabled) {
+  border-color: #c9433a;
+  background: #fff3f2;
+}
+.civic-upload-remove:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.civic-trash-icon {
+  width: 1.25rem;
+  height: 1.25rem;
 }
 .civic-check-row {
   display: flex;
@@ -3115,6 +3232,7 @@ th {
 
 [data-wireflow-screen] .civic-field input,
 [data-wireflow-screen] .civic-field select,
+[data-wireflow-screen] .civic-field textarea,
 [data-wireflow-screen] .civic-admin-search input {
   min-height: 3rem;
   border: 1px solid var(--civic-line-strong);
@@ -3436,11 +3554,8 @@ th {
   font-size: 1.1rem;
 }
 
-.civic-admin-home {
-  display: grid;
-  gap: 1.25rem;
-  padding: 2rem;
-}
+/* .civic-admin-home 레이아웃은 wireflow.css([data-wireflow-shell="admin"] 스코프)가
+   관할한다. 여기 있던 중복 정의(2rem 패딩)는 항상 덮여 죽은 규칙이라 제거했다. */
 
 .civic-admin-metrics {
   display: grid;
@@ -3665,6 +3780,654 @@ th {
   padding: 1rem;
 }
 
+[data-wireflow-screen="A-TASK-001"] .civic-task-create-action {
+  min-height: 2.75rem;
+  gap: 0.5rem;
+  padding: 0.6rem 1rem;
+  font-size: 0.9rem;
+  white-space: nowrap;
+}
+
+[data-wireflow-screen="A-TASK-001"] .civic-task-create-action svg {
+  width: 1.125rem;
+  height: 1.125rem;
+  flex: 0 0 auto;
+}
+
+[data-wireflow-shell="admin"] .civic-task-list-toolbar {
+  grid-template-columns: minmax(18rem, 1fr) auto;
+  padding: 0.875rem 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-list-toolbar .wf-admin-filters {
+  grid-column: auto;
+  padding-left: 0;
+}
+
+.civic-admin-detail-drawer-layer {
+  position: fixed;
+  z-index: 95;
+  inset: 0;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.civic-admin-detail-drawer-layer[hidden] {
+  display: none;
+}
+
+.civic-admin-detail-drawer-scrim {
+  position: absolute;
+  inset: 0;
+  border: 0;
+  background: rgb(15 27 45 / 48%);
+  cursor: default;
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  width: min(43rem, 94vw);
+  height: 100dvh;
+  flex-direction: column;
+  border-left: 1px solid #d7deea;
+  background: #f7f9fc;
+  box-shadow: -1.25rem 0 3rem rgb(18 31 48 / 24%);
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer > header {
+  display: flex;
+  min-height: 5rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  border-bottom: 1px solid #d7deea;
+  background: #fff;
+  padding: 1rem 1.25rem;
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer > header > div {
+  display: grid;
+  gap: 0.2rem;
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer > header small {
+  color: var(--civic-blue-dark);
+  font-size: 0.75rem;
+  font-weight: 750;
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer > header h2 {
+  margin: 0;
+  color: var(--civic-text);
+  font-size: 1.25rem;
+  line-height: 1.3;
+}
+
+[data-wireflow-shell="admin"] .civic-admin-detail-drawer > header > button {
+  display: inline-grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 1px solid var(--civic-line-strong);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  color: var(--civic-text);
+  font: inherit;
+  font-size: 1.5rem;
+  cursor: pointer;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-admin-detail-drawer
+  > header
+  > button:is(:hover, :focus-visible) {
+  border-color: var(--civic-blue);
+  background: #ecf2fe;
+  color: var(--civic-blue-dark);
+  outline: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-create-drawer {
+  width: min(46rem, 94vw);
+}
+
+[data-wireflow-shell="admin"] .civic-task-create-drawer-body {
+  min-height: 0;
+  flex: 1;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard {
+  min-height: 100%;
+  grid-template-rows: auto minmax(0, 1fr) auto auto;
+  gap: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: 1.75rem minmax(0, 1fr);
+  gap: 0.05rem 0.55rem;
+  align-items: center;
+  border: 1px solid var(--civic-line);
+  border-radius: 0.6rem;
+  background: #fff;
+  color: var(--civic-muted);
+  padding: 0.65rem;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button > span {
+  display: inline-grid;
+  width: 1.75rem;
+  height: 1.75rem;
+  grid-row: 1 / span 2;
+  place-items: center;
+  border-radius: 999px;
+  background: #e8edf4;
+  color: #4b5563;
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button strong {
+  overflow: hidden;
+  color: var(--civic-text);
+  font-size: 0.85rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button small {
+  overflow: hidden;
+  font-size: 0.68rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[data-complete="true"] > span {
+  background: #dcfce7;
+  color: #166534;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[aria-current="step"] {
+  border-color: #8bb1fa;
+  background: #eef4ff;
+  box-shadow: inset 0 -0.2rem 0 var(--civic-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-nav > button[aria-current="step"] > span {
+  background: var(--civic-blue-dark);
+  color: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-panel {
+  align-content: start;
+  min-height: 20rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-panel textarea {
+  resize: vertical;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-actions {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: 0.55rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-actions > :is(button, a) {
+  min-height: 2.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-wizard-cancel {
+  border: 0;
+  background: transparent;
+  color: var(--civic-muted);
+  padding: 0.5rem;
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-domain-detail,
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-task-detail-content,
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-task-detail-operations {
+  display: grid;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid > div {
+  min-height: 4rem;
+  align-content: center;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid > div:first-child {
+  grid-column: 1 / -1;
+  border-color: #b8cdf8;
+  background: #f1f5fd;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-task-detail-grid {
+  display: grid;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-task-drawer-body
+  :is(.civic-domain-description, .civic-domain-action-panel) {
+  gap: 0.65rem;
+  padding: 0.9rem;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-task-drawer-body
+  :is(.civic-domain-description, .civic-domain-action-panel)
+  h2 {
+  font-size: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-task-options-readonly {
+  gap: 0.4rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-task-options-readonly li {
+  padding: 0.6rem 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-detail-actions a {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+}
+
+[data-wireflow-shell="admin"] .civic-task-drawer-body .civic-domain-action-panel > button {
+  justify-self: start;
+  min-height: 2.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-detail,
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-detail-grid,
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-context,
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-decision {
+  display: grid;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-user-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-user-summary-grid > div {
+  min-height: 4rem;
+  align-content: center;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-user-summary-grid
+  > div:first-child {
+  grid-column: 1 / -1;
+  border-color: #b8cdf8;
+  background: #f1f5fd;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-user-summary-grid
+  > div:last-child {
+  grid-column: 1 / -1;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-user-summary-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  :is(.civic-domain-description, .civic-domain-action-panel) {
+  gap: 0.65rem;
+  padding: 0.9rem;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  :is(.civic-domain-description, .civic-domain-action-panel)
+  h2 {
+  font-size: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-domain-description p {
+  color: var(--civic-muted);
+  line-height: 1.5;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body fieldset {
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-chat-request-rejection-reason {
+  width: 100%;
+  min-height: 6.5rem;
+  border: 1px solid var(--civic-line-strong);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  padding: 0.72rem 0.8rem;
+  color: var(--civic-text);
+  font: inherit;
+  resize: vertical;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-chat-request-rejection-reason:focus-visible {
+  border-color: var(--civic-blue);
+  outline: 3px solid #bfdbfe;
+  outline-offset: 1px;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-chat-request-drawer-body
+  .civic-chat-request-rejection-reason[aria-invalid="true"] {
+  border-color: #dc2626;
+}
+
+[data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-form-actions {
+  margin-top: 0.1rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer > header p {
+  margin: 0;
+  color: var(--civic-muted);
+  font-size: 0.82rem;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer-body {
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 0 1rem 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-tabs {
+  position: sticky;
+  z-index: 2;
+  top: 0;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.35rem;
+  border-bottom: 1px solid var(--civic-line);
+  background: #f7f9fc;
+  padding: 0.75rem 0 0;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-tabs button {
+  min-height: 2.75rem;
+  border: 0;
+  border-bottom: 3px solid transparent;
+  background: transparent;
+  color: var(--civic-muted);
+  padding: 0.65rem 0.45rem;
+  font: inherit;
+  font-size: 0.86rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-tabs button[aria-selected="true"] {
+  border-bottom-color: var(--civic-blue);
+  color: var(--civic-blue-dark);
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-tabs button:focus-visible {
+  border-radius: 0.35rem 0.35rem 0 0;
+  outline: 3px solid #bfdbfe;
+  outline-offset: -3px;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-panel {
+  display: grid;
+  gap: 0.75rem;
+  padding-top: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-panel .civic-user-summary-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-panel .civic-user-summary-grid > div {
+  min-height: 4.1rem;
+  align-content: center;
+  gap: 0.2rem;
+  padding: 0.7rem 0.8rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-panel .civic-user-summary-grid > div:first-child {
+  grid-column: 1 / -1;
+  border-color: #b8cdf8;
+  background: #f1f5fd;
+}
+
+[data-wireflow-shell="admin"] .civic-user-drawer-panel .civic-user-summary-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 0.88rem;
+  line-height: 1.35;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer .civic-role-form {
+  gap: 0.75rem;
+  padding: 0.9rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer .civic-role-form fieldset.wf-role-section {
+  gap: 0.65rem;
+  padding: 0.8rem;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-user-detail-drawer
+  .civic-role-form
+  :is(.wf-role-option, .wf-permission-option) {
+  padding: 0.7rem 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer .civic-role-form label.civic-role-reason {
+  padding: 0.8rem;
+}
+
+[data-wireflow-shell="admin"] .civic-user-detail-drawer .civic-role-form .civic-role-actions {
+  padding-top: 0.75rem;
+}
+
+.civic-user-audit-cards {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.civic-user-audit-cards > li {
+  display: grid;
+  gap: 0.65rem;
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  padding: 0.85rem;
+}
+
+.civic-user-audit-cards > li > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+.civic-user-audit-cards time,
+.civic-user-audit-cards dt {
+  color: var(--civic-muted);
+  font-size: 0.75rem;
+}
+
+.civic-user-audit-cards dl {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0;
+}
+
+.civic-user-audit-cards dl > div {
+  display: grid;
+  gap: 0.2rem;
+  border-radius: 0.35rem;
+  background: #f7f9fc;
+  padding: 0.65rem 0.7rem;
+}
+
+.civic-user-audit-cards dd {
+  margin: 0;
+  overflow-wrap: anywhere;
+  font-size: 0.84rem;
+  font-weight: 700;
+  line-height: 1.45;
+}
+
+.civic-user-audit-empty {
+  display: grid;
+  min-height: 9rem;
+  place-items: center;
+  margin: 0;
+  border: 1px dashed var(--civic-line-strong);
+  border-radius: var(--civic-radius);
+  background: #fff;
+  color: var(--civic-muted);
+  text-align: center;
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-shell="admin"] .civic-admin-detail-drawer {
+    width: 100vw;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-create-drawer-body {
+    padding: 0.75rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button {
+    grid-template-columns: 1.6rem minmax(0, 1fr);
+    padding: 0.55rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button > span {
+    width: 1.6rem;
+    height: 1.6rem;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-nav > button small {
+    display: none;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-wizard-panel {
+    min-height: 0;
+  }
+
+  [data-wireflow-shell="admin"] .civic-task-drawer-body .civic-user-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-shell="admin"] .civic-chat-request-drawer-body .civic-user-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-shell="admin"]
+    .civic-chat-request-drawer-body
+    .civic-user-summary-grid
+    > div:first-child,
+  [data-wireflow-shell="admin"]
+    .civic-chat-request-drawer-body
+    .civic-user-summary-grid
+    > div:last-child {
+    grid-column: auto;
+  }
+
+  [data-wireflow-shell="admin"] .civic-user-drawer-panel .civic-user-summary-grid,
+  .civic-user-audit-cards dl {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  [data-wireflow-shell="admin"] .civic-admin-detail-drawer {
+    animation: civic-admin-detail-drawer-in 180ms ease-out;
+  }
+}
+
+@keyframes civic-admin-detail-drawer-in {
+  from {
+    transform: translateX(2rem);
+    opacity: 0.72;
+  }
+
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
 [data-wireflow-shell="admin"] .civic-domain-toolbar .wf-admin-filters {
   display: flex;
   flex-wrap: wrap;
@@ -3785,6 +4548,147 @@ th {
   gap: 1rem;
 }
 
+/* The integrated task console no longer uses the legacy task-detail/drawer wrappers. */
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-grid,
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-content,
+[data-wireflow-layout="admin-task-console"] .civic-task-detail-operations {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+/* Keep the task operator's decision context and lifecycle controls in one desktop view. */
+[data-wireflow-layout="task-detail"].civic-domain-console {
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-detail {
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
+  grid-template-columns:
+    minmax(12rem, 1.7fr) minmax(5.75rem, 0.7fr) minmax(7.75rem, 1fr)
+    minmax(7.75rem, 1fr) minmax(5.75rem, 0.7fr) minmax(7.75rem, 1fr);
+  gap: 0.5rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid > div {
+  min-height: 4.25rem;
+  align-content: center;
+  gap: 0.25rem;
+  padding: 0.7rem 0.8rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  .civic-user-summary-grid
+  > div:first-child {
+  border-color: #b8cdf8;
+  background: #f4f7fd;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid strong {
+  overflow-wrap: anywhere;
+  font-size: 0.9rem;
+  line-height: 1.3;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-detail-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.65fr) minmax(19rem, 1fr);
+  align-items: start;
+  gap: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  :is(.civic-task-detail-content, .civic-task-detail-operations) {
+  display: grid;
+  gap: 0.75rem;
+  min-width: 0;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  :is(.civic-domain-description, .civic-domain-action-panel, .civic-domain-history) {
+  gap: 0.5rem;
+  padding: 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-description h2,
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel h2,
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history h2 {
+  font-size: 1.05rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-description p {
+  color: var(--civic-muted);
+  line-height: 1.5;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-options-readonly {
+  gap: 0.45rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-task-options-readonly li {
+  padding: 0.6rem 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console
+  .civic-domain-action-panel
+  :is(input, select, textarea) {
+  padding: 0.5rem 0.6rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel textarea {
+  min-height: 2.75rem;
+  resize: vertical;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel .civic-field {
+  gap: 0.25rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-action-panel > button {
+  justify-self: start;
+  min-height: 2.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history {
+  max-height: 10.75rem;
+  overflow: auto;
+  overscroll-behavior: contain;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history ol {
+  gap: 0.45rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.1rem 0.5rem;
+  padding: 0.45rem 0.625rem;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li > div {
+  display: contents;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li time {
+  grid-column: 2;
+  grid-row: 1 / span 2;
+  align-self: center;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history li p {
+  grid-column: 1;
+}
+
+[data-wireflow-layout="task-detail"].civic-domain-console .civic-detail-actions a {
+  min-height: 2.5rem;
+  padding: 0.55rem 0.8rem;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-description,
 [data-wireflow-shell="admin"] .civic-domain-form-section,
 [data-wireflow-shell="admin"] .civic-domain-action-panel,
@@ -3832,23 +4736,51 @@ th {
   width: auto;
 }
 
-[data-wireflow-shell="admin"] .civic-category-create,
-[data-wireflow-shell="admin"] .civic-category-room-search,
-[data-wireflow-shell="admin"] .civic-category-room-lookup {
+[data-wireflow-shell="admin"] .civic-category-create {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: end;
   gap: 0.75rem;
 }
 
-[data-wireflow-shell="admin"] .civic-category-create > button,
-[data-wireflow-shell="admin"] .civic-category-room-search > button,
-[data-wireflow-shell="admin"] .civic-category-room-lookup > button {
+[data-wireflow-shell="admin"] .civic-category-room-search {
+  display: grid;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"].civic-domain-console {
+  grid-template-columns: minmax(26rem, 0.85fr) minmax(36rem, 1.15fr);
+  align-items: start;
+}
+
+[data-wireflow-shell="admin"]
+  [data-wireflow-layout="room-category-admin"]
+  > .civic-domain-form-section {
+  min-width: 0;
+  align-content: start;
+}
+
+[data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"] > .civic-form-message {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-category-create > button {
   min-height: 2.75rem;
 }
 
 [data-wireflow-shell="admin"] .civic-category-table input {
   min-width: 12rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-table th:first-child {
+  width: 58%;
+}
+
+[data-wireflow-shell="admin"] .civic-category-table td:last-child,
+[data-wireflow-shell="admin"] .civic-listed-room-table td:last-child {
+  width: 1%;
+  white-space: nowrap;
 }
 
 [data-wireflow-shell="admin"] .civic-listed-room-table tr.is-selected > * {
@@ -3869,23 +4801,6 @@ th {
   font-size: 0.75rem;
   font-weight: 700;
   white-space: nowrap;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback {
-  border-top: 1px solid var(--civic-line);
-  padding-top: 0.85rem;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback > summary {
-  width: fit-content;
-  color: var(--civic-blue-dark);
-  font-weight: 700;
-  cursor: pointer;
-}
-
-[data-wireflow-shell="admin"] .civic-category-room-fallback[open] {
-  display: grid;
-  gap: 0.75rem;
 }
 
 [data-wireflow-shell="admin"] .civic-selected-room {
@@ -3910,6 +4825,26 @@ th {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(10rem, 1fr));
   gap: 0.55rem;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor {
+  width: min(36rem, 94vw);
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-form.civic-domain-action-panel {
+  align-content: start;
+  border: 0;
+  padding: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-form .civic-form-message {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-category-editor-actions {
+  margin-top: 0.25rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 1rem;
 }
 
 [data-wireflow-shell="admin"] .civic-boundary-copy {
@@ -3992,7 +4927,7 @@ th {
 }
 
 [data-wireflow-shell="admin"] .civic-domain-impact-list > div {
-  border: 1px solid #fecaca;
+  border: 1px solid var(--civic-line);
   border-radius: var(--civic-radius);
   background: #fff;
   padding: 0.85rem;
@@ -4077,7 +5012,7 @@ th {
 
 [data-wireflow-shell="admin"] .civic-simulation-summary-grid {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
   gap: 0.75rem;
 }
 
@@ -4162,6 +5097,14 @@ th {
   color: var(--civic-muted);
 }
 
+[data-wireflow-shell="admin"] .civic-simulation-capacity-count {
+  margin: 0 0 0.85rem;
+  color: var(--civic-ink);
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
 [data-wireflow-shell="admin"] .civic-simulation-actions {
   display: flex;
   flex-wrap: wrap;
@@ -4237,15 +5180,31 @@ th {
     align-items: stretch;
   }
 
-  [data-wireflow-shell="admin"] .civic-category-create,
-  [data-wireflow-shell="admin"] .civic-category-room-search,
-  [data-wireflow-shell="admin"] .civic-category-room-lookup {
+  [data-wireflow-shell="admin"] [data-wireflow-screen="A-TASK-001"] .civic-task-list-toolbar {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-screen="A-TASK-001"] .wf-screen-heading {
+    grid-template-columns: 1fr;
+    align-items: stretch;
+  }
+
+  [data-wireflow-screen="A-TASK-001"] .wf-screen-heading-action,
+  [data-wireflow-screen="A-TASK-001"] .civic-task-create-action {
+    width: 100%;
+  }
+
+  [data-wireflow-shell="admin"] .civic-category-create {
     grid-template-columns: 1fr;
     align-items: stretch;
   }
 
   [data-wireflow-shell="admin"] .civic-domain-impact-list,
   [data-wireflow-shell="admin"] .civic-user-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
     grid-template-columns: 1fr;
   }
 
@@ -4256,6 +5215,34 @@ th {
   [data-wireflow-shell="admin"] .civic-simulation-two-column,
   [data-wireflow-shell="admin"] .civic-simulation-usage-filter {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1100px) and (min-width: 821px) {
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-user-summary-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 900px) {
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-task-detail-grid {
+    grid-template-columns: 1fr;
+  }
+
+  [data-wireflow-layout="task-detail"].civic-domain-console .civic-domain-history {
+    max-height: none;
+  }
+}
+
+@media (max-width: 1320px) {
+  [data-wireflow-shell="admin"] [data-wireflow-layout="room-category-admin"].civic-domain-console {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-shell="admin"] .civic-category-editor {
+    width: 100vw;
   }
 }
 

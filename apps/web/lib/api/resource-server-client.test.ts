@@ -7,11 +7,13 @@ vi.mock("server-only", () => ({}));
 describe("admin resource server BFF", () => {
   it("forwards one opaque token as the matching Cookie and Authorization pair", async () => {
     let upstreamHeaders = new Headers();
+    let upstreamSignal: AbortSignal | null | undefined;
     const requestBackend = vi.fn<typeof fetch>(async (input, init) => {
       expect(String(input)).toBe(
         "http://chat.internal:8082/api/v1/admin/room-creation-requests?status=PENDING",
       );
       upstreamHeaders = new Headers(init?.headers);
+      upstreamSignal = init?.signal;
       return Response.json({ items: [], nextCursor: null, hasNext: false });
     });
     const proxy = createResourceServerProxy({
@@ -20,14 +22,18 @@ describe("admin resource server BFF", () => {
       requestBackend,
     });
 
-    const response = await proxy(
-      new NextRequest("https://civic.example/api/v1/admin/room-creation-requests?status=PENDING", {
+    const incoming = new NextRequest(
+      "https://civic.example/api/v1/admin/room-creation-requests?status=PENDING",
+      {
         headers: {
           cookie: "civic_ai_access_token=opaque-token; unrelated=must-not-forward",
           origin: "https://civic.example",
           "sec-fetch-site": "same-origin",
         },
-      }),
+      },
+    );
+    const response = await proxy(
+      incoming,
       "/api/v1/admin/room-creation-requests",
       "chat:rooms:approve",
     );
@@ -36,6 +42,7 @@ describe("admin resource server BFF", () => {
     expect(upstreamHeaders.get("authorization")).toBe("Bearer opaque-token");
     expect(upstreamHeaders.get("cookie")).toBe("civic_ai_access_token=opaque-token");
     expect(upstreamHeaders.get("origin")).toBe("https://civic.example");
+    expect(upstreamSignal).toBe(incoming.signal);
   });
 
   it("preserves result download and rate-limit response headers", async () => {
@@ -63,6 +70,60 @@ describe("admin resource server BFF", () => {
     expect(response.headers.get("content-type")).toContain("application/x-ndjson");
     expect(response.headers.get("retry-after")).toBe("7");
     expect(await response.text()).toContain('"answer":"A"');
+  });
+
+  it("forwards the conversation export range and preserves the ZIP response", async () => {
+    const archive = new Uint8Array([80, 75, 3, 4]);
+    let upstreamHeaders = new Headers();
+    let upstreamBody = "";
+    const proxy = createResourceServerProxy({
+      browserOrigin: "https://civic.example",
+      resourceUrl: new URL("http://chat.internal:8082"),
+      requestBackend: vi.fn<typeof fetch>(async (input, init) => {
+        expect(String(input)).toBe(
+          "http://chat.internal:8082/api/v1/admin/rooms/room-1/conversation-exports",
+        );
+        expect(init?.method).toBe("POST");
+        upstreamHeaders = new Headers(init?.headers);
+        upstreamBody = await new Response(init?.body).text();
+        return new Response(archive, {
+          headers: {
+            "content-disposition": 'attachment; filename="conversation-export.zip"',
+            "content-type": "application/zip",
+            "x-export-id": "export-1",
+            "x-export-sha256": "abc123",
+          },
+        });
+      }),
+    });
+    const range = {
+      fromInclusive: "2026-08-24T02:00:00Z",
+      toExclusive: "2026-08-24T03:00:00Z",
+    };
+    const response = await proxy(
+      new NextRequest("https://civic.example/api/v1/admin/rooms/room-1/conversation-exports", {
+        method: "POST",
+        headers: {
+          accept: "application/zip",
+          "content-type": "application/json",
+          cookie: "civic_ai_access_token=opaque-token",
+          origin: "https://civic.example",
+          "sec-fetch-site": "same-origin",
+        },
+        body: JSON.stringify(range),
+      }),
+      "/api/v1/admin/rooms/room-1/conversation-exports",
+      "chat:audit:exports",
+    );
+
+    expect(upstreamHeaders.get("accept")).toBe("application/zip");
+    expect(upstreamHeaders.get("content-type")).toBe("application/json");
+    expect(JSON.parse(upstreamBody)).toEqual(range);
+    expect(response.headers.get("content-type")).toBe("application/zip");
+    expect(response.headers.get("content-disposition")).toContain("conversation-export.zip");
+    expect(response.headers.get("x-export-id")).toBe("export-1");
+    expect(response.headers.get("x-export-sha256")).toBe("abc123");
+    expect(new Uint8Array(await response.arrayBuffer())).toEqual(archive);
   });
 
   it("rejects missing credentials and unsafe upstream paths before contact", async () => {

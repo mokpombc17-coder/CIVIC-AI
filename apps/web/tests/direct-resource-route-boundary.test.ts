@@ -2,6 +2,7 @@ import { afterEach, describe, expect, it } from "vitest";
 import nextConfig, {
   MAIN_ASSET_PREFIX,
   assetPrefixForEnvironment,
+  shouldCompressNextResponses,
   validateDirectResourceRouteOwnership,
 } from "../next.config";
 
@@ -29,12 +30,21 @@ describe("direct resource route boundary", () => {
     expect(assetPrefixForEnvironment("test")).toBeUndefined();
   });
 
+  it("설치 브라우저 RAG rewrite에서는 SSE 조각을 버퍼링하는 Next 압축을 끈다", () => {
+    expect(shouldCompressNextResponses(undefined)).toBe(true);
+    expect(shouldCompressNextResponses("  ")).toBe(true);
+    expect(shouldCompressNextResponses("http://127.0.0.1:4792")).toBe(false);
+  });
+
   it("RAG와 Simulation 핸들러 재도입을 거부하고 Main/Auth, Chat, Vote 소유권을 보존한다", () => {
     expect(() =>
       validateDirectResourceRouteOwnership([
         "api/v1/[...path]/route.ts",
         "api/v1/rooms/route.ts",
         "api/v1/admin/room-creation-requests/[[...path]]/route.ts",
+        "api/v1/admin/rooms/route.ts",
+        "api/v1/admin/rooms/[roomId]/commands/close/route.ts",
+        "api/v1/admin/rooms/[roomId]/conversation-exports/route.ts",
         "api/v1/admin/tasks/[[...path]]/route.ts",
       ]),
     ).not.toThrow();

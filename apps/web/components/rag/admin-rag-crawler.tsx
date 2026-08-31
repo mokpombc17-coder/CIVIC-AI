@@ -1,6 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import { ConsoleStatus } from "@/components/admin/console/console-ui";
 import type { Folder } from "./admin-rag-screen";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
@@ -85,11 +87,41 @@ export async function loadLatestCrawlRuns(
   return Object.fromEntries(entries);
 }
 
+export type CrawlSourceRemovalResult =
+  | Readonly<{ kind: "deleted"; refreshFailed: boolean }>
+  | Readonly<{ kind: "network" }>
+  | Readonly<{ kind: "rejected" }>;
+
+export async function removeCrawlSourceAndRefresh(
+  sourceId: string,
+  refreshSources: () => Promise<void>,
+  request: FetchRequest = authenticatedFetch,
+): Promise<CrawlSourceRemovalResult> {
+  let response: Response;
+  try {
+    response = await request(`/api/v1/rag/crawler/sources/${encodeURIComponent(sourceId)}`, {
+      method: "DELETE",
+    });
+  } catch {
+    return { kind: "network" };
+  }
+  if (!response.ok) return { kind: "rejected" };
+
+  try {
+    await refreshSources();
+    return { kind: "deleted", refreshFailed: false };
+  } catch {
+    return { kind: "deleted", refreshFailed: true };
+  }
+}
+
 export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder[] }>) {
   const [sources, setSources] = useState<readonly CrawlSource[]>([]);
   const [runs, setRuns] = useState<Readonly<Record<string, CrawlRun | undefined>>>({});
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT);
   const [editing, setEditing] = useState<CrawlSource>();
+  const [sourceToRemove, setSourceToRemove] = useState<CrawlSource>();
+  const [removingSource, setRemovingSource] = useState(false);
   const [message, setMessage] = useState("");
   const [previewCookies, setPreviewCookies] = useState("");
   const [previewAuthorization, setPreviewAuthorization] = useState("");
@@ -183,18 +215,33 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
     setMessage("수집 중단을 요청했습니다.");
   }
 
-  async function remove(source: CrawlSource) {
-    if (!window.confirm(`${source.name} 수집 설정을 삭제할까요?`)) return;
-    const response = await authenticatedFetch(
-      `/api/v1/rag/crawler/sources/${encodeURIComponent(source.source_id)}`,
-      { method: "DELETE" },
-    );
-    if (!response.ok) {
-      setMessage("수집 설정을 삭제하지 못했습니다.");
+  async function remove() {
+    const source = sourceToRemove;
+    if (!source || removingSource) {
+      setSourceToRemove(undefined);
       return;
     }
-    setMessage("수집 설정을 삭제했습니다.");
-    await refresh();
+    setRemovingSource(true);
+    try {
+      const result = await removeCrawlSourceAndRefresh(source.source_id, refresh);
+      if (result.kind === "network") {
+        setMessage("네트워크 오류로 수집 설정을 삭제하지 못했습니다.");
+        return;
+      }
+      if (result.kind === "rejected") {
+        setMessage("수집 설정을 삭제하지 못했습니다.");
+        return;
+      }
+      setSources((current) => current.filter((item) => item.source_id !== source.source_id));
+      setMessage(
+        result.refreshFailed
+          ? "수집 설정은 삭제했지만 최신 목록을 불러오지 못했습니다. 화면을 새로고침해 주세요."
+          : "수집 설정을 삭제했습니다.",
+      );
+    } finally {
+      setRemovingSource(false);
+      setSourceToRemove(undefined);
+    }
   }
 
   async function checkAuthenticatedPreview() {
@@ -366,6 +413,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
             </button>
             {editing ? (
               <button
+                className="civic-secondary-action"
                 onClick={() => {
                   setEditing(undefined);
                   setDraft(EMPTY_DRAFT);
@@ -446,19 +494,35 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
                       <td>{scheduleLabel(source.schedule)}</td>
                       <td>{current ? runLabel(current) : "실행 기록 없음"}</td>
                       <td>
-                        <button onClick={() => edit(source)} type="button">
+                        <button
+                          className="civic-secondary-action"
+                          onClick={() => edit(source)}
+                          type="button"
+                        >
                           수정
                         </button>
                         {current && ["QUEUED", "RUNNING"].includes(current.state) ? (
-                          <button onClick={() => stop(source, current)} type="button">
+                          <button
+                            className="civic-danger-action"
+                            onClick={() => stop(source, current)}
+                            type="button"
+                          >
                             중단
                           </button>
                         ) : (
-                          <button onClick={() => run(source)} type="button">
+                          <button
+                            className="civic-primary-action"
+                            onClick={() => run(source)}
+                            type="button"
+                          >
                             지금 수집
                           </button>
                         )}
-                        <button className="is-danger" onClick={() => remove(source)} type="button">
+                        <button
+                          className="civic-danger-action is-danger"
+                          onClick={() => setSourceToRemove(source)}
+                          type="button"
+                        >
                           삭제
                         </button>
                       </td>
@@ -471,8 +535,20 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
         ) : (
           <p>등록된 웹 수집원이 없습니다.</p>
         )}
-        {message ? <p aria-live="polite">{message}</p> : null}
+        {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
       </div>
+      <ConfirmDialog
+        busy={removingSource}
+        busyLabel="삭제 중…"
+        cancelLabel="유지"
+        confirmLabel="수집 설정 삭제"
+        description={`‘${sourceToRemove?.name ?? ""}’ 수집 설정을 삭제합니다. 삭제 후에는 되돌릴 수 없습니다.`}
+        destructive
+        onCancel={() => setSourceToRemove(undefined)}
+        onConfirm={() => void remove()}
+        open={sourceToRemove !== undefined}
+        title="수집 설정을 삭제하시겠습니까?"
+      />
     </details>
   );
 }

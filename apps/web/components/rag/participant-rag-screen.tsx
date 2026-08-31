@@ -8,25 +8,33 @@ import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { SafeMarkdownAnswer } from "./safe-markdown-answer";
-import { RagFeedback } from "./rag-feedback";
+import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
+  clearRagConversationDraft,
   clearRagConversationSnapshot,
   latestPendingRagJobId,
+  readRagConversationDraft,
   readRagConversationSnapshot,
+  writeRagConversationDraft,
   writeRagConversationSnapshot,
   type Citation,
   type Message,
   type RagJob,
   type RagProgress,
+  type RagProgressStage,
   RAG_PROGRESS_STAGES,
 } from "./rag-conversation-session";
 
 export {
+  clearRagConversationDraft,
   clearRagConversationSnapshot,
   latestPendingRagJobId,
+  readRagConversationDraft,
   readRagConversationSnapshot,
+  writeRagConversationDraft,
   writeRagConversationSnapshot,
 } from "./rag-conversation-session";
 export type {
@@ -44,12 +52,28 @@ function clockLabel(date = new Date()): string {
 
 export type RagLiveJob = Readonly<{
   progress: RagProgress;
-  progressReceivedAt: number;
-  startedAt: number;
   streamedAnswer: string;
 }>;
 
 type RagLiveJobs = Readonly<Record<string, RagLiveJob>>;
+
+type RagQuestionKeyDownEvent = Readonly<{
+  key: string;
+  shiftKey: boolean;
+  nativeEvent: Pick<globalThis.KeyboardEvent, "isComposing" | "keyCode">;
+  currentTarget: Readonly<{ form: Pick<HTMLFormElement, "requestSubmit"> | null }>;
+  preventDefault: () => void;
+}>;
+
+export function submitRagQuestionOnEnter(event: RagQuestionKeyDownEvent): void {
+  const isComposing = event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229;
+  if (event.key !== "Enter" || event.shiftKey || isComposing) return;
+
+  const form = event.currentTarget.form;
+  if (!form) return;
+  event.preventDefault();
+  form.requestSubmit();
+}
 
 const QUEUED_PROGRESS: RagProgress = {
   status: "QUEUED",
@@ -65,22 +89,29 @@ const STREAMING_PROGRESS: RagProgress = {
   status: "RUNNING",
   stage: "STREAMING",
   label: "답변을 실시간으로 전송하고 있어요",
-  detail: "검증된 답변을 읽을 수 있는 순서대로 화면에 표시합니다.",
+  detail: "답변이 만들어지는 순서대로 화면에 표시합니다.",
   progress_percent: 97,
   estimated_remaining_seconds: 1,
   elapsed_seconds: 0,
 };
 
+export const RAG_SESSION_EXPIRED_MESSAGE = "세션이 만료되었습니다. 다시 로그인 해주세요.";
+export const RAG_SESSION_LOGIN_HREF = "/login?returnTo=%2Frag" as Route;
+
+export class RagSessionExpiredError extends Error {
+  constructor() {
+    super(RAG_SESSION_EXPIRED_MESSAGE);
+    this.name = "RagSessionExpiredError";
+  }
+}
+
 type UpdateRagLiveJobs = (update: (current: RagLiveJobs) => RagLiveJobs) => void;
 
 function startLiveJob(updateLiveJobs: UpdateRagLiveJobs, jobId: string): void {
-  const now = Date.now();
   updateLiveJobs((current) => ({
     ...current,
     [jobId]: {
       progress: QUEUED_PROGRESS,
-      progressReceivedAt: now,
-      startedAt: now,
       streamedAnswer: "",
     },
   }));
@@ -103,34 +134,23 @@ function liveStreamOptions(
   return {
     signal,
     onProgress: (progress) => {
-      const now = Date.now();
       updateLiveJobs((current) => {
         const previous = current[jobId];
         return {
           ...current,
           [jobId]: {
             progress,
-            progressReceivedAt: now,
-            startedAt: previous?.startedAt ?? now - Math.max(0, progress.elapsed_seconds) * 1000,
             streamedAnswer: previous?.streamedAnswer ?? "",
           },
         };
       });
     },
     onAnswerStart: () => {
-      const now = Date.now();
       updateLiveJobs((current) => {
-        const previous = current[jobId];
-        const startedAt = previous?.startedAt ?? now;
         return {
           ...current,
           [jobId]: {
-            progress: {
-              ...STREAMING_PROGRESS,
-              elapsed_seconds: Math.max(0, Math.floor((now - startedAt) / 1000)),
-            },
-            progressReceivedAt: now,
-            startedAt,
+            progress: STREAMING_PROGRESS,
             streamedAnswer: "",
           },
         };
@@ -213,16 +233,33 @@ function RagConversation({
   const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
+  const [introVisible, setIntroVisible] = useState(true);
+  const [newQuestionDialogOpen, setNewQuestionDialogOpen] = useState(false);
   const activePoll = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
   const restoredQueryChecked = useRef(false);
   const queryOperation = useRef(createQueryOperation());
+  const messagesRef = useRef<HTMLDivElement>(null);
   const [notice, setNotice] = useState("");
+  const streamedAnswerLength = Object.values(liveJobs).reduce(
+    (total, liveJob) => total + liveJob.streamedAnswer.length,
+    0,
+  );
+
+  useEffect(() => {
+    if (streamedAnswerLength === 0) return;
+    const frame = window.requestAnimationFrame(() => {
+      const messages = messagesRef.current;
+      if (messages) scrollRagMessagesToLatest(messages);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [streamedAnswerLength]);
 
   useEffect(() => {
     if (!userId) return;
     const storage = browserRagConversationStorage();
     const snapshot = storage ? readRagConversationSnapshot(storage, userId) : null;
+    const draft = storage ? readRagConversationDraft(storage, userId) : null;
     let cancelled = false;
     queueMicrotask(() => {
       if (cancelled) return;
@@ -230,6 +267,8 @@ function RagConversation({
         setMessages(snapshot.messages);
         setCurrentSessionId(snapshot.sessionId);
       }
+      if (draft !== null) setQuestion(draft);
+      if (storage) clearRagConversationDraft(storage);
       setRestored(true);
     });
     return () => {
@@ -283,6 +322,10 @@ function RagConversation({
       .catch((error: unknown) => {
         if (error instanceof DOMException && error.name === "AbortError") return;
         finishLiveJob(setLiveJobs, pendingJobId);
+        if (error instanceof RagSessionExpiredError) {
+          setNotice(RAG_SESSION_EXPIRED_MESSAGE);
+          return;
+        }
         setNotice("연결이 끊겼습니다. 진행 중인 질문은 다음 방문 때 다시 확인합니다.");
       })
       .finally(() => {
@@ -303,6 +346,35 @@ function RagConversation({
     },
     [],
   );
+
+  useEffect(() => {
+    const openNewQuestionDialog = () => setNewQuestionDialogOpen(true);
+    window.addEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+    return () => window.removeEventListener(RAG_NEW_QUESTION_REQUEST_EVENT, openNewQuestionDialog);
+  }, []);
+
+  function preserveDraftForLogin(): void {
+    if (!userId) return;
+    const storage = browserRagConversationStorage();
+    if (!storage) return;
+    writeRagConversationDraft(storage, userId, question);
+  }
+
+  function startNewQuestion(): void {
+    requestGeneration.current += 1;
+    activePoll.current?.abort();
+    activePoll.current = null;
+    queryOperation.current.clear();
+    setCurrentSessionId(null);
+    const storage = browserRagConversationStorage();
+    if (storage) clearRagConversationSnapshot(storage);
+    setMessages([]);
+    setLiveJobs({});
+    setQuestion("");
+    setBusy(false);
+    setNewQuestionDialogOpen(false);
+    setNotice("새 질문을 시작했습니다.");
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -333,7 +405,7 @@ function RagConversation({
       retireIdempotencyKey = true;
       if (requestGeneration.current !== generation) return;
       if (submission.kind === "problem") {
-        setNotice(problemMessage(submission.code));
+        setNotice(problemMessage(submission.code, submission.status));
         return;
       }
       const accepted = submission.job;
@@ -361,6 +433,10 @@ function RagConversation({
     } catch (error) {
       if (error instanceof DOMException && error.name === "AbortError") return;
       if (activeJobId) finishLiveJob(setLiveJobs, activeJobId);
+      if (error instanceof RagSessionExpiredError) {
+        setNotice(RAG_SESSION_EXPIRED_MESSAGE);
+        return;
+      }
       setNotice("연결이 끊겼습니다. 입력한 질문은 유지되며 잠시 후 다시 시도할 수 있습니다.");
     } finally {
       queryOperation.current.settle(retireIdempotencyKey);
@@ -374,34 +450,27 @@ function RagConversation({
   return (
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
-        <header className="civic-rag-session-bar">
-          <p className="civic-rag-intro">
-            궁금한 정보를 질문하세요.
-            <br />
-            AI가 실제 문서를 기반으로 답변해드립니다.
-          </p>
-          <button
-            className="civic-secondary-action"
-            onClick={() => {
-              requestGeneration.current += 1;
-              activePoll.current?.abort();
-              activePoll.current = null;
-              queryOperation.current.clear();
-              setCurrentSessionId(null);
-              const storage = browserRagConversationStorage();
-              if (storage) clearRagConversationSnapshot(storage);
-              setMessages([]);
-              setLiveJobs({});
-              setQuestion("");
-              setBusy(false);
-              setNotice("새 질문을 시작했습니다.");
-            }}
-            type="button"
-          >
-            새 질문
-          </button>
-        </header>
-        <div aria-label="현재 RAG 대화" className="civic-rag-messages" role="log">
+        {introVisible ? (
+          <header className="civic-rag-session-bar">
+            <div className="civic-rag-intro-banner">
+              <p className="civic-rag-intro">
+                궁금한 정보를 질문하세요.
+                <br />
+                AI가 실제 문서를 기반으로 답변해드립니다.
+              </p>
+              <button
+                aria-label="안내 닫기"
+                className="civic-rag-intro-dismiss"
+                onClick={() => setIntroVisible(false)}
+                title="안내 닫기"
+                type="button"
+              >
+                <CloseIcon />
+              </button>
+            </div>
+          </header>
+        ) : null}
+        <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
               <span aria-hidden="true">✦</span>
@@ -427,11 +496,7 @@ function RagConversation({
             </p>
           ) : null}
         </div>
-        {notice ? (
-          <p aria-live="polite" className="civic-form-message">
-            {notice}
-          </p>
-        ) : null}
+        <RagNotice notice={notice} onLogin={preserveDraftForLogin} />
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">
             메시지 입력
@@ -440,7 +505,8 @@ function RagConversation({
             id="rag-question"
             maxLength={8000}
             onChange={(event) => setQuestion(event.target.value)}
-            placeholder="문서에 대해 질문하세요..."
+            onKeyDown={submitRagQuestionOnEnter}
+            placeholder="문서에 대해 질문하세요…"
             rows={2}
             value={question}
           />
@@ -454,6 +520,15 @@ function RagConversation({
         </form>
         <span className="civic-screen-action-label">{ragScreenPrimaryActions[screen.id]}</span>
       </section>
+      <ConfirmDialog
+        cancelLabel="취소"
+        confirmLabel="새 질문 시작"
+        description="새 질문을 시작하면 대화 기록이 초기화 됩니다."
+        onCancel={() => setNewQuestionDialogOpen(false)}
+        onConfirm={startNewQuestion}
+        open={newQuestionDialogOpen}
+        title="새 질문을 시작할까요?"
+      />
       {activeCitation ? (
         <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
           <div aria-hidden="true" className="wf-rag-reference-scrim" />
@@ -486,6 +561,23 @@ function browserRagConversationStorage(): Storage | null {
   }
 }
 
+export function RagNotice({ notice, onLogin }: Readonly<{ notice: string; onLogin?: () => void }>) {
+  if (!notice) return null;
+  return (
+    <p aria-live="polite" className="civic-form-message">
+      {notice}
+      {notice === RAG_SESSION_EXPIRED_MESSAGE ? (
+        <>
+          {" "}
+          <Link href={RAG_SESSION_LOGIN_HREF} {...(onLogin ? { onClick: onLogin } : {})}>
+            로그인
+          </Link>
+        </>
+      ) : null}
+    </p>
+  );
+}
+
 export function createQueryOperation(idFactory: () => string = () => crypto.randomUUID()) {
   let pending = false;
   let retained: { question: string; key: string } | null = null;
@@ -513,7 +605,7 @@ export async function parseQuerySubmissionResponse(
   response: Response,
 ): Promise<
   | Readonly<{ kind: "accepted"; job: RagJob }>
-  | Readonly<{ kind: "problem"; code: string | undefined }>
+  | Readonly<{ kind: "problem"; code: string | undefined; status: number }>
 > {
   if (!response.ok) {
     const problem = await response.json().catch(() => null);
@@ -524,7 +616,7 @@ export async function parseQuerySubmissionResponse(
       typeof problem.code === "string"
         ? problem.code
         : undefined;
-    return { kind: "problem", code };
+    return { kind: "problem", code, status: response.status };
   }
   const value = await response.json().catch(() => {
     throw new TypeError("RAG accepted query response is invalid");
@@ -551,23 +643,40 @@ function ConversationBackdrop() {
       data-wireflow-layout="rag-conversation"
     >
       <header className="civic-rag-session-bar">
-        <p className="civic-rag-intro">
-          궁금한 정보를 질문하세요.
-          <br />
-          AI가 실제 문서를 기반으로 답변해드립니다.
-        </p>
-        <span className="civic-secondary-action">새 질문</span>
+        <div className="civic-rag-intro-banner">
+          <p className="civic-rag-intro">
+            궁금한 정보를 질문하세요.
+            <br />
+            AI가 실제 문서를 기반으로 답변해드립니다.
+          </p>
+          <span aria-hidden="true" className="civic-rag-intro-dismiss">
+            <CloseIcon />
+          </span>
+        </div>
       </header>
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
-        <span>문서에 대해 질문하세요...</span>
+        <span>문서에 대해 질문하세요…</span>
         <span>전송</span>
       </div>
     </section>
   );
 }
 
-function RagMessage({
+function CloseIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
+      <path
+        d="m5 5 10 10M15 5 5 15"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
+
+export function RagMessage({
   liveJob,
   message,
   onOpenCitation,
@@ -580,27 +689,35 @@ function RagMessage({
 }>) {
   const statusMessage = ragJobStatusMessage(message.job);
   const citations = message.job?.citations ?? [];
-  const relatedTitles = Array.from(
-    new Set(citations.flatMap((citation) => citation.related_titles ?? [])),
-  );
+  const showStreamingAnswer = liveJob
+    ? shouldShowRagStreamingAnswer(liveJob.progress.stage, liveJob.streamedAnswer)
+    : false;
+  const showOnlyLoadingLabel = Boolean(liveJob && liveJob.streamedAnswer.length === 0);
   return (
     <article className="civic-rag-exchange">
       <div className="civic-rag-question-row">
-        <time className="civic-rag-time">{message.askedAt}</time>
-        <p className="civic-rag-question">{message.question}</p>
+        <div className="civic-rag-question-content">
+          <p className="civic-rag-question">{message.question}</p>
+        </div>
       </div>
       <div className="civic-rag-answer-row">
         <header className="civic-rag-answer-meta">
           <strong>CIVIC.AI</strong>
-          {message.answeredAt ? <time className="civic-rag-time">{message.answeredAt}</time> : null}
         </header>
-        <div className={`civic-rag-answer${liveJob ? " is-live" : ""}`}>
+        <div
+          aria-busy={liveJob ? true : undefined}
+          aria-label={liveJob && showStreamingAnswer ? "실시간 답변" : undefined}
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showOnlyLoadingLabel ? " is-loading-label-only" : ""}`}
+        >
           {liveJob ? (
-            liveJob.streamedAnswer ? (
-              <div aria-label="실시간 답변" className="civic-rag-streamed-answer">
+            showStreamingAnswer ? (
+              liveJob.streamedAnswer ? (
                 <SafeMarkdownAnswer answer={liveJob.streamedAnswer} citations={[]} />
-                <span aria-hidden="true" className="civic-rag-stream-cursor" />
-              </div>
+              ) : (
+                <p className="civic-rag-stream-starting civic-rag-loading-label">
+                  답변을 작성하는 중...
+                </p>
+              )
             ) : (
               <RagLiveProgress liveJob={liveJob} />
             )
@@ -614,110 +731,53 @@ function RagMessage({
             />
           ) : null}
         </div>
-        {citations.length ? (
-          <div aria-label="출처" className="civic-rag-citations">
-            {citations.map((citation) => {
-              const externalUrl = safeExternalSourceUrl(citation.source_url);
-              return (
-                <div
-                  className="civic-rag-citation-card"
-                  key={`${citation.document_version_id}-${citation.page_number}-${citation.source_object_sha256}`}
-                >
-                  <div className="civic-rag-citation-copy">
-                    <strong>
-                      <span aria-hidden="true" className="civic-rag-citation-icon">
-                        ⓘ
-                      </span>
-                      출처
-                    </strong>
-                    <p>
-                      {citation.title ?? "문서"} · {citation.page_number}페이지
-                    </p>
-                  </div>
-                  <div className="civic-rag-citation-actions">
-                    <Link
-                      className="wf-button wf-button-secondary"
-                      href={citationHref(citation)}
-                      onClick={(event) => openCitationInline(event, citation, onOpenCitation)}
-                    >
-                      근거 페이지
-                    </Link>
-                    {externalUrl ? (
-                      <a
-                        className="wf-button wf-button-secondary"
-                        href={externalUrl}
-                        rel="noopener noreferrer"
-                        target="_blank"
-                      >
-                        게시 원문
-                      </a>
-                    ) : null}
-                  </div>
-                </div>
-              );
-            })}
-            {relatedTitles.length ? (
-              <aside className="civic-rag-related-documents">
-                <strong>관련 문서</strong>
-                <ul>
-                  {relatedTitles.map((title) => (
-                    <li key={title}>{title}</li>
-                  ))}
-                </ul>
-              </aside>
-            ) : null}
-          </div>
-        ) : null}
         {message.job?.suggestions?.length ? (
           <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
-        ) : null}
-        {message.job?.status === "SUCCEEDED" && message.job.answer ? (
-          <RagFeedback
-            jobId={message.job.job_id}
-            {...(message.job.feedback ? { initialValue: message.job.feedback } : {})}
-          />
         ) : null}
       </div>
     </article>
   );
 }
 
-export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
-  const [now, setNow] = useState(() => Date.now());
+type RagMessagesScrollTarget = Pick<HTMLDivElement, "scrollHeight" | "scrollTo">;
 
-  useEffect(() => {
-    const timer = window.setInterval(() => setNow(Date.now()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-
-  const elapsedSeconds = Math.max(
-    liveJob.progress.elapsed_seconds,
-    Math.floor((now - liveJob.startedAt) / 1000),
-  );
-
-  return (
-    <section aria-label="RAG 답변 로딩" className="civic-rag-live-progress" role="status">
-      <div className="civic-rag-live-heading">
-        <span className="civic-rag-live-badge">
-          <span aria-hidden="true" /> 답변 준비 중
-        </span>
-        <strong>시작 후 {formatRagElapsed(elapsedSeconds)}</strong>
-      </div>
-      <div className="civic-rag-live-copy">
-        <div>
-          <strong>문서를 확인하고 답변을 준비하고 있어요</strong>
-          <p>답변이 시작되면 생성되는 내용부터 바로 표시합니다.</p>
-        </div>
-      </div>
-    </section>
-  );
+export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): void {
+  messages.scrollTo({ behavior: "smooth", top: messages.scrollHeight });
 }
 
-function formatRagElapsed(seconds: number): string {
-  if (seconds < 60) return `${seconds}초`;
-  const minutes = Math.floor(seconds / 60);
-  const remainingSeconds = seconds % 60;
-  return remainingSeconds ? `${minutes}분 ${remainingSeconds}초` : `${minutes}분`;
+const ANSWER_GENERATION_STAGES = new Set<RagProgressStage>(["COMPOSING", "VERIFYING", "STREAMING"]);
+
+export function shouldShowRagStreamingAnswer(
+  stage: RagProgressStage,
+  streamedAnswer: string,
+): boolean {
+  return streamedAnswer.length > 0 || ANSWER_GENERATION_STAGES.has(stage);
+}
+
+export function ragLoadingLabel(stage: RagProgressStage): string {
+  switch (stage) {
+    case "QUEUED":
+    case "UNDERSTANDING":
+      return "질문을 이해하는 중...";
+    case "SEARCHING":
+      return "관련 자료를 찾는 중...";
+    case "READING":
+      return "근거를 검토하는 중...";
+    case "COMPOSING":
+    case "VERIFYING":
+    case "STREAMING":
+      return "답변을 작성하는 중...";
+  }
+}
+
+export function RagLiveProgress({ liveJob }: Readonly<{ liveJob: RagLiveJob }>) {
+  return (
+    <section aria-label="RAG 답변 생성 중" className="civic-rag-live-progress" role="status">
+      <strong aria-live="polite" className="civic-rag-loading-label">
+        {ragLoadingLabel(liveJob.progress.stage)}
+      </strong>
+    </section>
+  );
 }
 
 export function RagSuggestionChips({
@@ -798,7 +858,15 @@ type StreamResultOptions = Readonly<{
   onAnswerStart?: () => void;
   onProgress?: (progress: RagProgress) => void;
   signal?: AbortSignal;
+  waitForAnswerPaint?: () => Promise<void>;
 }>;
+
+function waitForTwoAnimationFrames(): Promise<void> {
+  if (typeof requestAnimationFrame === "undefined") return Promise.resolve();
+  return new Promise((resolve) => {
+    requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+  });
+}
 
 export async function waitForStreamedResult(
   jobId: string,
@@ -811,6 +879,7 @@ export async function waitForStreamedResult(
     onAnswerStart,
     onProgress,
     signal,
+    waitForAnswerPaint = waitForTwoAnimationFrames,
   }: StreamResultOptions = {},
 ): Promise<RagJob> {
   const fallbackResult = () =>
@@ -828,6 +897,7 @@ export async function waitForStreamedResult(
     body: JSON.stringify({ job_id: jobId }),
     ...(signal ? { signal } : {}),
   }).catch(() => null);
+  if (bootstrap?.status === 401) throw new RagSessionExpiredError();
   if (!bootstrap?.ok) return fallbackResult();
   const body = (await bootstrap.json().catch(() => null)) as { stream_path?: unknown } | null;
   if (!body || typeof body.stream_path !== "string") return fallbackResult();
@@ -837,6 +907,7 @@ export async function waitForStreamedResult(
       ? createSource(body.stream_path as string)
       : new EventSource(body.stream_path as string);
     let settled = false;
+    let answerDeltaReceived = false;
     const close = () => {
       source.close();
       signal?.removeEventListener("abort", abort);
@@ -846,10 +917,12 @@ export async function waitForStreamedResult(
       settled = true;
       close();
       try {
+        if (answerDeltaReceived) await waitForAnswerPaint();
         const response = await request(`/api/v1/rag/queries/${encodeURIComponent(jobId)}`, {
           cache: "no-store",
           ...(signal ? { signal } : {}),
         });
+        if (response.status === 401) throw new RagSessionExpiredError();
         if (!response.ok) throw new Error("query status unavailable");
         const result = (await response.json()) as RagJob;
         if (result.status !== "SUCCEEDED" && result.status !== "FAILED") {
@@ -857,8 +930,9 @@ export async function waitForStreamedResult(
           return;
         }
         resolve(result);
-      } catch {
+      } catch (error) {
         if (signal?.aborted) reject(new DOMException("query stream aborted", "AbortError"));
+        else if (error instanceof RagSessionExpiredError) reject(error);
         else fallbackResult().then(resolve, reject);
       }
     };
@@ -889,6 +963,7 @@ export async function waitForStreamedResult(
         typeof value.delta === "string" &&
         value.delta.length <= 512
       ) {
+        answerDeltaReceived = true;
         onAnswerDelta?.(value.delta);
       }
     });
@@ -916,6 +991,7 @@ export async function pollResult(
         ...(signal ? { signal } : {}),
       });
       if (!response.ok) {
+        if (response.status === 401) throw new RagSessionExpiredError();
         if (!isRetryableRagStatus(response.status)) throw new Error("query status unavailable");
       } else {
         const job = (await response.json()) as RagJob;
@@ -924,6 +1000,7 @@ export async function pollResult(
         if (job.status === "SUCCEEDED" || job.status === "FAILED") return job;
       }
     } catch (error) {
+      if (error instanceof RagSessionExpiredError) throw error;
       if (error instanceof Error && error.message === "query status unavailable") throw error;
     }
     await wait(1000);
@@ -969,7 +1046,10 @@ export function isRetryableRagStatus(status: number): boolean {
   return status === 408 || status === 429 || status >= 500;
 }
 
-export function problemMessage(code?: string) {
+export function problemMessage(code?: string, status?: number) {
+  if (status === 401 || code === "UNAUTHORIZED" || code === "INVALID_TOKEN") {
+    return RAG_SESSION_EXPIRED_MESSAGE;
+  }
   if (code === "NO_DOCUMENTS") return "아직 질문할 수 있는 문서가 없습니다.";
   if (code === "INDEX_NOT_READY") return "문서 색인이 진행 중입니다. 입력은 유지됩니다.";
   if (code === "AI_PROVIDER_DISABLED") return "현재 AI 답변 기능이 비활성화되어 있습니다.";

@@ -1,9 +1,34 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import type { Route } from "next";
-import { describe, expect, it } from "vitest";
-import { AdminChatRequestScreen } from "@/components/admin/admin-chat-request-screen";
+import { describe, expect, it, vi } from "vitest";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => null,
+  useRouter: () => ({
+    push: vi.fn(),
+    replace: vi.fn(),
+    prefetch: vi.fn(),
+    back: vi.fn(),
+    forward: vi.fn(),
+    refresh: vi.fn(),
+  }),
+}));
+import {
+  AdminChatRequestScreen,
+  CHAT_REQUEST_GRID_COLUMNS,
+} from "@/components/admin/admin-chat-request-screen";
+import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
+import {
+  AdminTaskScreen,
+  lifecycleActions,
+  TASK_GRID_COLUMNS,
+  taskWorkspacePath,
+  taskWorkspaceTabForScreen,
+} from "@/components/admin/admin-task-screen";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { isSectionActive } from "@/components/admin/admin-chat-operations-layout";
+import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import {
   WireflowBadge,
@@ -14,6 +39,25 @@ import {
 import { screenRegistry } from "@/lib/screens/registry";
 
 describe("latest Wire Flow shared product UI", () => {
+  it("관리자 검색은 화면별 CSS에 덮이지 않는 공용 입력과 버튼을 렌더링한다", () => {
+    const html = renderToStaticMarkup(
+      <ConsoleSearchControl
+        ariaLabel="목록 검색"
+        className="narrow-panel"
+        disabled
+        maxLength={100}
+        placeholder="검색어를 입력해 주세요."
+      />,
+    );
+
+    expect(html).toContain('class="console-search-control narrow-panel"');
+    expect(html).toContain('class="console-search-input"');
+    expect(html).toContain('class="console-search-button"');
+    expect(html).toContain('aria-label="목록 검색"');
+    expect(html).toContain('maxLength="100"');
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+
   it("renders product headings without Atlas review chrome or legacy status copy", () => {
     const login = screenRegistry.find((screen) => screen.id === "AUTH-001");
     if (!login) throw new Error("AUTH-001 missing");
@@ -87,7 +131,29 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("요청마다 권한 재확인");
   });
 
-  it("채팅방 생성 요청 목록은 취소 상태 필터를 제공하지 않는다", () => {
+  it("토론방 운영은 사이드바 단일 메뉴이고 하위 경로에서도 현재 메뉴로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <AdminShell activeRoute="/admin/chat/requests" permissions={["CHAT_ADMIN"]} role="ADMIN">
+        <p>content</p>
+      </AdminShell>,
+    );
+
+    expect(html).toMatch(/aria-current="page"[^>]*href="\/admin\/chat"/u);
+    expect(html).toContain(">토론방 운영<");
+    expect(html).not.toContain("civic-admin-nav-sub-link");
+    expect(html).not.toContain(">토론방 신청 목록<");
+    expect(html).not.toContain(">카테고리 관리<");
+  });
+
+  it("토론방 운영 섹션 전환은 워크스페이스 상단 탭으로 제공한다", () => {
+    expect(isSectionActive("/admin/chat", "/admin/chat")).toBe(true);
+    expect(isSectionActive("/admin/chat/statistics", "/admin/chat")).toBe(true);
+    expect(isSectionActive("/admin/chat/requests", "/admin/chat")).toBe(false);
+    expect(isSectionActive("/admin/chat/requests/detail", "/admin/chat/requests")).toBe(true);
+    expect(isSectionActive("/admin/chat/categories", "/admin/chat/categories")).toBe(true);
+  });
+
+  it("토론방 생성 요청 목록은 취소 필터와 고정된 공개·참여 방식을 표시하지 않는다", () => {
     const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
     if (!requestList) throw new Error("A-CHAT-004 missing");
 
@@ -96,7 +162,118 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">승인 대기</button>");
     expect(html).toContain(">승인</button>");
     expect(html).toContain(">반려</button>");
+    expect(html).toContain('aria-label="토론방 운영 섹션"');
+    expect(html).not.toContain('href="/admin/chat/export"');
     expect(html).not.toContain(">취소</button>");
+    expect(html).not.toContain("공개·참여 방식");
+    expect(html).not.toContain("목록 공개");
+    expect(html).not.toContain("바로 참여");
+  });
+
+  it("토론방 생성 요청 화면은 목록·상세 분할 콘솔로 렌더링한다", () => {
+    const requestList = screenRegistry.find((screen) => screen.id === "A-CHAT-004");
+    if (!requestList) throw new Error("A-CHAT-004 missing");
+
+    const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={requestList} />);
+
+    expect(CHAT_REQUEST_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "토론방 이름",
+      "요청 시각",
+    ]);
+    expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
+    expect(html).toContain('aria-label="개설 신청 목록"');
+    expect(html).toContain(">개설 신청</h3>");
+    expect(html).toContain('aria-label="신청자 이메일 또는 토론방 이름 검색"');
+    expect(html).toContain('aria-label="신청 상태"');
+    expect(html).toContain('aria-label="토론방 생성 신청 표"');
+    expect(html).toContain('aria-label="신청 상세"');
+    expect(html).toContain("목록에서 신청을 선택하세요.");
+  });
+
+  it.each([["A-CHAT-005"], ["A-CHAT-006"]])(
+    "%s 검토 화면도 동일한 분할 콘솔과 목록을 렌더링한다",
+    (screenId) => {
+      const screen = screenRegistry.find((candidate) => candidate.id === screenId);
+      if (!screen) throw new Error(`${screenId} missing`);
+
+      const html = renderToStaticMarkup(<AdminChatRequestScreen query={{}} screen={screen} />);
+
+      expect(html).toContain(">토론방 운영</h1>");
+      expect(html).toContain('data-wireflow-layout="admin-chat-request-console"');
+      expect(html).toContain('aria-label="토론방 생성 신청 표"');
+      expect(html).toContain('aria-label="신청 상세"');
+      expect(html).toContain("목록에서 신청을 선택하세요.");
+    },
+  );
+
+  it("카테고리 화면은 별도 토론방 운영 탭을 중복 노출하지 않는다", () => {
+    const categoryScreen = screenRegistry.find((screen) => screen.id === "A-CHAT-007");
+    if (!categoryScreen) throw new Error("A-CHAT-007 missing");
+
+    const html = renderToStaticMarkup(<AdminRoomCategoryScreen screen={categoryScreen} />);
+
+    expect(html).toContain(">토론방 운영</h1>");
+    expect(html).toContain("토론방 이름 검색");
+    expect(html).toContain('class="console-search-button"');
+    expect(html).toContain('data-wireflow-layout="room-category-admin-console"');
+    expect(html).toContain('aria-label="카테고리 목록 표"');
+    expect(html).toContain('aria-label="토론방 카테고리 교체 표"');
+    expect(html).toContain('aria-label="토론방 운영 섹션"');
+    expect(html).not.toContain('href="/admin/chat/export"');
+  });
+
+  it("과업 화면은 목록·상세 통합 콘솔 워크스페이스로 렌더링한다", () => {
+    const taskList = screenRegistry.find((screen) => screen.id === "A-TASK-001");
+    if (!taskList) throw new Error("A-TASK-001 missing");
+
+    const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={taskList} />);
+
+    expect(html).toContain('data-wireflow-screen="A-TASK-001"');
+    expect(html).toContain('data-wireflow-layout="admin-task-console"');
+    expect(html).toContain('aria-label="과업 목록"');
+    expect(html).toContain('aria-label="새 과업 만들기"');
+    expect(html).toContain('aria-label="과업 제목 검색"');
+    expect(html).toContain('aria-label="과업 상태"');
+    expect(html).toContain('aria-label="과업 목록 표"');
+    expect(html).toContain("목록에서 과업을 선택하세요.");
+  });
+
+  it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
+    expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
+  });
+
+  it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {
+    for (const screenId of ["A-TASK-002", "A-TASK-003", "A-TASK-004", "A-TASK-005"]) {
+      const definition = screenRegistry.find((screen) => screen.id === screenId);
+      if (!definition) throw new Error(`${screenId} missing`);
+
+      const html = renderToStaticMarkup(<AdminTaskScreen query={{}} screen={definition} />);
+
+      expect(html).toContain(`data-wireflow-screen="${screenId}"`);
+      expect(html).toContain('data-wireflow-layout="admin-task-console"');
+      expect(html).toContain('aria-label="과업 목록"');
+    }
+  });
+
+  it("과업 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
+    expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["제목", "상태"]);
+    expect(taskWorkspaceTabForScreen("A-TASK-003")).toBe("overview");
+    expect(taskWorkspaceTabForScreen("A-TASK-005")).toBe("results");
+    expect(taskWorkspacePath({ editing: false, taskId: null, tab: "overview" })).toBe(
+      "/admin/tasks",
+    );
+    expect(taskWorkspacePath({ editing: false, taskId: "t-1", tab: "overview" })).toBe(
+      "/admin/tasks/detail?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: false, taskId: "t-1", tab: "results" })).toBe(
+      "/admin/tasks/results?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: true, taskId: "t-1", tab: "overview" })).toBe(
+      "/admin/tasks/create?taskId=t-1",
+    );
+    expect(taskWorkspacePath({ editing: true, taskId: null, tab: "overview" })).toBe(
+      "/admin/tasks/create",
+    );
   });
 
   it("shares accessible card, badge, field and button primitives", () => {

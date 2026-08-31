@@ -1,5 +1,3 @@
-import type { RagFeedbackValue } from "./rag-feedback";
-
 export type Citation = Readonly<{
   document_version_id: string;
   page_number: number;
@@ -42,7 +40,6 @@ export type RagJob = Readonly<{
   citations?: Citation[];
   suggestions?: string[];
   failure_code?: string;
-  feedback?: RagFeedbackValue;
   progress?: RagProgress;
 }>;
 
@@ -64,6 +61,7 @@ type RagConversationStorage = Pick<Storage, "getItem" | "removeItem" | "setItem"
 type RagConversationRemovalStorage = Pick<Storage, "removeItem">;
 
 export const RAG_CONVERSATION_STORAGE_KEY = "civic:rag-conversation:v1";
+const RAG_CONVERSATION_DRAFT_STORAGE_KEY = "civic:rag-conversation-draft:v1";
 
 export function writeRagConversationSnapshot(
   storage: RagConversationStorage,
@@ -104,8 +102,58 @@ export function readRagConversationSnapshot(
 }
 
 export function clearRagConversationSnapshot(storage: RagConversationRemovalStorage): void {
+  clearRagConversationDraft(storage);
   try {
     storage.removeItem(RAG_CONVERSATION_STORAGE_KEY);
+  } catch {
+    // Storage may be unavailable in a privacy-restricted browser.
+  }
+}
+
+export function writeRagConversationDraft(
+  storage: RagConversationStorage,
+  ownerUserId: string,
+  draft: string,
+): void {
+  if (draft.length > 8000) return;
+  try {
+    storage.setItem(
+      RAG_CONVERSATION_DRAFT_STORAGE_KEY,
+      JSON.stringify({ version: 1, ownerUserId, draft }),
+    );
+  } catch {
+    // Browser privacy settings or storage quota may disable tab storage.
+  }
+}
+
+export function readRagConversationDraft(
+  storage: RagConversationStorage,
+  ownerUserId: string,
+): string | null {
+  try {
+    const raw = storage.getItem(RAG_CONVERSATION_DRAFT_STORAGE_KEY);
+    if (!raw) return null;
+    const value: unknown = JSON.parse(raw);
+    if (
+      !isRecord(value) ||
+      value.version !== 1 ||
+      value.ownerUserId !== ownerUserId ||
+      typeof value.draft !== "string" ||
+      value.draft.length > 8000
+    ) {
+      clearRagConversationDraft(storage);
+      return null;
+    }
+    return value.draft;
+  } catch {
+    clearRagConversationDraft(storage);
+    return null;
+  }
+}
+
+export function clearRagConversationDraft(storage: RagConversationRemovalStorage): void {
+  try {
+    storage.removeItem(RAG_CONVERSATION_DRAFT_STORAGE_KEY);
   } catch {
     // Storage may be unavailable in a privacy-restricted browser.
   }
@@ -154,13 +202,6 @@ function isStoredRagJob(value: unknown): value is RagJob {
   }
   for (const field of ["session_id", "submitted_question", "answer", "failure_code"] as const) {
     if (value[field] !== undefined && typeof value[field] !== "string") return false;
-  }
-  if (
-    value.feedback !== undefined &&
-    value.feedback !== "HELPFUL" &&
-    value.feedback !== "UNHELPFUL"
-  ) {
-    return false;
   }
   if (value.progress !== undefined && !isStoredRagProgress(value.progress)) return false;
   if (

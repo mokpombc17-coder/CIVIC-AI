@@ -3,6 +3,7 @@ import { createServer, type Server } from "node:http";
 import path from "node:path";
 import AxeBuilder from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Page } from "@playwright/test";
+import { voteSurveyCurrentFixture, voteSurveyLatestFixture } from "../fixtures/vote-survey";
 
 const WEB_BASE_URL = "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
@@ -45,6 +46,12 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/account/profile") {
       return json(response, profileFixture);
+    }
+    if (url.pathname === "/api/v1/me/surveys/current") {
+      return json(response, voteSurveyCurrentFixture);
+    }
+    if (url.pathname === "/api/v1/me/survey-responses/latest") {
+      return json(response, voteSurveyLatestFixture);
     }
     if (url.pathname === "/api/v1/admin/users") {
       return json(response, { items: [adminUserFixture, participantUserFixture] });

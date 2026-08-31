@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "./wireflow.css";
+import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
 import { resolveSiteUrl } from "@/lib/site-url";
 
@@ -42,6 +43,14 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
     <html lang="ko">
+      <head>
+        <link
+          crossOrigin="anonymous"
+          href="/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+      </head>
       <body>
         <AppShell>{children}</AppShell>
       </body>

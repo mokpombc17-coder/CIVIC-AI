@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { expect, test, type BrowserContext } from "@playwright/test";
+import { devices, expect, test, type BrowserContext } from "@playwright/test";
 
 const WEB_BASE_URL = "https://localhost:3109";
 const MOCK_API_HOST = "127.0.0.1";
@@ -56,7 +56,7 @@ test.beforeAll(async () => {
       };
       return json(response, {
         ...participantUser,
-        roles: ["PARTICIPANT", "ADMIN"],
+        roles: ["ADMIN"],
         permissions: ["RAG_ADMIN"],
         row_version: 3,
       });
@@ -72,7 +72,7 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => close(server));
 
-test("관리자는 사용자 조회부터 RAG 권한 변경과 감사 이력까지 GUI에서 완료한다", async ({
+test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력까지 GUI에서 완료한다", async ({
   context,
   page,
 }) => {
@@ -81,27 +81,43 @@ test("관리자는 사용자 조회부터 RAG 권한 변경과 감사 이력까�
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/users");
 
-  await expect(page.getByRole("heading", { name: "사용자 목록" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   const participantRow = page.getByRole("row", { name: /citizen@example.com/ });
-  await expect(participantRow).toContainText("활성");
-  await participantRow.getByRole("link", { name: "사용자 상세" }).click();
+  await expect(participantRow).toContainText("없음");
+  await participantRow.click();
 
-  await expect(page.getByRole("heading", { name: "사용자·관리자 상세" })).toBeVisible();
-  await expect(page.getByText("citizen@example.com", { exact: true })).toBeVisible();
-  await page.getByRole("link", { name: "관리자 전환·권한 편집" }).first().click();
-
-  await expect(page.getByRole("heading", { name: "관리자 전환·권한 편집" })).toBeVisible();
-  for (const permission of ["RAG 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
+  await expect(page.getByRole("heading", { name: "citizen@example.com" })).toBeVisible();
+  await page.getByRole("tab", { name: "권한 편집" }).click();
+  const permissionLabels = ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"];
+  for (const permission of permissionLabels) {
     await expect(page.getByLabel(permission)).toBeVisible();
   }
-  await page.getByLabel("RAG 관리").check();
+  await page.getByRole("radio", { name: /^최고 관리자 /u }).check();
+  for (const permission of permissionLabels) {
+    await expect(page.getByLabel(permission)).toBeChecked();
+    await expect(page.getByLabel(permission)).toBeDisabled();
+  }
+  await expect(page.getByText(/최고 관리자는 모든 운영 권한/)).toBeVisible();
+
+  await page.getByRole("radio", { name: /^사용자 /u }).check();
+  for (const permission of permissionLabels) {
+    await expect(page.getByLabel(permission)).not.toBeChecked();
+    await expect(page.getByLabel(permission)).toBeDisabled();
+  }
+  await expect(
+    page.getByText(/사용자로 저장하면 관리자 역할과 운영 권한이 모두 해제/),
+  ).toBeVisible();
+
+  await page.getByRole("radio", { name: /^운영 관리자 /u }).check();
+  await page.getByLabel("문서 관리").check();
   await page.getByLabel("변경 사유 (필수)").fill("문서 운영 담당자 배정");
+  await expect(page.getByRole("link", { name: "권한 회수 영향 확인" })).toHaveCount(0);
   await page.getByRole("button", { name: "권한 변경 저장" }).click();
 
-  await expect(page.getByRole("status")).toContainText("감사 이벤트를 저장했습니다");
+  await expect(page.getByRole("status")).toContainText("권한 변경을 저장했습니다");
   expect(roleUpdate).toEqual({
     body: {
-      roles: ["PARTICIPANT", "ADMIN"],
+      roles: ["ADMIN"],
       permissions: ["RAG_ADMIN"],
       row_version: 2,
       reason: "문서 운영 담당자 배정",
@@ -110,10 +126,42 @@ test("관리자는 사용자 조회부터 RAG 권한 변경과 감사 이력까�
     csrf: "admin-csrf-token",
   });
 
-  await page.getByRole("link", { name: "권한 변경 이력" }).first().click();
-  await expect(page.getByRole("heading", { name: "권한 변경 이력" })).toBeVisible();
-  await expect(page.getByRole("cell", { name: "문서 운영 담당자 배정" })).toBeVisible();
+  await page.getByRole("tab", { name: "권한 이력" }).click();
+  await expect(page.getByRole("region", { name: "감사 이력 표" })).toBeVisible();
+  await expect(page.getByRole("gridcell", { name: "문서 운영 담당자 배정" })).toBeVisible();
   await expect(page.getByText(/사용자 비활성화|개인정보 삭제 실행/)).toHaveCount(0);
+});
+
+test("터치로 사용자 행을 연속 선택해도 이전 행의 선택 배경이 남지 않는다", async ({ browser }) => {
+  const context = await browser.newContext({
+    ...devices["Pixel 5"],
+    baseURL: WEB_BASE_URL,
+    ignoreHTTPSErrors: true,
+  });
+
+  try {
+    await authenticate(context, "admin.payload.signature");
+    const page = await context.newPage();
+    await page.goto("/admin/users");
+
+    const rows = page.getByRole("region", { name: "사용자 목록 표" }).locator(".ag-row");
+    await expect(rows).toHaveCount(2);
+
+    await rows.nth(0).tap();
+    await rows.nth(1).tap();
+
+    await expect
+      .poll(() =>
+        rows.evaluateAll((items) =>
+          items
+            .filter((row) => row.classList.contains("is-console-selected"))
+            .map((row) => row.getAttribute("row-id")),
+        ),
+      )
+      .toEqual(["00000000-0000-4000-8000-000000000001"]);
+  } finally {
+    await context.close();
+  }
 });
 
 test("참여자 cookie의 관리자 API 호출은 Main/Auth 권한 검사에서 403으로 차단한다", async ({

@@ -1,11 +1,12 @@
 "use client";
 
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
+import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
 
@@ -43,6 +44,9 @@ const initialDraft: SignupDraft = {
 };
 
 const signupHistorySteps = new Set(["AUTH-002", "AUTH-003", "AUTH-004", "AUTH-005", "AUTH-006"]);
+const passwordResetEmailKey = "civic:password-reset:email";
+const passwordResetCodeKey = "civic:password-reset:code";
+const participantSurveyLoginTimeoutMs = 3_000;
 
 export function signupStepFromHistory(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("civicSignupStep" in value)) return null;
@@ -72,6 +76,19 @@ export function AuthFunctionalScreen({
     verificationKindFromSearch(initialSearch),
   );
   const [draft, setDraft] = useState<SignupDraft>(initialDraft);
+  const resetEmail = useSyncExternalStore(
+    subscribePasswordResetSession,
+    readPasswordResetEmail,
+    emptyPasswordResetValue,
+  );
+  const storedResetCode = useSyncExternalStore(
+    subscribePasswordResetSession,
+    readPasswordResetCode,
+    emptyPasswordResetValue,
+  );
+  const [editedResetCode, setEditedResetCode] = useState<string | null>(null);
+  const resetCode =
+    editedResetCode ?? passwordResetCodeFromSearch(initialSearch) ?? storedResetCode;
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"error" | "info">("info");
   const [duplicateEmailState, setDuplicateEmailState] = useState<DuplicateEmailAccountState | null>(
@@ -175,25 +192,30 @@ export function AuthFunctionalScreen({
         }
       } else if (activeId === "AUTH-006") {
         changeSignupStep("AUTH-005", "/signup/verify");
-      } else if (activeId === "AUTH-007" || activeId === "AUTH-009") {
+      } else if (activeId === "AUTH-007") {
         const data = new FormData(event.currentTarget);
-        const prefix = activeId === "AUTH-007" ? "password-reset" : "reactivation";
-        await api(`/api/v1/auth/${prefix}/request`, {
+        const code = normalizePasswordResetCode(data.get("code"));
+        if (!/^\d{6}$/u.test(code)) throw new Error("6자리 인증 코드를 입력해 주세요.");
+        sessionStorage.setItem(passwordResetCodeKey, code);
+        location.assign("/password-reset/complete");
+      } else if (activeId === "AUTH-009") {
+        const data = new FormData(event.currentTarget);
+        await api("/api/v1/auth/reactivation/request", {
           email: data.get("email"),
-          ...(activeId === "AUTH-009" ? { password: data.get("password") } : {}),
+          password: data.get("password"),
         });
-        location.assign(
-          activeId === "AUTH-007" ? "/password-reset/complete" : "/reactivate/complete",
-        );
+        location.assign("/reactivate/complete");
       } else if (activeId === "AUTH-008") {
         const data = new FormData(event.currentTarget);
         if (data.get("new_password") !== data.get("new_password_confirmation")) {
           throw new Error("새 비밀번호 확인이 일치하지 않습니다.");
         }
         await api("/api/v1/auth/password-reset/complete", {
-          code: data.get("code"),
+          code: normalizePasswordResetCode(data.get("code")),
           new_password: data.get("new_password"),
         });
+        sessionStorage.removeItem(passwordResetEmailKey);
+        sessionStorage.removeItem(passwordResetCodeKey);
         location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
       } else if (activeId === "AUTH-010") {
         const data = new FormData(event.currentTarget);
@@ -250,6 +272,50 @@ export function AuthFunctionalScreen({
     }
   }
 
+  async function requestPasswordReset() {
+    const email = draft.email.trim();
+    if (!isPasswordResetEmail(email)) {
+      setMessageKind("error");
+      setMessage("로그인에 사용한 이메일을 먼저 입력해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await api("/api/v1/auth/password-reset/request", { email });
+      sessionStorage.setItem(passwordResetEmailKey, email);
+      sessionStorage.removeItem(passwordResetCodeKey);
+      location.assign("/password-reset");
+    } catch (error) {
+      setMessageKind("error");
+      setMessage(error instanceof Error ? error.message : "재설정 이메일을 보내지 못했습니다.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function resendPasswordReset() {
+    if (!isPasswordResetEmail(resetEmail)) {
+      setMessageKind("error");
+      setMessage("로그인 화면에서 재설정 이메일을 다시 요청해 주세요.");
+      return;
+    }
+    setBusy(true);
+    setMessage("");
+    try {
+      await api("/api/v1/auth/password-reset/request", { email: resetEmail });
+      setMessageKind("info");
+      setMessage("재설정 이메일을 다시 보냈습니다.");
+    } catch (error) {
+      setMessageKind("error");
+      setMessage(
+        error instanceof Error ? error.message : "재설정 이메일을 다시 보내지 못했습니다.",
+      );
+    } finally {
+      setBusy(false);
+    }
+  }
+
   function changeSignupStep(id: string, pathname: string) {
     history.pushState({ ...history.state, civicSignupStep: id }, "", pathname);
     setActiveId(id);
@@ -272,10 +338,12 @@ export function AuthFunctionalScreen({
         {activeId === "AUTH-009" || activeId === "AUTH-010" ? <ReactivationNotes /> : null}
         <AuthFormCard
           onSubmit={submit}
-          subtitle={authCardSubtitle(activeId, draft.email)}
+          subtitle={authCardSubtitle(activeId, activeId === "AUTH-007" ? resetEmail : draft.email)}
           title={authCardTitle(activeId)}
         >
-          {renderFields(activeId, draft, setDraft, () => setDuplicateEmailState(null))}
+          {renderFields(activeId, draft, setDraft, resetCode, setEditedResetCode, () =>
+            setDuplicateEmailState(null),
+          )}
           {activeId === "AUTH-002" && duplicateEmailState ? (
             <SignupDuplicateEmailNotice accountState={duplicateEmailState} />
           ) : null}
@@ -313,7 +381,13 @@ export function AuthFunctionalScreen({
             <DevQuickLoginActions busy={busy} onLogin={quickLogin} />
           ) : null}
         </AuthFormCard>
-        <AuthSupport activeId={activeId} busy={busy} onResend={resendVerification} />
+        <AuthSupport
+          activeId={activeId}
+          busy={busy}
+          onPasswordReset={requestPasswordReset}
+          onPasswordResetResend={resendPasswordReset}
+          onResend={resendVerification}
+        />
       </div>
     </ScreenFrame>
   );
@@ -355,6 +429,8 @@ function renderFields(
   id: string,
   draft: SignupDraft,
   setDraft: React.Dispatch<React.SetStateAction<SignupDraft>>,
+  resetCode: string,
+  setResetCode: (value: string) => void,
   onEmailEdit?: () => void,
 ) {
   if (id === "AUTH-001") {
@@ -366,12 +442,14 @@ function renderFields(
           name="email"
           placeholder="name@example.com"
           type="email"
+          value={draft.email}
+          onChange={(value) => setDraft((current) => ({ ...current, email: value }))}
         />
         <Field
           autoComplete="current-password"
           label="비밀번호"
           name="password"
-          placeholder="비밀번호 입력"
+          placeholder="비밀번호 입력…"
           type="password"
         />
       </>
@@ -442,7 +520,9 @@ function renderFields(
             setDraft((v) => ({ ...v, answerDetail: value as SignupDraft["answerDetail"] }))
           }
         />
-        <p className="civic-help">투표·AI 답변 품질을 맞추는 데 사용하는 설정입니다.</p>
+        <p className="civic-help">
+          계정 생성 시 저장되는 서비스 설정입니다. 실제 설문은 로그인 후 별도로 진행합니다.
+        </p>
       </>
     );
   }
@@ -492,7 +572,11 @@ function renderFields(
           name="code"
           placeholder="000000"
         />
-        {id === "AUTH-005" ? <CodeCountdown /> : null}
+        {id === "AUTH-005" ? (
+          <p aria-live="off" className="civic-field-help civic-code-countdown">
+            <CodeCountdown />
+          </p>
+        ) : null}
       </>
     );
   if (id === "AUTH-006")
@@ -506,11 +590,15 @@ function renderFields(
   if (id === "AUTH-007")
     return (
       <Field
-        autoComplete="email"
-        label="등록 이메일"
-        name="email"
-        placeholder="name@example.com"
-        type="email"
+        autoComplete="one-time-code"
+        help={<CodeCountdown />}
+        inputMode="numeric"
+        label="6자리 인증 코드"
+        maxLength={6}
+        name="code"
+        placeholder="0 0 0 0 0 0"
+        value={resetCode}
+        onChange={setResetCode}
       />
     );
   if (id === "AUTH-009")
@@ -541,7 +629,9 @@ function renderFields(
           label="6자리 인증 코드"
           maxLength={6}
           name="code"
-          placeholder="000000"
+          placeholder="0 0 0 0 0 0"
+          value={resetCode}
+          onChange={setResetCode}
         />
         <Field
           autoComplete="new-password"
@@ -564,8 +654,16 @@ function renderFields(
 function AuthSupport({
   activeId,
   busy,
+  onPasswordReset,
+  onPasswordResetResend,
   onResend,
-}: Readonly<{ activeId: string; busy: boolean; onResend: () => void }>) {
+}: Readonly<{
+  activeId: string;
+  busy: boolean;
+  onPasswordReset: () => void;
+  onPasswordResetResend: () => void;
+  onResend: () => void;
+}>) {
   if (activeId === "AUTH-005" || activeId === "AUTH-006") {
     return (
       <AuthInfo
@@ -577,12 +675,24 @@ function AuthSupport({
       />
     );
   }
+  if (activeId === "AUTH-007") {
+    return (
+      <AuthInfo
+        actionLabel="코드 재발송"
+        body="아래 버튼을 클릭하여 다시 받을 수 있습니다."
+        disabled={busy}
+        onAction={onPasswordResetResend}
+        title="코드가 오지 않았나요?"
+      />
+    );
+  }
   if (activeId === "AUTH-008") {
     return (
       <AuthInfo
-        actionHref={"/password-reset" as Route}
         actionLabel="이메일 재발송"
         body="인증 코드가 만료되었거나 일치하지 않으면 이메일로 다시 받을 수 있습니다."
+        disabled={busy}
+        onAction={onPasswordResetResend}
         title="새 코드가 필요한가요?"
       />
     );
@@ -591,13 +701,14 @@ function AuthSupport({
   return (
     <aside aria-label="로그인 보조 행동" className="civic-auth-support civic-auth-support-compact">
       <div className="civic-auth-support-row">
-        <Link
-          className="wf-button wf-button-secondary"
-          data-wireflow-slot="auth-reset"
-          href={"/password-reset" as Route}
+        <WireflowButton
+          dataWireflowSlot="auth-reset"
+          disabled={busy}
+          onClick={onPasswordReset}
+          variant="secondary"
         >
           비밀번호 재설정
-        </Link>
+        </WireflowButton>
         <Link
           className="wf-button wf-button-secondary"
           data-wireflow-slot="auth-signup"
@@ -606,9 +717,6 @@ function AuthSupport({
           회원가입
         </Link>
       </div>
-      <Link className="civic-auth-reactivate" href={"/reactivate" as Route}>
-        계정 재활성화
-      </Link>
     </aside>
   );
 }
@@ -694,11 +802,7 @@ function CodeCountdown() {
   }, []);
   const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
   const seconds = String(remaining % 60).padStart(2, "0");
-  return (
-    <p aria-live="off" className="civic-field-help civic-code-countdown">
-      남은 시간 {minutes}:{seconds}
-    </p>
-  );
+  return `남은 시간 ${minutes}:${seconds}`;
 }
 
 function authTitle(id: string): string {
@@ -706,11 +810,11 @@ function authTitle(id: string): string {
     {
       "AUTH-001": "로그인",
       "AUTH-002": "계정 정보",
-      "AUTH-003": "개인정보·설문 입력",
+      "AUTH-003": "서비스 설정",
       "AUTH-004": "필수 동의 및 가입 확인",
       "AUTH-005": "이메일 인증",
       "AUTH-006": "이메일 인증",
-      "AUTH-007": "비밀번호 재설정 요청",
+      "AUTH-007": "비밀번호 재설정",
       "AUTH-008": "새 비밀번호 설정",
       "AUTH-009": "계정 재활성화",
       "AUTH-010": "계정 재활성화",
@@ -721,18 +825,18 @@ function authTitle(id: string): string {
 function authCardTitle(id: string): string {
   if (id === "AUTH-001") return "계정 정보";
   if (id === "AUTH-002") return "필수 입력";
-  if (id === "AUTH-003") return "응답 설정";
+  if (id === "AUTH-003") return "AI 응답 설정";
   if (id === "AUTH-004") return "필수 동의 항목";
   if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
-  if (id === "AUTH-007") return "";
+  if (id === "AUTH-007") return "인증 코드 입력";
   if (id === "AUTH-008") return "인증코드 입력";
   if (id === "AUTH-009" || id === "AUTH-010") return "재활성화 본인 확인";
   return "요청 정보";
 }
 
 function authCardSubtitle(id: string, email: string): string | undefined {
-  if (id !== "AUTH-005") return undefined;
+  if (id !== "AUTH-005" && id !== "AUTH-007") return undefined;
   const masked = maskAuthEmail(email);
   return masked ? `${masked}으로 코드를 전송했습니다.` : "등록 이메일로 코드를 전송했습니다.";
 }
@@ -763,7 +867,7 @@ function Field({
   inputMode?: "numeric";
   maxLength?: number;
   placeholder?: string;
-  help?: string;
+  help?: ReactNode;
   onChange?: (value: string) => void;
 }) {
   const helpId = help ? `civic-auth-${name}-help` : undefined;
@@ -790,6 +894,35 @@ function Field({
       ) : null}
     </label>
   );
+}
+
+export function isPasswordResetEmail(value: string): boolean {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value.trim());
+}
+
+export function passwordResetCodeFromSearch(search: string): string | null {
+  const code = normalizePasswordResetCode(new URLSearchParams(search).get("code"));
+  return /^\d{6}$/u.test(code) ? code : null;
+}
+
+function normalizePasswordResetCode(value: FormDataEntryValue | string | null): string {
+  return typeof value === "string" ? value.replace(/\s/gu, "") : "";
+}
+
+function subscribePasswordResetSession(): () => void {
+  return () => undefined;
+}
+
+function readPasswordResetEmail(): string {
+  return sessionStorage.getItem(passwordResetEmailKey) ?? "";
+}
+
+function readPasswordResetCode(): string {
+  return sessionStorage.getItem(passwordResetCodeKey) ?? "";
+}
+
+function emptyPasswordResetValue(): string {
+  return "";
 }
 
 function SelectField({
@@ -1000,7 +1133,52 @@ async function redirectToRoleHome(returnTo: string | null): Promise<void> {
     role?: unknown;
     must_change_password?: unknown;
   };
-  location.assign(authenticatedDestination(currentUser, returnTo));
+  location.assign(await authenticatedPostLoginDestination(currentUser, returnTo));
+}
+
+export async function authenticatedPostLoginDestination(
+  currentUser: Readonly<{ role?: unknown; must_change_password?: unknown }>,
+  returnTo: string | null,
+  request: typeof fetch = authenticatedFetch,
+  timeoutMs: number = participantSurveyLoginTimeoutMs,
+): Promise<string> {
+  const defaultDestination = authenticatedDestination(currentUser, returnTo);
+  if (currentUser.must_change_password === true || currentUser.role !== "PARTICIPANT") {
+    return defaultDestination;
+  }
+  try {
+    const response = await requestWithTimeout(
+      request,
+      "/api/v1/me/surveys/current",
+      { cache: "no-store" },
+      timeoutMs,
+    );
+    if (!response.ok) return defaultDestination;
+    const survey = (await response.json()) as {
+      submitted?: unknown;
+      eligibility?: Readonly<{ surveyRequirement?: unknown }>;
+    };
+    return survey.submitted === false && survey.eligibility?.surveyRequirement === "REQUIRED"
+      ? "/mypage/survey"
+      : defaultDestination;
+  } catch {
+    return defaultDestination;
+  }
+}
+
+async function requestWithTimeout(
+  request: typeof fetch,
+  input: RequestInfo | URL,
+  init: RequestInit,
+  timeoutMs: number,
+): Promise<Response> {
+  const controller = new AbortController();
+  const timeout = globalThis.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await request(input, { ...init, signal: controller.signal });
+  } finally {
+    globalThis.clearTimeout(timeout);
+  }
 }
 
 export function authenticatedDestination(

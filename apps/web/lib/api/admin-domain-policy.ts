@@ -1,6 +1,11 @@
 export type AdminDomainRoute = Readonly<{
   path: string;
-  scope: "chat:rooms:approve" | "chat:categories:manage" | "chat:rooms:read" | "vote:tasks:admin";
+  scope:
+    | "chat:rooms:approve"
+    | "chat:categories:manage"
+    | "chat:rooms:read"
+    | "chat:audit:exports"
+    | "vote:tasks:admin";
 }>;
 
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
@@ -65,6 +70,23 @@ export function matchChatRoomCategoryAssignmentRoute(
   );
 }
 
+export function matchChatAdminRoomListRoute(method: string): AdminDomainRoute | RouteFailure {
+  return allow(method.toUpperCase(), ["GET"], "/api/v1/admin/rooms", "chat:categories:manage");
+}
+
+export function matchChatAdminRoomCloseRoute(
+  method: string,
+  roomId: string,
+): AdminDomainRoute | RouteFailure {
+  if (!uuid.test(roomId)) return { allowedMethods: [], status: 404 };
+  return allow(
+    method.toUpperCase(),
+    ["POST"],
+    `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/commands/close`,
+    "chat:rooms:approve",
+  );
+}
+
 export function matchChatRoomDetailRoute(
   method: string,
   roomId: string,
@@ -80,6 +102,19 @@ export function matchChatRoomDetailRoute(
 
 export function matchChatRoomListRoute(method: string): AdminDomainRoute | RouteFailure {
   return allow(method.toUpperCase(), ["GET"], "/api/v1/rooms", "chat:rooms:read");
+}
+
+export function matchChatConversationExportRoute(
+  method: string,
+  roomId: string,
+): AdminDomainRoute | RouteFailure {
+  if (!chatId.test(roomId)) return { allowedMethods: [], status: 404 };
+  return allow(
+    method.toUpperCase(),
+    ["POST"],
+    `/api/v1/admin/rooms/${encodeURIComponent(roomId)}/conversation-exports`,
+    "chat:audit:exports",
+  );
 }
 
 export function matchVoteTaskAdminRoute(

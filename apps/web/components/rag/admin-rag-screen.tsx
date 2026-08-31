@@ -5,15 +5,33 @@ import { useRouter } from "next/navigation";
 import type { Route } from "next";
 import { sha256 as createSha256 } from "@noble/hashes/sha2.js";
 import { bytesToHex } from "@noble/hashes/utils.js";
-import { useCallback, useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
-import { RagFileTile, RagFolderIcon, RagTreeChevron } from "./rag-file-icons";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
+import {
+  ConsoleBadge,
+  ConsoleMetricStrip,
+  ConsoleSearchControl,
+  type ConsoleMetricItem,
+} from "@/components/admin/console/console-ui";
+import { ConsoleDrawer, ConsoleModal } from "@/components/admin/console/console-modal";
+import {
+  loadRagJobSummary,
+  type RagJobSummaryState,
+} from "@/components/screens/admin-functional-screen";
+import { RagFileTile, RagFolderIcon, RagTrashIcon, RagTreeChevron } from "./rag-file-icons";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
-import { AdminRagAnalytics } from "./admin-rag-analytics";
-import { AdminRagSynonyms } from "./admin-rag-synonyms";
 import { AdminRagSpreadsheetPreview } from "./admin-rag-spreadsheet-preview";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
@@ -246,6 +264,8 @@ export async function requestRagBulkAction(
 
 export type RagJob = Readonly<{
   job_id: string;
+  document_id?: string;
+  upload_cancel_allowed?: boolean;
   status: string;
   progress?: number;
   failure_code?: string;
@@ -253,9 +273,16 @@ export type RagJob = Readonly<{
 }>;
 
 const TERMINAL_RAG_JOB_STATES = new Set(["SUCCEEDED", "FAILED", "CANCELLED"]);
+const CANCELLABLE_RAG_UPLOAD_STATES = new Set(["QUEUED", "RETRY_WAIT", "FAILED"]);
 
 export function shouldPollRagJob(status: string | undefined, hidden: boolean): boolean {
   return !hidden && !TERMINAL_RAG_JOB_STATES.has(status ?? "");
+}
+
+export function canCancelRagUpload(job: RagJob | null): boolean {
+  return Boolean(
+    job?.document_id && job.upload_cancel_allowed && CANCELLABLE_RAG_UPLOAD_STATES.has(job.status),
+  );
 }
 
 export function hasActiveRagDocuments(documents: readonly RagDocument[]): boolean {
@@ -277,7 +304,11 @@ export function AdminRagScreen({
   screen,
   query,
 }: Readonly<{ screen: ScreenDefinition; query: RagQuery }>) {
+  const router = useRouter();
   const folderId = firstQueryValue(query.folderId);
+  const initialDocumentQuery = useMemo(() => ragDocumentQueryFromRoute(query), [query]);
+  const retryJobId = firstQueryValue(query.retryJobId);
+  const retryFilename = firstQueryValue(query.filename);
   const {
     folders,
     documents,
@@ -288,10 +319,21 @@ export function AdminRagScreen({
     refreshDocuments,
     pageState,
     queryDocuments,
+    documentQuery,
     runBulk,
     message,
     setMessage,
-  } = useAdminWorkspace(folderId);
+  } = useAdminWorkspace(folderId, initialDocumentQuery);
+  const [jobSummary, setJobSummary] = useState<RagJobSummaryState>({ status: "loading" });
+  useEffect(() => {
+    let cancelled = false;
+    void loadRagJobSummary().then((summary) => {
+      if (!cancelled) setJobSummary(summary);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const hasActiveDocuments = hasActiveRagDocuments(documents);
   useEffect(() => {
     if (!hasActiveDocuments) return;
@@ -311,56 +353,11 @@ export function AdminRagScreen({
   const folderMode = resolveFolderEditorMode(firstQueryValue(query.mode));
   const folderDialogKey = ragFolderDialogKey(folderMode, folderId);
   const [completedFolderDialog, setCompletedFolderDialog] = useState<string>();
-
-  if (screen.id === "A-RAG-004") {
-    return (
-      <ScreenFrame
-        screen={screen}
-        title={
-          selectedFolder ? `${selectedFolder.name} 폴더에 문서 업로드` : "선택 폴더에 문서 업로드"
-        }
-      >
-        <div className="wf-rag-task-page" data-wireflow-layout="rag-upload">
-          <p className="civic-breadcrumb">
-            문서 /{" "}
-            {ragFolderAncestorPath(folders, selectedFolder)
-              .map((name) => `${name} / `)
-              .join("")}
-            {selectedFolder?.name ?? "선택 폴더"}
-          </p>
-          <section className="wf-rag-task-card">
-            <header className="wf-rag-task-heading">
-              <h2>파일 선택</h2>
-            </header>
-            <UploadPanel folder={selectedFolder} onMessage={setMessage} query={query} />
-          </section>
-          {message ? (
-            <p aria-live="polite" className="civic-form-message">
-              {message}
-            </p>
-          ) : null}
-          <span className="civic-screen-action-label">{action}</span>
-        </div>
-      </ScreenFrame>
-    );
-  }
-
-  if (screen.id === "A-RAG-005") {
-    return (
-      <ScreenFrame screen={screen}>
-        <div className="wf-rag-task-page" data-wireflow-layout="rag-job-status">
-          <section className="wf-rag-task-card">
-            <header className="wf-rag-task-heading">
-              <h2>업로드한 문서</h2>
-              <p>문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다.</p>
-            </header>
-            <JobPanel key={jobPanelKey(firstQueryValue(query.jobId))} query={query} />
-          </section>
-          <span className="civic-screen-action-label">{action}</span>
-        </div>
-      </ScreenFrame>
-    );
-  }
+  const deleteReturnHref = ragWorkspaceHref(selectedFolder?.folder_id ?? folderId, documentQuery);
+  const jobIds = queryValues(query.jobId);
+  const showRetryOverlay = screen.id === "A-RAG-004" && retryJobId !== undefined;
+  const showUploadOverlay = screen.id === "A-RAG-004" && retryJobId === undefined;
+  const showJobOverlay = screen.id === "A-RAG-005" && jobIds.length > 0;
 
   return (
     <ScreenFrame screen={screen}>
@@ -371,28 +368,14 @@ export function AdminRagScreen({
           selectedFolderId={selectedFolder?.folder_id}
         />
         <section className="civic-rag-admin-workspace">
-          <WorkspaceHeading folder={selectedFolder} />
-          <details className="civic-inline-upload" data-rag-inline-upload="true">
-            <summary>
-              <span>
-                <strong>문서 업로드</strong>
-              </span>
-              <span aria-hidden="true" className="civic-inline-upload-toggle">
-                파일 등록
-              </span>
-            </summary>
-            <div className="civic-inline-upload-body">
-              <UploadPanel
-                folder={selectedFolder}
-                inline
-                onAccepted={refreshDocuments}
-                onMessage={setMessage}
-                query={{ mode: "NEW_DOCUMENT" }}
-              />
-            </div>
-          </details>
+          <div className="civic-rag-workspace-overview">
+            <WorkspaceHeading folder={selectedFolder} />
+            <ConsoleMetricStrip
+              ariaLabel="문서 처리 현황"
+              metrics={ragJobSummaryMetrics(jobSummary, pageState.total)}
+            />
+          </div>
           <DocumentWorkspace
-            compact={screen.id !== "A-RAG-003"}
             creatorLabels={creatorLabels}
             documents={documents}
             folder={selectedFolder}
@@ -404,13 +387,8 @@ export function AdminRagScreen({
             selectedDocumentId={inspected.document?.document_id}
             onQueryChange={queryDocuments}
             pageState={pageState}
+            initialQuery={initialDocumentQuery}
           />
-          {screen.id === "A-RAG-001" ? (
-            <>
-              <AdminRagAnalytics />
-              <AdminRagSynonyms />
-            </>
-          ) : null}
           {message ? (
             <p aria-live="polite" className="civic-form-message">
               {message}
@@ -422,6 +400,11 @@ export function AdminRagScreen({
       {inspected.document ? (
         <DocumentInspector
           creatorLabel={adminUserLabel(creatorLabels, inspected.document.created_by)}
+          deleteHref={ragDocumentDeleteHref(
+            inspected.document.folder_id,
+            inspected.document.document_id,
+            documentQuery,
+          )}
           document={inspected.document}
           onClose={() => setDocumentSelection(undefined)}
           version={inspected.version}
@@ -440,6 +423,7 @@ export function AdminRagScreen({
         >
           <FolderEditor
             cancelHref={ragWorkspaceHref(selectedFolder?.folder_id ?? folderId)}
+            documentCount={pageState.total}
             folder={selectedFolder}
             parentName={
               folderMode === "ADD"
@@ -450,27 +434,94 @@ export function AdminRagScreen({
             mode={folderMode}
             onComplete={() => {
               setCompletedFolderDialog(folderDialogKey);
+              if (folderMode === "DELETE") {
+                router.replace(ragWorkspaceHref(selectedFolder?.parent_id ?? undefined));
+                return;
+              }
               refresh();
             }}
             onMessage={setMessage}
           />
         </AdminRagModal>
       ) : null}
-      {screen.id === "A-RAG-006" ? (
-        <AdminRagModal
-          closeHref={ragWorkspaceHref(selectedFolder?.folder_id ?? folderId)}
-          title="문서를 삭제하시겠습니까?"
-        >
-          <DeletePanel
-            documents={documents}
-            onComplete={refresh}
+      {showUploadOverlay ? (
+        <AdminRagModal closeHref={deleteReturnHref} title="문서 업로드">
+          <UploadPanel
+            folder={selectedFolder}
+            onAccepted={refreshDocuments}
             onMessage={setMessage}
             query={query}
           />
         </AdminRagModal>
       ) : null}
+      {screen.id === "A-RAG-006" ? (
+        <AdminRagModal closeHref={deleteReturnHref} title="문서를 삭제하시겠습니까?">
+          <DeletePanel
+            documents={documents}
+            onComplete={() => {
+              refresh();
+              router.replace(deleteReturnHref);
+            }}
+            onMessage={setMessage}
+            query={query}
+            returnHref={deleteReturnHref}
+          />
+        </AdminRagModal>
+      ) : null}
+      {showRetryOverlay && retryJobId !== undefined ? (
+        <AdminRagModal
+          closeHref={deleteReturnHref}
+          title={`${retryFilename ?? "실패 문서"} 재처리`}
+        >
+          <AutomaticRagJobRetryPanel
+            jobId={retryJobId}
+            key={retryJobId}
+            {...(retryFilename ? { filename: retryFilename } : {})}
+          />
+        </AdminRagModal>
+      ) : null}
+      {showJobOverlay ? (
+        <AdminRagModal closeHref={deleteReturnHref} title="업로드한 문서">
+          <div className="civic-job-overlay" data-wireflow-layout="rag-job-status">
+            <JobPanel key={jobPanelKey(queryValues(query.jobId))} query={query} />
+          </div>
+        </AdminRagModal>
+      ) : null}
     </ScreenFrame>
   );
+}
+
+export function ragJobSummaryMetrics(
+  summary: RagJobSummaryState,
+  totalDocuments: number,
+): readonly ConsoleMetricItem[] {
+  const pendingValue = summary.status === "loading" ? "확인 중" : "확인 불가";
+  const pendingDescription =
+    summary.status === "loading"
+      ? "문서 처리 상태 확인 중"
+      : "문서 처리 현황을 불러오지 못했습니다";
+  return [
+    {
+      label: "문서 수",
+      value: `${totalDocuments.toLocaleString("ko-KR")}개`,
+      description: "현재 목록 기준",
+    },
+    summary.status === "ready"
+      ? {
+          label: "처리 중",
+          value: `${summary.active.toLocaleString("ko-KR")}건`,
+          description: "변환·색인 진행 작업",
+        }
+      : { label: "처리 중", value: pendingValue, description: pendingDescription },
+    summary.status === "ready"
+      ? {
+          label: "실패",
+          value: `${summary.failed.toLocaleString("ko-KR")}건`,
+          description: summary.failed > 0 ? "실패 작업 재시도 가능" : "실패한 작업 없음",
+          ...(summary.failed > 0 ? { alert: true } : {}),
+        }
+      : { label: "실패", value: pendingValue, description: pendingDescription },
+  ];
 }
 
 function AdminRagModal({
@@ -478,15 +529,10 @@ function AdminRagModal({
   closeHref,
   title,
 }: Readonly<{ children: ReactNode; closeHref: Route; title: string }>) {
+  const router = useRouter();
   return (
-    <div className="wf-admin-overlay" data-wireflow-layout="rag-admin-modal">
-      <div aria-hidden="true" className="wf-admin-scrim" />
-      <section
-        aria-labelledby="wf-rag-admin-dialog-title"
-        aria-modal="true"
-        className="wf-rag-admin-dialog"
-        role="dialog"
-      >
+    <ConsoleModal ariaLabel={title} onClose={() => router.push(closeHref)} open>
+      <section className="wf-rag-admin-dialog" data-wireflow-layout="rag-admin-modal">
         <header>
           <h2 id="wf-rag-admin-dialog-title">{title}</h2>
           <Link aria-label={`${title} 닫기`} href={closeHref}>
@@ -495,11 +541,14 @@ function AdminRagModal({
         </header>
         {children}
       </section>
-    </div>
+    </ConsoleModal>
   );
 }
 
-function useAdminWorkspace(initialFolderId?: string) {
+function useAdminWorkspace(
+  initialFolderId: string | undefined,
+  initialDocumentQuery: RagDocumentListQuery,
+) {
   const router = useRouter();
   const [folders, setFolders] = useState<Folder[]>([]);
   const [documents, setDocuments] = useState<RagDocument[]>([]);
@@ -510,7 +559,8 @@ function useAdminWorkspace(initialFolderId?: string) {
   const foldersRef = useRef<Folder[]>([]);
   const loadGateRef = useRef(createLatestRequestGate());
   const documentRefreshInFlightRef = useRef<symbol | undefined>(undefined);
-  const documentQueryRef = useRef<RagDocumentListQuery>(DEFAULT_DOCUMENT_QUERY);
+  const [documentQuery, setDocumentQuery] = useState(initialDocumentQuery);
+  const documentQueryRef = useRef<RagDocumentListQuery>(initialDocumentQuery);
   const creatorIdsKeyRef = useRef("");
   const bulkOperationRef = useRef(createRetryOperation());
   const [message, setMessage] = useState("");
@@ -613,6 +663,7 @@ function useAdminWorkspace(initialFolderId?: string) {
         }
         const nextQuery = queryOverride ?? documentQueryRef.current;
         documentQueryRef.current = nextQuery;
+        setDocumentQuery(nextQuery);
         await loadDocuments(nextSelected, nextQuery, isCurrent, true);
       } catch {
         if (!isCurrent()) return;
@@ -628,12 +679,12 @@ function useAdminWorkspace(initialFolderId?: string) {
 
   useEffect(() => {
     const loadGate = loadGateRef.current;
-    const timer = window.setTimeout(() => void load(initialFolderId), 0);
+    const timer = window.setTimeout(() => void load(initialFolderId, initialDocumentQuery), 0);
     return () => {
       window.clearTimeout(timer);
       loadGate.cancel();
     };
-  }, [initialFolderId, load]);
+  }, [initialDocumentQuery, initialFolderId, load]);
 
   const refresh = useCallback(() => void load(selectedIdRef.current), [load]);
   const refreshDocuments = useCallback(() => {
@@ -664,9 +715,11 @@ function useAdminWorkspace(initialFolderId?: string) {
     refresh,
     refreshDocuments,
     pageState,
+    documentQuery,
     queryDocuments: (patch: Partial<RagDocumentListQuery>) => {
       const nextQuery = { ...documentQueryRef.current, ...patch };
       documentQueryRef.current = nextQuery;
+      setDocumentQuery(nextQuery);
       void load(selectedIdRef.current, nextQuery);
     },
     runBulk: async (input: RagBulkActionInput) => {
@@ -763,16 +816,35 @@ export function FolderTree({
   return (
     <aside className="civic-folder-tree">
       <div className="civic-folder-tree-heading">
-        <p className="civic-kicker">문서 폴더</p>
         <h2>폴더</h2>
+      </div>
+      <div aria-label="폴더 작업" className="civic-folder-tree-actions" role="toolbar">
         <Link
           className="civic-secondary-action civic-folder-add"
           href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId ?? "")}&mode=ADD`}
         >
           폴더 추가
         </Link>
+        {selectedFolderId ? (
+          <>
+            <Link
+              aria-label="폴더 수정"
+              className="civic-secondary-action"
+              href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId)}&mode=EDIT`}
+            >
+              수정
+            </Link>
+            <Link
+              aria-label="폴더 삭제"
+              className="civic-secondary-action is-danger"
+              href={`/admin/rag/folders?folderId=${encodeURIComponent(selectedFolderId)}&mode=DELETE`}
+            >
+              삭제
+            </Link>
+          </>
+        ) : null}
       </div>
-      <ul aria-label="RAG 폴더 트리">
+      <ul aria-label="문서 폴더 트리">
         {visibleFolders.map((folder) => (
           <li
             key={folder.folder_id}
@@ -809,23 +881,6 @@ export function FolderTree({
                 <strong>{folder.name}</strong>
               </span>
             </button>
-            {folder.folder_id === selectedFolderId ? (
-              <span className="civic-folder-node-actions">
-                <Link
-                  aria-label="폴더 수정"
-                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=EDIT`}
-                >
-                  수정
-                </Link>
-                <Link
-                  aria-label="폴더 삭제"
-                  className="is-danger"
-                  href={`/admin/rag/folders?folderId=${encodeURIComponent(folder.folder_id)}&mode=DELETE`}
-                >
-                  삭제
-                </Link>
-              </span>
-            ) : null}
           </li>
         ))}
       </ul>
@@ -848,16 +903,21 @@ export function resolveInspectedRagDocument(
 
 export function DocumentInspector({
   creatorLabel,
+  deleteHref,
   document,
   onClose,
   version,
 }: Readonly<{
   creatorLabel: string;
+  deleteHref?: Route;
   document: RagDocument;
   onClose: () => void;
   version: DocumentVersion | null;
 }>) {
   const filename = displayRagFilename(document.filename);
+  const resolvedDeleteHref =
+    deleteHref ??
+    ragDocumentDeleteHref(document.folder_id, document.document_id, DEFAULT_DOCUMENT_QUERY);
   const originalHref = version
     ? `/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(version.document_version_id)}/original`
     : undefined;
@@ -865,19 +925,8 @@ export function DocumentInspector({
     ? `/api/v1/rag/documents/${encodeURIComponent(document.document_id)}/versions/${encodeURIComponent(version.document_version_id)}/preview?disposition=inline`
     : undefined;
   return (
-    <div className="civic-document-drawer-layer">
-      <button
-        aria-label="문서 미리보기 닫기"
-        className="civic-document-drawer-scrim"
-        onClick={onClose}
-        type="button"
-      />
-      <aside
-        aria-labelledby="civic-document-drawer-title"
-        aria-modal="true"
-        className="civic-document-inspector"
-        role="dialog"
-      >
+    <ConsoleDrawer ariaLabel={`${filename} 문서 미리보기`} onClose={onClose} open>
+      <aside className="civic-document-inspector">
         <header>
           <div>
             <small>문서 미리보기</small>
@@ -903,9 +952,9 @@ export function DocumentInspector({
           <div>
             <dt>상태</dt>
             <dd>
-              <span className="civic-status-badge">
+              <ConsoleBadge tone={ragStatusBadgeTone(version?.status ?? "처리 대기")}>
                 {documentStatusLabel(version?.status ?? "처리 대기")}
-              </span>
+              </ConsoleBadge>
             </dd>
           </div>
           <div>
@@ -949,7 +998,6 @@ export function DocumentInspector({
             versionId={version.document_version_id}
           />
         ) : null}
-        <p>원본은 읽기 전용으로 관리되며 삭제는 별도 확인 화면에서 수행합니다.</p>
         <div className="wf-inspector-actions">
           <Link
             className="civic-secondary-action"
@@ -962,19 +1010,12 @@ export function DocumentInspector({
               원본 열기
             </AuthenticatedDownloadLink>
           ) : null}
-          <Link
-            className="civic-danger-action"
-            href={
-              document
-                ? `/admin/rag/delete?folderId=${encodeURIComponent(document.folder_id)}&documentId=${encodeURIComponent(document.document_id)}`
-                : "/admin/rag"
-            }
-          >
+          <Link className="civic-danger-action" href={resolvedDeleteHref}>
             문서 삭제
           </Link>
         </div>
       </aside>
-    </div>
+    </ConsoleDrawer>
   );
 }
 
@@ -996,32 +1037,35 @@ export function DocumentWorkspace({
   folder,
   folders = [],
   creatorLabels = new Map(),
-  compact = false,
   onInspect,
   onQueryChange,
   onBulk,
   pageState = EMPTY_DOCUMENT_PAGE,
+  initialQuery = DEFAULT_DOCUMENT_QUERY,
   selectedDocumentId,
 }: Readonly<{
   documents: RagDocument[];
   folder: Folder | undefined;
   folders?: Folder[];
   creatorLabels?: ReadonlyMap<string, string>;
-  compact?: boolean;
   onInspect: (document: RagDocument, version: DocumentVersion | null) => void;
   onQueryChange?: (query: Partial<RagDocumentListQuery>) => void;
   onBulk?: (input: RagBulkActionInput) => void | Promise<void>;
   pageState?: RagDocumentPageState;
+  initialQuery?: RagDocumentListQuery;
   selectedDocumentId: string | undefined;
 }>) {
-  const [searchInput, setSearchInput] = useState("");
-  const [searchQuery, setSearchQuery] = useState("");
-  const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>("ALL");
-  const [mediaTypeFilter, setMediaTypeFilter] = useState("");
-  const [createdByFilter, setCreatedByFilter] = useState("");
-  const [createdFromFilter, setCreatedFromFilter] = useState("");
-  const [createdToFilter, setCreatedToFilter] = useState("");
-  const [includeSubfolders, setIncludeSubfolders] = useState(false);
+  const [searchInput, setSearchInput] = useState(initialQuery.query);
+  const [searchQuery, setSearchQuery] = useState(initialQuery.query);
+  const [statusFilter, setStatusFilter] = useState<DocumentStatusFilter>(() =>
+    documentStatusFilter(initialQuery.status),
+  );
+  const [mediaTypeFilter, setMediaTypeFilter] = useState(initialQuery.mediaType ?? "");
+  const [createdByFilter, setCreatedByFilter] = useState(initialQuery.createdBy ?? "");
+  const [includeSubfolders, setIncludeSubfolders] = useState(initialQuery.includeSubfolders);
+  const [sortDirection, setSortDirection] = useState<RagDocumentListQuery["direction"]>(
+    initialQuery.direction,
+  );
   const [selection, setSelection] = useState<
     Readonly<{
       scopeKey: string;
@@ -1043,8 +1087,6 @@ export function DocumentWorkspace({
     statusFilter,
     mediaTypeFilter,
     createdByFilter,
-    createdFromFilter,
-    createdToFilter,
     includeSubfolders,
     visibleDocumentIdsKey,
   ].join("\u0001");
@@ -1053,6 +1095,17 @@ export function DocumentWorkspace({
     visibleDocuments.length > 0 &&
     visibleDocuments.every((document) => selectedIds.has(document.document_id));
   const selectedDocumentIds = Array.from(selectedIds);
+  const retainedQuery: RagDocumentListQuery = {
+    page: pageState.page,
+    pageSize: pageState.pageSize,
+    query: searchQuery,
+    status: documentStatusQuery(statusFilter),
+    ...(mediaTypeFilter ? { mediaType: mediaTypeFilter } : {}),
+    ...(createdByFilter ? { createdBy: createdByFilter } : {}),
+    includeSubfolders,
+    sort: initialQuery.sort,
+    direction: sortDirection,
+  };
 
   function replaceSelectedIds(ids: ReadonlySet<string>) {
     setSelection({ scopeKey: selectionScopeKey, ids });
@@ -1072,13 +1125,6 @@ export function DocumentWorkspace({
 
   return (
     <div className="civic-document-ledger">
-      <div className="civic-ledger-summary">
-        <strong>{pageState.total.toLocaleString("ko-KR")}개 문서</strong>
-        <span>
-          {includeSubfolders ? "하위 폴더 포함" : "선택 폴더만 표시"} · 처리 완료{" "}
-          {(pageState.statusCounts.ACTIVE ?? 0).toLocaleString("ko-KR")}개
-        </span>
-      </div>
       <form
         className="wf-document-filters"
         onSubmit={(event) => {
@@ -1088,18 +1134,12 @@ export function DocumentWorkspace({
           onQueryChange?.({ query, page: 1 });
         }}
       >
-        <label>
-          <span className="sr-only">문서명 검색</span>
-          <input
-            onChange={(event) => setSearchInput(event.target.value)}
-            placeholder="문서명 검색..."
-            type="search"
-            value={searchInput}
-          />
-        </label>
-        <button className="civic-secondary-action" type="submit">
-          검색
-        </button>
+        <ConsoleSearchControl
+          ariaLabel="문서명 검색"
+          onChange={setSearchInput}
+          placeholder="문서명을 검색해 주세요."
+          value={searchInput}
+        />
         <label>
           <span>처리 상태</span>
           <select
@@ -1114,6 +1154,20 @@ export function DocumentWorkspace({
             <option value="READY">처리 완료</option>
             <option value="PROCESSING">처리 중</option>
             <option value="FAILED">실패</option>
+          </select>
+        </label>
+        <label>
+          <span>페이지당</span>
+          <select
+            aria-label="문서 목록 페이지당 표시 개수"
+            onChange={(event) =>
+              onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
+            }
+            value={pageState.pageSize}
+          >
+            <option value={10}>10개</option>
+            <option value={25}>25개</option>
+            <option value={50}>50개</option>
           </select>
         </label>
         <details className="wf-filter-advanced">
@@ -1153,28 +1207,6 @@ export function DocumentWorkspace({
                 ))}
               </select>
             </label>
-            <label>
-              <span>등록 시작일</span>
-              <input
-                onChange={(event) => {
-                  setCreatedFromFilter(event.target.value);
-                  onQueryChange?.({ createdFrom: event.target.value, page: 1 });
-                }}
-                type="date"
-                value={createdFromFilter}
-              />
-            </label>
-            <label>
-              <span>등록 종료일</span>
-              <input
-                onChange={(event) => {
-                  setCreatedToFilter(event.target.value);
-                  onQueryChange?.({ createdTo: event.target.value, page: 1 });
-                }}
-                type="date"
-                value={createdToFilter}
-              />
-            </label>
             <label className="civic-check-row">
               <input
                 checked={includeSubfolders}
@@ -1186,75 +1218,73 @@ export function DocumentWorkspace({
               />
               <span>하위 폴더 포함</span>
             </label>
-            <label>
-              <span>페이지당</span>
-              <select
-                aria-label="문서 목록 페이지당 표시 개수"
-                onChange={(event) =>
-                  onQueryChange?.({ pageSize: Number(event.target.value) as 10 | 25 | 50, page: 1 })
-                }
-                value={pageState.pageSize}
-              >
-                <option value={10}>10개</option>
-                <option value={25}>25개</option>
-                <option value={50}>50개</option>
-              </select>
-            </label>
           </div>
         </details>
       </form>
-      <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
-        <strong>{selectedIds.size}개 선택</strong>
-        <button
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "REINDEX" })}
-          type="button"
+      <div className="civic-bulk-action-row">
+        <div aria-label="선택 문서 작업" className="civic-bulk-toolbar" role="toolbar">
+          <strong>{selectedIds.size}개 선택</strong>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "REINDEX" })}
+            type="button"
+          >
+            선택 문서 재색인
+          </button>
+          <button
+            className="civic-danger-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "CANCEL" })}
+            type="button"
+          >
+            처리 중단
+          </button>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
+            type="button"
+          >
+            검색에서 제외
+          </button>
+          <select
+            aria-label="선택 문서 이동 대상 폴더"
+            onChange={(event) => setMoveFolderId(event.target.value)}
+            value={moveFolderId}
+          >
+            <option value="">이동할 폴더 선택</option>
+            {folders
+              .filter((candidate) => candidate.folder_id !== folder?.folder_id)
+              .map((candidate) => (
+                <option key={candidate.folder_id} value={candidate.folder_id}>
+                  {(candidate.path ?? [candidate.name]).join(" / ")}
+                </option>
+              ))}
+          </select>
+          <button
+            className="civic-secondary-action"
+            disabled={selectedIds.size === 0 || !moveFolderId}
+            onClick={() => submitBulk({ action: "MOVE", folderId: moveFolderId })}
+            type="button"
+          >
+            선택 문서 이동
+          </button>
+          <button
+            className="civic-danger-action is-danger"
+            disabled={selectedIds.size === 0}
+            onClick={() => submitBulk({ action: "DELETE" })}
+            type="button"
+          >
+            삭제
+          </button>
+        </div>
+        <Link
+          className="civic-primary-action civic-upload-dialog-trigger"
+          href={ragUploadHref(folder?.folder_id, retainedQuery)}
         >
-          선택 문서 재색인
-        </button>
-        <button
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "CANCEL" })}
-          type="button"
-        >
-          처리 중단
-        </button>
-        <button
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "SET_SEARCH_ENABLED", searchEnabled: false })}
-          type="button"
-        >
-          검색 제외
-        </button>
-        <select
-          aria-label="선택 문서 이동 대상 폴더"
-          onChange={(event) => setMoveFolderId(event.target.value)}
-          value={moveFolderId}
-        >
-          <option value="">이동할 폴더 선택</option>
-          {folders
-            .filter((candidate) => candidate.folder_id !== folder?.folder_id)
-            .map((candidate) => (
-              <option key={candidate.folder_id} value={candidate.folder_id}>
-                {(candidate.path ?? [candidate.name]).join(" / ")}
-              </option>
-            ))}
-        </select>
-        <button
-          disabled={selectedIds.size === 0 || !moveFolderId}
-          onClick={() => submitBulk({ action: "MOVE", folderId: moveFolderId })}
-          type="button"
-        >
-          선택 문서 이동
-        </button>
-        <button
-          className="is-danger"
-          disabled={selectedIds.size === 0}
-          onClick={() => submitBulk({ action: "DELETE" })}
-          type="button"
-        >
-          삭제
-        </button>
+          + 문서 업로드
+        </Link>
       </div>
       {documents.length === 0 ? (
         <div className="civic-admin-empty">
@@ -1267,12 +1297,7 @@ export function DocumentWorkspace({
           <p>문서명 또는 처리 상태를 변경해 다시 확인해 주세요.</p>
         </div>
       ) : (
-        <div
-          aria-label="RAG 작업 목록 표"
-          className="civic-table-scroll"
-          role="region"
-          tabIndex={0}
-        >
+        <div aria-label="문서 목록 표" className="civic-table-scroll" role="region" tabIndex={0}>
           <table>
             <thead>
               <tr>
@@ -1292,19 +1317,21 @@ export function DocumentWorkspace({
                 </th>
                 <th>문서명</th>
                 <th>등록자</th>
-                <th>
+                <th aria-sort={sortDirection === "desc" ? "descending" : "ascending"}>
                   <button
                     className="civic-sort-button"
-                    onClick={() =>
+                    onClick={() => {
+                      const nextDirection = sortDirection === "desc" ? "asc" : "desc";
+                      setSortDirection(nextDirection);
                       onQueryChange?.({
                         sort: "created_at",
-                        direction: DEFAULT_DOCUMENT_QUERY.direction === "desc" ? "asc" : "desc",
+                        direction: nextDirection,
                         page: 1,
-                      })
-                    }
+                      });
+                    }}
                     type="button"
                   >
-                    등록일 ↓
+                    등록일 {sortDirection === "desc" ? "↓" : "↑"}
                   </button>
                 </th>
                 <th>페이지</th>
@@ -1316,6 +1343,11 @@ export function DocumentWorkspace({
             <tbody>
               {visibleDocuments.map((document) => (
                 <DocumentRow
+                  deleteHref={ragDocumentDeleteHref(
+                    folder?.folder_id ?? document.folder_id,
+                    document.document_id,
+                    retainedQuery,
+                  )}
                   document={document}
                   folder={folder}
                   creatorLabel={adminUserLabel(creatorLabels, document.created_by)}
@@ -1362,14 +1394,6 @@ export function DocumentWorkspace({
           다음 페이지
         </button>
       </div>
-      {compact ? (
-        <Link
-          className="civic-text-action"
-          href={`/admin/rag/documents?folderId=${encodeURIComponent(folder?.folder_id ?? "")}`}
-        >
-          문서 목록 자세히 보기
-        </Link>
-      ) : null}
     </div>
   );
 }
@@ -1379,6 +1403,17 @@ function documentStatusQuery(status: DocumentStatusFilter): RagDocumentListQuery
   if (status === "PROCESSING") return "PROCESSING";
   if (status === "FAILED") return "FAILED";
   return "";
+}
+
+function documentStatusFilter(status: RagDocumentListQuery["status"]): DocumentStatusFilter {
+  if (status === "ACTIVE") return "READY";
+  if (status === "PROCESSING") return "PROCESSING";
+  if (status === "FAILED") return "FAILED";
+  return "ALL";
+}
+
+export function searchEnabledFromExcluded(excluded: boolean): boolean {
+  return !excluded;
 }
 
 type DocumentStatusFilter = "ALL" | "READY" | "PROCESSING" | "FAILED";
@@ -1401,6 +1436,7 @@ export function filterRagDocuments(
 }
 
 function DocumentRow({
+  deleteHref,
   document,
   folder,
   creatorLabel,
@@ -1410,6 +1446,7 @@ function DocumentRow({
   onInspect,
   selected,
 }: Readonly<{
+  deleteHref: Route;
   document: RagDocument;
   folder: Folder | undefined;
   creatorLabel: string;
@@ -1480,41 +1517,46 @@ function DocumentRow({
         {selectedVersion?.job_id ? (
           <Link
             aria-label={`${filename} 처리 상태 보기`}
-            className={`civic-job-state is-${selectedStatus.toLowerCase()}`}
             href={processingJobHref(selectedVersion, folder?.folder_id ?? document.folder_id)}
           >
-            {documentStatusLabel(selectedStatus)}
+            <ConsoleBadge tone={ragStatusBadgeTone(selectedStatus)}>
+              {documentStatusLabel(selectedStatus)}
+            </ConsoleBadge>
           </Link>
         ) : (
-          <span className={`civic-job-state is-${selectedStatus.toLowerCase()}`}>
+          <ConsoleBadge tone={ragStatusBadgeTone(selectedStatus)}>
             {documentStatusLabel(selectedStatus)}
-          </span>
+          </ConsoleBadge>
         )}
         {document.search_enabled === false ? (
-          <span className="civic-search-toggle">검색 제외됨</span>
+          <span className="civic-search-toggle">검색에서 제외</span>
         ) : null}
       </td>
       <td>
-        <select
-          aria-label={`${filename} 버전 선택`}
-          onChange={(event) => {
-            const nextVersionId = event.target.value;
-            setSelectedVersionId(nextVersionId);
-            onInspect(
-              document,
-              versions.find((version) => version.document_version_id === nextVersionId) ?? null,
-            );
-          }}
-          onClick={(event) => event.stopPropagation()}
-          onFocus={() => void loadVersions()}
-          value={selectedVersionId}
-        >
-          {displayVersions.map((version) => (
-            <option key={version.document_version_id} value={version.document_version_id}>
-              v{version.version_number}
-            </option>
-          ))}
-        </select>
+        {(activeVersion?.version_number ?? 1) <= 1 && displayVersions.length <= 1 ? (
+          <span className="civic-version-single">v{activeVersion?.version_number ?? 1}</span>
+        ) : (
+          <select
+            aria-label={`${filename} 버전 선택`}
+            onChange={(event) => {
+              const nextVersionId = event.target.value;
+              setSelectedVersionId(nextVersionId);
+              onInspect(
+                document,
+                versions.find((version) => version.document_version_id === nextVersionId) ?? null,
+              );
+            }}
+            onClick={(event) => event.stopPropagation()}
+            onFocus={() => void loadVersions()}
+            value={selectedVersionId}
+          >
+            {displayVersions.map((version) => (
+              <option key={version.document_version_id} value={version.document_version_id}>
+                v{version.version_number}
+              </option>
+            ))}
+          </select>
+        )}
         {versionLoadMessage ? <small role="status">{versionLoadMessage}</small> : null}
       </td>
       <td>
@@ -1524,7 +1566,7 @@ function DocumentRow({
             onClick={() => onInspect(document, selectedVersion)}
             type="button"
           >
-            보기
+            미리보기
           </button>
           <details className="civic-row-menu">
             <summary aria-label={`${filename} 추가 작업`}>⋯</summary>
@@ -1552,19 +1594,22 @@ function DocumentRow({
               </button>
               <label className="civic-search-toggle">
                 <input
-                  aria-label={`${filename} 검색 사용 여부`}
-                  checked={document.search_enabled !== false}
+                  aria-label={`${filename} 검색에서 제외`}
+                  checked={document.search_enabled === false}
                   onChange={(event) =>
                     void onBulk?.({
                       action: "SET_SEARCH_ENABLED",
                       documentIds: [document.document_id],
-                      searchEnabled: event.target.checked,
+                      searchEnabled: searchEnabledFromExcluded(event.target.checked),
                     })
                   }
                   type="checkbox"
                 />
-                <span>검색 사용</span>
+                <span>검색에서 제외</span>
               </label>
+              <Link className="is-danger" href={deleteHref}>
+                문서 삭제
+              </Link>
             </div>
           </details>
         </div>
@@ -1617,29 +1662,19 @@ function isSpreadsheetMediaType(mediaType: string): boolean {
 }
 
 function mediaTypeLabel(value?: string): string {
-  const labels: Readonly<Record<string, string>> = {
-    "application/pdf": "PDF",
-    "text/plain": "TXT",
-    "text/markdown": "Markdown",
-    "text/csv": "CSV",
-    "image/png": "PNG",
-    "image/jpeg": "JPEG",
-    "image/gif": "GIF",
-    "image/bmp": "BMP",
-    "image/tiff": "TIFF",
-    "image/webp": "WebP",
-    "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "DOCX",
-    "application/msword": "DOC",
-    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "XLSX",
-    "application/vnd.ms-excel": "XLS",
-    "application/vnd.oasis.opendocument.spreadsheet": "ODS",
-    "application/vnd.openxmlformats-officedocument.presentationml.presentation": "PPTX",
-    "application/vnd.ms-powerpoint": "PPT",
-    "application/x-hwp": "HWP",
-    "application/hwp+zip": "HWPX",
-  };
-  if (value && labels[value]) return labels[value];
-  return "문서";
+  // 필터 옵션(RAG_DOCUMENT_MEDIA_TYPE_OPTIONS)과 동일한 표기를 사용해
+  // 목록 행과 필터의 문서 형식 라벨을 통일한다.
+  const label = value
+    ? RAG_DOCUMENT_MEDIA_TYPE_OPTIONS.find(([mediaTypeValue]) => mediaTypeValue === value)?.[1]
+    : undefined;
+  return label ?? "문서";
+}
+
+export function ragStatusBadgeTone(status: string): "neutral" | "active" | "danger" | "success" {
+  if (["ACTIVE", "READY", "SUCCEEDED"].includes(status)) return "success";
+  if (status === "FAILED") return "danger";
+  if (["PROCESSING", "QUEUED", "RUNNING", "RETRY_WAIT"].includes(status)) return "active";
+  return "neutral";
 }
 
 function documentStatusLabel(value: string): string {
@@ -1660,6 +1695,7 @@ function documentStatusLabel(value: string): string {
 
 function FolderEditor({
   cancelHref,
+  documentCount,
   folder,
   mode,
   onComplete,
@@ -1667,6 +1703,7 @@ function FolderEditor({
   parentName,
 }: Readonly<{
   cancelHref: Route;
+  documentCount: number;
   folder: Folder | undefined;
   mode: "ADD" | "EDIT" | "DELETE";
   onComplete: () => void;
@@ -1738,7 +1775,7 @@ function FolderEditor({
       <div className="wf-rag-modal-summary">
         <strong>문서 / {folder?.name ?? "Root"}</strong>
         <p>
-          포함 문서 <b>확인 중</b>
+          포함 문서 <b>{documentCount.toLocaleString("ko-KR")}개</b>
         </p>
       </div>
       {mode === "DELETE" ? (
@@ -1831,8 +1868,9 @@ export function shouldRenderRagFolderDialog(
   );
 }
 
-export function jobPanelKey(jobId: string | undefined): string {
-  return jobId ? `job-${jobId}` : "missing-job";
+export function jobPanelKey(jobId: string | readonly string[] | undefined): string {
+  const jobIds = typeof jobId === "string" ? [jobId] : (jobId ?? []);
+  return jobIds.length > 0 ? `job-${jobIds.join("-")}` : "missing-job";
 }
 
 export function resolveFolderMutation(
@@ -1868,15 +1906,129 @@ export function selectedDocumentVersionStatus(
   );
 }
 
+type RagUploadProblem = Readonly<{
+  code?: unknown;
+  details?: unknown;
+  message?: unknown;
+}>;
+
+export type RagUploadDuplicateResolution = Readonly<{
+  action: "KEEP_EXISTING" | "RETRY_FAILED" | "UPLOAD_NEW_VERSION";
+  conflictKind: "SAME_CONTENT" | "SAME_FILENAME";
+  documentId: string;
+  existingFilename?: string;
+  jobId?: string;
+}>;
+
+export type PendingRagUploadConflict = Readonly<{
+  file: File;
+  resolution: RagUploadDuplicateResolution;
+}>;
+
+export function readRagUploadDuplicateResolution(
+  error: unknown,
+): RagUploadDuplicateResolution | undefined {
+  if (
+    !(error instanceof RagUploadDefinitiveResponseError) ||
+    error.status !== 409 ||
+    error.problem?.code !== "DOCUMENT_ALREADY_EXISTS" ||
+    !error.problem.details ||
+    typeof error.problem.details !== "object"
+  ) {
+    return undefined;
+  }
+  const details = error.problem.details as Record<string, unknown>;
+  const documentId = details.document_id;
+  const conflictKind = details.conflict_kind;
+  const action = details.suggested_action;
+  const jobId = details.job_id;
+  if (
+    typeof documentId !== "string" ||
+    !documentId ||
+    (conflictKind !== "SAME_CONTENT" && conflictKind !== "SAME_FILENAME") ||
+    (action !== "KEEP_EXISTING" && action !== "RETRY_FAILED" && action !== "UPLOAD_NEW_VERSION") ||
+    (action === "RETRY_FAILED" && (typeof jobId !== "string" || !jobId))
+  ) {
+    return undefined;
+  }
+  return {
+    action,
+    conflictKind,
+    documentId,
+    ...(typeof details.filename === "string" && details.filename
+      ? { existingFilename: details.filename }
+      : {}),
+    ...(typeof jobId === "string" && jobId ? { jobId } : {}),
+  };
+}
+
+export function RagUploadConflictDialog({
+  busy,
+  conflict,
+  onCancel,
+  onConfirm,
+}: Readonly<{
+  busy: boolean;
+  conflict: PendingRagUploadConflict;
+  onCancel: () => void;
+  onConfirm: () => void;
+}>) {
+  const { action, existingFilename } = conflict.resolution;
+  const filename = existingFilename ?? conflict.file.name;
+  const copy =
+    action === "UPLOAD_NEW_VERSION"
+      ? {
+          confirmLabel: "새 버전으로 갱신",
+          description: (
+            <p>
+              <strong>{filename}</strong> 문서가 이미 있습니다. 선택한 파일을 기존 문서의 새
+              버전으로 등록하시겠습니까?
+            </p>
+          ),
+          title: "이미 업로드된 문서입니다",
+        }
+      : action === "RETRY_FAILED"
+        ? {
+            confirmLabel: "기존 문서 다시 처리",
+            description: (
+              <p>
+                <strong>{filename}</strong> 문서와 내용이 같은 파일이 처리 실패 상태로 남아
+                있습니다. 파일을 중복 저장하지 않고 기존 문서를 다시 처리하시겠습니까?
+              </p>
+            ),
+            title: "실패한 동일 문서가 있습니다",
+          }
+        : {
+            confirmLabel: "업로드 목록에서 제외",
+            description: (
+              <p>
+                <strong>{filename}</strong> 문서와 동일한 내용이 이미 등록되어 있습니다. 내용이 같아
+                새 버전을 만들지 않습니다.
+              </p>
+            ),
+            title: "동일한 문서가 이미 등록되어 있습니다",
+          };
+  return (
+    <ConfirmDialog
+      busy={busy}
+      busyLabel="처리 중…"
+      confirmLabel={copy.confirmLabel}
+      description={copy.description}
+      onCancel={onCancel}
+      onConfirm={onConfirm}
+      open
+      title={copy.title}
+    />
+  );
+}
+
 function UploadPanel({
   folder,
-  inline = false,
   onAccepted,
   query,
   onMessage,
 }: Readonly<{
   folder: Folder | undefined;
-  inline?: boolean;
   onAccepted?: () => void;
   query: RagQuery;
   onMessage: (message: string) => void;
@@ -1884,98 +2036,204 @@ function UploadPanel({
   const router = useRouter();
   const mode = firstQueryValue(query.mode) === "NEW_VERSION" ? "NEW_VERSION" : "NEW_DOCUMENT";
   const documentId = firstQueryValue(query.documentId);
+  const uploadReturnHref = ragWorkspaceHref(
+    folder?.folder_id ?? firstQueryValue(query.folderId),
+    ragDocumentQueryFromRoute(query),
+  );
   const [files, setFiles] = useState<File[]>([]);
-  const [rightsConfirmed, setRightsConfirmed] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [activeUpload, setActiveUpload] = useState<
+    Readonly<{ filename: string; index: number; total: number }> | undefined
+  >();
   const [uploadProgress, setUploadProgress] = useState<ReadonlyMap<File, string>>(() => new Map());
   const [acceptedJobs, setAcceptedJobs] = useState<Array<{ filename: string; jobId: string }>>([]);
+  const [pendingConflicts, setPendingConflicts] = useState<PendingRagUploadConflict[]>([]);
   const completionRecoveries = useRef(new Map<File, string>());
   const initiationKeys = useRef(createFileRetryKeyStore());
+  const conflictRetryKeys = useRef(createFileRetryKeyStore());
+  const activeConflict = pendingConflicts[0];
+
+  function discardQueuedFile(file: File) {
+    const recoveryKey = multipartFileRecoveryKey(file);
+    completionRecoveries.current.delete(recoveryKey);
+    initiationKeys.current.retire(recoveryKey);
+    conflictRetryKeys.current.retire(recoveryKey);
+    setUploadProgress((current) => {
+      const next = new Map(current);
+      next.delete(file);
+      return next;
+    });
+    setFiles((current) => current.filter((candidate) => candidate !== file));
+  }
+
+  function removeQueuedFile(file: File) {
+    if (busy) return;
+    discardQueuedFile(file);
+  }
+
+  async function uploadFile(file: File, targetDocumentId?: string) {
+    if (!folder) throw new Error("RAG upload folder is unavailable");
+    const recoveryKey = multipartFileRecoveryKey(file);
+    const completionUploadId = completionRecoveries.current.get(recoveryKey);
+    const initIdempotencyKey = completionUploadId
+      ? undefined
+      : initiationKeys.current.acquire(recoveryKey);
+    const effectiveDocumentId =
+      targetDocumentId ?? (mode === "NEW_VERSION" ? documentId : undefined);
+    try {
+      const accepted = await uploadRagFileMultipart({
+        file,
+        folderId: folder.folder_id,
+        ...(effectiveDocumentId ? { documentId: effectiveDocumentId } : {}),
+        ...(completionUploadId ? { completionUploadId } : {}),
+        ...(initIdempotencyKey ? { initIdempotencyKey } : {}),
+        onInitiationSettled: () => initiationKeys.current.retire(recoveryKey),
+        onProgress: (uploadedParts, totalParts) => {
+          setUploadProgress((current) => {
+            const next = new Map(current);
+            next.set(file, `${uploadedParts}/${totalParts} 전송됨`);
+            return next;
+          });
+          onMessage(`${file.name}: ${uploadedParts}/${totalParts} 전송 중`);
+        },
+      });
+      completionRecoveries.current.delete(recoveryKey);
+      return accepted;
+    } catch (error) {
+      settleMultipartCompletionRecovery(
+        completionRecoveries.current,
+        recoveryKey,
+        error,
+        completionUploadId,
+      );
+      throw error;
+    }
+  }
 
   async function upload(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (
-      !folder ||
-      files.length === 0 ||
-      !rightsConfirmed ||
-      (mode === "NEW_VERSION" && !documentId)
-    ) {
+    if (!folder || files.length === 0 || (mode === "NEW_VERSION" && !documentId)) {
       return;
     }
     setBusy(true);
-    const results = await mapSettledWithConcurrency(files, 2, async (file) => {
-      const recoveryKey = multipartFileRecoveryKey(file);
-      const completionUploadId = completionRecoveries.current.get(recoveryKey);
-      const initIdempotencyKey = completionUploadId
-        ? undefined
-        : initiationKeys.current.acquire(recoveryKey);
-      try {
-        const accepted = await uploadRagFileMultipart({
-          file,
-          folderId: folder.folder_id,
-          ...(mode === "NEW_VERSION" && documentId ? { documentId } : {}),
-          ...(completionUploadId ? { completionUploadId } : {}),
-          ...(initIdempotencyKey ? { initIdempotencyKey } : {}),
-          onInitiationSettled: () => initiationKeys.current.retire(recoveryKey),
-          onProgress: (uploadedParts, totalParts) => {
-            setUploadProgress((current) => {
-              const next = new Map(current);
-              next.set(file, `${uploadedParts}/${totalParts} part`);
-              return next;
-            });
-            onMessage(`${file.name}: ${uploadedParts}/${totalParts} part 전송 중`);
-          },
-        });
-        completionRecoveries.current.delete(recoveryKey);
-        return accepted;
-      } catch (error) {
-        settleMultipartCompletionRecovery(
-          completionRecoveries.current,
-          recoveryKey,
-          error,
-          completionUploadId,
-        );
-        throw error;
-      }
+    const uploadBatch = [...files];
+    const results = await mapSettledWithConcurrency(uploadBatch, 1, (file, index) => {
+      setActiveUpload({ filename: file.name, index: index + 1, total: uploadBatch.length });
+      onMessage(`${file.name}: ${index + 1}/${uploadBatch.length} 업로드를 시작합니다.`);
+      return uploadFile(file);
     });
-    const failedResults = results.flatMap((result, index) =>
-      result.status === "rejected"
-        ? [ragUploadFailureMessage(files[index]?.name ?? "선택한 파일", result.reason)]
-        : [],
-    );
-    const failed = failedResults.length;
+    const conflicts = results.flatMap((result, index) => {
+      const file = uploadBatch[index];
+      const resolution =
+        result.status === "rejected" ? readRagUploadDuplicateResolution(result.reason) : undefined;
+      return file && resolution ? [{ file, resolution }] : [];
+    });
+    const failedResults = results.flatMap((result, index) => {
+      if (result.status !== "rejected" || readRagUploadDuplicateResolution(result.reason)) {
+        return [];
+      }
+      return [ragUploadFailureMessage(uploadBatch[index]?.name ?? "선택한 파일", result.reason)];
+    });
+    const rejected = results.filter((result) => result.status === "rejected").length;
     const acceptedNow = results.flatMap((result) =>
       result.status === "fulfilled" ? [result.value] : [],
     );
+    setPendingConflicts(conflicts);
     setAcceptedJobs((current) => [...current, ...acceptedNow]);
-    setFiles(rejectedInputs(files, results));
-    onMessage(
-      failed > 0
-        ? `${failed}개 파일 전송에 실패했습니다. ${failedResults.join(" ")} 성공 파일은 유지되며 실패 파일만 다시 시도하세요.`
-        : acceptedNow.length === 1
-          ? "파일을 접수했습니다. 처리 상태 화면으로 이동합니다."
-          : "모든 파일을 접수했습니다. 각 문서의 '처리 상태 보기'에서 진행 상황을 확인하세요.",
-    );
+    setFiles(rejectedInputs(uploadBatch, results));
+    const messages = [
+      ...(conflicts.length > 0
+        ? [`${conflicts.length}개 파일은 기존 문서 처리 방법을 확인해 주세요.`]
+        : []),
+      ...(failedResults.length > 0
+        ? [`${failedResults.length}개 파일 전송에 실패했습니다. ${failedResults.join(" ")}`]
+        : []),
+      ...(acceptedNow.length > 0 ? [`${acceptedNow.length}개 파일을 접수했습니다.`] : []),
+    ];
+    onMessage(messages.join(" "));
     if (acceptedNow.length > 0) onAccepted?.();
+    setActiveUpload(undefined);
     setBusy(false);
-    if (failed === 0 && acceptedNow.length === 1 && acceptedNow[0]) {
-      router.push(ragJobHref(acceptedNow[0].jobId, folder.folder_id, acceptedNow[0].filename));
+    if (rejected === 0 && acceptedNow.length > 0) {
+      router.push(ragJobsHref(acceptedNow, folder.folder_id, ragDocumentQueryFromRoute(query)));
+    }
+  }
+
+  function cancelActiveConflict() {
+    if (!activeConflict || busy) return;
+    setPendingConflicts((current) => current.slice(1));
+    onMessage(`${activeConflict.file.name}: 기존 문서를 변경하지 않았습니다.`);
+  }
+
+  async function confirmActiveConflict() {
+    if (!activeConflict || !folder || busy) return;
+    const { file, resolution } = activeConflict;
+    if (resolution.action === "KEEP_EXISTING") {
+      discardQueuedFile(file);
+      setPendingConflicts((current) => current.slice(1));
+      onMessage(`${file.name}: 동일 내용이 이미 등록되어 업로드 목록에서 제외했습니다.`);
+      return;
+    }
+
+    setBusy(true);
+    try {
+      let accepted: { filename: string; jobId: string };
+      if (resolution.action === "RETRY_FAILED") {
+        if (!resolution.jobId) throw new Error("실패 작업 정보를 확인할 수 없습니다.");
+        const retryKey = conflictRetryKeys.current.acquire(file);
+        const result = await requestRagJobRetry({
+          jobId: resolution.jobId,
+          idempotencyKey: retryKey,
+        });
+        if (result.definitive) conflictRetryKeys.current.retire(file);
+        if (result.kind !== "accepted" || !result.acceptedJobId) {
+          throw new Error(
+            result.kind === "network" || result.kind === "malformed"
+              ? "네트워크 오류로 기존 문서를 다시 처리하지 못했습니다. 다시 시도하세요."
+              : "문서 상태가 변경되어 다시 처리를 시작하지 못했습니다. 목록을 새로고침하세요.",
+          );
+        }
+        accepted = {
+          filename: resolution.existingFilename ?? file.name,
+          jobId: result.acceptedJobId,
+        };
+      } else {
+        accepted = await uploadFile(file, resolution.documentId);
+      }
+      discardQueuedFile(file);
+      setPendingConflicts((current) => current.slice(1));
+      setAcceptedJobs((current) => [...current, accepted]);
+      onAccepted?.();
+      onMessage(
+        resolution.action === "RETRY_FAILED"
+          ? `${accepted.filename}: 기존 문서 재처리를 접수했습니다.`
+          : `${accepted.filename}: 새 버전 업로드를 접수했습니다.`,
+      );
+    } catch (error) {
+      onMessage(
+        resolution.action === "UPLOAD_NEW_VERSION"
+          ? ragUploadFailureMessage(file.name, error)
+          : error instanceof Error
+            ? error.message
+            : `${file.name}: 기존 문서를 다시 처리하지 못했습니다.`,
+      );
+    } finally {
+      setBusy(false);
     }
   }
 
   return (
-    <form className={`civic-rag-form${inline ? " is-inline" : ""}`} onSubmit={upload}>
+    <form className="civic-rag-form" onSubmit={upload}>
       <div className="civic-upload-mode">
-        <strong>{mode === "NEW_VERSION" ? "새 버전" : "새 문서"}</strong>
+        {mode === "NEW_VERSION" ? <strong>새 버전</strong> : null}
         <p>
           {mode === "NEW_VERSION"
             ? "선택한 문서에 새 버전을 등록합니다."
-            : `${folder?.name ?? "선택 필요"}에 새 불변 문서를 만듭니다.`}
+            : `${folder?.name ?? "선택 필요"} 폴더에 새 문서를 업로드합니다.`}
         </p>
       </div>
       <p className="civic-help">
-        파일당 최대 500 MiB입니다. 8 MiB 단위로 안전하게 나누어 전송하며
-        PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
+        여러 파일을 한 번에 선택할 수 있습니다. PDF·텍스트·이미지·Office·한글 문서를 지원합니다.
       </p>
       <label
         className="civic-upload-dropzone"
@@ -1985,35 +2243,29 @@ function UploadPanel({
         onDrop={(event) => {
           if (!canSelectUploadFiles(busy)) return;
           event.preventDefault();
-          completionRecoveries.current.clear();
-          initiationKeys.current.clear();
-          const accepted = acceptRagUploadFiles(
-            Array.from(event.dataTransfer.files),
-            mode === "NEW_DOCUMENT",
-          );
-          setFiles(accepted);
+          const selected = Array.from(event.dataTransfer.files);
+          const accepted = acceptRagUploadFiles(selected, mode === "NEW_DOCUMENT");
+          setFiles((current) => appendRagUploadFiles(current, selected, mode === "NEW_DOCUMENT"));
           if (accepted.length !== event.dataTransfer.files.length) {
-            onMessage(ragUploadExclusionMessage(Array.from(event.dataTransfer.files)));
+            onMessage(ragUploadExclusionMessage(selected));
           }
         }}
       >
-        <strong>원본 파일 선택</strong>
-        <span>{files.length > 0 ? `${files.length}개 선택됨` : "파일을 놓거나 찾아보세요"}</span>
+        <strong>파일 선택</strong>
+        {files.length > 0 ? <span>{files.length}개 선택됨</span> : null}
         <input
           accept={RAG_ACCEPTED_EXTENSIONS.join(",")}
           disabled={!canSelectUploadFiles(busy)}
           multiple={mode === "NEW_DOCUMENT"}
           onChange={(event) => {
             if (!canSelectUploadFiles(busy)) return;
-            completionRecoveries.current.clear();
-            initiationKeys.current.clear();
             const selected = Array.from(event.target.files ?? []);
             const accepted = acceptRagUploadFiles(selected, mode === "NEW_DOCUMENT");
-            setFiles(accepted);
+            setFiles((current) => appendRagUploadFiles(current, selected, mode === "NEW_DOCUMENT"));
             if (accepted.length !== selected.length) {
               onMessage(ragUploadExclusionMessage(selected));
-              event.target.value = "";
             }
+            event.target.value = "";
           }}
           type="file"
         />
@@ -2021,15 +2273,37 @@ function UploadPanel({
           파일 찾아보기
         </span>
       </label>
+      {activeUpload ? (
+        <div aria-live="polite" className="civic-upload-batch-progress">
+          <span className="civic-doc-cell">
+            <RagFileTile filename={activeUpload.filename} />
+            <strong>{activeUpload.filename}</strong>
+          </span>
+          <b>
+            {activeUpload.index}/{activeUpload.total}
+          </b>
+        </div>
+      ) : null}
       <ul className="civic-upload-queue">
         {files.map((file) => (
-          <li key={`${file.name}-${file.size}`}>
+          <li key={`${file.name}-${file.size}-${file.lastModified}`}>
             <span className="civic-doc-cell">
               <RagFileTile filename={file.name} />
               <strong>{file.name}</strong>
             </span>
-            <span>
-              {formatFileSize(file.size)} · {uploadProgress.get(file) ?? "전송 대기"}
+            <span className="civic-upload-queue-meta">
+              <span>
+                {formatFileSize(file.size)} · {uploadProgress.get(file) ?? "전송 대기"}
+              </span>
+              <button
+                aria-label={`${file.name} 업로드 목록에서 제거`}
+                className="civic-upload-remove"
+                disabled={busy}
+                onClick={() => removeQueuedFile(file)}
+                type="button"
+              >
+                <RagTrashIcon />
+              </button>
             </span>
           </li>
         ))}
@@ -2055,30 +2329,97 @@ function UploadPanel({
           ))}
         </ul>
       ) : null}
-      <label className="civic-check-row">
-        <input
-          checked={rightsConfirmed}
-          onChange={(event) => setRightsConfirmed(event.target.checked)}
-          type="checkbox"
-        />
-        <span>문서 이용 권한을 보유하고 있습니다.</span>
-      </label>
       <div className="civic-form-actions">
-        <Link
-          className="civic-secondary-action"
-          href={ragWorkspaceHref(folder?.folder_id ?? firstQueryValue(query.folderId))}
-        >
+        <Link className="civic-secondary-action" href={uploadReturnHref}>
           취소
         </Link>
         <button
           className="civic-primary-action"
-          disabled={busy || !folder || !rightsConfirmed || files.length === 0}
+          disabled={busy || !folder || files.length === 0}
           type="submit"
         >
           업로드 시작
         </button>
       </div>
+      {activeConflict ? (
+        <RagUploadConflictDialog
+          busy={busy}
+          conflict={activeConflict}
+          onCancel={cancelActiveConflict}
+          onConfirm={() => void confirmActiveConflict()}
+        />
+      ) : null}
     </form>
+  );
+}
+
+function AutomaticRagJobRetryPanel({
+  filename,
+  jobId,
+}: Readonly<{ filename?: string; jobId: string }>) {
+  const router = useRouter();
+  const retryOperation = useRef(
+    createRetryOperation(() => crypto.randomUUID(), automaticRagRetryIdempotencyKey(jobId)),
+  );
+  const [retrying, setRetrying] = useState(true);
+  const [message, setMessage] = useState("실패한 문서의 재처리를 자동으로 요청합니다.");
+
+  const retry = useCallback(async () => {
+    const idempotencyKey = retryOperation.current.begin();
+    if (!idempotencyKey) return;
+    setRetrying(true);
+    setMessage("실패한 문서의 재처리를 요청하고 있습니다…");
+    let definitiveResponse = false;
+    try {
+      const result = await requestRagJobRetry({
+        jobId,
+        idempotencyKey,
+      });
+      definitiveResponse = result.definitive;
+      if (result.kind === "rejected") {
+        setMessage("자동 재시도를 접수하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "malformed") {
+        setMessage("재시도 응답에서 새 작업 ID를 확인하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "network") {
+        setMessage(RAG_RETRY_NETWORK_MESSAGE);
+        return;
+      }
+      setMessage("재처리를 접수했습니다. 새 작업의 처리 상태로 이동합니다.");
+      router.replace(ragJobHref(result.acceptedJobId, undefined, filename));
+    } finally {
+      retryOperation.current.settle(definitiveResponse);
+      setRetrying(false);
+    }
+  }, [filename, jobId, router]);
+
+  useEffect(() => {
+    void retry();
+  }, [retry]);
+
+  return (
+    <div className="civic-rag-form">
+      <div className="civic-upload-mode">
+        <strong>{filename ?? "선택한 실패 문서"}</strong>
+        <p aria-live="polite">{message}</p>
+      </div>
+      <div className="civic-form-actions">
+        <Link className="civic-secondary-action" href="/admin/rag">
+          문서 관리
+        </Link>
+        <button
+          className="civic-primary-action"
+          disabled={retrying}
+          onClick={() => void retry()}
+          type="button"
+        >
+          {retrying ? "재시도 요청 중…" : "다시 시도"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -2097,6 +2438,25 @@ export function acceptRagUploadFiles(files: readonly File[], multiple: boolean):
   return multiple ? accepted : accepted.slice(0, 1);
 }
 
+export function appendRagUploadFiles(
+  current: readonly File[],
+  selected: readonly File[],
+  multiple: boolean,
+): File[] {
+  const accepted = acceptRagUploadFiles(selected, multiple);
+  if (!multiple) return accepted;
+  const known = new Set(current.map(multipartFileRecoveryKey));
+  return [
+    ...current,
+    ...accepted.filter((file) => {
+      const key = multipartFileRecoveryKey(file);
+      if (known.has(key)) return false;
+      known.add(key);
+      return true;
+    }),
+  ];
+}
+
 export function ragUploadExclusionMessage(files: readonly File[]): string {
   const hasOversized = files.some((file) => file.size > MAX_RAG_UPLOAD_BYTES);
   const hasUnsupported = files.some((file) => {
@@ -2112,6 +2472,9 @@ export function ragUploadExclusionMessage(files: readonly File[]): string {
 
 export function ragUploadFailureMessage(filename: string, error: unknown): string {
   if (error instanceof RagUploadDefinitiveResponseError) {
+    if (readRagUploadDuplicateResolution(error)) {
+      return `${filename}: 기존 문서 처리 방법을 확인해 주세요.`;
+    }
     if (error.status === 400) {
       return `${filename}: 확장자와 실제 파일 형식이 일치하지 않거나 파일을 읽을 수 없습니다.`;
     }
@@ -2196,20 +2559,24 @@ function ragJobStepMarker(state: string): string {
 }
 
 export function RagJobStatusCard({
+  cancelling = false,
   filename,
+  headingId = "civic-job-status-title",
   job,
   message,
-  onRefresh,
+  onCancelUpload,
   onRetry,
   replacementHref,
   retrying,
   workspaceHref = ragWorkspaceHref(undefined),
 }: Readonly<{
   filename?: string;
+  headingId?: string;
   job: RagJob | null;
   message: string;
-  onRefresh: () => void;
+  onCancelUpload?: () => void;
   onRetry: () => void;
+  cancelling?: boolean;
   replacementHref?: Route;
   retrying: boolean;
   workspaceHref?: Route;
@@ -2221,26 +2588,26 @@ export function RagJobStatusCard({
   const statusLabel = documentStatusLabel(job?.status ?? "");
   const displayFilename =
     (filename ?? job?.filename)?.trim() || (job ? "업로드한 문서" : "문서 정보 확인 중");
+  const failureTitleId = `${headingId}-failure`;
+  const canCancelUpload = canCancelRagUpload(job);
 
   return (
     <section
-      aria-labelledby="civic-job-status-title"
+      aria-labelledby={headingId}
       className={`civic-job-panel${job?.status === "FAILED" ? " is-failed" : ""}`}
     >
       <div className="civic-job-summary">
         <header className="civic-job-document">
           <span aria-hidden="true" className="civic-job-file-mark">
-            문서
+            <RagFileTile filename={displayFilename} />
           </span>
           <div>
             <span>처리 문서</span>
-            <strong id="civic-job-status-title">{displayFilename}</strong>
+            <strong id={headingId}>{displayFilename}</strong>
           </div>
-          <b
-            className={`civic-job-status-badge is-${job?.status?.toLocaleLowerCase() || "loading"}`}
-          >
+          <ConsoleBadge tone={job ? ragStatusBadgeTone(job.status) : "neutral"}>
             {statusLabel}
-          </b>
+          </ConsoleBadge>
         </header>
 
         <div className="civic-job-progress">
@@ -2266,31 +2633,40 @@ export function RagJobStatusCard({
         </ol>
 
         {failureMessage ? (
-          <section aria-labelledby="civic-job-failure-title" className="civic-job-failure">
+          <section aria-labelledby={failureTitleId} className="civic-job-failure">
             <span aria-hidden="true">!</span>
             <div>
-              <strong id="civic-job-failure-title">{failedStage ?? "문서 처리"} 실패</strong>
+              <strong id={failureTitleId}>{failedStage ?? "문서 처리"} 실패</strong>
               <p>{failureMessage}</p>
             </div>
           </section>
         ) : null}
       </div>
 
-      <p aria-live="polite" className="civic-job-live-message">
-        {message}
-      </p>
+      {message ? (
+        <p aria-live="polite" className="civic-job-live-message">
+          {message}
+        </p>
+      ) : null}
 
       <div className="civic-form-actions civic-job-actions">
         <Link className="civic-secondary-action" href={workspaceHref}>
           문서 목록
         </Link>
-        <button className="civic-secondary-action" onClick={onRefresh} type="button">
-          상태 새로고침
-        </button>
+        {canCancelUpload ? (
+          <button
+            className="civic-danger-action"
+            disabled={cancelling || retrying || Boolean(replacementHref) || !onCancelUpload}
+            onClick={onCancelUpload}
+            type="button"
+          >
+            {cancelling ? "업로드 취소 중…" : "업로드 취소"}
+          </button>
+        ) : null}
         {job?.status === "FAILED" ? (
           <button
             className="civic-primary-action"
-            disabled={retrying || Boolean(replacementHref)}
+            disabled={cancelling || retrying || Boolean(replacementHref)}
             onClick={onRetry}
             type="button"
           >
@@ -2308,29 +2684,87 @@ export function RagJobStatusCard({
 }
 
 function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
-  const jobId = firstQueryValue(query.jobId);
+  const jobIds = queryValues(query.jobId);
+  const filenames = queryValues(query.filename);
   const folderId = firstQueryValue(query.folderId);
+  const [currentIndex, setCurrentIndex] = useState(0);
+  if (jobIds.length === 0) {
+    return (
+      <RagJobStatusCard
+        job={null}
+        message="작업 ID가 필요합니다."
+        onRetry={() => undefined}
+        retrying={false}
+        workspaceHref={ragWorkspaceHref(folderId)}
+      />
+    );
+  }
+  const safeIndex = Math.min(currentIndex, jobIds.length - 1);
+  const jobId = jobIds[safeIndex]!;
+  return (
+    <div aria-label="업로드한 문서 준비 상태" className="civic-job-batch">
+      <div aria-label="업로드 결과 이동" className="civic-job-batch-navigation">
+        <button
+          disabled={safeIndex === 0}
+          onClick={() => setCurrentIndex((index) => Math.max(0, index - 1))}
+          type="button"
+        >
+          이전
+        </button>
+        <strong>
+          {safeIndex + 1} / {jobIds.length}
+        </strong>
+        <button
+          disabled={safeIndex >= jobIds.length - 1}
+          onClick={() => setCurrentIndex((index) => Math.min(jobIds.length - 1, index + 1))}
+          type="button"
+        >
+          이후
+        </button>
+      </div>
+      <JobStatusItem
+        headingId={`civic-job-status-title-${safeIndex}`}
+        jobId={jobId}
+        key={`${jobId}-${safeIndex}`}
+        {...(folderId ? { folderId } : {})}
+        {...(filenames[safeIndex] ? { filename: filenames[safeIndex] } : {})}
+      />
+    </div>
+  );
+}
+
+function JobStatusItem({
+  filename,
+  folderId,
+  headingId,
+  jobId,
+}: Readonly<{
+  filename?: string;
+  folderId?: string;
+  headingId: string;
+  jobId: string;
+}>) {
+  const router = useRouter();
   const [job, setJob] = useState<RagJob | null>(null);
   const [replacementJobId, setReplacementJobId] = useState<string | null>(null);
   const retryOperation = useRef(createRetryOperation());
+  const cancellationOperation = useRef(createRetryOperation());
+  const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
+  const [cancelling, setCancelling] = useState(false);
   const [retrying, setRetrying] = useState(false);
-  const filename = firstQueryValue(query.filename);
-  const [message, setMessage] = useState(
-    jobId ? "문서 처리 상태를 불러오는 중입니다…" : "작업 ID가 필요합니다.",
-  );
+  const [message, setMessage] = useState("문서 처리 상태를 불러오는 중입니다…");
 
   const refresh = useCallback(async () => {
-    if (!jobId) return;
     const latest = await loadRagJob(jobId);
     if (!latest) return setMessage("처리 상태를 불러오지 못했습니다. 다시 시도해 주세요.");
     const recoveredFilename =
       !filename && latest.status === "FAILED" ? await loadRagJobFilename(jobId) : null;
     setJob(recoveredFilename ? { ...latest, filename: recoveredFilename } : latest);
-    setMessage("최신 처리 상태를 반영했습니다.");
+    setMessage("");
   }, [filename, jobId]);
 
   useEffect(() => {
-    if (!jobId || !shouldPollRagJob(job?.status, document.hidden)) return;
+    if (!shouldPollRagJob(job?.status, document.hidden)) return;
     const poll = () => {
       if (shouldPollRagJob(job?.status, document.hidden)) void refresh();
     };
@@ -2345,7 +2779,7 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
   }, [job?.status, jobId, refresh]);
 
   async function retry() {
-    if (!jobId || replacementJobId) return;
+    if (replacementJobId) return;
     const idempotencyKey = retryOperation.current.begin();
     if (!idempotencyKey) return;
     setRetrying(true);
@@ -2376,20 +2810,119 @@ function JobPanel({ query }: Readonly<{ query: RagQuery }>) {
     }
   }
 
+  async function cancelUpload() {
+    if (!canCancelRagUpload(job) || !job?.document_id || cancelling) {
+      setCancelDialogOpen(false);
+      return;
+    }
+    const idempotencyKey = cancellationOperation.current.begin(job.job_id);
+    if (!idempotencyKey) {
+      setCancelDialogOpen(false);
+      return;
+    }
+    setCancelling(true);
+    setMessage("업로드를 취소하고 문서를 정리하는 중입니다…");
+    let definitiveResponse = false;
+    try {
+      const result = await requestRagUploadCancellation({
+        documentId: job.document_id,
+        jobId: job.job_id,
+        status: job.status,
+        idempotencyKey,
+      });
+      definitiveResponse = result.definitive;
+      if (result.kind === "network") {
+        setMessage("네트워크 오류로 업로드를 취소하지 못했습니다. 다시 시도해 주세요.");
+        return;
+      }
+      if (result.kind === "rejected") {
+        setMessage("문서 상태가 변경되어 업로드를 취소하지 못했습니다.");
+        return;
+      }
+      setJob((current) => (current ? { ...current, status: "CANCELLED", progress: 0 } : current));
+      setMessage("업로드를 취소하고 문서를 정리했습니다.");
+      router.replace(ragWorkspaceHref(folderId));
+    } finally {
+      cancellationOperation.current.settle(definitiveResponse);
+      setCancelling(false);
+      setCancelDialogOpen(false);
+    }
+  }
+
   return (
-    <RagJobStatusCard
-      job={job}
-      message={message}
-      onRefresh={() => void refresh()}
-      onRetry={() => void retry()}
-      retrying={retrying}
-      workspaceHref={ragWorkspaceHref(folderId)}
-      {...(filename ? { filename } : {})}
-      {...(replacementJobId
-        ? { replacementHref: ragJobHref(replacementJobId, folderId, filename) }
-        : {})}
-    />
+    <>
+      <RagJobStatusCard
+        cancelling={cancelling}
+        headingId={headingId}
+        job={job}
+        message={message}
+        onCancelUpload={() => setCancelDialogOpen(true)}
+        onRetry={() => void retry()}
+        retrying={retrying}
+        workspaceHref={ragWorkspaceHref(folderId)}
+        {...(filename ? { filename } : {})}
+        {...(replacementJobId
+          ? { replacementHref: ragJobHref(replacementJobId, folderId, filename) }
+          : {})}
+      />
+      <ConfirmDialog
+        busy={cancelling}
+        busyLabel="취소 중…"
+        cancelLabel="돌아가기"
+        confirmLabel="업로드 취소"
+        description={
+          job?.status === "FAILED"
+            ? "실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다."
+            : "대기 중인 업로드를 취소하면 이 문서와 준비 중인 처리 결과가 삭제됩니다."
+        }
+        destructive
+        onCancel={() => setCancelDialogOpen(false)}
+        onConfirm={() => void cancelUpload()}
+        open={cancelDialogOpen}
+        title="업로드를 취소하시겠습니까?"
+      />
+    </>
   );
+}
+
+export type RagUploadCancellationResult = Readonly<{
+  kind: "cancelled" | "rejected" | "network";
+  definitive: boolean;
+}>;
+
+export async function requestRagUploadCancellation({
+  documentId,
+  jobId,
+  status = "FAILED",
+  idempotencyKey,
+  request = authenticatedFetch,
+}: Readonly<{
+  documentId: string;
+  jobId: string;
+  status?: string;
+  idempotencyKey: string;
+  request?: typeof fetch;
+}>): Promise<RagUploadCancellationResult> {
+  try {
+    const response =
+      status === "FAILED"
+        ? await request(
+            `/api/v1/rag/documents/${encodeURIComponent(documentId)}?failed_job_id=${encodeURIComponent(jobId)}`,
+            {
+              method: "DELETE",
+              headers: { "idempotency-key": idempotencyKey },
+            },
+          )
+        : await request(`/api/v1/rag/jobs/${encodeURIComponent(jobId)}/cancel-upload`, {
+            method: "POST",
+            headers: { "idempotency-key": idempotencyKey },
+          });
+    return response.ok
+      ? { kind: "cancelled", definitive: true }
+      : { kind: "rejected", definitive: true };
+  } catch {
+    return { kind: "network", definitive: false };
+  }
 }
 
 export async function loadRagJob(
@@ -2464,10 +2997,83 @@ export const RAG_FOLDER_DELETE_NETWORK_MESSAGE =
 export const RAG_RETRY_NETWORK_MESSAGE =
   "네트워크 오류로 재시도 접수를 확인하지 못했습니다. 같은 작업을 다시 시도해 주세요.";
 
-export function ragWorkspaceHref(folderId: string | undefined): Route {
-  return folderId
-    ? (`/admin/rag?folderId=${encodeURIComponent(folderId)}` as Route)
-    : ("/admin/rag" as Route);
+export function ragWorkspaceHref(
+  folderId: string | undefined,
+  query?: RagDocumentListQuery,
+): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  const suffix = parameters.toString();
+  return (suffix ? `/admin/rag?${suffix}` : "/admin/rag") as Route;
+}
+
+export function ragUploadHref(folderId: string | undefined, query?: RagDocumentListQuery): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  parameters.set("mode", "NEW_DOCUMENT");
+  return `/admin/rag/upload?${parameters.toString()}` as Route;
+}
+
+export function ragDocumentDeleteHref(
+  folderId: string,
+  documentId: string,
+  query: RagDocumentListQuery,
+): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  parameters.set("documentId", documentId);
+  return `/admin/rag/delete?${parameters.toString()}` as Route;
+}
+
+function ragWorkspaceParameters(
+  folderId: string | undefined,
+  query?: RagDocumentListQuery,
+): URLSearchParams {
+  const parameters = new URLSearchParams();
+  if (folderId) parameters.set("folderId", folderId);
+  if (!query) return parameters;
+  if (query.query) parameters.set("q", query.query);
+  if (query.status) parameters.set("status", query.status);
+  if (query.page > 1) parameters.set("page", String(query.page));
+  if (query.pageSize !== DEFAULT_DOCUMENT_QUERY.pageSize) {
+    parameters.set("pageSize", String(query.pageSize));
+  }
+  if (query.mediaType) parameters.set("mediaType", query.mediaType);
+  if (query.createdBy) parameters.set("createdBy", query.createdBy);
+  if (query.includeSubfolders) parameters.set("includeSubfolders", "true");
+  if (query.sort !== DEFAULT_DOCUMENT_QUERY.sort) parameters.set("sort", query.sort);
+  if (query.direction !== DEFAULT_DOCUMENT_QUERY.direction) {
+    parameters.set("direction", query.direction);
+  }
+  return parameters;
+}
+
+export function ragDocumentQueryFromRoute(query: RagQuery): RagDocumentListQuery {
+  const page = Number(firstQueryValue(query.page));
+  const pageSize = Number(firstQueryValue(query.pageSize));
+  const status = firstQueryValue(query.status);
+  const sort = firstQueryValue(query.sort);
+  const direction = firstQueryValue(query.direction);
+  const mediaType = firstQueryValue(query.mediaType);
+  const createdBy = firstQueryValue(query.createdBy);
+  return {
+    page: Number.isSafeInteger(page) && page > 0 ? page : DEFAULT_DOCUMENT_QUERY.page,
+    pageSize: pageSize === 10 || pageSize === 25 || pageSize === 50 ? pageSize : 25,
+    query: firstQueryValue(query.q) ?? "",
+    status:
+      status === "PENDING" || status === "PROCESSING" || status === "ACTIVE" || status === "FAILED"
+        ? status
+        : "",
+    ...(mediaType ? { mediaType } : {}),
+    ...(createdBy ? { createdBy } : {}),
+    includeSubfolders: firstQueryValue(query.includeSubfolders) === "true",
+    sort:
+      sort === "filename" ||
+      sort === "source_bytes" ||
+      sort === "page_count" ||
+      sort === "version_number" ||
+      sort === "status"
+        ? sort
+        : "created_at",
+    direction: direction === "asc" ? "asc" : "desc",
+  };
 }
 
 export async function deleteRagFolder({
@@ -2501,9 +3107,12 @@ export async function deleteRagFolder({
   }
 }
 
-export function createRetryOperation(idFactory: () => string = () => crypto.randomUUID()) {
+export function createRetryOperation(
+  idFactory: () => string = () => crypto.randomUUID(),
+  initialIdempotencyKey: string | null = null,
+) {
   let pending = false;
-  let idempotencyKey: string | null = null;
+  let idempotencyKey = initialIdempotencyKey;
   let operationIdentity: string | undefined;
   return {
     begin(nextOperationIdentity?: string): string | null {
@@ -2534,11 +3143,13 @@ export function readAcceptedJobId(value: unknown): string | null {
 
 export type RagJobRetryResult =
   | Readonly<{ kind: "accepted"; definitive: true; acceptedJobId: string }>
-  | Readonly<{
-      kind: "rejected" | "malformed" | "network";
-      definitive: boolean;
-      acceptedJobId: null;
-    }>;
+  | Readonly<{ kind: "rejected"; definitive: true; acceptedJobId: null }>
+  | Readonly<{ kind: "malformed"; definitive: false; acceptedJobId: null }>
+  | Readonly<{ kind: "network"; definitive: false; acceptedJobId: null }>;
+
+export function automaticRagRetryIdempotencyKey(jobId: string): string {
+  return `ADMIN_HOME_RETRY:${jobId}`;
+}
 
 export async function requestRagJobRetry({
   jobId,
@@ -2582,22 +3193,62 @@ export function ragJobHref(jobId?: string, folderId?: string, filename?: string)
   return (query ? `/admin/rag/jobs?${query}` : "/admin/rag/jobs") as Route;
 }
 
+export function ragJobsHref(
+  jobs: readonly Readonly<{ filename: string; jobId: string }>[],
+  folderId?: string,
+  query?: RagDocumentListQuery,
+): Route {
+  const parameters = ragWorkspaceParameters(folderId, query);
+  for (const job of jobs) {
+    parameters.append("jobId", job.jobId);
+    parameters.append("filename", job.filename);
+  }
+  const suffix = parameters.toString();
+  return (suffix ? `/admin/rag/jobs?${suffix}` : "/admin/rag/jobs") as Route;
+}
+
 function DeletePanel({
   documents,
   query,
   onComplete,
   onMessage,
+  returnHref,
 }: Readonly<{
   documents: RagDocument[];
   query: RagQuery;
   onComplete: () => void;
   onMessage: (message: string) => void;
+  returnHref: Route;
 }>) {
   const documentId = firstQueryValue(query.documentId);
-  const document = resolveDeletionDocument(documents, documentId);
-  const [confirmed, setConfirmed] = useState(false);
+  const listedDocument = resolveDeletionDocument(documents, documentId);
+  const [loadedDocument, setLoadedDocument] = useState<
+    Readonly<{ document: RagDocument | null; documentId: string }> | undefined
+  >();
+  const document =
+    listedDocument ??
+    (loadedDocument?.documentId === documentId
+      ? (loadedDocument?.document ?? undefined)
+      : undefined);
+  const loadingDocument = Boolean(
+    documentId && !listedDocument && loadedDocument?.documentId !== documentId,
+  );
+  const [confirmedDocumentId, setConfirmedDocumentId] = useState<string>();
+  const confirmed = confirmedDocumentId === documentId;
   const [busy, setBusy] = useState(false);
   const removeOperation = useRef(createRetryOperation());
+
+  useEffect(() => {
+    if (!documentId || listedDocument) return;
+    let cancelled = false;
+    void loadRagDocumentById(documentId).then((loaded) => {
+      if (cancelled) return;
+      setLoadedDocument({ document: loaded, documentId });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [documentId, listedDocument]);
 
   async function remove() {
     if (!document || !confirmed) return;
@@ -2619,7 +3270,11 @@ function DeletePanel({
       <dl>
         <div>
           <dt>문서</dt>
-          <dd>{document?.filename ?? "현재 폴더에서 문서를 찾을 수 없습니다."}</dd>
+          <dd>
+            {loadingDocument
+              ? "문서 정보를 불러오는 중입니다."
+              : (document?.filename ?? "삭제할 문서를 찾을 수 없습니다.")}
+          </dd>
         </div>
         <div>
           <dt>삭제 영향</dt>
@@ -2629,22 +3284,21 @@ function DeletePanel({
       <label className="civic-check-row">
         <input
           checked={confirmed}
-          disabled={!document}
-          onChange={(event) => setConfirmed(event.target.checked)}
+          disabled={loadingDocument || !document}
+          onChange={(event) =>
+            setConfirmedDocumentId(event.target.checked ? documentId : undefined)
+          }
           type="checkbox"
         />
         <span>삭제 후 되돌릴 수 없음을 확인했습니다.</span>
       </label>
       <div className="civic-form-actions">
-        <Link
-          className="civic-secondary-action"
-          href={ragWorkspaceHref(document?.folder_id ?? firstQueryValue(query.folderId))}
-        >
+        <Link className="civic-secondary-action" href={returnHref}>
           취소
         </Link>
         <button
           className="civic-danger-action"
-          disabled={!document || !confirmed || busy}
+          disabled={loadingDocument || !document || !confirmed || busy}
           onClick={() => void remove()}
           type="button"
         >
@@ -2698,6 +3352,31 @@ export function resolveDeletionDocument(documents: RagDocument[], documentId: st
   return documents.find((item) => item.document_id === documentId);
 }
 
+export async function loadRagDocumentById(
+  documentId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<RagDocument | null> {
+  try {
+    const response = await request(`/api/v1/rag/documents/${encodeURIComponent(documentId)}`, {
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const body = (await response.json()) as Partial<RagDocument>;
+    if (
+      body.document_id !== documentId ||
+      typeof body.folder_id !== "string" ||
+      typeof body.filename !== "string" ||
+      typeof body.deleted !== "boolean" ||
+      !(body.active_version === null || typeof body.active_version === "object")
+    ) {
+      return null;
+    }
+    return body as RagDocument;
+  } catch {
+    return null;
+  }
+}
+
 export async function sha256Blob(
   blob: Blob,
   chunkBytes = RAG_UPLOAD_HASH_CHUNK_BYTES,
@@ -2731,7 +3410,10 @@ export class RagMultipartCompletionPendingError extends Error {
 }
 
 class RagUploadDefinitiveResponseError extends Error {
-  constructor(readonly status: number) {
+  constructor(
+    readonly status: number,
+    readonly problem: RagUploadProblem | undefined,
+  ) {
     super(`RAG upload failed with ${status}`);
     this.name = "RagUploadDefinitiveResponseError";
   }
@@ -2947,11 +3629,23 @@ async function fetchWithRetry(
     if (response.ok) return response;
     if (![408, 429].includes(response.status) && response.status < 500) {
       onDefinitiveResponse();
-      throw new RagUploadDefinitiveResponseError(response.status);
+      throw new RagUploadDefinitiveResponseError(
+        response.status,
+        await readRagUploadProblem(response),
+      );
     }
     lastError = new Error(`RAG upload retryable response ${response.status}`);
   }
   throw lastError instanceof Error ? lastError : new Error("RAG upload failed");
+}
+
+async function readRagUploadProblem(response: Response): Promise<RagUploadProblem | undefined> {
+  try {
+    const value: unknown = await response.json();
+    return value && typeof value === "object" ? (value as RagUploadProblem) : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function mediaType(filename: string) {
@@ -2963,4 +3657,9 @@ export function mediaType(filename: string) {
 export function firstQueryValue(value: string | string[] | undefined) {
   const first = Array.isArray(value) ? value[0] : value;
   return first?.trim() || undefined;
+}
+
+export function queryValues(value: string | string[] | undefined): string[] {
+  const values = Array.isArray(value) ? value : value === undefined ? [] : [value];
+  return values.map((item) => item.trim()).filter(Boolean);
 }

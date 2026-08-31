@@ -10,6 +10,8 @@ const FLOW_COOKIE = "__Host-civic-auth-flow";
 
 let server: Server;
 let lastReactivationRequest: Record<string, unknown> | null = null;
+let lastPasswordResetRequest: Record<string, unknown> | null = null;
+let lastPasswordResetCompletion: Record<string, unknown> | null = null;
 let lastSignupCompletion: Record<string, unknown> | null = null;
 
 test.beforeAll(async () => {
@@ -117,10 +119,12 @@ test.beforeAll(async () => {
       return;
     }
     if (url.pathname === "/api/v1/auth/password-reset/request") {
+      lastPasswordResetRequest = body;
       response.writeHead(202, { "set-cookie": authFlowCookie("reset-flow") }).end();
       return;
     }
     if (url.pathname === "/api/v1/auth/password-reset/complete") {
+      lastPasswordResetCompletion = body;
       response.writeHead(204).end();
       return;
     }
@@ -290,16 +294,30 @@ test("후속 가입 단계를 새로 열어 흐름 메타데이터가 없으면 
 });
 
 test("비밀번호 재설정은 새 비밀번호 확인까지 일치해야 완료한다", async ({ page }) => {
-  await page.goto("/password-reset");
-  await page.getByLabel("등록 이메일").fill("citizen@example.com");
-  await page.getByRole("button", { name: "재설정 이메일 보내기" }).click();
+  lastPasswordResetRequest = null;
+  lastPasswordResetCompletion = null;
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("citizen@example.com");
+  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
 
-  await expect(page.getByRole("heading", { name: "인증코드 입력" })).toBeVisible();
+  await expect(page).toHaveURL(/\/password-reset$/u);
+  await expect(page.getByRole("heading", { name: "비밀번호 재설정" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "인증 코드 입력" })).toBeVisible();
+  expect(lastPasswordResetRequest).toEqual({ email: "citizen@example.com" });
   await page.getByRole("textbox", { name: "인증 코드" }).fill("111222");
+  await page.getByRole("button", { name: "인증하기" }).click();
+
+  await expect(page).toHaveURL(/\/password-reset\/complete$/u);
+  await expect(page.getByRole("heading", { name: "인증코드 입력" })).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "인증 코드" })).toHaveValue("111222");
   await page.getByLabel("새 비밀번호", { exact: true }).fill("NewCivic!234");
   await page.getByLabel("새 비밀번호 확인").fill("NewCivic!234");
   await page.getByRole("button", { name: "비밀번호 변경" }).click();
   await expect(page).toHaveURL(/\/login$/u);
+  expect(lastPasswordResetCompletion).toEqual({
+    code: "111222",
+    new_password: "NewCivic!234",
+  });
 });
 
 test("재활성화는 비밀번호와 등록 이메일 코드를 모두 확인한다", async ({ page }) => {

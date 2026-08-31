@@ -27,4 +27,15 @@ describe("publicAuthHeaderState", () => {
       title: "2단계 인증",
     });
   });
+
+  it("비밀번호 재설정 코드·변경 화면은 같은 헤더 제목을 사용한다", () => {
+    expect(publicAuthHeaderState("AUTH-007", "SIGNUP")).toEqual({
+      back: "/login",
+      title: "비밀번호 재설정",
+    });
+    expect(publicAuthHeaderState("AUTH-008", "SIGNUP")).toEqual({
+      back: "/password-reset",
+      title: "비밀번호 재설정",
+    });
+  });
 });

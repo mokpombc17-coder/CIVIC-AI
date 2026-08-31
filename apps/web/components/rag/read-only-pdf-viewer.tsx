@@ -27,8 +27,9 @@ export function ReadOnlyPdfViewer({
 
   return (
     <section
-      aria-label={`${documentTitle} 읽기 전용 PDF`}
+      aria-label={`${documentTitle} 읽기 전용 문서`}
       className="civic-pdf-viewer"
+      data-pdf-zoom-mode="pinch"
       data-pdf-scroll-mode="continuous"
     >
       <header className="civic-pdf-toolbar">
@@ -49,12 +50,6 @@ export function ReadOnlyPdfViewer({
         )}
       </header>
       <div className="wf-rag-document-card">
-        <header className="wf-rag-document-meta">
-          <h3>{documentTitle}</h3>
-          <p>
-            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지 · 연속 스크롤
-          </p>
-        </header>
         <div className="civic-pdf-canvas">
           <AuthenticatedPdfPages
             currentPage={safePage}
@@ -63,8 +58,14 @@ export function ReadOnlyPdfViewer({
             totalPages={safeTotalPages}
           />
         </div>
+        <footer className="wf-rag-document-meta">
+          <h3>{documentTitle}</h3>
+          <p>
+            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지
+          </p>
+        </footer>
         <strong aria-live="polite" className="sr-only">
-          인용 {safePage} / {safeTotalPages}페이지, 연속 스크롤
+          인용 {safePage} / {safeTotalPages}페이지
         </strong>
       </div>
     </section>

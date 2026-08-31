@@ -13,7 +13,9 @@ vi.mock("next/navigation", () => ({
   }),
 }));
 import { RagFunctionalScreen } from "@/components/rag/rag-functional-screen";
+import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import {
+  automaticRagRetryIdempotencyKey,
   DocumentInspector,
   DocumentWorkspace,
   FolderTree,
@@ -22,7 +24,9 @@ import {
   requestRagBulkAction,
   successfulBulkJobId,
   shouldPollRagJob,
+  searchEnabledFromExcluded,
   firstQueryValue,
+  queryValues,
   jobPanelKey,
   loadRagJob,
   loadRagJobFilename,
@@ -43,6 +47,8 @@ import {
   filterRagDocuments,
   processingJobHref,
   ragJobHref,
+  ragJobsHref,
+  ragJobSummaryMetrics,
   resolveInspectedRagDocument,
   resolveFolderMutation,
   resolveFolderEditorMode,
@@ -52,6 +58,7 @@ import {
   resolveWorkspaceFolderId,
   selectedDocumentVersionStatus,
   readAcceptedJobId,
+  requestRagUploadCancellation,
   requestRagJobRetry,
   rejectedInputs,
   RagJobStatusCard,
@@ -61,11 +68,14 @@ import {
   ragJobTimelineStates,
   ragUploadExclusionMessage,
   ragUploadFailureMessage,
+  RagUploadConflictDialog,
+  readRagUploadDuplicateResolution,
   resolveDeletionDocument,
   sha256Blob,
   settleMultipartCompletionRecovery,
   uploadRagFileMultipart,
   canSelectUploadFiles,
+  canCancelRagUpload,
 } from "@/components/rag/admin-rag-screen";
 import {
   citationHref,
@@ -75,11 +85,19 @@ import {
   isRetryableRagStatus,
   pollResult,
   problemMessage,
+  RAG_SESSION_EXPIRED_MESSAGE,
+  RAG_SESSION_LOGIN_HREF,
+  RagMessage,
+  RagNotice,
+  RagSessionExpiredError,
   ragJobStatusMessage,
+  ragLoadingLabel,
   RagSuggestionChips,
   RagLiveProgress,
   readRagProgress,
   safeExternalSourceUrl,
+  scrollRagMessagesToLatest,
+  shouldShowRagStreamingAnswer,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
 import * as participantRagSession from "@/components/rag/participant-rag-screen";
@@ -99,8 +117,8 @@ const latestWireflowTitles = Object.freeze({
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
-  "A-RAG-004": "선택 폴더에 문서 업로드",
-  "A-RAG-005": "문서 준비 상태",
+  "A-RAG-004": "문서 관리",
+  "A-RAG-005": "문서 관리",
   "A-RAG-006": "문서 관리",
 } as const);
 
@@ -122,12 +140,22 @@ function memoryStorage(initial: Record<string, string> = {}) {
 }
 
 type RagSessionApi = Readonly<{
+  clearRagConversationDraft: (storage: ReturnType<typeof memoryStorage>) => void;
   clearRagConversationSnapshot: (storage: ReturnType<typeof memoryStorage>) => void;
   latestPendingRagJobId: (messages: ReadonlyArray<Record<string, unknown>>) => string | null;
   readRagConversationSnapshot: (
     storage: ReturnType<typeof memoryStorage>,
     ownerUserId: string,
   ) => Record<string, unknown> | null;
+  readRagConversationDraft: (
+    storage: ReturnType<typeof memoryStorage>,
+    ownerUserId: string,
+  ) => string | null;
+  writeRagConversationDraft: (
+    storage: ReturnType<typeof memoryStorage>,
+    ownerUserId: string,
+    draft: string,
+  ) => void;
   writeRagConversationSnapshot: (
     storage: ReturnType<typeof memoryStorage>,
     snapshot: Record<string, unknown>,
@@ -190,6 +218,25 @@ describe("9 functional RAG screens", () => {
     );
   });
 
+  it("세션 만료 로그인 왕복용 질문 초안은 사용자별 탭 저장소에서 한 번 복원한다", () => {
+    const storage = memoryStorage();
+    const ownerUserId = "00000000-0000-4000-8000-000000000001";
+    const draft = "로그인 뒤에도 남아야 할 질문 초안";
+
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBe(draft);
+    ragSessionApi.clearRagConversationDraft(storage);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBeNull();
+
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    expect(
+      ragSessionApi.readRagConversationDraft(storage, "00000000-0000-4000-8000-000000000002"),
+    ).toBeNull();
+    ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
+    ragSessionApi.clearRagConversationSnapshot(storage);
+    expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBeNull();
+  });
+
   it("다른 사용자의 탭 대화는 복원하지 않고 저장소에서 제거한다", () => {
     const storage = memoryStorage();
     const snapshot = {
@@ -218,6 +265,69 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이렇게 질문해 보세요");
     expect(html).toContain("신청 대상과 자격 조건을 알려줘");
     expect(html).toContain("신청 기간과 제출 서류를 알려줘");
+  });
+
+  it("완료된 AI 답변에는 답변 평가 UI를 표시하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "completed-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "completed-job",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다.",
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("문서 기반 답변입니다.");
+    expect(html).not.toContain("이 답변이 도움이 되었나요?");
+    expect(html).not.toContain("도움됨");
+    expect(html).not.toContain("도움 안 됨");
+    expect(html).not.toContain('aria-label="답변 평가"');
+  });
+
+  it("스트리밍 답변은 최종 답변 버블 스타일을 선택한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        liveJob: {
+          progress: {
+            status: "RUNNING",
+            stage: "STREAMING",
+            label: "답변을 작성하고 있어요",
+            detail: "선별한 근거로 답변을 구성합니다.",
+            progress_percent: 90,
+            estimated_remaining_seconds: 2,
+            elapsed_seconds: 10,
+          },
+          streamedAnswer: "실시간 문서 답변",
+        },
+        message: {
+          id: "streaming-job",
+          question: "정책 내용을 알려줘.",
+          askedAt: "11:32",
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain("civic-rag-answer is-live is-streaming-answer");
+    expect(html).toContain("실시간 문서 답변");
+  });
+
+  it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {
+    const scrollTo = vi.fn();
+
+    scrollRagMessagesToLatest({ scrollHeight: 840, scrollTo });
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 840 });
   });
 
   it("복원한 대화에서 마지막 미완료 질의만 재개 대상으로 선택한다", () => {
@@ -289,7 +399,7 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain("<dialog");
     expect(html).toContain('aria-label="시민참여 정책.pdf 미리보기"');
     expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
     expect(html).not.toContain("disposition=inline");
@@ -431,7 +541,6 @@ describe("9 functional RAG screens", () => {
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map([[creatorId, "civic-admin@post-ai.com"]]),
         documents: [
           {
@@ -441,6 +550,7 @@ describe("9 functional RAG screens", () => {
             created_by: creatorId,
             created_at: "2026-08-21T01:02:03Z",
             deleted: false,
+            search_enabled: false,
             active_version: {
               document_version_id: "20000000-0000-4000-8000-000000000001",
               document_id: documentId,
@@ -472,7 +582,14 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");
-    expect(html).toContain("보기");
+    expect(html).toContain("미리보기");
+    expect(html).toContain("문서 삭제");
+    expect(renderedText(html).match(/검색에서 제외/g)).toHaveLength(3);
+    expect(html).not.toContain("검색 사용");
+    expect(html).not.toContain("검색 제외");
+    expect(html).toContain(
+      "/admin/rag/delete?folderId=00000000-0000-4000-8000-000000000002&amp;documentId=640af5c5-d302-4c32-97ca-c9db40ed22e5",
+    );
     const text = renderedText(html);
     expect(text).not.toContain(documentId);
     expect(text).not.toContain(creatorId);
@@ -481,12 +598,11 @@ describe("9 functional RAG screens", () => {
   it("문서 목록은 선택 작업대·하위 폴더·페이지 크기·페이지 이동을 제공한다", () => {
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         documents: [],
         folder: undefined,
         onInspect: vi.fn(),
         selectedDocumentId: undefined,
-        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: {} },
+        pageState: { page: 2, pageSize: 25, total: 61, totalPages: 3, statusCounts: { ACTIVE: 6 } },
         onQueryChange: vi.fn(),
         onBulk: vi.fn(),
       }),
@@ -499,13 +615,21 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain("이전 페이지");
     expect(html).toContain("다음 페이지");
     expect(html).toContain("2 / 3");
+    expect(html).not.toContain("61개 문서");
+    expect(html).not.toContain("civic-ledger-summary");
+    expect(html).not.toContain("선택 폴더만 표시");
+    expect(html).not.toContain("처리 완료 6개");
+  });
+
+  it("검색에서 제외 체크 상태를 기존 searchEnabled API 값으로 변환한다", () => {
+    expect(searchEnabledFromExcluded(true)).toBe(false);
+    expect(searchEnabledFromExcluded(false)).toBe(true);
   });
 
   it("등록자 조회에 실패해도 문서 UUID를 대체 문구로 노출하지 않는다", () => {
     const creatorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        compact: false,
         creatorLabels: new Map(),
         documents: [
           {
@@ -568,6 +692,32 @@ describe("9 functional RAG screens", () => {
     expect(onProgress).toHaveBeenCalledTimes(60);
   });
 
+  it("결과 폴링 중 최종 401이면 세션 만료 오류를 전파한다", async () => {
+    const request = vi.fn(async () => Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+
+    await expect(
+      pollResult("expired-job", {
+        request: request as typeof fetch,
+        wait: async () => undefined,
+      }),
+    ).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it("스트림 세션 발급 중 최종 401이면 폴링으로 숨기지 않는다", async () => {
+    const request = vi.fn(async () => Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+    const fallback = vi.fn();
+
+    await expect(
+      waitForStreamedResult("expired-job", {
+        request: request as typeof fetch,
+        createSource: vi.fn(),
+        fallback,
+      }),
+    ).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(fallback).not.toHaveBeenCalled();
+  });
+
   it("질의 단계와 검증된 답변 조각을 SSE로 표시한 뒤 정식 결과를 읽는다", async () => {
     const listeners = new Map<string, (event: { data?: string }) => void>();
     const source = {
@@ -624,34 +774,120 @@ describe("9 functional RAG screens", () => {
     expect(request).toHaveBeenCalledTimes(2);
   });
 
-  it("답변이 시작되기 전에는 단계 목록 없이 단일 로딩 상태만 보여준다", () => {
-    const now = Date.now();
+  it("성공 이벤트가 같은 네트워크 배치에 와도 마지막 답변 조각의 화면 반영을 추월하지 않는다", async () => {
+    const listeners = new Map<string, (event: { data?: string }) => void>();
+    const source = {
+      addEventListener: vi.fn((name: string, listener: (event: { data?: string }) => void) =>
+        listeners.set(name, listener),
+      ),
+      close: vi.fn(),
+      onerror: null as (() => void) | null,
+    };
+    const request = vi.fn(async (input: string | URL | Request) => {
+      if (String(input) === "/api/v1/rag/stream-session") {
+        return Response.json({ stream_path: "/stream/rag/queries/job-visible" });
+      }
+      return Response.json({
+        job_id: "job-visible",
+        status: "SUCCEEDED",
+        answer: "실시간 답변",
+      });
+    });
+    let releasePaint: (() => void) | undefined;
+    const waitForAnswerPaint = vi.fn(
+      () =>
+        new Promise<void>((resolve) => {
+          releasePaint = resolve;
+        }),
+    );
+    const streamedParts: string[] = [];
+
+    const pending = waitForStreamedResult("job-visible", {
+      request: request as typeof fetch,
+      createSource: () => source,
+      fallback: vi.fn(),
+      onAnswerDelta: (delta) => streamedParts.push(delta),
+      waitForAnswerPaint,
+    });
+    await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "실시간 " }) });
+    listeners.get("query.answer.delta")?.({ data: JSON.stringify({ delta: "답변" }) });
+    listeners.get("query.succeeded")?.({});
+
+    await vi.waitFor(() => expect(waitForAnswerPaint).toHaveBeenCalledOnce());
+    expect(streamedParts.join("")).toBe("실시간 답변");
+    expect(request).toHaveBeenCalledTimes(1);
+    releasePaint?.();
+
+    await expect(pending).resolves.toMatchObject({ status: "SUCCEEDED" });
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("스트림 완료 결과 조회의 최종 401도 세션 만료 오류로 전파한다", async () => {
+    const listeners = new Map<string, (event: { data?: string }) => void>();
+    const source = {
+      addEventListener: vi.fn((name: string, listener: (event: { data?: string }) => void) =>
+        listeners.set(name, listener),
+      ),
+      close: vi.fn(),
+      onerror: null as (() => void) | null,
+    };
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ stream_path: "/stream/rag/queries/expired-job" }))
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+    const fallback = vi.fn();
+
+    const pending = waitForStreamedResult("expired-job", {
+      request,
+      createSource: () => source,
+      fallback,
+    });
+    await vi.waitFor(() => expect(listeners.has("query.succeeded")).toBe(true));
+    listeners.get("query.succeeded")?.({});
+
+    await expect(pending).rejects.toBeInstanceOf(RagSessionExpiredError);
+    expect(fallback).not.toHaveBeenCalled();
+    expect(source.close).toHaveBeenCalledOnce();
+  });
+
+  it("답변 생성 전에는 단계 목록 없이 현재 작업을 한 줄로 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagLiveProgress, {
         liveJob: {
           progress: {
             status: "RUNNING",
-            stage: "COMPOSING",
-            label: "문서 근거로 답변을 작성하고 있어요",
-            detail: "선별된 근거만 사용해 답변을 구성합니다.",
-            progress_percent: 76,
-            estimated_remaining_seconds: 4,
-            elapsed_seconds: 12,
+            stage: "SEARCHING",
+            label: "관련 문서를 찾고 있어요",
+            detail: "키워드와 의미를 함께 비교해 관련 자료를 좁힙니다.",
+            progress_percent: 32,
+            estimated_remaining_seconds: 7,
+            elapsed_seconds: 3,
           },
-          progressReceivedAt: now,
-          startedAt: now - 12_000,
           streamedAnswer: "",
         },
       }),
     );
 
-    expect(html).toContain("답변 준비 중");
-    expect(html).toContain("문서를 확인하고 답변을 준비하고 있어요");
-    expect(html).toContain("생성되는 내용부터 바로 표시합니다");
-    expect(html).not.toContain("질문 이해");
-    expect(html).not.toContain("자료 검색");
-    expect(html).not.toContain("최종 확인");
-    expect(html).not.toContain("COMPOSING");
+    expect(html).toContain("관련 자료를 찾는 중...");
+    expect(html).toContain("civic-rag-loading-label");
+    expect(html).not.toContain("<ol");
+    expect(html).not.toContain('role="progressbar"');
+    expect(html).not.toContain("관련 자료를 좁힙니다.");
+    expect(html).not.toMatch(/[0-9]+초/u);
+    expect(ragLoadingLabel("QUEUED")).toBe("질문을 이해하는 중...");
+    expect(ragLoadingLabel("UNDERSTANDING")).toBe("질문을 이해하는 중...");
+    expect(ragLoadingLabel("SEARCHING")).toBe("관련 자료를 찾는 중...");
+    expect(ragLoadingLabel("READING")).toBe("근거를 검토하는 중...");
+    expect(ragLoadingLabel("COMPOSING")).toBe("답변을 작성하는 중...");
+  });
+
+  it("3단계 이후에는 빈 첫 조각을 기다리지 않고 스트리밍 답변 영역으로 전환한다", () => {
+    expect(shouldShowRagStreamingAnswer("READING", "")).toBe(false);
+    expect(shouldShowRagStreamingAnswer("COMPOSING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("VERIFYING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("STREAMING", "")).toBe(true);
+    expect(shouldShowRagStreamingAnswer("READING", "첫 답변 조각")).toBe(true);
   });
 
   it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {
@@ -731,6 +967,17 @@ describe("9 functional RAG screens", () => {
     operation.settle(true);
   });
 
+  it("관리 홈 자동 재시도는 불명확 실패에는 키를 보존하고 확정 거절 뒤에는 회전한다", () => {
+    const initialKey = automaticRagRetryIdempotencyKey("job-1");
+    const operation = createRetryOperation(() => "retry-key-rotated", initialKey);
+
+    expect(operation.begin()).toBe("ADMIN_HOME_RETRY:job-1");
+    operation.settle(false);
+    expect(operation.begin()).toBe("ADMIN_HOME_RETRY:job-1");
+    operation.settle(true);
+    expect(operation.begin()).toBe("retry-key-rotated");
+  });
+
   it("재시도 요청 내용이 바뀌면 불명확 실패 뒤에도 새 키를 발급한다", () => {
     let sequence = 0;
     const operation = createRetryOperation(() => `retry-key-${(sequence += 1)}`);
@@ -766,6 +1013,56 @@ describe("9 functional RAG screens", () => {
 
     await expect(loadRagJob("job-1", unavailable as typeof fetch)).resolves.toBeNull();
     await expect(loadRagJob("job-1", malformed as typeof fetch)).resolves.toBeNull();
+  });
+
+  it("업로드 취소는 작업이 가리키는 문서만 삭제하고 불명확 실패를 구분한다", async () => {
+    const accepted = vi.fn(async () => new Response(null, { status: 204 }));
+    const unavailable = vi.fn(async () => Promise.reject(new Error("offline")));
+
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        jobId: "job-1",
+        idempotencyKey: "cancel-key-1",
+        request: accepted as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "cancelled", definitive: true });
+    expect(accepted).toHaveBeenCalledWith(
+      "/api/v1/rag/documents/document-1?failed_job_id=job-1",
+      expect.objectContaining({
+        method: "DELETE",
+        headers: { "idempotency-key": "cancel-key-1" },
+      }),
+    );
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        jobId: "job-1",
+        idempotencyKey: "cancel-key-1",
+        request: unavailable as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "network", definitive: false });
+  });
+
+  it("재시도 대기 업로드 취소는 작업 전용 API를 호출한다", async () => {
+    const accepted = vi.fn(async () => new Response(null, { status: 204 }));
+
+    await expect(
+      requestRagUploadCancellation({
+        documentId: "document-1",
+        jobId: "job-retry-wait-1",
+        status: "RETRY_WAIT",
+        idempotencyKey: "cancel-key-retry-wait",
+        request: accepted as typeof fetch,
+      }),
+    ).resolves.toEqual({ kind: "cancelled", definitive: true });
+    expect(accepted).toHaveBeenCalledWith(
+      "/api/v1/rag/jobs/job-retry-wait-1/cancel-upload",
+      expect.objectContaining({
+        method: "POST",
+        headers: { "idempotency-key": "cancel-key-retry-wait" },
+      }),
+    );
   });
 
   it("수동 재시도의 네트워크 오류는 사용자에게 다시 시도 가능한 상태로 안내한다", () => {
@@ -811,9 +1108,26 @@ describe("9 functional RAG screens", () => {
       parseQuerySubmissionResponse(
         new Response("{", { status: 409, headers: { "content-type": "application/json" } }),
       ),
-    ).resolves.toEqual({ kind: "problem", code: undefined });
+    ).resolves.toEqual({ kind: "problem", code: undefined, status: 409 });
     operation.settle(true);
     expect(operation.begin("정책은?")).toBe("query-key-2");
+  });
+
+  it("인증 갱신 뒤에도 401이면 세션 만료와 재로그인을 안내한다", async () => {
+    await expect(
+      parseQuerySubmissionResponse(Response.json({ code: "UNAUTHORIZED" }, { status: 401 })),
+    ).resolves.toEqual({ kind: "problem", code: "UNAUTHORIZED", status: 401 });
+    expect(problemMessage("UNAUTHORIZED", 401)).toBe(
+      "세션이 만료되었습니다. 다시 로그인 해주세요.",
+    );
+    expect(problemMessage(undefined, 401)).toBe(RAG_SESSION_EXPIRED_MESSAGE);
+    expect(RAG_SESSION_LOGIN_HREF).toBe("/login?returnTo=%2Frag");
+
+    const noticeHtml = renderToStaticMarkup(
+      createElement(RagNotice, { notice: RAG_SESSION_EXPIRED_MESSAGE }),
+    );
+    expect(noticeHtml).toContain("세션이 만료되었습니다. 다시 로그인 해주세요.");
+    expect(noticeHtml).toContain('href="/login?returnTo=%2Frag"');
   });
 
   it("ADD는 선택 폴더의 자식 생성이고 EDIT는 일반 폴더 이름 변경이다", () => {
@@ -854,6 +1168,8 @@ describe("9 functional RAG screens", () => {
       }),
     );
     expect(html).toContain("폴더 삭제 확인");
+    expect(html).toContain("포함 문서 <b>0개</b>");
+    expect(html).not.toContain("포함 문서 <b>확인 중</b>");
     expect(html).toContain("포함된 문서와 하위 폴더는 상위 폴더로 이동합니다");
     expect(html.match(/href="\/admin\/rag\?folderId=folder-1"/g)).toHaveLength(2);
     expect(html).not.toContain("수정할 폴더 정보");
@@ -862,6 +1178,7 @@ describe("9 functional RAG screens", () => {
   it("작업 ID가 바뀌면 상태 패널 인스턴스 키도 바뀐다", () => {
     expect(jobPanelKey("job-1")).toBe("job-job-1");
     expect(jobPanelKey("job-2")).toBe("job-job-2");
+    expect(jobPanelKey(["job-1", "job-2"])).toBe("job-job-1-job-2");
     expect(jobPanelKey(undefined)).toBe("missing-job");
   });
 
@@ -1039,6 +1356,8 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain(jobId);
     expect(html).not.toContain("작업 ID");
     expect(html).toContain("문서 준비 진행 상태");
+    expect(html).not.toContain("문서가 검색과 AI 답변에 사용될 준비 상태를 확인합니다");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
   });
 
   it("실패한 문서 처리 상태는 파일명·실패 단계·해결 행동을 한 화면에 표시한다", () => {
@@ -1047,12 +1366,14 @@ describe("9 functional RAG screens", () => {
         filename: "정책자료.hwpx",
         job: {
           job_id: "640af5c5-d302-4c32-97ca-c9db40ed22e5",
+          document_id: "20000000-0000-4000-8000-000000000001",
+          upload_cancel_allowed: true,
           status: "FAILED",
           progress: 10,
           failure_code: "DOCUMENT_READ_FAILED",
         },
-        message: "최신 처리 상태를 반영했습니다.",
-        onRefresh: vi.fn(),
+        message: "",
+        onCancelUpload: vi.fn(),
         onRetry: vi.fn(),
         retrying: false,
         workspaceHref: ragWorkspaceHref("policy-folder"),
@@ -1060,12 +1381,86 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain("정책자료.hwpx");
+    expect(html).toContain('class="civic-file-icon"');
+    expect(html).toContain("HWPX");
     expect(html).toContain("문서 읽기 실패");
     expect(html).toContain("원본 파일을 확인한 뒤 다시 업로드하세요");
     expect(html).toContain('class="civic-primary-action"');
     expect(html).toContain("실패 파일 다시 처리");
+    expect(html).toContain("업로드 취소");
+    expect(html).not.toContain("상태 새로고침");
+    expect(html).not.toContain("최신 처리 상태를 반영했습니다");
     expect(html).toContain('href="/admin/rag?folderId=policy-folder"');
     expect(html).not.toContain("640af5c5-d302-4c32-97ca-c9db40ed22e5");
+  });
+
+  it("서버가 취소 불가로 판정한 실패 작업에는 업로드 취소를 노출하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "정책자료-v2.hwpx",
+        job: {
+          job_id: "failed-version-job",
+          document_id: "active-document",
+          upload_cancel_allowed: false,
+          status: "FAILED",
+          progress: 10,
+          failure_code: "DOCUMENT_READ_FAILED",
+        },
+        message: "",
+        onCancelUpload: vi.fn(),
+        onRetry: vi.fn(),
+        retrying: false,
+      }),
+    );
+
+    expect(html).toContain("실패 파일 다시 처리");
+    expect(html).not.toContain("업로드 취소");
+  });
+
+  it("재시도 대기 작업은 서버가 허용한 경우 업로드 취소를 노출한다", () => {
+    const retryWaitJob = {
+      job_id: "retry-wait-job",
+      document_id: "retry-wait-document",
+      upload_cancel_allowed: true,
+      status: "RETRY_WAIT",
+      progress: 10,
+    } as const;
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "재시도-대기.hwpx",
+        job: retryWaitJob,
+        message: "",
+        onCancelUpload: vi.fn(),
+        onRetry: vi.fn(),
+        retrying: false,
+      }),
+    );
+
+    expect(canCancelRagUpload(retryWaitJob)).toBe(true);
+    expect(html).toContain("재시도 대기");
+    expect(html).toContain("업로드 취소");
+    expect(html).not.toContain("실패 파일 다시 처리");
+  });
+
+  it("다중 업로드 작업을 한 문서 준비 상태 화면에 함께 표시한다", () => {
+    const screen = ragScreens.find((item) => item.id === "A-RAG-005");
+    if (!screen) throw new Error("A-RAG-005 missing");
+    const html = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen,
+        query: {
+          folderId: "folder-1",
+          jobId: ["job-1", "job-2"],
+          filename: ["정책.pdf", "통계.xlsx"],
+        },
+      }),
+    );
+
+    expect(html.match(/class="civic-job-panel/g)).toHaveLength(2);
+    expect(html).toContain("정책.pdf");
+    expect(html).toContain("통계.xlsx");
+    expect(html).toContain('id="civic-job-status-title-0"');
+    expect(html).toContain('id="civic-job-status-title-1"');
   });
 
   it("실패 진행률은 완료된 단계와 모순되지 않게 표시한다", () => {
@@ -1227,6 +1622,7 @@ describe("9 functional RAG screens", () => {
     expect(firstQueryValue("")).toBeUndefined();
     expect(firstQueryValue(["", "folder-2"])).toBeUndefined();
     expect(firstQueryValue("folder-1")).toBe("folder-1");
+    expect(queryValues(["job-1", "", " job-2 "])).toEqual(["job-1", "job-2"]);
   });
 
   it("수동 재시도 응답의 새 작업 ID만 후속 상태 링크로 사용한다", () => {
@@ -1235,13 +1631,16 @@ describe("9 functional RAG screens", () => {
     expect(readAcceptedJobId({ status: "QUEUED" })).toBeNull();
   });
 
-  it("파일당 500 MiB multipart 한도를 사용자에게 안내한다", () => {
+  it("파일당 500 MiB multipart 한도를 유지하되 업로드 안내는 간결하게 표시한다", () => {
     expect(MAX_RAG_UPLOAD_BYTES).toBe(500 * 1024 * 1024);
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
-    expect(html).toContain("파일당 최대 500 MiB");
-    expect(html).toContain("8 MiB 단위");
+    expect(html).toContain("파일 선택");
+    expect(html).not.toContain("원본 파일 선택");
+    expect(html).not.toContain("파일을 여러 개 놓거나 찾아보세요");
+    expect(html).not.toContain("파일당 최대 500 MiB");
+    expect(html).not.toContain("8 MiB");
     expect(html).not.toContain("파일 크기·요청당 파일 수의 제품 한도는 없습니다");
   });
 
@@ -1292,6 +1691,102 @@ describe("9 functional RAG screens", () => {
       "지원하지 않는 형식의 파일은 선택에서 제외했습니다.",
     );
     expect(ragUploadExclusionMessage([oversized])).toContain("500 MiB");
+  });
+
+  it("중복 업로드 응답에서 기존 문서 갱신 정보를 안전하게 읽는다", async () => {
+    const request = vi.fn(async () =>
+      Response.json(
+        {
+          code: "DOCUMENT_ALREADY_EXISTS",
+          message: "Document already exists in this folder",
+          request_id: "request-1",
+          details: {
+            document_id: "document-1",
+            filename: "정책자료.pdf",
+            conflict_kind: "SAME_FILENAME",
+            suggested_action: "UPLOAD_NEW_VERSION",
+          },
+        },
+        { status: 409 },
+      ),
+    );
+    const error = await uploadRagFileMultipart({
+      file: new File(["%PDF-1.7\n%%EOF"], "정책자료.pdf", { type: "application/pdf" }),
+      folderId: "folder-1",
+      request: request as typeof fetch,
+    }).catch((reason: unknown) => reason);
+
+    expect(readRagUploadDuplicateResolution(error)).toEqual({
+      action: "UPLOAD_NEW_VERSION",
+      conflictKind: "SAME_FILENAME",
+      documentId: "document-1",
+      existingFilename: "정책자료.pdf",
+    });
+    expect(ragUploadFailureMessage("정책자료.pdf", error)).toContain("처리 방법을 확인");
+  });
+
+  it.each([
+    ["UPLOAD_NEW_VERSION", "이미 업로드된 문서입니다", "새 버전으로 갱신"],
+    ["RETRY_FAILED", "실패한 동일 문서가 있습니다", "기존 문서 다시 처리"],
+    ["KEEP_EXISTING", "동일한 문서가 이미 등록되어 있습니다", "업로드 목록에서 제외"],
+  ] as const)("중복 문서 %s 처리 다이얼로그를 표시한다", (action, title, confirmLabel) => {
+    const html = renderToStaticMarkup(
+      createElement(RagUploadConflictDialog, {
+        busy: false,
+        conflict: {
+          file: new File(["same"], "선택파일.pdf"),
+          resolution: {
+            action,
+            conflictKind: action === "UPLOAD_NEW_VERSION" ? "SAME_FILENAME" : "SAME_CONTENT",
+            documentId: "document-1",
+            existingFilename: "기존문서.pdf",
+            ...(action === "RETRY_FAILED" ? { jobId: "failed-job-1" } : {}),
+          },
+        },
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('role="alertdialog"');
+    expect(html).toContain(title);
+    expect(html).toContain(confirmLabel);
+    expect(html).toContain("기존문서.pdf");
+  });
+
+  it("중복 확인 뒤 기존 document id로 새 버전 초기화를 요청한다", async () => {
+    let initiationBody: Record<string, unknown> | undefined;
+    const request = vi.fn(async (input: string | URL | Request, init?: RequestInit) => {
+      const path = String(input);
+      if (path === "/api/v1/rag/uploads") {
+        initiationBody = JSON.parse(String(init?.body)) as Record<string, unknown>;
+        return Response.json(
+          {
+            upload_id: "new-version-upload",
+            part_size: 8 * 1024 * 1024,
+            part_count: 1,
+            max_bytes: MAX_RAG_UPLOAD_BYTES,
+          },
+          { status: 201 },
+        );
+      }
+      if (path.endsWith("/complete")) {
+        return Response.json({ job_id: "new-version-job" }, { status: 202 });
+      }
+      return new Response(null, { status: 200 });
+    });
+
+    await expect(
+      uploadRagFileMultipart({
+        file: new File(["%PDF-1.7\n%%EOF"], "정책자료.pdf", {
+          type: "application/pdf",
+        }),
+        folderId: "folder-1",
+        documentId: "document-1",
+        request: request as typeof fetch,
+      }),
+    ).resolves.toEqual({ filename: "정책자료.pdf", jobId: "new-version-job" });
+    expect(initiationBody?.document_id).toBe("document-1");
   });
 
   it("위장 파일 업로드와 처리 실패를 사람이 이해할 수 있는 문장으로 안내한다", async () => {
@@ -1670,6 +2165,17 @@ describe("9 functional RAG screens", () => {
     expect(ragJobHref("replacement-job", "folder-1")).toBe(
       "/admin/rag/jobs?jobId=replacement-job&folderId=folder-1",
     );
+    expect(
+      ragJobsHref(
+        [
+          { jobId: "job-1", filename: "정책 1.pdf" },
+          { jobId: "job-2", filename: "정책 2.docx" },
+        ],
+        "folder-1",
+      ),
+    ).toBe(
+      "/admin/rag/jobs?jobId=job-1&filename=%EC%A0%95%EC%B1%85+1.pdf&jobId=job-2&filename=%EC%A0%95%EC%B1%85+2.docx&folderId=folder-1",
+    );
     const statusScreen = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!statusScreen) throw new Error("A-RAG-005 missing");
     const statusHtml = renderToStaticMarkup(
@@ -1801,7 +2307,7 @@ describe("9 functional RAG screens", () => {
     }
   });
 
-  it("관리자 업로드는 지원 형식과 LEGAL-05 권리 확인을 함께 표시한다", () => {
+  it("관리자 업로드는 지원 형식을 표시하고 별도 권리 확인을 요구하지 않는다", () => {
     const screen = ragScreens.find((item) => item.id === "A-RAG-004");
     if (!screen) throw new Error("A-RAG-004 missing");
     const html = renderToStaticMarkup(
@@ -1809,8 +2315,10 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain('type="file"');
+    expect(html).toContain('multiple=""');
     expect(html).toContain(RAG_ACCEPTED_EXTENSIONS.join(","));
-    expect(html).toContain("문서 이용 권한을 보유하고 있습니다");
+    expect(html).toContain("여러 파일을 한 번에 선택할 수 있습니다");
+    expect(html).not.toContain("문서 이용 권한을 보유하고 있습니다");
     expect(html).toContain("새 문서");
     expect(html).toContain('href="/admin/rag?folderId=folder-current"');
     const versionHtml = renderToStaticMarkup(
@@ -1825,7 +2333,7 @@ describe("9 functional RAG screens", () => {
     expect(versionHtml).not.toContain("version-1");
   });
 
-  it("참여자 대화는 유지하고 관리자 문서는 2열 작업공간과 목록 내 업로드를 사용한다", () => {
+  it("참여자 대화는 Figma의 AI 안내와 문서 원문 동선을 유지한다", () => {
     const participant = ragScreens.find((item) => item.id === "U-RAG-001");
     const admin = ragScreens.find((item) => item.id === "A-RAG-001");
     if (!participant || !admin) throw new Error("RAG wire flow screens missing");
@@ -1833,18 +2341,26 @@ describe("9 functional RAG screens", () => {
     const participantHtml = renderToStaticMarkup(
       createElement(RagFunctionalScreen, { screen: participant }),
     );
+    const headerActionHtml = renderToStaticMarkup(createElement(RagNewQuestionHeaderAction));
     const adminHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: admin }));
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
     expect(participantHtml).toContain("궁금한 정보를 질문하세요.");
-    expect(participantHtml).toContain("새 질문");
+    expect(participantHtml).toContain("AI가 실제 문서를 기반으로 답변해드립니다.");
+    expect(participantHtml).toContain('aria-label="안내 닫기"');
+    expect(participantHtml).not.toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-label="새 질문"');
+    expect(headerActionHtml).toContain('aria-haspopup="dialog"');
+    expect(headerActionHtml).toContain('class="civic-rag-header-new-question-action"');
+    expect(headerActionHtml).not.toContain(">새 질문</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
-    expect(adminHtml).toContain('data-rag-inline-upload="true"');
-    expect(adminHtml).toContain('type="file"');
+    expect(adminHtml).toContain("+ 문서 업로드");
+    expect(adminHtml).not.toContain('data-rag-inline-upload="true"');
+    expect(adminHtml).not.toContain('type="file"');
     expect(adminHtml).not.toContain('class="civic-document-inspector"');
   });
 
@@ -1880,7 +2396,7 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain('data-wireflow-layout="rag-workspace"');
     expect(html).toContain('data-wireflow-layout="rag-admin-modal"');
-    expect(html).toContain('role="dialog"');
+    expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain(dialogTitle);
     if (screenId === "A-RAG-002") {
@@ -1888,12 +2404,12 @@ describe("9 functional RAG screens", () => {
       expect(html).toMatch(/<button[^>]+disabled=""[^>]*type="submit"/);
     }
     if (screenId === "A-RAG-006") {
-      expect(html).toContain("현재 폴더에서 문서를 찾을 수 없습니다.");
+      expect(html).toContain("이 폴더에는 문서가 없습니다.");
       expect(html).toMatch(/<button[^>]+disabled=""[^>]*>문서 삭제<\/button>/);
     }
   });
 
-  it("업로드와 처리 상태는 각각 독립 작업 화면을 사용한다", () => {
+  it("업로드와 처리 상태도 통합 문서 작업 공간 위에 렌더링한다", () => {
     const upload = ragScreens.find((item) => item.id === "A-RAG-004");
     const job = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!upload || !job) throw new Error("RAG task screens missing");
@@ -1901,13 +2417,69 @@ describe("9 functional RAG screens", () => {
     const uploadHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: upload }));
     const jobHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: job }));
 
-    expect(uploadHtml).toContain('data-wireflow-layout="rag-upload"');
-    expect(uploadHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(uploadHtml).toContain("파일 선택");
+    expect(uploadHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(uploadHtml).not.toContain('data-rag-inline-upload="true"');
+    expect(uploadHtml).toContain('type="file"');
+    expect(uploadHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(uploadHtml).toContain("문서 업로드");
     expect(uploadHtml).not.toContain("<main");
-    expect(jobHtml).toContain('data-wireflow-layout="rag-job-status"');
-    expect(jobHtml).not.toContain('data-wireflow-layout="rag-workspace"');
-    expect(jobHtml).toContain("문서 준비 진행 상태");
+    expect(jobHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobHtml).not.toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobHtml).not.toContain("작업 ID가 필요합니다");
     expect(jobHtml).not.toContain("<main");
+  });
+
+  it("실패 재처리와 처리 상태는 작업 공간 위 모달로 표시한다", () => {
+    const upload = ragScreens.find((item) => item.id === "A-RAG-004");
+    const job = ragScreens.find((item) => item.id === "A-RAG-005");
+    if (!upload || !job) throw new Error("RAG task screens missing");
+
+    const retryHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: upload,
+        query: { retryJobId: "job-1", filename: "정책.pdf", folderId: "folder-1" },
+      }),
+    );
+    expect(retryHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(retryHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(retryHtml).toContain("정책.pdf 재처리");
+    expect(retryHtml).toContain("실패한 문서의 재처리를 자동으로 요청합니다.");
+
+    const jobOverlayHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, {
+        screen: job,
+        query: { jobId: "job-1", folderId: "folder-1" },
+      }),
+    );
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-workspace"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-admin-modal"');
+    expect(jobOverlayHtml).toContain('data-wireflow-layout="rag-job-status"');
+    expect(jobOverlayHtml).toContain("문서 준비 진행 상태");
+  });
+
+  it("모든 관리자 RAG 화면 상단에 문서 처리 현황 지표를 표시한다", () => {
+    for (const screen of ragScreens.filter((item) => item.id.startsWith("A-RAG"))) {
+      const html = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen }));
+      expect(html).toContain('aria-label="문서 처리 현황"');
+      expect(html).toContain("문서 수");
+      expect(html).toContain("확인 중");
+    }
+  });
+
+  it("작업 요약 지표는 실패가 있을 때만 경고 강조한다", () => {
+    const ready = ragJobSummaryMetrics(
+      { status: "ready", failed: 2, active: 3, counts: {}, recentFailures: [] },
+      120,
+    );
+    expect(ready[0]).toMatchObject({ label: "문서 수", value: "120개" });
+    expect(ready[1]).toMatchObject({ label: "처리 중", value: "3건" });
+    expect(ready[2]).toMatchObject({ label: "실패", value: "2건", alert: true });
+    const clean = ragJobSummaryMetrics(
+      { status: "ready", failed: 0, active: 0, counts: {}, recentFailures: [] },
+      0,
+    );
+    expect(clean[2]?.alert).toBeUndefined();
+    expect(ragJobSummaryMetrics({ status: "loading" }, 0)[2]?.value).toBe("확인 중");
+    expect(ragJobSummaryMetrics({ status: "unavailable" }, 0)[1]?.value).toBe("확인 불가");
   });
 });

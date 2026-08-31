@@ -2,22 +2,36 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
+import { groupSurveyQuestions, loadVoteSurvey } from "@/components/account/vote-survey-surface";
 import {
-  AuditList,
+  AUDIT_GRID_COLUMNS,
+  auditRowFromEvent,
+  USER_GRID_COLUMNS,
+} from "@/components/admin/admin-user-workspace";
+import {
   createLatestAdminUserRequestGate,
   createMutationLock,
   auditSubjectHref,
   adminRoleMutationPath,
+  ADMIN_PERMISSION_CODES,
+  AdminHome,
+  AdminPendingChatRequests,
   filterAdminUsers,
+  hasAdminAccessRevocation,
   loadRequestedAdminUser,
   loadRoleConflictUser,
   loadChatRequestSummary,
   loadRagJobSummary,
-  loadTaskDeadlineSummary,
+  loadSimulationWalletSummary,
+  loadActiveTaskSummary,
+  RagFailureSummary,
+  ragFailureRetryHref,
   ragFailureLabel,
   requestAdminUsers,
   requestAdminAudit,
+  permissionsForAdminRole,
   roleFormKey,
+  selectedAdminRole,
   updateAdminLoadMessage,
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
@@ -25,7 +39,6 @@ import {
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
-  readProfileSettings,
   redirectAfterPasswordChange,
 } from "@/components/screens/account-functional-screen";
 import {
@@ -33,9 +46,12 @@ import {
   authStepAfterPopState,
   authCompletionDestination,
   authenticatedDestination,
+  authenticatedPostLoginDestination,
   duplicateEmailAccountState,
   isDeactivatedAccountError,
+  isPasswordResetEmail,
   LoginDeactivatedNotice,
+  passwordResetCodeFromSearch,
   safeReturnTarget,
   SignupDuplicateEmailNotice,
   signupRecovery,
@@ -57,76 +73,107 @@ const fullAdminSession = {
   permissions: ["RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN"] as const,
 };
 
-function renderedText(html: string): string {
-  return html
-    .replace(/<[^>]*>/g, " ")
-    .replace(/\s+/g, " ")
-    .trim();
+function surveyQuestion(prompt: string, displayOrder: number) {
+  return {
+    id: `question-${displayOrder}`,
+    lineageKey: `lineage-${displayOrder}`,
+    type: "SHORT_TEXT" as const,
+    prompt,
+    description: null,
+    displayOrder,
+    required: true,
+    rule: {},
+    allowOther: false,
+    options: [],
+  };
+}
+
+function pendingChatRequest(id: string, requesterUserId: string, name: string) {
+  return {
+    creationRequestId: id,
+    requesterUserId,
+    name,
+    description: `${name} 설명`,
+    categoryIds: [],
+    visibility: "LISTED",
+    joinPolicy: "OPEN",
+    status: "PENDING" as const,
+    requestedAt: "2026-08-26T03:00:00Z",
+    resolvedAt: null,
+    roomId: null,
+    ownerMembershipId: null,
+    roomVersion: null,
+    ownerMembershipVersion: null,
+    rejectionReason: null,
+    replayed: false,
+  };
 }
 
 describe("25 functional Main/Auth screens", () => {
   it("관리자 감사 이력 표현을 실제 이벤트로 검증할 수 있는 경계를 제공한다", async () => {
-    const adminScreenModule = await import("@/components/screens/admin-functional-screen");
-    expect(adminScreenModule.AuditList).toBeTypeOf("function");
+    const workspaceModule = await import("@/components/admin/admin-user-workspace");
+    expect(workspaceModule.auditRowFromEvent).toBeTypeOf("function");
   });
 
   it("감사 이력은 실행자·대상 UUID 대신 이메일을 표시한다", () => {
     const actorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
     const subjectId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
-    const html = renderToStaticMarkup(
-      createElement(AuditList, {
-        events: [
-          {
-            event_id: "10000000-0000-4000-8000-000000000001",
-            event_type: "ROLE_CHANGED",
-            actor_id: actorId,
-            subject_id: subjectId,
-            occurred_at: "2026-08-21T01:02:03Z",
-            request_id: "20000000-0000-4000-8000-000000000001",
-            before_roles: ["PARTICIPANT"],
-            after_roles: ["ADMIN"],
-            before_permissions: [],
-            after_permissions: ["RAG_ADMIN"],
-            reason: "RAG 문서 운영 담당 지정",
-          },
-        ],
-        userLabels: new Map([
-          [actorId, "highest-admin@post-ai.com"],
-          [subjectId, "rag-admin@post-ai.com"],
-        ]),
-      }),
+    const row = auditRowFromEvent(
+      {
+        event_id: "10000000-0000-4000-8000-000000000001",
+        event_type: "ROLE_CHANGED",
+        actor_id: actorId,
+        subject_id: subjectId,
+        occurred_at: "2026-08-21T01:02:03Z",
+        request_id: "20000000-0000-4000-8000-000000000001",
+        before_roles: ["PARTICIPANT"],
+        after_roles: ["ADMIN"],
+        before_permissions: [],
+        after_permissions: ["RAG_ADMIN"],
+        reason: "RAG 문서 운영 담당 지정",
+      },
+      new Map([
+        [actorId, "highest-admin@post-ai.com"],
+        [subjectId, "rag-admin@post-ai.com"],
+      ]),
     );
 
-    expect(html).toContain("highest-admin@post-ai.com");
-    expect(html).toContain("rag-admin@post-ai.com");
-    expect(html).toContain("관리자 역할 변경");
-    const text = renderedText(html);
-    expect(text).not.toContain("ROLE_CHANGED");
-    expect(text).not.toContain(actorId);
-    expect(text).not.toContain(subjectId);
-    expect(text).not.toContain("10000000-0000-4000-8000-000000000001");
-    expect(text).not.toContain("20000000-0000-4000-8000-000000000001");
+    expect(row.actorLabel).toBe("highest-admin@post-ai.com");
+    expect(row.subjectLabel).toBe("rag-admin@post-ai.com");
+    expect(row.eventLabel).toBe("관리자 역할 변경");
+    expect(row.afterLabel).toContain("문서 관리");
+    // subjectId stays as raw data for building links; every displayed label
+    // must stay free of internal identifiers.
+    const displayed = [
+      row.eventLabel,
+      row.actorLabel,
+      row.subjectLabel,
+      row.beforeLabel,
+      row.afterLabel,
+      row.reason,
+      row.occurredLabel,
+    ].join(" ");
+    expect(displayed).not.toContain("ROLE_CHANGED");
+    expect(displayed).not.toContain(actorId);
+    expect(displayed).not.toContain(subjectId);
+    expect(displayed).not.toContain("20000000-0000-4000-8000-000000000001");
   });
 
   it("감사 사용자 조회 실패 시 내부 ID 대신 안전한 문구를 표시한다", () => {
     const actorId = "640af5c5-d302-4c32-97ca-c9db40ed22e5";
-    const html = renderToStaticMarkup(
-      createElement(AuditList, {
-        events: [
-          {
-            event_id: "10000000-0000-4000-8000-000000000001",
-            event_type: "ROLE_CHANGED",
-            actor_id: actorId,
-            occurred_at: "2026-08-21T01:02:03Z",
-            request_id: "20000000-0000-4000-8000-000000000001",
-          },
-        ],
-        userLabels: new Map(),
-      }),
+    const row = auditRowFromEvent(
+      {
+        event_id: "10000000-0000-4000-8000-000000000001",
+        event_type: "ROLE_CHANGED",
+        actor_id: actorId,
+        occurred_at: "2026-08-21T01:02:03Z",
+        request_id: "20000000-0000-4000-8000-000000000001",
+      },
+      new Map(),
     );
 
-    expect(html).toContain("확인할 수 없는 사용자");
-    expect(renderedText(html)).not.toContain(actorId);
+    expect(row.actorLabel).toContain("확인할 수 없는 사용자");
+    expect(row.actorLabel).not.toContain(actorId);
   });
 
   it("역할 변경과 가입 완료의 opaque ID를 경로 세그먼트로 인코딩한다", () => {
@@ -219,9 +266,12 @@ describe("25 functional Main/Auth screens", () => {
     expect(navigate).toHaveBeenCalledWith("/login");
   });
 
-  it("2FA 최초 활성화는 빈 코드를 null challenge 요청으로 정규화한다", () => {
+  it("2FA 인증 코드는 공백을 제거한 6자리 숫자만 허용한다", () => {
     expect(normalizeTwoFactorCode("")).toBeNull();
     expect(normalizeTwoFactorCode("   ")).toBeNull();
+    expect(normalizeTwoFactorCode("12345")).toBeNull();
+    expect(normalizeTwoFactorCode("1234567")).toBeNull();
+    expect(normalizeTwoFactorCode("12345a")).toBeNull();
     expect(normalizeTwoFactorCode(" 123456 ")).toBe("123456");
   });
 
@@ -302,6 +352,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(lock.tryBegin()).toBe(true);
   });
 
+  it("관리자 역할은 단일 선택이며 최고 관리자는 모든 운영 권한을 잠근다", () => {
+    expect(selectedAdminRole(["PARTICIPANT", "ADMIN"])).toBe("ADMIN");
+    expect(selectedAdminRole(["ADMIN", "HIGHEST_ADMIN"])).toBe("HIGHEST_ADMIN");
+    expect(permissionsForAdminRole("HIGHEST_ADMIN", [])).toEqual(ADMIN_PERMISSION_CODES);
+    expect(permissionsForAdminRole("PARTICIPANT", ["RAG_ADMIN"])).toEqual([]);
+    expect(permissionsForAdminRole("ADMIN", ["CHAT_ADMIN", "UNKNOWN"])).toEqual(["CHAT_ADMIN"]);
+  });
+
+  it("사용자 전환이나 운영 권한 축소는 저장 요청에서 회수 영향 확인으로 계산한다", () => {
+    expect(hasAdminAccessRevocation(["ADMIN"], ["RAG_ADMIN"], ["PARTICIPANT"], [])).toBe(true);
+    expect(hasAdminAccessRevocation(["PARTICIPANT"], [], ["ADMIN"], ["RAG_ADMIN"])).toBe(false);
+  });
+
   it("권한 버전 충돌은 최신 사용자를 다시 읽고 역할 폼 키를 갱신한다", async () => {
     const request = vi.fn(async () =>
       Response.json({
@@ -370,39 +433,26 @@ describe("25 functional Main/Auth screens", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/account/profile", { cache: "no-store" });
   });
 
-  it("서버에서 늦게 읽은 계정 설정을 제어 입력값으로 정규화한다", () => {
-    expect(
-      readProfileSettings({
-        user_id: "participant-1",
-        email: "participant@example.com",
-        role: "PARTICIPANT",
-        account_state: "ACTIVE",
-        preferred_language: "en",
-        rag_answer_detail: "detailed",
-        two_factor_enabled: false,
-        response_version: 2,
-      }),
-    ).toEqual({ preferredLanguage: "en", answerDetail: "detailed" });
-  });
-
-  it("프로필 조회가 끝나기 전에는 기본값을 저장할 수 없다", () => {
-    const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-001");
+  it("내 정보 관리에서는 불필요한 회원정보 설정을 편집하지 않는다", () => {
+    const profile = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
     if (!profile) throw new Error("profile screen missing");
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: profile }));
 
-    expect(html).toContain("불러오는 중…");
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>불러오는 중…<\/button>/u);
-    expect(html).toMatch(/<select[^>]*disabled=""[^>]*name="preferred_language"/u);
+    expect(html).not.toContain("회원정보 수정");
+    expect(html).not.toContain("선호 언어");
+    expect(html).not.toContain("AI 답변 상세도");
+    expect(html).not.toContain('name="preferred_language"');
+    expect(html).not.toContain('name="rag_answer_detail"');
   });
 
   it("프로필 조회가 끝나기 전에는 2FA 상태를 추정해 변경할 수 없다", () => {
-    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-003");
+    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
     if (!security) throw new Error("security screen missing");
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
 
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>2단계 인증 활성화<\/button>/u);
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>인증 설정하기<\/button>/u);
   });
 
   it("RAG 실패 요약 조회 실패는 확인된 0건과 구분한다", async () => {
@@ -438,11 +488,86 @@ describe("25 functional Main/Auth screens", () => {
     expect(ragFailureLabel("UNKNOWN_FAILURE")).toBe("처리 상태를 확인하고 다시 시도하세요.");
   });
 
-  it("관리 홈은 Chat 승인 대기와 24시간 내 과업 마감을 실제 응답에서 계산한다", async () => {
-    const now = Date.parse("2026-08-26T00:00:00Z");
-    const chat = vi.fn(async () =>
-      Response.json({ items: [{ id: "one" }, { id: "two" }], hasNext: false }),
+  it("RAG 실패 요약은 공통 문서 관리 링크 대신 문서별 업로드 재시도를 제공한다", () => {
+    const sampleFailure = {
+      jobId: "job-1",
+      documentId: "document-1",
+      filename: "sample 정책.pdf",
+      failureCode: "PAGE_INDEX_OUTLINE_FAILED",
+    };
+    const html = renderToStaticMarkup(
+      createElement(RagFailureSummary, {
+        failures: [
+          sampleFailure,
+          {
+            jobId: "job-2",
+            documentId: "document-2",
+            filename: "civic-encrypted.pdf",
+            failureCode: "DOCUMENT_READ_FAILED",
+          },
+        ],
+      }),
     );
+
+    expect(html).not.toContain("문서 관리에서 조치");
+    expect(ragFailureRetryHref(sampleFailure)).toBe(
+      "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=sample+%EC%A0%95%EC%B1%85.pdf",
+    );
+    expect(html.match(/href="\/admin\/rag\/upload\?retryJobId=/gu)).toHaveLength(2);
+    expect(html).toContain('aria-label="sample 정책.pdf 재시도"');
+    expect(html).toContain('aria-label="civic-encrypted.pdf 재시도"');
+    expect(html.match(/>재시도<\/a>/gu)).toHaveLength(2);
+  });
+
+  it("RAG 실패 요약 응답의 작업·문서 ID를 자동 재시도 링크까지 보존한다", async () => {
+    const response = vi.fn(async () =>
+      Response.json({
+        failed: 1,
+        active: 0,
+        counts: { FAILED: 1 },
+        recent_failures: [
+          {
+            job_id: "job-1",
+            document_id: "document-1",
+            filename: "sample.pdf",
+            failure_code: "PAGE_INDEX_OUTLINE_FAILED",
+            updated_at: "2026-08-29T10:00:00Z",
+          },
+        ],
+      }),
+    );
+
+    await expect(loadRagJobSummary(response as typeof fetch)).resolves.toMatchObject({
+      status: "ready",
+      recentFailures: [
+        {
+          jobId: "job-1",
+          documentId: "document-1",
+          filename: "sample.pdf",
+        },
+      ],
+    });
+  });
+
+  it("관리 홈은 승인 대기·진행 중 과업·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
+    const chat = vi.fn(async (input: RequestInfo | URL) => {
+      if (String(input).startsWith("/api/v1/admin/user-labels?")) {
+        return Response.json({
+          items: [
+            { user_id: "user-one", email: "one@example.com" },
+            { user_id: "user-two", email: "two@example.com" },
+          ],
+        });
+      }
+      return Response.json({
+        items: [
+          pendingChatRequest("request-one", "user-one", "지역 교통 토론방"),
+          pendingChatRequest("request-two", "user-two", "청년 주거 토론방"),
+        ],
+        nextCursor: null,
+        hasNext: false,
+      });
+    });
     const tasks = vi.fn(async () =>
       Response.json([
         {
@@ -459,17 +584,72 @@ describe("25 functional Main/Auth screens", () => {
         },
       ]),
     );
+    const wallet = vi.fn(async () =>
+      Response.json({
+        balanceKrw: 100_000,
+        heldKrw: 12_000,
+        availableKrw: 88_000,
+        spentTodayKrw: 2_700,
+        updatedAt: "2026-08-29T10:00:00Z",
+      }),
+    );
 
-    await expect(loadChatRequestSummary(chat as typeof fetch)).resolves.toEqual({
+    const chatSummary = await loadChatRequestSummary(chat as typeof fetch);
+    expect(chatSummary).toEqual({
+      status: "ready",
+      count: 2,
+      hasMore: false,
+      items: [
+        pendingChatRequest("request-one", "user-one", "지역 교통 토론방"),
+        pendingChatRequest("request-two", "user-two", "청년 주거 토론방"),
+      ],
+      labels: new Map([
+        ["user-one", "one@example.com"],
+        ["user-two", "two@example.com"],
+      ]),
+    });
+    const chatHtml = renderToStaticMarkup(
+      createElement(AdminPendingChatRequests, { state: chatSummary }),
+    );
+    expect(chatHtml).toContain("지역 교통 토론방");
+    expect(chatHtml).toContain("one@example.com");
+    expect(chatHtml).toContain("검토하기");
+    expect(chatHtml).toContain("/admin/chat/requests?requestId=request-one");
+    await expect(loadActiveTaskSummary(tasks as typeof fetch)).resolves.toEqual({
       status: "ready",
       count: 2,
       hasMore: false,
     });
-    await expect(loadTaskDeadlineSummary(tasks as typeof fetch, now)).resolves.toEqual({
+    await expect(loadSimulationWalletSummary(wallet as typeof fetch)).resolves.toEqual({
       status: "ready",
-      count: 1,
-      hasMore: false,
+      wallet: {
+        balanceKrw: 100_000,
+        heldKrw: 12_000,
+        availableKrw: 88_000,
+        spentTodayKrw: 2_700,
+        updatedAt: "2026-08-29T10:00:00Z",
+      },
     });
+  });
+
+  it("관리 홈은 서버의 접수순 계약에 맞춰 먼저 접수된 승인 대기 3건임을 안내한다", () => {
+    const items = Array.from({ length: 3 }, (_, index) =>
+      pendingChatRequest(`request-${index + 1}`, `user-${index + 1}`, `토론방 ${index + 1}`),
+    );
+    const html = renderToStaticMarkup(
+      createElement(AdminPendingChatRequests, {
+        state: {
+          status: "ready",
+          count: 100,
+          hasMore: true,
+          items,
+          labels: new Map(),
+        },
+      }),
+    );
+
+    expect(html).toContain("먼저 접수된 3건을 표시했습니다.");
+    expect(html).not.toContain("최신 3건");
   });
 
   it("로그인 복귀 경로는 동일 출처 상대 경로만 허용한다", () => {
@@ -491,9 +671,125 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
+  it("로그인한 참여자의 Vote 설문이 필수 미제출이면 설문 화면을 우선한다", async () => {
+    const requiredSurvey = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        submitted: false,
+        eligibility: { surveyRequirement: "REQUIRED" },
+      }),
+    );
+    const completedSurvey = vi.fn<typeof fetch>(async () =>
+      Response.json({
+        submitted: true,
+        eligibility: { surveyRequirement: "SATISFIED" },
+      }),
+    );
+
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        "/rag",
+        requiredSurvey,
+      ),
+    ).resolves.toBe("/mypage/survey");
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        completedSurvey,
+      ),
+    ).resolves.toBe("/home");
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        "/rag",
+        completedSurvey,
+      ),
+    ).resolves.toBe("/rag");
+    expect(requiredSurvey).toHaveBeenCalledWith(
+      "/api/v1/me/surveys/current",
+      expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }),
+    );
+  });
+
+  it("Vote 조회 장애는 로그인 완료를 막지 않고 기본 역할 홈으로 폴백한다", async () => {
+    const unavailableVote = vi.fn<typeof fetch>(async () =>
+      Response.json({ code: "SERVICE_UNAVAILABLE" }, { status: 503 }),
+    );
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        unavailableVote,
+      ),
+    ).resolves.toBe("/home");
+  });
+
+  it("Vote 설문 화면 조회가 지연되면 제한시간 오류로 재시도할 수 있다", async () => {
+    const hangingVote = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    );
+    await expect(loadVoteSurvey(hangingVote, 1)).rejects.toThrow(
+      "설문 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
+    );
+  });
+
+  it("설문 문항을 입력 섹션 순서로 묶고 알 수 없는 문항도 보존한다", () => {
+    const questions = [
+      surveyQuestion("지방정부 신뢰도", 1),
+      surveyQuestion("출생연도", 2),
+      surveyQuestion("생활양식", 3),
+      surveyQuestion("가구소득", 4),
+      surveyQuestion("새로운 설문 문항", 5),
+    ];
+
+    expect(groupSurveyQuestions(questions).map((section) => section.title)).toEqual([
+      "일반 개인정보",
+      "생활 · 경제",
+      "사회 · 기관 신뢰",
+      "매체 이용 · 정보 습관",
+      "설문 항목",
+    ]);
+    expect(groupSurveyQuestions(questions).flatMap((section) => section.questions)).toHaveLength(
+      questions.length,
+    );
+  });
+
+  it("Vote 조회가 응답하지 않아도 제한시간 후 로그인 기본 홈으로 이동한다", async () => {
+    const hangingVote = vi.fn<typeof fetch>(
+      async (_input, init) =>
+        await new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
+            once: true,
+          });
+        }),
+    );
+    await expect(
+      authenticatedPostLoginDestination(
+        { role: "PARTICIPANT", must_change_password: false },
+        null,
+        hangingVote,
+        1,
+      ),
+    ).resolves.toBe("/home");
+  });
+
   it("등록된 인증 경로를 새로 열어도 2FA 흐름을 복구한다", () => {
     expect(verificationKindFromSearch("?kind=two-factor&returnTo=%2Frag")).toBe("TWO_FACTOR");
     expect(verificationKindFromSearch("")).toBe("SIGNUP");
+  });
+
+  it("비밀번호 재설정 이메일과 딥링크 인증 코드를 안전하게 읽는다", () => {
+    expect(isPasswordResetEmail(" citizen@example.com ")).toBe(true);
+    expect(isPasswordResetEmail("citizen.example.com")).toBe(false);
+    expect(passwordResetCodeFromSearch("?code=111222")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=11%2012%2022")).toBe("111222");
+    expect(passwordResetCodeFromSearch("?code=12345x")).toBeNull();
   });
 
   it("가입 인증과 비밀번호 재설정·재활성화 완료 뒤 로그인 화면으로 이동한다", () => {
@@ -587,7 +883,7 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
-  it("Wire Flow의 첫 번째 행동 문구를 그대로 사용한다", () => {
+  it("현재 화면의 대표 행동 문구를 사용한다", () => {
     expect(mainScreenPrimaryActions).toEqual({
       "AUTH-001": "로그인",
       "AUTH-002": "다음으로",
@@ -595,21 +891,21 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-004": "가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
-      "AUTH-007": "재설정 이메일 보내기",
+      "AUTH-007": "인증하기",
       "AUTH-008": "비밀번호 변경",
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
       "U-HOME-001": "질문하기",
-      "U-ACCOUNT-001": "개인정보·설문",
-      "U-ACCOUNT-002": "필수 정보·동의 저장",
-      "U-ACCOUNT-003": "2단계 인증 활성화",
+      "U-ACCOUNT-001": "비밀번호 변경",
+      "U-ACCOUNT-002": "비밀번호 변경",
+      "U-ACCOUNT-003": "설문 참여",
       "U-ACCOUNT-004": "계정 비활성화",
-      "A-HOME-001": "사용자·권한",
+      "A-HOME-001": "관리 현황",
       "A-USER-001": "사용자 상세",
-      "A-USER-002": "관리자·권한 편집",
+      "A-USER-002": "권한 편집",
       "A-USER-003": "권한 변경 저장",
-      "A-USER-004": "권한 회수",
-      "A-USER-005": "대상 사용자 보기",
+      "A-USER-004": "권한 변경 저장",
+      "A-USER-005": "권한 이력",
       "COMMON-001": "관리 업무 선택",
       "COMMON-002": "최신 상태 보기",
       "COMMON-003": "처리 결과 재조회",
@@ -648,7 +944,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain("비밀번호 재설정");
   });
 
-  it("AUTH-001은 기준 GUI의 로그인 카드와 복구·가입 카드 배치를 유지한다", () => {
+  it("AUTH-001은 기준 GUI의 로그인 카드와 비밀번호 복구·가입 버튼 배치를 유지한다", () => {
     const login = mainScreens.find((screen) => screen.id === "AUTH-001");
     if (!login) throw new Error("AUTH-001 wire flow screen missing");
 
@@ -658,7 +954,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain('data-wireflow-layout="auth-login"');
     expect(loginHtml).toContain('class="wf-auth-form"');
     expect(loginHtml).toContain('placeholder="name@example.com"');
-    expect(loginHtml).toContain('placeholder="비밀번호 입력"');
+    expect(loginHtml).toContain('placeholder="비밀번호 입력…"');
     expect(loginHtml).toContain('class="wf-button wf-button-primary civic-auth-submit"');
     expect(loginHtml).toContain('class="civic-auth-support civic-auth-support-compact"');
     expect(loginHtml.indexOf('data-wireflow-slot="auth-reset"')).toBeGreaterThan(
@@ -667,7 +963,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml.indexOf('data-wireflow-slot="auth-signup"')).toBeGreaterThan(
       loginHtml.indexOf('data-wireflow-slot="auth-reset"'),
     );
-    expect(loginHtml).toContain("계정 재활성화");
+    expect(loginHtml).not.toContain("계정 재활성화");
   });
 
   it("AUTH-001의 테스트 로그인 버튼은 개발 호스트에서만 렌더링한다", () => {
@@ -687,12 +983,17 @@ describe("25 functional Main/Auth screens", () => {
   });
 
   it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
-    for (const id of ["AUTH-005", "AUTH-006", "AUTH-008"]) {
+    for (const id of ["AUTH-005", "AUTH-006", "AUTH-007", "AUTH-008"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
       const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
-      expect(html).toContain('class="wf-auth-form"');
+      expect(html).toContain('class="wf-auth-form" method="post"');
       expect(html).toContain('class="wf-auth-info"');
+      if (id === "AUTH-007") {
+        expect(html).toContain("인증 코드 입력");
+        expect(html).toContain('name="code"');
+        expect(html).not.toContain('name="email"');
+      }
     }
   });
 
@@ -727,7 +1028,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(outage).toContain('href="/home"');
   });
 
-  it("가입·계정 화면은 고정 정책의 비민감 2문항과 두 필수 동의만 설명한다", () => {
+  it("가입 단계는 Vote 설문을 계정 설정으로 오인하지 않고 두 필수 동의만 설명한다", () => {
     for (const id of ["AUTH-003", "AUTH-004", "U-ACCOUNT-002"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -791,7 +1092,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("U-ACCOUNT 화면은 최신 모바일 탭·보안 카드·비활성화 dialog 구조를 사용한다", () => {
+  it("계정 화면은 보안·비활성화·로그아웃을 한 화면에 제공하고 설문 보기를 노출하지 않는다", () => {
     const renderAccount = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -800,25 +1101,37 @@ describe("25 functional Main/Auth screens", () => {
       );
     };
 
-    const profile = renderAccount("U-ACCOUNT-001");
-    expect(profile).toContain('data-wireflow-layout="account-profile"');
-    expect(profile).toContain('aria-label="계정 설정"');
-    expect(profile).toContain("개인정보·설문");
-    expect(profile).toContain("보안");
-    expect(profile).toContain('class="wf-card wf-account-card"');
-    expect(profile).not.toContain("Account authority");
-    expect(profile).not.toContain('class="civic-account-summary"');
+    const hub = renderAccount("U-ACCOUNT-001");
+    expect(hub).toContain('data-wireflow-layout="account-hub"');
+    expect(hub).toContain('data-wireflow-layout="account-management"');
+    expect(hub).toContain("비밀번호 변경");
+    expect(hub).toContain("2단계 인증");
+    expect(hub).toContain("계정 비활성화");
+    expect(hub).not.toContain(
+      "계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.",
+    );
+    expect(hub).not.toContain("내 정보 관리");
+    expect(hub).not.toContain("내 설문 보기");
+    expect(hub).toContain("로그아웃");
+    expect(hub.indexOf("로그아웃")).toBeLessThan(hub.indexOf("계정 비활성화"));
 
-    const validation = renderAccount("U-ACCOUNT-002");
-    expect(validation).toContain('data-wireflow-state="validation-error"');
-    expect(validation).toContain('role="alert"');
+    const management = renderAccount("U-ACCOUNT-002");
+    expect(management).toContain('data-wireflow-layout="account-management"');
+    expect(management).not.toContain("회원정보 수정");
+    expect(management).not.toContain("선호 언어");
+    expect(management).not.toContain("AI 답변 상세도");
+    expect(management).toContain("비밀번호 변경");
+    expect(management).toContain("2단계 인증");
+    expect(management).not.toContain("서비스 이용 동의");
+    expect(management).not.toContain("계정 관리");
+    expect(management).toContain("계정 비활성화");
+    expect(management).not.toContain("/mypage/deactivate");
 
-    const security = renderAccount("U-ACCOUNT-003");
-    expect(security).toContain('data-wireflow-layout="account-security"');
-    expect(security).toContain("2단계 인증 이메일");
-    expect(security).toContain("최근 변경");
-    expect(security.match(/class="wf-card wf-action-card"/g)).toHaveLength(2);
-    expect(security).toContain("로그아웃");
+    const survey = renderAccount("U-ACCOUNT-003");
+    expect(survey).toContain('data-wireflow-layout="account-survey"');
+    expect(survey).toContain("설문 참여");
+    expect(survey).toContain("현재 설문을 불러오는 중입니다");
+    expect(survey).not.toContain("Vote 서버");
 
     const deactivate = renderAccount("U-ACCOUNT-004");
     expect(deactivate).toContain('data-wireflow-layout="account-deactivate"');
@@ -828,7 +1141,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(deactivate).toContain("계정 유지");
   });
 
-  it("Wire Flow 관리자 사용자 표·사유 필드·회수 확인·감사 열을 유지한다", () => {
+  it("관리자 사용자 표·단일 역할·간결한 사유 필드·감사 열을 유지한다", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -836,38 +1149,40 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const list = renderAdmin("A-USER-001");
-    for (const heading of [
-      "이메일",
-      "계정 상태",
-      "관리자 역할",
-      "운영 권한",
-      "최근 활동",
-      "작업",
-    ]) {
-      expect(list).toContain(`<th>${heading}</th>`);
-    }
-    expect(list).not.toContain("<th>이메일 인증</th>");
+    expect(USER_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["이메일", "역할"]);
     expect(list).toContain('aria-label="사용자 상태 필터"');
+    expect(list).toContain("이메일 검색");
+    expect(list).toContain('aria-label="사용자 목록 표"');
+    expect(list).not.toContain("이메일 또는 채팅 이름 검색");
+    expect(list).not.toContain("wf-admin-workbench-link");
 
     const roles = renderAdmin("A-USER-003");
     expect(roles).toContain('name="reason"');
-    expect(roles).toContain("변경 사유 (필수)");
-    for (const permission of ["RAG 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
+    expect(roles).toContain('aria-label="변경 사유 (필수)"');
+    expect(roles).toContain('class="civic-role-reason"');
+    expect(roles.match(/name="roles"/g)).toHaveLength(3);
+    expect(roles.match(/type="radio"/g)).toHaveLength(3);
+    for (const permission of ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
       expect(roles).toContain(permission);
     }
+    expect(roles).not.toContain("RAG 관리");
+    expect(roles).not.toContain("권한 회수 영향 확인");
     expect(roles.match(/disabled=""/g)).toHaveLength(9);
 
-    const revoke = renderAdmin("A-USER-004");
-    expect(revoke).toContain('role="alertdialog"');
-    expect(revoke).toContain("영향을 확인했습니다");
-
     const audit = renderAdmin("A-USER-005");
-    for (const heading of ["실행자", "대상", "변경 전", "변경 후", "사유", "변경 시각", "작업"]) {
-      expect(audit).toContain(`<th>${heading}</th>`);
-    }
+    expect(audit).toContain('aria-label="감사 이력 표"');
+    expect(AUDIT_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
+      "이벤트",
+      "실행자",
+      "대상",
+      "변경 전",
+      "변경 후",
+      "사유",
+      "변경 시각",
+    ]);
   });
 
-  it("A-HOME-001은 최신 Wire Flow의 3개 현황 지표와 5개 관리 카드로 구성한다", () => {
+  it("A-HOME-001은 메뉴를 반복하지 않고 4개 운영 지표로 구성한다", () => {
     const home = mainScreens.find((screen) => screen.id === "A-HOME-001");
     if (!home) throw new Error("A-HOME-001 missing");
 
@@ -876,23 +1191,98 @@ describe("25 functional Main/Auth screens", () => {
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
-    expect(html.match(/class="wf-admin-metric"/g)).toHaveLength(3);
-    expect(html).toContain("승인 대기");
-    expect(html).toContain("채팅 생성 신청 확인 중");
-    expect(html).toContain("처리 실패");
-    expect(html).toContain("확인 중");
+    expect(html.match(/class="console-metric"/g)).toHaveLength(6);
+    expect(html).toContain("토론방 승인 대기");
+    expect(html).toContain("운영 중 토론방");
     expect(html).toContain("24시간 내 마감");
-    expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(5);
-    expect(html).toContain("사용자 관리 열기");
-    expect(html).toContain("문서 관리 열기");
-    expect(html).toContain("채팅 신청 열기");
-    expect(html).toContain("과업 관리 열기");
-    expect(html).toContain("시뮬레이션 열기");
+    expect(html).toContain('class="civic-admin-metric-link" href="/admin/rag"');
+    expect(html).not.toContain("채팅 생성 신청");
+    expect(html).toContain('aria-labelledby="civic-pending-chat-requests-title"');
+    expect(html).toContain("승인 대기 목록을 확인하고 있습니다.");
+    expect(html).toContain("문서 처리 실패");
+    expect(html).not.toContain("실패 작업 재시도 가능");
+    expect(html).toContain("확인 중");
+    expect(html).toContain("진행 중 과업");
+    expect(html).toContain("시뮬레이션 사용 잔액");
+    expect(html).not.toContain("공용 지갑 잔액 확인 중");
+    expect(html).not.toContain("실행 보류");
+    // 실시간 운영 목록은 진행 작업이 1건 이상일 때만 나타난다.
+    expect(html).not.toContain("현재 처리 중");
+    expect(html).not.toContain("처리 현황을 확인하고 있습니다.");
+    expect(html).not.toContain("확인이 필요한 문서");
+    expect(html).not.toContain('class="wf-card wf-action-card"');
+    expect(html).not.toContain("사용자 관리 열기");
+    expect(html).not.toContain("문서 관리 열기");
+    expect(html).not.toContain("채팅 신청 열기");
+    expect(html).not.toContain("과업 관리 열기");
+    expect(html).not.toContain("시뮬레이션 열기");
     expect(html).not.toContain("RAG 자료");
     expect(html).not.toContain("오픈 예정");
   });
 
-  it("A-USER 상세·편집·회수는 최신 tab과 overlay 구조를 공유한다", () => {
+  it("관리자 홈은 처리할 일을 차분한 목록으로 모아 보여준다", () => {
+    const html = renderToStaticMarkup(
+      createElement(AdminHome, {
+        activeRoomSummary: { status: "ready", count: 2, hasMore: false },
+        activeTaskSummary: { status: "ready", count: 1, hasMore: false },
+        attentionSimulations: {
+          status: "ready",
+          items: [
+            {
+              taskId: "task-1",
+              title: "교통 정책 과업",
+              stateLabel: "확인 필요",
+              href: "/admin/simulations/status?simulationId=sim-1",
+            },
+          ],
+        },
+        canManageSimulation: false,
+        canReadRag: true,
+        chatRequestSummary: {
+          status: "ready",
+          count: 0,
+          hasMore: false,
+          items: [],
+          labels: new Map(),
+        },
+        dueSoonTaskSummary: { status: "ready", count: 1, hasMore: false },
+        dueSoonTasks: [{ taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" }],
+        upcomingTasks: [
+          { taskId: "task-3", title: "예약된 교통 과업", opensAt: "2026-08-31T09:00:00Z" },
+        ],
+        ragJobSummary: {
+          status: "ready",
+          failed: 1,
+          active: 3,
+          counts: { FAILED: 1 },
+          recentFailures: [
+            {
+              jobId: "job-failed",
+              documentId: "document-failed",
+              filename: "확인문서.pdf",
+              failureCode: "DOCUMENT_READ_FAILED",
+            },
+          ],
+        },
+        simulationWalletSummary: { status: "forbidden" },
+      }),
+    );
+
+    // 강조 색의 옛 실패 섹션 대신 차분한 목록으로 안내한다.
+    expect(html).not.toContain("확인이 필요한 문서");
+    expect(html).not.toContain("civic-rag-failure-summary");
+    expect(html).toContain("처리 실패 문서");
+    expect(html).toContain("확인문서.pdf");
+    expect(html).toContain("마감 임박 과업");
+    expect(html).toContain("복지 과업");
+    expect(html).toContain("시작 예정 과업");
+    expect(html).toContain("예약된 교통 과업");
+    expect(html).toContain("확인 필요 시뮬레이션");
+    expect(html).toContain("교통 정책 과업");
+    expect(html).not.toContain("최근 권한 변경");
+  });
+
+  it("A-USER 상세·편집은 최신 tab과 단일 권한 편집 구조를 공유한다", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -900,19 +1290,22 @@ describe("25 functional Main/Auth screens", () => {
     };
 
     const detail = renderAdmin("A-USER-002");
-    expect(detail).toContain('data-wireflow-layout="admin-user-detail"');
-    expect(detail).toContain('aria-label="사용자 상세 메뉴"');
-    expect(detail).toContain('class="civic-user-summary-grid"');
-    expect(detail).toContain('class="wf-admin-timeline"');
+    expect(detail).toContain('data-wireflow-layout="admin-user-console"');
+    expect(detail).toContain('aria-label="사용자 상세 탭"');
+    expect(detail).toContain(">개요</button>");
+    expect(detail).toContain(">활동</button>");
 
     const roles = renderAdmin("A-USER-003");
-    expect(roles).toContain('data-wireflow-layout="admin-role-editor"');
+    expect(roles).toContain('data-wireflow-layout="admin-user-console"');
     expect(roles).toContain("대상 계정");
     expect(roles).toContain("현재 역할");
+    expect(roles).not.toContain("wf-admin-overlay");
+    expect(roles).not.toContain("권한을 회수하시겠습니까?");
 
-    const revoke = renderAdmin("A-USER-004");
-    expect(revoke).toContain('class="wf-admin-overlay"');
-    expect(revoke).toContain('aria-modal="true"');
-    expect(revoke).toContain("권한을 회수하시겠습니까?");
+    const legacyRevokeRoute = renderAdmin("A-USER-004");
+    expect(legacyRevokeRoute).toContain('data-wireflow-screen="A-USER-004"');
+    expect(legacyRevokeRoute).toContain('data-wireflow-layout="admin-user-console"');
+    expect(legacyRevokeRoute).toContain("사용자·권한");
+    expect(legacyRevokeRoute).not.toContain('role="alertdialog"');
   });
 });
