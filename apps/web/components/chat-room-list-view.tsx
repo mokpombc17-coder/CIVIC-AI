@@ -72,6 +72,7 @@ export function ChatRoomListView({
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
   const isOverlayOpen = isCreateRoomOpen || roomDetail.selection !== null;
+  const hasAppliedPublicRoomSearch = Boolean(publicRoomSearch.appliedQuery);
   const overlay = isCreateRoomOpen ? (
     <CreateChatRoomForm onCancel={closeCreateRoomForm} />
   ) : roomDetail.selection ? (
@@ -124,8 +125,8 @@ export function ChatRoomListView({
             participatingRooms.rooms.length === 0 &&
             !participatingRooms.isError ? (
             <RoomListNotice
-              description="참여한 방의 새 메시지를 모두 확인했습니다."
-              message="읽지 않은 메시지가 없어요"
+              description="읽지 않은 메시지가 없습니다."
+              message="새 메시지를 모두 확인했어요"
               size="participating"
               variant="all-read"
             />
@@ -194,7 +195,19 @@ export function ChatRoomListView({
                 message="공개 방을 불러오고 있습니다."
               />
             ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
-              <RoomListNotice message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms} size="public" />
+              hasAppliedPublicRoomSearch ? (
+                <RoomListNotice
+                  message={CHAT_ROOM_PUBLISHING_COPY.noPublicRoomSearchResults}
+                  size="public"
+                />
+              ) : (
+                <RoomListNotice
+                  description={CHAT_ROOM_PUBLISHING_COPY.noAvailableRoomsDescription}
+                  message={CHAT_ROOM_PUBLISHING_COPY.noAvailableRooms}
+                  size="public"
+                  variant="no-available-rooms"
+                />
+              )
             ) : publicRooms.rooms.length > 0 ? (
               <ul aria-label="공개 채팅방" className={PUBLIC_ROOM_LIST_CLASS_NAME} tabIndex={0}>
                 {publicRooms.rooms.map((room) => (
@@ -406,7 +419,7 @@ function RoomListNotice({
   description?: string;
   message: string;
   size: "participating" | "public";
-  variant?: "all-read" | "default" | "no-participating-rooms";
+  variant?: "all-read" | "default" | "no-available-rooms" | "no-participating-rooms";
 }) {
   const isIllustrated = variant !== "default";
 

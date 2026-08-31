@@ -2,7 +2,9 @@ export const TEMPORARY_CHAT_ROOM_MEMBER_LIMIT = 50;
 
 export const CHAT_ROOM_PUBLISHING_COPY = {
   createRoom: "토론방 생성 요청",
-  noAvailableRooms: "참여 가능한 방이 없습니다.",
+  noAvailableRooms: "지금 참여할 수 있는 방이 없어요",
+  noAvailableRoomsDescription: "원하는 주제로 토론방 생성을 요청해 보세요.",
+  noPublicRoomSearchResults: "검색 결과가 없어요",
 } as const;
 
 export type ChatRoomMemberCountPresentation = Readonly<{

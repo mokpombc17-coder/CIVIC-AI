@@ -39,7 +39,9 @@ describe("chat room list publishing layout", () => {
     expect(filterIndex).toBeLessThan(participatingRoomsIndex);
     expect(participatingRoomsIndex).toBeLessThan(publicRoomSearchIndex);
     expect(publicRoomSearchIndex).toBeLessThan(availableRoomsIndex);
-    expect(html).toContain("참여 가능한 방이 없습니다.");
+    expect(html).toContain("지금 참여할 수 있는 방이 없어요");
+    expect(html).toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
+    expect(html).toContain('data-chat-room-list-empty-variant="no-available-rooms"');
     expect(html.match(/data-chat-room-list-state="empty"/g)).toHaveLength(2);
     expect(emptyStateClassNames).toHaveLength(2);
     expect(emptyStateClassNames).toEqual(
@@ -64,6 +66,14 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">계정</span>");
     expect(html).not.toContain("채팅방 생성 신청 내역");
     expect(html).not.toContain("Chat Resource Server");
+  });
+
+  it("공개 방 검색 결과가 비면 전체 목록의 빈 상태와 구분해 표시한다", () => {
+    const html = renderChatRoomListView("ALL", false, "empty", null, "기후");
+
+    expect(html).toContain("검색 결과가 없어요");
+    expect(html).not.toContain("지금 참여할 수 있는 방이 없어요");
+    expect(html).not.toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
   });
 
   it("목록 조회 오류는 상태 카드로, 각 목록 로딩은 실제 개수의 skeleton으로 표시한다", () => {
@@ -105,10 +115,10 @@ describe("chat room list publishing layout", () => {
         html,
       )?.[1];
 
-    expect(html).toContain("읽지 않은 메시지가 없어요");
-    expect(html).toContain("참여한 방의 새 메시지를 모두 확인했습니다.");
+    expect(html).toContain("새 메시지를 모두 확인했어요");
+    expect(html).toContain("읽지 않은 메시지가 없습니다.");
     expect(html).toContain(
-      'class="text-base font-medium leading-6 text-[var(--chat-publishing-color-text)]">읽지 않은 메시지가 없어요',
+      'class="text-base font-medium leading-6 text-[var(--chat-publishing-color-text)]">새 메시지를 모두 확인했어요',
     );
     expect(html).toContain(">✓</span>");
     expect(html).toContain('data-chat-room-list-empty-variant="all-read"');
@@ -297,6 +307,7 @@ function renderChatRoomListView(
   isCreateRoomOpen = false,
   listStatus: "authentication-error" | "empty" | "error" | "loading" = "empty",
   roomDetailSelection: ChatRoomListDetailSelection | null = null,
+  appliedPublicRoomQuery?: string,
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -330,7 +341,7 @@ function renderChatRoomListView(
         isCreateRoomOpen,
         participatingRoomFilter: { select: vi.fn(), value: filter },
         participatingRooms: emptyListState,
-        publicRoomSearch: createPublicRoomSearchController(),
+        publicRoomSearch: createPublicRoomSearchController(appliedPublicRoomQuery),
         publicRooms: emptyListState,
         roomDetail: { close: vi.fn(), open: vi.fn(), selection: roomDetailSelection },
         toggleCreateRoomForm: vi.fn(),
@@ -339,9 +350,9 @@ function renderChatRoomListView(
   );
 }
 
-function createPublicRoomSearchController(): PublicRoomSearchController {
+function createPublicRoomSearchController(appliedQuery?: string): PublicRoomSearchController {
   return {
-    appliedQuery: undefined,
+    appliedQuery,
     applySearch: vi.fn(),
     draftQuery: "",
     endComposition: vi.fn(),
