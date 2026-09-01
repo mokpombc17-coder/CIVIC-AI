@@ -68,6 +68,28 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 조립되며, 운영 build에는 포함되지 않는다. 내부의 조건부 UI는 intrinsic HTML element이므로 이
 컴포넌트 트리에는 별도 자식으로 표시하지 않는다.
 
+## Route `/survey`
+
+`SurveyPage`는 향후 필수 설문 조회·제출 기능이 연결될 독립 route를 소유한다. API 계약과 화면
+디자인이 확정되기 전에는 `SurveyPreparationScreen`이 준비 상태만 표현하며, 설문 완료 여부 확인과
+자동 redirect는 수행하지 않는다. 필수 절차에서 다른 도메인으로 이탈시키지 않도록 이 준비 화면은
+`PlatformPageShell`의 기본 bottom navigation을 명시적으로 제거한다.
+
+```text
+RootLayout [Server] [Route] (apps/web/app/layout.tsx)
+└── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
+    └── children [slot: App Router가 route child를 제공]
+        └── route /survey: SurveyPage [Server] [Route] (apps/web/app/survey/page.tsx)
+            └── SurveyPreparationScreen [Server-compatible] [Screen] (apps/web/components/survey/survey-preparation-screen.tsx)
+                └── PlatformPageShell [Server-compatible] [View] [bottom navigation: omitted] (apps/web/components/platform-page-shell.tsx)
+                    └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+                        └── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+```
+
+`lib/survey/survey-navigation.ts`는 향후 설문 redirect가 사용할 `/survey?from=...` URL 생성과 내부
+복귀 경로 검증만 소유한다. API 응답 계약, Query provider와 제출 상태는 계약 확정 후 survey route
+경계 안에 추가한다.
+
 ## Route `/chat`와 `/chat/[roomId]`
 
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
