@@ -191,6 +191,11 @@ class RoomEventWebSocketIntegrationTest
                     .get("membershipId")
                     .asText())
                     .isEqualTo(joined.result().membershipId());
+            assertThat(roomEvent.get("payload")
+                    .get("member")
+                    .get("userLabel")
+                    .asText())
+                    .isEqualTo("user-2");
             String publicJson = new String(
                     roomBytes,
                     StandardCharsets.UTF_8);

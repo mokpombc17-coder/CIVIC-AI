@@ -8,7 +8,7 @@ public record RoomMemberChangedEventPayload(
         String roomId,
         long roomVersion,
         RoomStatus roomStatus,
-        RoomMemberState member
+        RoomMemberChangedState member
 ) implements RoomEventPayload {
 
     public RoomMemberChangedEventPayload {

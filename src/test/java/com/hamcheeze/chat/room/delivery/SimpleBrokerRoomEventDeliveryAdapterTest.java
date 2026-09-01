@@ -7,7 +7,7 @@ import com.hamcheeze.chat.room.application.event.RoomEventDeliveryOutcome;
 import com.hamcheeze.chat.room.event.RoomEventEnvelope;
 import com.hamcheeze.chat.room.event.RoomEventType;
 import com.hamcheeze.chat.room.event.RoomMemberChangedEventPayload;
-import com.hamcheeze.chat.room.event.RoomMemberState;
+import com.hamcheeze.chat.room.event.RoomMemberChangedState;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -149,8 +149,9 @@ class SimpleBrokerRoomEventDeliveryAdapterTest {
                         "room-1",
                         4,
                         RoomStatus.ACTIVE,
-                        new RoomMemberState(
+                        new RoomMemberChangedState(
                                 "membership-1",
+                                "honggildong",
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 0)));

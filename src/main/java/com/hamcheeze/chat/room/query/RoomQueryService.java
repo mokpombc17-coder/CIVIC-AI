@@ -9,7 +9,7 @@ import com.hamcheeze.chat.room.query.model.ActiveRoomView;
 import com.hamcheeze.chat.room.query.model.MembershipView;
 import com.hamcheeze.chat.room.query.model.RoomDetailView;
 import com.hamcheeze.chat.room.query.model.RoomMemberView;
-import com.hamcheeze.chat.userlabel.UserLabel;
+import com.hamcheeze.chat.room.label.RoomMemberUserLabelResolver;
 import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 
 import java.util.List;
@@ -22,7 +22,7 @@ public final class RoomQueryService {
 
     private final RoomQueryReader reader;
     private final RoomQueryCursorCodec cursorCodec;
-    private final UserLabelDirectory userLabels;
+    private final RoomMemberUserLabelResolver userLabels;
 
     public RoomQueryService(
             RoomQueryReader reader,
@@ -35,6 +35,17 @@ public final class RoomQueryService {
             RoomQueryReader reader,
             RoomQueryCursorCodec cursorCodec,
             UserLabelDirectory userLabels
+    ) {
+        this(
+                reader,
+                cursorCodec,
+                new RoomMemberUserLabelResolver(userLabels));
+    }
+
+    public RoomQueryService(
+            RoomQueryReader reader,
+            RoomQueryCursorCodec cursorCodec,
+            RoomMemberUserLabelResolver userLabels
     ) {
         this.reader = Objects.requireNonNull(reader, "reader");
         this.cursorCodec =
@@ -169,20 +180,12 @@ public final class RoomQueryService {
                                 : decoded.lastMembershipId(),
                         limit);
         Map<String, String> labelsByUserId =
-                userLabels.findByUserIds(
-                        memberships.items().stream()
-                                .map(Membership::userId)
-                                .toList());
+                userLabels.resolveAll(memberships.items());
         List<RoomMemberView> views = memberships.items().stream()
                 .map(membership -> new RoomMemberView(
                         membership.membershipId(),
                         membership.userId(),
-                        labelsByUserId.getOrDefault(
-                                membership.userId(),
-                                UserLabel.fallback(
-                                        membership.userId(),
-                                        membership.profile()
-                                                .displayName())),
+                        labelsByUserId.get(membership.userId()),
                         membership.profile().displayName(),
                         membership.profile().imageUrl(),
                         membership.profile().version(),

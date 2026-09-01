@@ -19,7 +19,7 @@ class RoomEventModelTest {
             Instant.parse("2026-07-28T10:00:00Z");
 
     @Test
-    void serializesVersionedPublicEnvelopeWithMembershipIdentityOnly()
+    void serializesVersionedPublicEnvelopeWithDisplayLabel()
             throws Exception {
         RoomEventEnvelope event = new RoomEventEnvelope(
                 RoomEventEnvelope.CURRENT_VERSION,
@@ -30,7 +30,7 @@ class RoomEventModelTest {
                         "room-1",
                         4,
                         RoomStatus.ACTIVE,
-                        member(
+                        changedMember(
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 0)));
@@ -47,6 +47,7 @@ class RoomEventModelTest {
                 .contains("\"roomId\":\"room-1\"")
                 .contains("\"roomVersion\":4")
                 .contains("\"membershipId\":\"membership-1\"")
+                .contains("\"userLabel\":\"honggildong\"")
                 .contains("\"membershipVersion\":0")
                 .doesNotContain("userId")
                 .doesNotContain("actorUserId")
@@ -65,7 +66,7 @@ class RoomEventModelTest {
                         "room-1",
                         1,
                         RoomStatus.ACTIVE,
-                        member(
+                        changedMember(
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 0));
@@ -104,7 +105,7 @@ class RoomEventModelTest {
                 "bad room!",
                 1,
                 RoomStatus.ACTIVE,
-                member(
+                changedMember(
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
                         0))).isInstanceOf(IllegalArgumentException.class);
@@ -112,17 +113,25 @@ class RoomEventModelTest {
                 "room-1",
                 -1,
                 RoomStatus.ACTIVE,
-                member(
+                changedMember(
                         MembershipRole.MEMBER,
                         MembershipStatus.ACTIVE,
                         0))).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new RoomMemberState(
+        assertThatThrownBy(() -> new RoomMemberChangedState(
+                " ",
+                "honggildong",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                0)).isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new RoomMemberChangedState(
+                "membership-1",
                 " ",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
                 0)).isInstanceOf(IllegalArgumentException.class);
-        assertThatThrownBy(() -> new RoomMemberState(
+        assertThatThrownBy(() -> new RoomMemberChangedState(
                 "membership-1",
+                "honggildong",
                 MembershipRole.MEMBER,
                 MembershipStatus.ACTIVE,
                 -1)).isInstanceOf(IllegalArgumentException.class);
@@ -155,7 +164,7 @@ class RoomEventModelTest {
                         "room-1",
                         4,
                         RoomStatus.ACTIVE,
-                        member(
+                        changedMember(
                                 MembershipRole.MEMBER,
                                 MembershipStatus.ACTIVE,
                                 3)))).isInstanceOf(
@@ -181,6 +190,19 @@ class RoomEventModelTest {
     ) {
         return new RoomMemberState(
                 "membership-1",
+                role,
+                status,
+                version);
+    }
+
+    private static RoomMemberChangedState changedMember(
+            MembershipRole role,
+            MembershipStatus status,
+            long version
+    ) {
+        return new RoomMemberChangedState(
+                "membership-1",
+                "honggildong",
                 role,
                 status,
                 version);

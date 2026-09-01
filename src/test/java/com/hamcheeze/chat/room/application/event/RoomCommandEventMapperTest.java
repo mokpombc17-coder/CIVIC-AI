@@ -36,7 +36,8 @@ class RoomCommandEventMapperTest {
             Instant.parse("2026-07-28T10:00:00Z");
 
     private final RoomCommandEventMapper mapper =
-            new RoomCommandEventMapper();
+            new RoomCommandEventMapper((roomId, membershipId) ->
+                    "label-" + membershipId);
 
     @Test
     void mapsAllActualStateChanges() {
@@ -156,6 +157,8 @@ class RoomCommandEventMapperTest {
                 .isEqualTo(MembershipRole.MEMBER);
         assertThat(payload.member().membershipId())
                 .isEqualTo("membership-1");
+        assertThat(payload.member().userLabel())
+                .isEqualTo("label-membership-1");
         assertThat(payload.member().status()).isEqualTo(status);
         assertThat(payload.member().membershipVersion()).isEqualTo(3);
         assertThat(plan.userRecipients()).isEqualTo(recipients);

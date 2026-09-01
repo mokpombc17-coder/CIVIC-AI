@@ -58,7 +58,7 @@ public final class RoomCommandEventPropagationCoordinator {
 
     public static RoomCommandEventPropagationCoordinator disabled() {
         return new RoomCommandEventPropagationCoordinator(
-                new RoomCommandEventMapper(),
+                RoomCommandEventMapper.disabled(),
                 () -> "00000000-0000-0000-0000-000000000000",
                 Clock.systemUTC(),
                 new RoomEventDeliveryPort() {

@@ -150,7 +150,8 @@ class RoomCommandEventPropagationCoordinatorTest {
             RoomEventIdGenerator idGenerator
     ) {
         return new RoomCommandEventPropagationCoordinator(
-                new RoomCommandEventMapper(),
+                new RoomCommandEventMapper((roomId, membershipId) ->
+                        "label-" + membershipId),
                 idGenerator,
                 Clock.fixed(EMITTED_AT, ZoneOffset.UTC),
                 port);

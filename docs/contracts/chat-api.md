@@ -2139,6 +2139,7 @@ export 또는 backup, 실시간 이벤트 유실 수용 기록을 갖춘 별도 
     "roomStatus": "ACTIVE",
     "member": {
       "membershipId": "membership-02",
+      "userLabel": "honggildong",
       "role": "MEMBER",
       "status": "ACTIVE",
       "membershipVersion": 1
@@ -2172,8 +2173,13 @@ payload 형태:
 | `ROOM_SETTINGS_UPDATED` | `name`, `description`, `categoryIds`, `visibility`, `joinPolicy` 전체 settings snapshot |
 
 모든 `member`, `owner`, `previousOwner`, `newOwner` 상태 객체는 Room 범위
-참여자 식별자인 필수 `membershipId`만 노출하며 `userId`는 포함하지 않는다.
-서버 내부의 개인 queue routing과 접근 회수에는 계속 `userId`를 사용한다.
+참여자 식별자인 필수 `membershipId`를 노출하며 `userId`는 포함하지 않는다.
+`ROOM_MEMBER_JOINED`, `ROOM_MEMBER_REJOINED`, `ROOM_MEMBER_LEFT`,
+`ROOM_MEMBER_BANNED`, `ROOM_MEMBER_UNBANNED`의 `member.userLabel`은 이벤트 발생
+당시의 필수 non-blank 표시 이름 snapshot이다. 화면 표시에만 사용하며 사용자
+식별·권한 판정은 계속 `membershipId`를 사용한다. 서버 내부의 개인 queue routing과
+접근 회수에는 계속 `userId`를 사용한다. 이벤트의 `userLabel`은 즉시 표시용이고,
+참여자 목록 API를 최신 참여자 상태의 authoritative source로 계속 사용한다.
 
 `ROOM_SETTINGS_UPDATED` 예:
 

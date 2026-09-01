@@ -24,6 +24,7 @@ import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Qualifier;
@@ -207,8 +208,13 @@ public class RoomCommandApplicationConfiguration {
     }
 
     @Bean
-    RoomCommandEventMapper roomCommandEventMapper() {
-        return new RoomCommandEventMapper();
+    RoomCommandEventMapper roomCommandEventMapper(
+            MembershipStore membershipStore,
+            UserLabelDirectory userLabels
+    ) {
+        return new RoomCommandEventMapper(
+                membershipStore,
+                userLabels);
     }
 
     @Bean
