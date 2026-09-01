@@ -5,13 +5,14 @@ import {
   sortSurveyQuestions,
   type SurveyQuestion,
   type SurveyQuestionSection,
-} from "@/lib/survey/survey-contracts";
+} from "@/lib/survey/survey-model";
 import type {
   SurveyAnswerDraft,
   SurveyAnswerState,
   SurveySelectionDraft,
   SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
+import { SurveySelect } from "./survey-select";
 import styles from "./survey.module.css";
 import { getSurveyQuestionPresentation } from "./survey-presentation";
 
@@ -490,29 +491,19 @@ function SurveyQuestionControl({
       const selectedOption = options.find((option) => option.optionId === selection?.optionId);
       return (
         <>
-          <select
-            aria-describedby={describedBy}
-            aria-label={questionLabel}
-            className={styles.selectControl}
-            data-empty={selection ? undefined : "true"}
+          <SurveySelect
+            ariaDescribedBy={describedBy}
+            ariaLabel={questionLabel}
             id={controlId}
-            onChange={(event) =>
+            onChange={(optionId) =>
               onChange({
                 type: "SINGLE_CHOICE",
-                selection: event.target.value
-                  ? { optionId: event.target.value, inputText: "" }
-                  : null,
+                selection: { optionId, inputText: "" },
               })
             }
-            value={selection?.optionId ?? ""}
-          >
-            <option value="">선택</option>
-            {options.map((option) => (
-              <option key={option.optionLocalKey} value={option.optionId}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+            options={options.map((option) => ({ value: option.optionId, label: option.label }))}
+            value={selection?.optionId ?? null}
+          />
           {selectedOption?.kind === "OTHER" && selection ? (
             <OtherTextInput
               controlId={`${controlId}-other`}
@@ -534,9 +525,7 @@ function SurveyQuestionControl({
       const summary =
         selectedOptions.length === 0
           ? "복수 선택"
-          : selectedOptions.length === 1
-            ? selectedOptions[0]!.label
-            : `${selectedOptions.length}개 선택`;
+          : selectedOptions.map((option) => option.label).join(", ");
       return (
         <details className={styles.multiSelect}>
           <summary
@@ -546,7 +535,12 @@ function SurveyQuestionControl({
             data-empty={selectedOptions.length === 0 ? "true" : undefined}
             id={controlId}
           >
-            {summary}
+            <span
+              className={styles.selectValue}
+              title={selectedOptions.length > 0 ? summary : undefined}
+            >
+              {summary}
+            </span>
           </summary>
           <fieldset
             aria-label={`${questionLabel} 선택지`}
@@ -615,29 +609,20 @@ function SurveyQuestionControl({
         const minimum = question.rule.minimum!;
         const maximum = question.rule.maximum!;
         return (
-          <select
-            aria-describedby={describedBy}
-            aria-label={questionLabel}
-            className={styles.selectControl}
-            data-empty={value === null ? "true" : undefined}
+          <SurveySelect
+            ariaDescribedBy={describedBy}
+            ariaLabel={questionLabel}
             id={controlId}
-            onChange={(event) =>
-              onChange({
-                type: "NUMBER",
-                number: event.target.value ? Number(event.target.value) : null,
-              })
+            onChange={(selectedValue) =>
+              onChange({ type: "NUMBER", number: Number(selectedValue) })
             }
-            value={value ?? ""}
-          >
-            <option value="">{groupKey === BIRTH_YEAR_GROUP_KEY ? "YYYY" : "선택"}</option>
-            {Array.from({ length: maximum - minimum + 1 }, (_, index) => maximum - index).map(
-              (number) => (
-                <option key={number} value={number}>
-                  {number}
-                </option>
-              ),
-            )}
-          </select>
+            options={Array.from(
+              { length: maximum - minimum + 1 },
+              (_, index) => maximum - index,
+            ).map((number) => ({ value: String(number), label: String(number) }))}
+            placeholder={groupKey === BIRTH_YEAR_GROUP_KEY ? "YYYY" : "선택"}
+            value={value === null ? null : String(value)}
+          />
         );
       }
       return (

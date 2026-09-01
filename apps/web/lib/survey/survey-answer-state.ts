@@ -3,12 +3,10 @@ import {
   sortSurveyGroups,
   sortSurveyQuestions,
   type PublishedSurveyContent,
-  type SubmitSurveyAnswer,
-  type SubmitSurveyRequest,
   type SurveyOption,
   type SurveyQuestion,
   type SurveyQuestionSection,
-} from "./survey-contracts";
+} from "./survey-model";
 
 export type SurveySelectionDraft = Readonly<{
   optionId: string;
@@ -65,32 +63,6 @@ export function validateSurvey(
       ])
       .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
   );
-}
-
-export function createSubmitSurveyRequest(
-  roundId: string,
-  content: PublishedSurveyContent,
-  answers: SurveyAnswerState,
-): SubmitSurveyRequest {
-  const errors = validateSurvey(content, answers);
-  if (Object.keys(errors).length > 0) {
-    throw new SurveyAnswerValidationError(errors);
-  }
-
-  return {
-    roundId,
-    answers: getSurveyQuestions(content).map((question) =>
-      serializeAnswer(question, requireAnswer(question, answers[question.questionId])),
-    ),
-  };
-}
-
-export class SurveyAnswerValidationError extends Error {
-  override readonly name = "SurveyAnswerValidationError";
-
-  constructor(readonly errors: SurveyValidationErrors) {
-    super("필수 설문 응답을 모두 확인해 주세요.");
-  }
 }
 
 function createEmptyAnswer(question: SurveyQuestion): SurveyAnswerDraft {
@@ -186,51 +158,6 @@ function validateSurveyAnswer(
       return undefined;
     }
   }
-}
-
-function serializeAnswer(question: SurveyQuestion, answer: SurveyAnswerDraft): SubmitSurveyAnswer {
-  switch (answer.type) {
-    case "SINGLE_CHOICE": {
-      const selection = answer.selection!;
-      return {
-        questionId: question.questionId,
-        type: answer.type,
-        selection: serializeSelection(question, selection),
-      };
-    }
-    case "MULTIPLE_CHOICE":
-      return {
-        questionId: question.questionId,
-        type: answer.type,
-        selections: answer.selections.map((selection) => serializeSelection(question, selection)),
-      };
-    case "SHORT_TEXT":
-    case "LONG_TEXT":
-      return { questionId: question.questionId, type: answer.type, text: answer.text.trim() };
-    case "NUMBER":
-      return { questionId: question.questionId, type: answer.type, number: answer.number! };
-    case "SCALE":
-      return { questionId: question.questionId, type: answer.type, scale: answer.scale! };
-  }
-}
-
-function serializeSelection(
-  question: SurveyQuestion,
-  selection: SurveySelectionDraft,
-): { optionId: string; inputText: string | null } {
-  const option = findOption(question, selection.optionId)!;
-  return {
-    optionId: selection.optionId,
-    inputText: option.kind === "OTHER" ? selection.inputText.trim() : null,
-  };
-}
-
-function requireAnswer(
-  question: SurveyQuestion,
-  answer: SurveyAnswerDraft | undefined,
-): SurveyAnswerDraft {
-  if (!answer || answer.type !== question.type) throw new SurveyAnswerValidationError({});
-  return answer;
 }
 
 function findOption(question: SurveyQuestion, optionId: string): SurveyOption | undefined {
