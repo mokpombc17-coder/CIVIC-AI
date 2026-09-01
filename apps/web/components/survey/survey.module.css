@@ -1,0 +1,137 @@
+.content {
+  background: var(--platform-shell-color-surface);
+}
+
+.screen {
+  min-height: 100%;
+  padding: 0 16px 24px;
+  color: var(--platform-shell-color-text);
+}
+
+.flow {
+  display: grid;
+  gap: 12px;
+  width: 100%;
+}
+
+.progressBlock {
+  padding: 12px 12px 16px;
+  border-bottom: 1px solid var(--platform-shell-color-border);
+}
+
+.progressLabel {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  color: var(--platform-shell-color-text);
+  font-size: 13px;
+  line-height: 18px;
+}
+
+.progressLabel span {
+  color: var(--platform-shell-color-primary-emphasis);
+  font-weight: 700;
+}
+
+.progressLabel strong {
+  font-weight: 700;
+}
+
+.progressBars {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 4px;
+  padding: 0;
+  margin: 10px 0 0;
+  list-style: none;
+}
+
+.progressBar {
+  height: 4px;
+  border-radius: 999px;
+  background: #8a949e;
+}
+
+.progressBar[data-state="complete"],
+.progressBar[data-state="current"] {
+  background: var(--platform-shell-color-primary);
+}
+
+.stepCard {
+  padding: 12px 12px 20px;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 8px;
+  background: var(--platform-shell-color-surface);
+}
+
+.stepTitle {
+  padding: 0 2px 10px;
+  border-bottom: 1px solid var(--platform-shell-color-border);
+  margin: 0;
+  color: var(--platform-shell-color-text);
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.3px;
+  line-height: 25px;
+}
+
+.stepContent {
+  padding: 12px 2px 0;
+}
+
+.preparationMessage {
+  display: grid;
+  min-height: 112px;
+  place-items: center;
+  margin: 0;
+  color: var(--platform-shell-color-muted);
+  font-size: 13px;
+  line-height: 20px;
+  text-align: center;
+}
+
+.actions {
+  display: grid;
+  gap: 6px;
+}
+
+.action {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  padding: 0 16px;
+  border: 1px solid transparent;
+  border-radius: 6px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 22px;
+  text-decoration: none;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.secondaryAction {
+  border-color: var(--platform-shell-color-primary);
+  background: #edf2ff;
+  color: var(--platform-shell-color-primary-emphasis);
+}
+
+.primaryAction {
+  background: var(--platform-shell-color-primary);
+  color: #ffffff;
+}
+
+.action:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary-emphasis);
+  outline-offset: 2px;
+}
+
+.action:disabled {
+  border-color: var(--platform-shell-color-border);
+  background: #e5e8eb;
+  color: #8a949e;
+  cursor: not-allowed;
+}
