@@ -70,30 +70,39 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 
 ## Route `/survey`
 
-`SurveyPage`는 향후 필수 설문 조회·제출 기능이 연결될 독립 route를 소유하고, 검증한 `from`을
-`SurveyScreen`의 취소 목적지로 전달한다. `SurveyScreen`은 채팅방·투표 참여 화면과 마찬가지로
-`PlatformShell`을 직접 조립하고 8단계 진행 상태를 소유한다. API 계약이 확정되기 전에는
-`SurveyStepCard`의 문항 slot에 준비 상태만 표현하며, 설문 완료 여부 확인과 자동 redirect는
-수행하지 않는다. 필수 절차에서는 bottom navigation을 조립하지 않는다.
+`SurveyLayout`은 Vote resource server를 공유하는 설문 route segment에 `VoteQueryProvider`를
+제공한다. `SurveyPage`는 검증한 `from`을 `SurveyScreen`의 취소 목적지로 전달한다.
+`SurveyScreen`은 현재 설문을 조회하고 API의 7개 Section을 동적으로 조립한 뒤, 프론트 전용
+필수 확인 단계를 마지막에 추가한다. Section 이동 전에 그 안의 Question을 검증하고 최종 제출 시
+42개 Question 답변만 멱등 payload로 전송한다. 답변과 필수 확인 상태는 화면 수명 동안만 유지하며
+browser storage에는 저장하지 않는다. 필수 절차에서는 bottom navigation을 조립하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     └── children [slot: App Router가 route child를 제공]
-        └── route /survey: SurveyPage [Server] [Route] (apps/web/app/survey/page.tsx)
-            └── SurveyScreen [Client] [Screen] (apps/web/components/survey/survey-screen.tsx)
-                └── PlatformShell [Server-compatible] [View] [scroll: self] [bottom navigation: omitted] (apps/web/components/platform-shell/platform-shell.tsx)
-                    ├── PlatformHeader [Server-compatible] [View] [leading: omitted] (apps/web/components/platform-shell/platform-header.tsx)
-                    └── SurveyFlowLayout [Client graph] [View] (apps/web/components/survey/survey-flow.tsx)
-                        ├── SurveyProgress [Client graph] [View]
-                        ├── SurveyStepCard [Client graph] [View] [slot: API 문항 연결 예정]
-                        └── SurveyStepActions [Client graph] [Feature]
+        └── SurveyLayout [Server] [Route] (apps/web/app/survey/layout.tsx)
+            └── VoteQueryProvider [Client] [Provider]
+                └── survey children [slot: nested page를 제공]
+                    ├── route /survey: SurveyPage [Server] [Route] (apps/web/app/survey/page.tsx)
+                    │   └── SurveyScreen [Client] [Screen] (apps/web/components/survey/survey-screen.tsx)
+                    │       └── PlatformShell [Server-compatible] [View] [scroll: self] [bottom navigation: omitted]
+                    │           ├── PlatformHeader [Server-compatible] [View] [leading: omitted]
+                    │           └── SurveyFlowLayout [Client graph] [View]
+                    │               ├── SurveyProgress [Client graph] [View]
+                    │               ├── SurveyStepCard [Client graph] [View]
+                    │               │   └── SurveySectionFields [Client graph] [Feature] [API-driven]
+                    │               └── SurveyStepActions [Client graph] [Feature]
+                    └── route /survey/responses/latest, /survey/responses/[responseId]
+                        └── SurveyResponseScreen [Client] [Screen] [read-only]
+                            └── PlatformShell [Server-compatible] [View] [bottom navigation: omitted]
 ```
 
-`lib/survey/survey-navigation.ts`는 향후 설문 redirect가 사용할 `/survey?from=...` URL 생성과 내부
-복귀 경로 검증을 소유한다. `SurveyStepActions`는 현재 취소·단계 이동과 연결 전 제출 비활성 상태만
-표현한다. API 응답 계약, Query provider, 문항 검증과 제출 상태는 계약 확정 후 survey route 경계
-안에 추가한다.
+`lib/survey/survey-contracts.ts`와 `survey-api.ts`는 Section → Group → Question 계약의 runtime
+검증과 현재 설문·제출·본인 응답 조회 transport를 소유한다. `survey-answer-state.ts`는 Question type별
+draft, rule 검증과 제출 payload 직렬화를 소유하고, `survey-queries.ts`는 조회 cache와 제출 후 현재
+설문·응답·eligibility invalidation을 조정한다. `survey-navigation.ts`는 `/survey?from=...` URL 생성과
+내부 복귀 경로 검증을 계속 소유한다.
 
 ## Route `/chat`와 `/chat/[roomId]`
 
@@ -483,6 +492,14 @@ flowchart TD
     VoteTaskResultPage["VoteTaskResultPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/result/page.tsx"]
     VoteTaskResultScreen["VoteTaskResultScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-result-screen.tsx"]
 
+    SurveyLayout["SurveyLayout [Server] [Route]<br/>apps/web/app/survey/layout.tsx"]
+    SurveyChildrenSlot["survey children slot<br/>nested page를 제공"]
+    SurveyPage["SurveyPage [Server] [Route]<br/>apps/web/app/survey/page.tsx"]
+    SurveyScreen["SurveyScreen [Client] [Screen]<br/>apps/web/components/survey/survey-screen.tsx"]
+    SurveySectionFields["SurveySectionFields [Client graph] [Feature]<br/>apps/web/components/survey/survey-question-fields.tsx"]
+    SurveyResponsePage["SurveyResponsePage [Server] [Route]<br/>apps/web/app/survey/responses/*/page.tsx"]
+    SurveyResponseScreen["SurveyResponseScreen [Client] [Screen]<br/>apps/web/components/survey/survey-response-screen.tsx"]
+
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
     Loading["Loading [Server] [Route] [conditional]<br/>apps/web/app/loading.tsx"]
     ErrorPage["ErrorPage [Client] [Route] [conditional]<br/>apps/web/app/error.tsx"]
@@ -571,6 +588,17 @@ flowchart TD
     VoteTaskResultScreen --> PlatformShell
     VoteTaskResultScreen --> PlatformNavigationClient
 
+    ChildrenSlot -. "route /survey" .-> SurveyLayout
+    SurveyLayout --> VoteQueryProvider
+    VoteQueryProvider --> SurveyChildrenSlot
+    SurveyChildrenSlot -. "route /survey" .-> SurveyPage
+    SurveyPage --> SurveyScreen
+    SurveyScreen --> PlatformShell
+    SurveyScreen --> SurveySectionFields
+    SurveyChildrenSlot -. "route /survey/responses/*" .-> SurveyResponsePage
+    SurveyResponsePage --> SurveyResponseScreen
+    SurveyResponseScreen --> PlatformShell
+
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
     SpecialBoundary -. "not-found state" .-> NotFound
@@ -580,8 +608,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySectionFields,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
-    class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SpecialBoundary framework;
+    class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```

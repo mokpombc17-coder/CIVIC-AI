@@ -40,7 +40,7 @@
 
 .progressBars {
   display: grid;
-  grid-template-columns: repeat(8, minmax(0, 1fr));
+  grid-template-columns: repeat(var(--survey-step-count, 8), minmax(0, 1fr));
   gap: 4px;
   padding: 0;
   margin: 10px 0 0;
@@ -80,15 +80,264 @@
   padding: 12px 2px 0;
 }
 
-.preparationMessage {
+.sectionFields {
   display: grid;
-  min-height: 112px;
-  place-items: center;
+  gap: 20px;
+}
+
+.sectionDescription,
+.questionDescription {
   margin: 0;
   color: var(--platform-shell-color-muted);
   font-size: 13px;
   line-height: 20px;
+}
+
+.questionGroup {
+  display: grid;
+  gap: 12px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--platform-shell-color-border);
+}
+
+.questionGroup:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
+}
+
+.questionGroupHeader {
+  display: grid;
+  gap: 4px;
+}
+
+.questionGroupHeader h3,
+.questionGroupHeader p {
+  margin: 0;
+}
+
+.questionGroupHeader h3 {
+  color: var(--platform-shell-color-text);
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22px;
+}
+
+.questionGroupHeader p {
+  color: var(--platform-shell-color-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.questionList {
+  display: grid;
+  gap: 12px;
+}
+
+.questionField {
+  display: grid;
+  gap: 7px;
+}
+
+.questionLabel {
+  color: var(--platform-shell-color-text);
+  font-size: 13px;
+  font-weight: 600;
+  line-height: 20px;
+}
+
+.questionLabel span {
+  color: #d92d20;
+}
+
+.selectControl,
+.textControl,
+.otherTextControl {
+  width: 100%;
+  min-height: 44px;
+  padding: 10px 12px;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 6px;
+  background: var(--platform-shell-color-surface);
+  color: var(--platform-shell-color-text);
+  font: inherit;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+textarea.textControl {
+  min-height: 104px;
+  resize: vertical;
+}
+
+.selectControl:focus-visible,
+.textControl:focus-visible,
+.otherTextControl:focus-visible {
+  border-color: var(--platform-shell-color-primary);
+  outline: 2px solid color-mix(in srgb, var(--platform-shell-color-primary) 22%, transparent);
+  outline-offset: 1px;
+}
+
+.questionField[data-invalid="true"] .selectControl,
+.questionField[data-invalid="true"] .textControl {
+  border-color: #d92d20;
+}
+
+.questionError,
+.submitError {
+  margin: 0;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.submitError {
+  padding: 10px 12px;
+  border: 1px solid #fecdca;
+  border-radius: 6px;
+  background: #fef3f2;
+  font-size: 13px;
   text-align: center;
+}
+
+.choiceGroup,
+.scaleField {
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.choiceGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.choiceItem {
+  display: grid;
+  gap: 8px;
+}
+
+.choiceItem label,
+.confirmationCheck {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 6px;
+  color: var(--platform-shell-color-text);
+  font-size: 14px;
+  line-height: 20px;
+  cursor: pointer;
+}
+
+.choiceItem input,
+.confirmationCheck input {
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  margin: 0;
+  accent-color: var(--platform-shell-color-primary);
+}
+
+.scaleOptions {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(36px, 1fr));
+  gap: 6px;
+}
+
+.scaleOption {
+  position: relative;
+  display: grid;
+  min-height: 40px;
+  place-items: center;
+  cursor: pointer;
+}
+
+.scaleOption input {
+  position: absolute;
+  opacity: 0;
+}
+
+.scaleOption span {
+  display: grid;
+  width: 100%;
+  min-height: 40px;
+  place-items: center;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 6px;
+  color: var(--platform-shell-color-muted);
+  font-size: 13px;
+}
+
+.scaleOption input:checked + span {
+  border-color: var(--platform-shell-color-primary);
+  background: #edf2ff;
+  color: var(--platform-shell-color-primary-emphasis);
+  font-weight: 700;
+}
+
+.scaleOption input:focus-visible + span {
+  outline: 2px solid var(--platform-shell-color-primary-emphasis);
+  outline-offset: 2px;
+}
+
+.scaleLabels {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 8px;
+  color: var(--platform-shell-color-muted);
+  font-size: 11px;
+  line-height: 16px;
+}
+
+.scaleLabels span:last-child {
+  text-align: right;
+}
+
+.confirmation {
+  display: grid;
+  gap: 12px;
+  padding: 4px 0 8px;
+}
+
+.confirmation h3,
+.confirmation p {
+  margin: 0;
+}
+
+.confirmation h3 {
+  font-size: 15px;
+  line-height: 22px;
+}
+
+.confirmationCheck span {
+  flex: 1;
+}
+
+.confirmationCheck strong {
+  flex: 0 0 auto;
+  color: var(--platform-shell-color-primary-emphasis);
+  font-size: 12px;
+}
+
+.confirmation p {
+  color: var(--platform-shell-color-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.visuallyHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  border: 0;
+  margin: -1px;
+  clip: rect(0, 0, 0, 0);
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .actions {
@@ -134,4 +383,118 @@
   background: #e5e8eb;
   color: #8a949e;
   cursor: not-allowed;
+}
+
+.statusCard {
+  display: grid;
+  min-height: 280px;
+  align-content: center;
+  gap: 8px;
+  padding: 24px 14px;
+  text-align: center;
+}
+
+.statusCard h2,
+.statusCard p {
+  margin: 0;
+}
+
+.statusCard h2 {
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.statusCard p {
+  color: var(--platform-shell-color-muted);
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.statusActions {
+  display: grid;
+  gap: 6px;
+  margin-top: 16px;
+}
+
+.responseScreen {
+  padding-top: 12px;
+}
+
+.responseContent {
+  display: grid;
+  gap: 16px;
+}
+
+.responseHeader,
+.responseSection {
+  padding: 16px 14px;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 8px;
+  background: var(--platform-shell-color-surface);
+}
+
+.responseHeader h2,
+.responseHeader p,
+.responseSection h3,
+.responseGroup h4,
+.responseGroup dl,
+.responseGroup dt,
+.responseGroup dd {
+  margin: 0;
+}
+
+.responseHeader h2 {
+  font-size: 18px;
+  line-height: 26px;
+}
+
+.responseHeader p {
+  margin-top: 4px;
+  color: var(--platform-shell-color-muted);
+  font-size: 12px;
+}
+
+.responseSection {
+  display: grid;
+  gap: 16px;
+}
+
+.responseSection h3 {
+  padding-bottom: 10px;
+  border-bottom: 1px solid var(--platform-shell-color-border);
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.responseGroup {
+  display: grid;
+  gap: 8px;
+}
+
+.responseGroup h4 {
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.responseGroup dl,
+.responseGroup dl div {
+  display: grid;
+  gap: 4px;
+}
+
+.responseGroup dl {
+  gap: 10px;
+}
+
+.responseGroup dt {
+  color: var(--platform-shell-color-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.responseGroup dd {
+  color: var(--platform-shell-color-text);
+  font-size: 14px;
+  line-height: 21px;
+  white-space: pre-wrap;
 }

@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import styles from "./survey.module.css";
 
 export function SurveyFlowLayout({ children }: { children: ReactNode }) {
@@ -22,7 +22,11 @@ export function SurveyProgress({
         </span>
         <strong>{stepTitle}</strong>
       </p>
-      <ol aria-label={`진행 단계 ${currentStep}/${totalSteps}`} className={styles.progressBars}>
+      <ol
+        aria-label={`진행 단계 ${currentStep}/${totalSteps}`}
+        className={styles.progressBars}
+        style={{ "--survey-step-count": totalSteps } as CSSProperties}
+      >
         {Array.from({ length: totalSteps }, (_, index) => {
           const step = index + 1;
           const state =
