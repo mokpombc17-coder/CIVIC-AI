@@ -1,7 +1,18 @@
+import surveyOptionLabelOverrides from "./survey-option-label-overrides.json";
+
 export type SurveyQuestionPresentation = Readonly<{
   helperText: string;
   title?: string;
 }>;
+
+export type SurveyMatrixChoiceLayout = "family" | "media";
+
+const SURVEY_OPTION_LABEL_OVERRIDES: Readonly<Record<string, Readonly<Record<string, string>>>> =
+  surveyOptionLabelOverrides;
+
+const SURVEY_MATRIX_CHOICE_LAYOUTS: Readonly<Record<string, SurveyMatrixChoiceLayout>> = {
+  "media.daily-use-duration": "media",
+};
 
 export const SURVEY_QUESTION_PRESENTATION = {
   "demographics.residence": {
@@ -86,4 +97,12 @@ export function getSurveyQuestionPresentation(
   questionKey: string,
 ): SurveyQuestionPresentation | undefined {
   return (SURVEY_QUESTION_PRESENTATION as Record<string, SurveyQuestionPresentation>)[questionKey];
+}
+
+export function getSurveyMatrixOptionLabel(questionKey: string, apiLabel: string): string {
+  return SURVEY_OPTION_LABEL_OVERRIDES[questionKey]?.[apiLabel] ?? apiLabel;
+}
+
+export function getSurveyMatrixChoiceLayout(questionKey: string): SurveyMatrixChoiceLayout {
+  return SURVEY_MATRIX_CHOICE_LAYOUTS[questionKey] ?? "family";
 }

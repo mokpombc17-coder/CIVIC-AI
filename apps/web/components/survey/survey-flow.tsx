@@ -1,4 +1,4 @@
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, ReactNode, Ref } from "react";
 import styles from "./survey.module.css";
 
 export function SurveyFlowLayout({ children }: { children: ReactNode }) {
@@ -7,15 +7,17 @@ export function SurveyFlowLayout({ children }: { children: ReactNode }) {
 
 export function SurveyProgress({
   currentStep,
+  sectionRef,
   stepTitle,
   totalSteps,
 }: {
   currentStep: number;
+  sectionRef?: Ref<HTMLElement>;
   stepTitle: string;
   totalSteps: number;
 }) {
   return (
-    <section aria-label="설문 진행 상황" className={styles.progressBlock}>
+    <section aria-label="설문 진행 상황" className={styles.progressBlock} ref={sectionRef}>
       <p aria-live="polite" className={styles.progressLabel}>
         <span>
           {currentStep}/{totalSteps}
@@ -45,6 +47,35 @@ export function SurveyProgress({
       </ol>
     </section>
   );
+}
+
+export function SurveyHeaderProgress({
+  currentStep,
+  totalSteps,
+}: {
+  currentStep: number;
+  totalSteps: number;
+}) {
+  return (
+    <div
+      aria-label={`설문 진행 단계 ${currentStep}/${totalSteps}`}
+      className={styles.headerProgress}
+    >
+      <strong className={styles.headerProgressValue}>
+        {currentStep}/{totalSteps}
+      </strong>
+    </div>
+  );
+}
+
+export function shouldShowSurveyHeaderProgress({
+  progressBottom,
+  viewportTop,
+}: {
+  progressBottom: number;
+  viewportTop: number;
+}): boolean {
+  return progressBottom <= viewportTop + 1;
 }
 
 export function SurveyStepCard({ children, title }: { children: ReactNode; title: string }) {

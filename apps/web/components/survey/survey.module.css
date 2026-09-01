@@ -6,6 +6,22 @@
   background: var(--platform-shell-color-surface);
 }
 
+.surveyHeader {
+  position: relative;
+}
+
+.headerProgress {
+  display: flex;
+  align-items: center;
+}
+
+.headerProgressValue {
+  color: var(--platform-shell-color-primary-emphasis);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
 .screen {
   box-sizing: border-box;
   height: 100%;
@@ -24,12 +40,12 @@
   width: 100%;
   height: 100%;
   min-height: 0;
-  grid-template-rows: auto minmax(0, 1fr);
-  gap: 16px;
+  grid-template-rows: minmax(0, 1fr);
 }
 
 .flowViewport {
   display: grid;
+  height: 100%;
   min-height: 0;
   align-content: start;
   gap: 16px;
@@ -185,15 +201,14 @@
 }
 
 .familyMatrixRow {
-  display: flex;
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr);
   min-width: 0;
   align-items: center;
   gap: 8px;
 }
 
 .familyMatrixLabel {
-  width: 44px;
-  flex: 0 0 44px;
   margin: 0;
   color: #1f2124;
   font-size: 14px;
@@ -202,9 +217,9 @@
 }
 
 .familyMatrixOptions {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   min-width: 0;
-  flex: 1;
   gap: 6px;
 }
 
@@ -213,7 +228,6 @@
   display: flex;
   height: 36px;
   min-width: 0;
-  flex: 1;
   align-items: center;
   justify-content: center;
   overflow: hidden;
@@ -428,9 +442,9 @@
 .otherTextControl {
   width: 100%;
   min-height: 48px;
-  padding: 11px;
-  border: 1px solid #59616b;
-  border-radius: 6px;
+  padding: 11px 14px;
+  border: 1px solid #c9d1dc;
+  border-radius: 10px;
   background: var(--platform-shell-color-surface);
   color: var(--platform-shell-color-text);
   font: inherit;
@@ -455,10 +469,20 @@ input.textControl,
   appearance: none;
   cursor: pointer;
   text-align: left;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease,
+    box-shadow 160ms ease,
+    color 160ms ease;
 }
 
 .selectControl[data-empty="true"] {
   color: var(--platform-shell-color-muted);
+}
+
+.selectControl[data-open="true"] {
+  border-color: var(--platform-shell-color-primary);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--platform-shell-color-primary) 12%, transparent);
 }
 
 .customSelect {
@@ -478,40 +502,77 @@ input.textControl,
   white-space: nowrap;
 }
 
-.selectChevron,
-.multiSelectSummary::after {
-  width: 8px;
-  height: 8px;
+.selectChevron {
+  width: 9px;
+  height: 9px;
   flex: 0 0 auto;
   border-right: 1.5px solid currentcolor;
   border-bottom: 1.5px solid currentcolor;
-  content: "";
   transform: translateY(-2px) rotate(45deg);
-  transition: transform 140ms ease;
+  transition: transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
-.selectControl[data-open="true"] .selectChevron,
-.multiSelect[open] .multiSelectSummary::after {
+.selectControl[data-open="true"] .selectChevron {
   transform: translateY(2px) rotate(225deg);
 }
 
 .selectMenu {
   position: absolute;
-  z-index: 20;
+  z-index: 30;
   top: calc(100% + 6px);
   right: 0;
   left: 0;
-  display: grid;
   box-sizing: border-box;
   max-width: 100%;
-  max-height: 240px;
-  gap: 2px;
-  overflow-y: auto;
-  padding: 4px;
-  border: 1px solid #59616b;
-  border-radius: 6px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--platform-shell-color-primary) 22%, #d9dee7);
+  border-radius: 12px;
   background: var(--platform-shell-color-surface);
-  box-shadow: 0 10px 28px rgb(18 20 23 / 16%);
+  box-shadow: 0 16px 36px rgb(30 42 65 / 18%);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px) scaleY(0.94);
+  transform-origin: top center;
+  visibility: hidden;
+  clip-path: inset(0 0 100% 0 round 12px);
+  transition:
+    opacity 140ms ease,
+    transform 140ms cubic-bezier(0.4, 0, 1, 1),
+    clip-path 140ms cubic-bezier(0.4, 0, 1, 1),
+    visibility 0s linear 140ms;
+}
+
+.selectMenuScroller {
+  display: grid;
+  box-sizing: border-box;
+  max-height: var(--survey-select-menu-max-height, 320px);
+  gap: 4px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding: 6px;
+  scrollbar-color: #bdc6d3 transparent;
+  scrollbar-width: thin;
+}
+
+.selectMenu[data-placement="top"] {
+  top: auto;
+  bottom: calc(100% + 6px);
+  transform: translateY(8px) scaleY(0.94);
+  transform-origin: bottom center;
+  clip-path: inset(100% 0 0 0 round 12px);
+}
+
+.selectMenu[data-open="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scaleY(1);
+  visibility: visible;
+  clip-path: inset(0 0 0 0 round 12px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    clip-path 180ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    visibility 0s linear 0s;
 }
 
 .selectOption {
@@ -520,13 +581,13 @@ input.textControl,
   width: 100%;
   min-width: 0;
   max-width: 100%;
-  min-height: 44px;
+  min-height: 46px;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 10px 12px;
+  padding: 10px 9px 10px 7px;
   border: 0;
-  border-radius: 4px;
+  border-radius: 8px;
   background: transparent;
   color: var(--platform-shell-color-text);
   cursor: pointer;
@@ -534,21 +595,48 @@ input.textControl,
   font-size: 15px;
   line-height: 22px;
   text-align: left;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
 }
 
-.selectOption > span:first-child {
+.selectOptionMain {
+  display: flex;
+  min-width: 0;
+  flex: 1 1 auto;
+  align-items: flex-start;
+  gap: 2px;
+}
+
+.selectOptionOrdinal {
+  min-width: 16px;
+  flex: 0 0 auto;
+  color: var(--platform-shell-color-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 22px;
+  text-align: left;
+}
+
+.selectOptionText {
   min-width: 0;
   overflow-wrap: anywhere;
 }
 
 .selectOption:hover,
 .selectOption[data-active="true"] {
-  background: color-mix(in srgb, var(--platform-shell-color-primary) 8%, transparent);
+  background: color-mix(in srgb, var(--platform-shell-color-primary) 9%, white);
 }
 
 .selectOption[aria-selected="true"] {
+  background: color-mix(in srgb, var(--platform-shell-color-primary) 13%, white);
   color: var(--platform-shell-color-primary-emphasis);
   font-weight: 700;
+}
+
+.selectOption:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .selectOption:focus-visible {
@@ -565,6 +653,71 @@ input.textControl,
   transform: translateY(-1px) rotate(45deg);
 }
 
+.selectScrollHint {
+  position: absolute;
+  z-index: 2;
+  left: 50%;
+  display: grid;
+  width: 36px;
+  height: 28px;
+  padding: 0;
+  place-items: center;
+  border: 0;
+  background: transparent;
+  color: #4b5563;
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateX(-50%) scale(0.9);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.selectScrollHint[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateX(-50%) scale(1);
+}
+
+.selectScrollHintTop {
+  top: 5px;
+}
+
+.selectScrollHintBottom {
+  bottom: 5px;
+  color: var(--platform-shell-color-primary-emphasis);
+}
+
+.selectScrollHint span {
+  width: 11px;
+  height: 11px;
+  border-right: 2px solid currentcolor;
+  border-bottom: 2px solid currentcolor;
+}
+
+.selectScrollHintTop span {
+  transform: translateY(2px) rotate(225deg);
+}
+
+.selectScrollHintBottom span {
+  transform: translateY(-2px) rotate(45deg);
+}
+
+.selectScrollHint:hover {
+  color: #1f2937;
+}
+
+.selectScrollHintBottom:hover {
+  color: var(--platform-shell-color-primary-emphasis);
+}
+
+.selectScrollHint:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--platform-shell-color-primary-emphasis);
+  outline-offset: -2px;
+}
+
 .multiSelect {
   position: relative;
   width: 100%;
@@ -572,34 +725,97 @@ input.textControl,
   max-width: 100%;
 }
 
-.multiSelectSummary {
+.multiSelectMenu .selectMenuScroller {
+  gap: 0;
+}
+
+.multiSelectOptions {
+  display: grid;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  margin: 0;
+}
+
+.multiSelectOption {
   display: flex;
-  min-width: 0;
-  max-width: 100%;
-  align-items: center;
-  cursor: pointer;
-  list-style: none;
-}
-
-.multiSelectSummary::-webkit-details-marker {
-  display: none;
-}
-
-.multiSelectMenu {
-  position: absolute;
-  z-index: 2;
-  top: calc(100% + 4px);
-  right: 0;
-  left: 0;
   box-sizing: border-box;
-  max-width: 100%;
-  max-height: 280px;
-  overflow-y: auto;
-  padding: 8px;
-  border: 1px solid var(--platform-shell-color-border);
-  border-radius: 6px;
+  width: 100%;
+  min-width: 0;
+  min-height: 46px;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 11px;
+  border-radius: 8px;
+  color: var(--platform-shell-color-text);
+  cursor: pointer;
+  font-size: 15px;
+  line-height: 22px;
+  transition:
+    background-color 120ms ease,
+    color 120ms ease;
+}
+
+.multiSelectOption:hover,
+.multiSelectOption:has(input:focus-visible) {
+  background: color-mix(in srgb, var(--platform-shell-color-primary) 9%, white);
+}
+
+.multiSelectOption[data-selected="true"] {
+  background: color-mix(in srgb, var(--platform-shell-color-primary) 13%, white);
+  color: var(--platform-shell-color-primary-emphasis);
+  font-weight: 700;
+}
+
+.multiSelectOption input {
+  display: grid;
+  width: 18px;
+  height: 18px;
+  flex: 0 0 auto;
+  place-items: center;
+  margin: 0;
+  appearance: none;
+  border: 1.5px solid #aab4c3;
+  border-radius: 5px;
   background: var(--platform-shell-color-surface);
-  box-shadow: 0 8px 20px rgb(18 20 23 / 14%);
+  cursor: pointer;
+  transition:
+    border-color 120ms ease,
+    background-color 120ms ease,
+    box-shadow 120ms ease;
+}
+
+.multiSelectOption input::after {
+  width: 5px;
+  height: 9px;
+  border: solid white;
+  border-width: 0 2px 2px 0;
+  content: "";
+  opacity: 0;
+  transform: translateY(-1px) rotate(45deg) scale(0.7);
+  transition:
+    opacity 120ms ease,
+    transform 120ms ease;
+}
+
+.multiSelectOption input:checked {
+  border-color: var(--platform-shell-color-primary);
+  background: var(--platform-shell-color-primary);
+}
+
+.multiSelectOption input:checked::after {
+  opacity: 1;
+  transform: translateY(-1px) rotate(45deg) scale(1);
+}
+
+.multiSelectOption input:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary-emphasis);
+  outline-offset: 2px;
+}
+
+.multiSelectOption:has(input:disabled) {
+  cursor: not-allowed;
+  opacity: 0.45;
 }
 
 .textControl::placeholder,
@@ -923,9 +1139,46 @@ textarea.textControl {
   text-align: center;
 }
 
+.loadingSpinner {
+  width: 30px;
+  height: 30px;
+  box-sizing: border-box;
+  margin: 0 auto 6px;
+  border: 3px solid #dfe4eb;
+  border-top-color: var(--platform-shell-color-primary);
+  border-radius: 50%;
+  animation: survey-spinner-rotate 760ms linear infinite;
+}
+
+@keyframes survey-spinner-rotate {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .statusCard h2,
 .statusCard p {
   margin: 0;
+}
+
+.submittedIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  justify-self: center;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background: var(--platform-shell-color-primary);
+}
+
+.submittedIcon::after {
+  width: 10px;
+  height: 18px;
+  border: solid #ffffff;
+  border-width: 0 3px 3px 0;
+  content: "";
+  transform: translateY(-2px) rotate(45deg);
 }
 
 .statusCard h2 {
@@ -1026,4 +1279,21 @@ textarea.textControl {
   font-size: 14px;
   line-height: 21px;
   white-space: pre-wrap;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .selectControl,
+  .selectChevron,
+  .selectMenu,
+  .selectOption,
+  .selectScrollHint,
+  .multiSelectOption,
+  .multiSelectOption input,
+  .multiSelectOption input::after {
+    transition: none;
+  }
+
+  .loadingSpinner {
+    animation: none;
+  }
 }

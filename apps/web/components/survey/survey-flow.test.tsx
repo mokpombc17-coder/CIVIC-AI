@@ -1,6 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { SurveyProgress, SurveyStepActions } from "./survey-flow";
+import {
+  shouldShowSurveyHeaderProgress,
+  SurveyHeaderProgress,
+  SurveyProgress,
+  SurveyStepActions,
+} from "./survey-flow";
 
 describe("SurveyProgress", () => {
   it("현재 단계를 포함한 8개 진행 구간을 표시한다", () => {
@@ -14,6 +19,19 @@ describe("SurveyProgress", () => {
     expect(html.match(/data-state="complete"/g)).toHaveLength(2);
     expect(html.match(/data-state="current"/g)).toHaveLength(1);
     expect(html.match(/data-state="upcoming"/g)).toHaveLength(5);
+  });
+
+  it("헤더에는 현재 단계 숫자만 간결하게 표시한다", () => {
+    const html = renderToStaticMarkup(<SurveyHeaderProgress currentStep={4} totalSteps={8} />);
+
+    expect(html).toContain('aria-label="설문 진행 단계 4/8"');
+    expect(html).toContain("4/8");
+    expect(html).not.toContain("survey-header-progress");
+  });
+
+  it("본문 진행 표시가 viewport 위로 완전히 사라졌을 때만 헤더 단계를 표시한다", () => {
+    expect(shouldShowSurveyHeaderProgress({ progressBottom: 80, viewportTop: 100 })).toBe(true);
+    expect(shouldShowSurveyHeaderProgress({ progressBottom: 140, viewportTop: 100 })).toBe(false);
   });
 });
 

@@ -1,7 +1,7 @@
 "use client";
 
-import Link from "next/link";
-import { useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
+import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
@@ -20,7 +20,14 @@ import {
   type PendingSurveySubmission,
 } from "@/lib/survey/survey-submission";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
-import { SurveyFlowLayout, SurveyProgress, SurveyStepActions, SurveyStepCard } from "./survey-flow";
+import {
+  SurveyFlowLayout,
+  SurveyHeaderProgress,
+  SurveyProgress,
+  SurveyStepActions,
+  SurveyStepCard,
+  shouldShowSurveyHeaderProgress,
+} from "./survey-flow";
 import { SurveySectionFields } from "./survey-question-fields";
 import styles from "./survey.module.css";
 
@@ -28,18 +35,41 @@ const CONFIRMATION_STEP_TITLE = "필수 동의·확인";
 const CONFIRMATION_CARD_TITLE = "필수 동의 항목";
 const HOUSEHOLD_SECTION_KEY = "household-information";
 
+type SurveyHeaderProgressState = Readonly<{
+  currentStep: number;
+  totalSteps: number;
+}>;
+
 export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
   const surveyQuery = useCurrentSurveyQuery();
+  const [headerProgress, setHeaderProgress] = useState<SurveyHeaderProgressState | null>(null);
+  const updateHeaderProgress = useCallback((progress: SurveyHeaderProgressState | null) => {
+    setHeaderProgress(progress);
+  }, []);
 
   return (
     <PlatformShell
       className={styles.shell!}
       contentClassName={styles.content!}
-      header={<PlatformHeader leading={null} title="설문 정보 입력" />}
+      header={
+        <PlatformHeader
+          actions={
+            headerProgress ? (
+              <SurveyHeaderProgress
+                currentStep={headerProgress.currentStep}
+                totalSteps={headerProgress.totalSteps}
+              />
+            ) : null
+          }
+          className={styles.surveyHeader!}
+          leading={null}
+          title="설문 정보 입력"
+        />
+      }
       scroll="child"
     >
       <div className={styles.screen} data-survey-screen="flow">
-        {surveyQuery.isPending ? <SurveyStatus title="설문을 불러오는 중입니다." /> : null}
+        {surveyQuery.isPending ? <SurveyStatus loading title="설문을 불러오는 중입니다." /> : null}
         {surveyQuery.isError ? (
           <SurveyStatus
             actions={
@@ -57,12 +87,13 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
           />
         ) : null}
         {surveyQuery.data?.status === "SUBMITTED" ? (
-          <SurveySubmitted cancelHref={cancelHref} responseId={surveyQuery.data.responseId} />
+          <SurveySubmitted cancelHref={cancelHref} />
         ) : null}
         {surveyQuery.data?.status === "PENDING" ? (
           <SurveyForm
             cancelHref={cancelHref}
             key={surveyQuery.data.contentVersionId}
+            onHeaderProgressChange={updateHeaderProgress}
             onRefresh={() => void surveyQuery.refetch()}
             roundId={surveyQuery.data.roundId}
             sections={surveyQuery.data.sections}
@@ -75,15 +106,18 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
 
 function SurveyForm({
   cancelHref,
+  onHeaderProgressChange,
   onRefresh,
   roundId,
   sections,
 }: {
   cancelHref: string;
+  onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
   roundId: string;
   sections: readonly SurveySection[];
 }) {
+  const router = useRouter();
   const totalSteps = sections.length + 1;
   const [currentStep, setCurrentStep] = useState(1);
   const [answers, setAnswers] = useState<SurveyAnswerState>(() =>
@@ -93,17 +127,44 @@ function SurveyForm({
   const [isRequiredConfirmationChecked, setIsRequiredConfirmationChecked] = useState(false);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResponse | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
+  const [validationScrollRequest, setValidationScrollRequest] = useState(0);
+  const flowViewportRef = useRef<HTMLDivElement>(null);
+  const progressRef = useRef<HTMLElement>(null);
   const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
   const submitMutation = useSubmitSurveyMutation();
 
+  useEffect(() => {
+    if (validationScrollRequest === 0) return;
+    const frame = requestAnimationFrame(() => {
+      const invalidField =
+        flowViewportRef.current?.querySelector<HTMLElement>('[data-invalid="true"]');
+      if (!invalidField) return;
+      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      invalidField.scrollIntoView({
+        behavior: reduceMotion ? "auto" : "smooth",
+        block: "center",
+        inline: "nearest",
+      });
+      invalidField
+        .querySelector<HTMLElement>("button:not([disabled]), input:not([disabled]), textarea")
+        ?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [currentStep, validationScrollRequest]);
+
+  useEffect(() => {
+    onHeaderProgressChange(null);
+  }, [currentStep, onHeaderProgressChange, submissionResult]);
+
+  useEffect(
+    () => () => {
+      onHeaderProgressChange(null);
+    },
+    [onHeaderProgressChange],
+  );
+
   if (submissionResult) {
-    return (
-      <SurveySubmitted
-        cancelHref={cancelHref}
-        preview={!submissionResult.persisted}
-        {...(submissionResult.persisted ? { responseId: submissionResult.responseId } : {})}
-      />
-    );
+    return <SurveySubmitted cancelHref={cancelHref} preview={!submissionResult.persisted} />;
   }
 
   if (sections.length === 0) {
@@ -124,6 +185,17 @@ function SurveyForm({
     currentSection?.sectionKey === HOUSEHOLD_SECTION_KEY ? "가구정보" : stepTitle;
   const stepCardTitle = isConfirmationStep ? CONFIRMATION_CARD_TITLE : stepTitle;
 
+  function updateHeaderProgressForScroll(event: UIEvent<HTMLDivElement>) {
+    const progress = progressRef.current;
+    if (!progress) return;
+    const viewportTop = event.currentTarget.getBoundingClientRect().top;
+    const showHeaderProgress = shouldShowSurveyHeaderProgress({
+      progressBottom: progress.getBoundingClientRect().bottom,
+      viewportTop,
+    });
+    onHeaderProgressChange(showHeaderProgress ? { currentStep, totalSteps } : null);
+  }
+
   function updateAnswer(questionId: string, answer: SurveyAnswerDraft) {
     setAnswers((current) => ({ ...current, [questionId]: answer }));
     setSubmissionError(null);
@@ -141,6 +213,7 @@ function SurveyForm({
     const sectionErrors = validateSurveySection(currentSection, answers);
     if (Object.keys(sectionErrors).length > 0) {
       setErrors((current) => ({ ...current, ...sectionErrors }));
+      setValidationScrollRequest((request) => request + 1);
       return;
     }
     setCurrentStep((step) => Math.min(step + 1, totalSteps));
@@ -152,6 +225,7 @@ function SurveyForm({
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
       setCurrentStep(findFirstInvalidSectionIndex(sections, validationErrors) + 1);
+      setValidationScrollRequest((request) => request + 1);
       return;
     }
 
@@ -166,11 +240,13 @@ function SurveyForm({
         idempotencyKey: prepared.idempotencyKey,
       });
       setSubmissionResult(result);
+      router.replace("/home");
     } catch (error) {
       const apiErrors = getSurveySubmissionErrors(error);
       if (Object.keys(apiErrors.fieldErrors).length > 0) {
         setErrors(apiErrors.fieldErrors);
         setCurrentStep(findFirstInvalidSectionIndex(sections, apiErrors.fieldErrors) + 1);
+        setValidationScrollRequest((request) => request + 1);
       }
       setSubmissionError(apiErrors.message);
       if (apiErrors.refresh) onRefresh();
@@ -194,12 +270,19 @@ function SurveyForm({
   return (
     <div className={styles.form} data-survey-step={currentStep}>
       <SurveyFlowLayout>
-        <SurveyProgress
-          currentStep={currentStep}
-          stepTitle={progressTitle}
-          totalSteps={totalSteps}
-        />
-        <div className={styles.flowViewport} data-survey-flow-viewport="true" key={currentStep}>
+        <div
+          className={styles.flowViewport}
+          data-survey-flow-viewport="true"
+          key={currentStep}
+          onScroll={updateHeaderProgressForScroll}
+          ref={flowViewportRef}
+        >
+          <SurveyProgress
+            currentStep={currentStep}
+            sectionRef={progressRef}
+            stepTitle={progressTitle}
+            totalSteps={totalSteps}
+          />
           <SurveyStepCard title={stepCardTitle}>
             {isConfirmationStep ? (
               <SurveyConfirmation
@@ -261,38 +344,20 @@ function SurveyConfirmation({
 function SurveySubmitted({
   cancelHref,
   preview = false,
-  responseId,
 }: {
   cancelHref: string;
   preview?: boolean;
-  responseId?: string;
 }) {
   return (
     <SurveyStatus
       actions={
-        <>
-          {responseId ? (
-            <Link
-              className={`${styles.action} ${styles.primaryAction}`}
-              href={`/survey/responses/${responseId}`}
-            >
-              내 응답 보기
-            </Link>
-          ) : null}
-          <a
-            className={`${styles.action} ${responseId ? styles.secondaryAction : styles.primaryAction}`}
-            href={cancelHref}
-          >
-            돌아가기
-          </a>
-        </>
+        <a className={`${styles.action} ${styles.primaryAction}`} href={cancelHref}>
+          돌아가기
+        </a>
       }
-      description={
-        preview
-          ? "미리보기 검증이 완료되었습니다. 이 응답은 서버에 저장되지 않습니다."
-          : "제출한 응답은 수정할 수 없습니다."
-      }
+      icon={<span aria-hidden="true" className={styles.submittedIcon} />}
       title={preview ? "설문 검증을 완료했습니다." : "설문 제출을 완료했습니다."}
+      {...(preview ? { description: "이 응답은 서버에 저장되지 않습니다." } : {})}
     />
   );
 }
@@ -300,16 +365,22 @@ function SurveySubmitted({
 function SurveyStatus({
   actions,
   description,
+  icon,
+  loading = false,
   role = "status",
   title,
 }: {
   actions?: ReactNode;
   description?: string;
+  icon?: ReactNode;
+  loading?: boolean;
   role?: "alert" | "status";
   title: string;
 }) {
   return (
-    <section className={styles.statusCard} role={role}>
+    <section aria-busy={loading || undefined} className={styles.statusCard} role={role}>
+      {loading ? <span aria-hidden="true" className={styles.loadingSpinner} /> : null}
+      {icon}
       <h2>{title}</h2>
       {description ? <p>{description}</p> : null}
       {actions ? <div className={styles.statusActions}>{actions}</div> : null}

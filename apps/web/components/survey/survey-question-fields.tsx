@@ -1,4 +1,4 @@
-import type { ChangeEvent } from "react";
+import type { ChangeEvent, KeyboardEvent } from "react";
 import type { SurveyQuestion, SurveySection } from "@/lib/survey/survey-contracts";
 import {
   surveyAnswerErrorKey,
@@ -6,14 +6,17 @@ import {
   type SurveyAnswerState,
   type SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
-import { getSurveyQuestionPresentation } from "./survey-presentation";
+import {
+  getSurveyMatrixChoiceLayout,
+  getSurveyMatrixOptionLabel,
+  getSurveyQuestionPresentation,
+} from "./survey-presentation";
+import { SurveyMultiSelect } from "./survey-multi-select";
 import { SurveySelect } from "./survey-select";
 import styles from "./survey.module.css";
 
 const BIRTH_YEAR_KEY = "demographics.birth-year";
 const RESIDENCE_KEY = "demographics.residence";
-const AGE_GROUP_PRESENCE_KEY = "household.age-group-presence";
-const MEDIA_DAILY_USE_DURATION_KEY = "media.daily-use-duration";
 
 export function SurveySectionFields({
   answers,
@@ -30,8 +33,7 @@ export function SurveySectionFields({
     <div className={styles.sectionFields}>
       {section.questions.map((question) => {
         const presentation = getSurveyQuestionPresentation(question.questionKey);
-        const helperText =
-          presentation?.helperText ?? (question.prompt !== question.title ? question.prompt : null);
+        const helperText = presentation?.helperText ?? null;
         return (
           <section className={styles.questionGroup} key={question.questionKey}>
             <div
@@ -73,20 +75,11 @@ function SurveyQuestionField({
   sectionKey: string;
 }) {
   if (question.type === "MATRIX_SINGLE_CHOICE") {
-    return question.questionKey === MEDIA_DAILY_USE_DURATION_KEY ? (
+    return (
       <MatrixChoiceField
         answer={answer}
         errors={errors}
-        mode="media"
-        onChange={onChange}
-        question={question}
-        sectionKey={sectionKey}
-      />
-    ) : (
-      <MatrixChoiceField
-        answer={answer}
-        errors={errors}
-        mode={question.questionKey === AGE_GROUP_PRESENCE_KEY ? "family" : "media"}
+        mode={getSurveyMatrixChoiceLayout(question.questionKey)}
         onChange={onChange}
         question={question}
         sectionKey={sectionKey}
@@ -189,10 +182,11 @@ function MatrixChoiceField({
                           },
                         })
                       }
+                      onKeyDown={selectRadioOnEnter}
                       type="radio"
                       value={option.optionId}
                     />
-                    <span>{option.label}</span>
+                    <span>{getSurveyMatrixOptionLabel(question.questionKey, option.label)}</span>
                   </label>
                 );
               })}
@@ -263,6 +257,7 @@ function MatrixScaleField({
                         itemAnswers: { ...itemAnswers, [item.itemId]: scale },
                       })
                     }
+                    onKeyDown={selectRadioOnEnter}
                     type="radio"
                     value={scale}
                   />
@@ -280,6 +275,12 @@ function MatrixScaleField({
       })}
     </div>
   );
+}
+
+function selectRadioOnEnter(event: KeyboardEvent<HTMLInputElement>) {
+  if (event.key !== "Enter") return;
+  event.preventDefault();
+  event.currentTarget.click();
 }
 
 function SurveyQuestionControl({
@@ -326,52 +327,23 @@ function SurveyQuestionControl({
     }
     case "MULTIPLE_CHOICE": {
       const selections = answer?.type === question.type ? answer.selections : [];
-      const selected = question.options.filter((option) =>
-        selections.some((item) => item.optionId === option.optionId),
-      );
-      const summary =
-        selected.length === 0 ? "복수 선택" : selected.map((option) => option.label).join(", ");
       return (
-        <details className={styles.multiSelect}>
-          <summary
-            aria-describedby={describedBy}
-            aria-label={`${question.prompt} 복수 선택`}
-            className={`${styles.selectControl} ${styles.multiSelectSummary}`}
-            data-empty={selected.length === 0 ? "true" : undefined}
-            id={controlId}
-          >
-            <span className={styles.selectValue} title={selected.length > 0 ? summary : undefined}>
-              {summary}
-            </span>
-          </summary>
-          <fieldset
-            aria-label={`${question.prompt} 선택지`}
-            className={`${styles.choiceGroup} ${styles.multiSelectMenu}`}
-          >
-            {question.options.map((option) => {
-              const checked = selections.some((item) => item.optionId === option.optionId);
-              return (
-                <div className={styles.choiceItem} key={option.optionId}>
-                  <label>
-                    <input
-                      checked={checked}
-                      onChange={(event) =>
-                        onChange({
-                          type: question.type,
-                          selections: event.target.checked
-                            ? [...selections, { optionId: option.optionId }]
-                            : selections.filter((item) => item.optionId !== option.optionId),
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    <span>{option.label}</span>
-                  </label>
-                </div>
-              );
-            })}
-          </fieldset>
-        </details>
+        <SurveyMultiSelect
+          ariaDescribedBy={describedBy}
+          ariaLabel={question.prompt}
+          id={controlId}
+          onChange={(optionIds) =>
+            onChange({
+              type: question.type,
+              selections: optionIds.map((optionId) => ({ optionId })),
+            })
+          }
+          options={question.options.map((option) => ({
+            value: option.optionId,
+            label: option.label,
+          }))}
+          values={selections.map((selection) => selection.optionId)}
+        />
       );
     }
     case "SHORT_TEXT":
@@ -406,6 +378,7 @@ function SurveyQuestionControl({
             onChange={(selectedValue) =>
               onChange({ type: question.type, number: Number(selectedValue) })
             }
+            optionLabelMode="plain"
             options={values.map((number) => ({ value: String(number), label: String(number) }))}
             placeholder={question.questionKey === BIRTH_YEAR_KEY ? "YYYY" : "선택"}
             value={value === null ? null : String(value)}

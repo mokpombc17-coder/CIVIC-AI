@@ -74,11 +74,16 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `SurveyPage`는 검증한 `from`을 `SurveyScreen`의 취소 목적지로 전달한다. `SurveyScreen`은 Current
 Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`의 7개 Section과 29개 Question을
 조립한 뒤 프론트 전용 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 일반 Question과 행렬
-Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API mutation에 전달한다. 답변과 필수
-확인 상태는 browser storage에 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
+Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API mutation에 전달한다. 저장 제출과
+로컬 preview 제출 모두 성공하면 `/home`으로 replace 이동한다. 답변과 필수 확인 상태는 browser
+storage에 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
-절차에서는 bottom navigation을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
-`SurveyProgress`는 고정 영역에 두고 현재 단계의 카드와 action만 내부 viewport에서 스크롤한다.
+절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
+action만 제공하고 입력 폼을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
+`SurveyProgress`와 현재 단계의 카드·action을 같은 내부 viewport에서 스크롤한다. Progress가 viewport
+위로 사라져도 `PlatformHeader` 제목은 유지한다. `SurveyScreen`은 header 오른쪽의
+`SurveyHeaderProgress`에 현재/전체 단계만 표시한다. 이 compact 단계 표시는 본문의 Progress가
+viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다시 보이면 숨는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -91,14 +96,19 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │   └── SurveyScreen [Client] [Screen] (apps/web/components/survey/survey-screen.tsx)
                 │       └── PlatformShell [Server-compatible] [View] [scroll: child] [bottom navigation: omitted]
                 │           ├── PlatformHeader [Server-compatible] [View] [leading: omitted]
+                │           │   └── SurveyHeaderProgress [Client graph] [View] [header actions]
                 │           └── SurveyFlowLayout [Client graph] [View]
-                │               ├── SurveyProgress [Client graph] [View]
-                │               ├── SurveyStepCard [Client graph] [View]
-                │               │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
-                │               │   │   └── SurveySelect [Client] [Control] [single-choice and bounded number]
-                │               │   └── SurveyConfirmation [Client graph] [Feature] [frontend-only: step 8]
-                │               │       └── SurveyStepActions [Client graph] [Feature] [inside card]
-                │               └── SurveyStepActions [Client graph] [Feature] [step 1~7]
+                │               └── SurveyFlowViewport [Client graph] [View] [scroll]
+                │                   ├── SurveyProgress [Client graph] [View]
+                │                   ├── SurveyStepCard [Client graph] [View]
+                │                   │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
+                │                   │   │   ├── SurveySelect [Client] [Control] [single-choice and bounded number]
+                │                   │   │   │   └── SurveyDropdownSurface [Client] [View] [shared menu surface]
+                │                   │   │   └── SurveyMultiSelect [Client] [Control] [multiple-choice]
+                │                   │   │       └── SurveyDropdownSurface [Client] [View] [shared menu surface]
+                │                   │   └── SurveyConfirmation [Client graph] [Feature] [frontend-only: step 8]
+                │                   │       └── SurveyStepActions [Client graph] [Feature] [inside card]
+                │                   └── SurveyStepActions [Client graph] [Feature] [step 1~7]
                 └── route /survey/responses/latest, /survey/responses/[responseId]
                     └── SurveyResponseScreen [Client] [Screen] [latest/specific API response]
                         └── PlatformShell [Server-compatible] [View] [bottom navigation: omitted]
@@ -110,8 +120,17 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?from=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `SurveyResponseScreen`은 latest/specific query가 반환한 제출 당시 content와 answer를 ID로
 결합해 읽기 전용으로 표시한다.
-`SurveySelect`는 단일 선택과 범위형 숫자 입력이 공유하는 listbox 표시, 선택 상태, 외부 클릭 닫기와
-키보드 탐색을 소유한다.
+`survey-presentation.ts`는 `questionKey`별 Figma 전용 제목·안내 문구와 Matrix 화면 layout을 소유하고
+API `prompt`를 화면 문구의 fallback으로 사용하지 않는다. Matrix 선택지 중 Figma 표기가 다른 값은
+`survey-option-label-overrides.json`에서 `questionKey`와 API label 조합으로 화면 label만 교체하며,
+제출에는 원래 `optionId`를 유지한다.
+`SurveyScreen`은 단계 검증이 실패하면 현재 viewport 안의 첫 미응답 control로 스크롤하고 focus를
+이동해 사용자가 다음 행동을 바로 확인할 수 있게 한다.
+`SurveySelect`와 `SurveyMultiSelect`는 각각 단일·복수 선택의 상태와 접근성 semantics를 소유한다.
+두 control은 `SurveyDropdownSurface`와 dropdown hook을 공유해 메뉴 배치, 외부 클릭 닫기, 열림·닫힘
+motion, overflow 방향 표시와 선택지 행 표현을 일관되게 유지한다. dropdown hook은 설문 viewport의
+실제 가시 영역을 기준으로 위·아래 배치와 menu 최대 높이를 계산한다. 범위형 숫자와 복수 선택은 순수
+값 label을, 일반 단일 선택지는 순번 label을 사용한다.
 
 ## Route `/chat`와 `/chat/[roomId]`
 
@@ -506,6 +525,9 @@ flowchart TD
     SurveyPage["SurveyPage [Server] [Route]<br/>apps/web/app/survey/page.tsx"]
     SurveyScreen["SurveyScreen [Client] [Screen]<br/>apps/web/components/survey/survey-screen.tsx"]
     SurveySectionFields["SurveySectionFields [Client graph] [Feature]<br/>apps/web/components/survey/survey-question-fields.tsx"]
+    SurveySelect["SurveySelect [Client] [Control]<br/>apps/web/components/survey/survey-select.tsx"]
+    SurveyMultiSelect["SurveyMultiSelect [Client] [Control]<br/>apps/web/components/survey/survey-multi-select.tsx"]
+    SurveyDropdownSurface["SurveyDropdownSurface [Client] [View]<br/>apps/web/components/survey/survey-dropdown.tsx"]
     SurveyResponsePage["SurveyResponsePage [Server] [Route]<br/>apps/web/app/survey/responses/*/page.tsx"]
     SurveyResponseScreen["SurveyResponseScreen [Client] [Screen]<br/>apps/web/components/survey/survey-response-screen.tsx"]
 
@@ -605,6 +627,9 @@ flowchart TD
     SurveyScreen --> PlatformShell
     SurveyScreen --> SurveySectionFields
     SurveySectionFields --> SurveySelect
+    SurveySectionFields --> SurveyMultiSelect
+    SurveySelect --> SurveyDropdownSurface
+    SurveyMultiSelect --> SurveyDropdownSurface
     SurveyChildrenSlot -. "route /survey/responses/*" .-> SurveyResponsePage
     SurveyResponsePage --> SurveyResponseScreen
     SurveyResponseScreen --> PlatformShell
@@ -619,7 +644,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySectionFields,SurveySelect,SurveyResponseScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```

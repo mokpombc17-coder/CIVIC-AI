@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { getSurveyQuestionPresentation, SURVEY_QUESTION_PRESENTATION } from "./survey-presentation";
+import {
+  getSurveyMatrixChoiceLayout,
+  getSurveyMatrixOptionLabel,
+  getSurveyQuestionPresentation,
+  SURVEY_QUESTION_PRESENTATION,
+} from "./survey-presentation";
 
 describe("survey presentation", () => {
   it("keeps Figma helper copy keyed by the stable question key", () => {
@@ -43,5 +48,21 @@ describe("survey presentation", () => {
 
   it("returns no presentation override for an unknown question key", () => {
     expect(getSurveyQuestionPresentation("unknown-question")).toBeUndefined();
+  });
+
+  it("uses Figma copy only for configured matrix option labels", () => {
+    expect(getSurveyMatrixOptionLabel("media.daily-use-duration", "1시간 이상~3시간 미만")).toBe(
+      "1~3시간",
+    );
+    expect(getSurveyMatrixOptionLabel("media.daily-use-duration", "3시간 이상")).toBe("3시간 이상");
+    expect(
+      getSurveyMatrixOptionLabel("household.age-group-presence", "1시간 이상~3시간 미만"),
+    ).toBe("1시간 이상~3시간 미만");
+  });
+
+  it("keeps family matrix rows horizontal unless the media layout is explicitly configured", () => {
+    expect(getSurveyMatrixChoiceLayout("household.age-group-presence")).toBe("family");
+    expect(getSurveyMatrixChoiceLayout("media.daily-use-duration")).toBe("media");
+    expect(getSurveyMatrixChoiceLayout("future.matrix-question")).toBe("family");
   });
 });

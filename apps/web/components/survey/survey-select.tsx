@@ -1,6 +1,12 @@
 "use client";
 
-import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useId, useState, type KeyboardEvent } from "react";
+import {
+  SurveyDropdownSurface,
+  SurveyOptionContent,
+  useSurveyDropdown,
+  type SurveyOptionLabelMode,
+} from "./survey-dropdown";
 import styles from "./survey.module.css";
 
 export type SurveySelectOption = Readonly<{
@@ -14,6 +20,7 @@ export function SurveySelect({
   ariaLabel,
   id,
   onChange,
+  optionLabelMode = "ordinal",
   options,
   placeholder = "선택",
   value,
@@ -22,40 +29,31 @@ export function SurveySelect({
   ariaLabel: string;
   id: string;
   onChange: (value: string) => void;
+  optionLabelMode?: SurveyOptionLabelMode;
   options: readonly SurveySelectOption[];
   placeholder?: string;
   value: string | null;
 }) {
   const generatedId = useId();
   const listboxId = `${id}-${generatedId.replaceAll(":", "")}-listbox`;
-  const rootRef = useRef<HTMLDivElement>(null);
-  const listboxRef = useRef<HTMLDivElement>(null);
   const selectedIndex = options.findIndex((option) => option.value === value);
   const [isOpen, setIsOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(() =>
     selectedIndex >= 0 ? selectedIndex : findEnabledOption(options, 0, 1),
   );
+  const closeMenu = useCallback(() => setIsOpen(false), []);
+  const { closeWhenFocusLeaves, menuRef, placement, rootRef } = useSurveyDropdown(
+    isOpen,
+    closeMenu,
+  );
   const selectedOption = selectedIndex >= 0 ? options[selectedIndex] : undefined;
 
   useEffect(() => {
-    if (!isOpen) return;
-
-    function closeOnOutsidePointer(event: PointerEvent) {
-      if (event.target instanceof Node && !rootRef.current?.contains(event.target)) {
-        setIsOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", closeOnOutsidePointer);
-    return () => document.removeEventListener("pointerdown", closeOnOutsidePointer);
-  }, [isOpen]);
-
-  useEffect(() => {
     if (!isOpen || activeIndex < 0) return;
-    listboxRef.current
+    menuRef.current
       ?.querySelector<HTMLElement>(`[data-option-index="${activeIndex}"]`)
       ?.scrollIntoView({ block: "nearest" });
-  }, [activeIndex, isOpen]);
+  }, [activeIndex, isOpen, menuRef]);
 
   function openMenu(preferredIndex = selectedIndex) {
     const nextIndex =
@@ -71,7 +69,7 @@ export function SurveySelect({
     if (!option || option.disabled) return;
     onChange(option.value);
     setActiveIndex(index);
-    setIsOpen(false);
+    closeMenu();
   }
 
   function moveActive(direction: 1 | -1) {
@@ -112,22 +110,16 @@ export function SurveySelect({
       case "Escape":
         if (!isOpen) return;
         event.preventDefault();
-        setIsOpen(false);
+        closeMenu();
         break;
       case "Tab":
-        setIsOpen(false);
+        closeMenu();
         break;
     }
   }
 
   return (
-    <div
-      className={styles.customSelect}
-      onBlur={(event) => {
-        if (!event.currentTarget.contains(event.relatedTarget)) setIsOpen(false);
-      }}
-      ref={rootRef}
-    >
+    <div className={styles.customSelect} onBlur={closeWhenFocusLeaves} ref={rootRef}>
       <button
         aria-activedescendant={
           isOpen && activeIndex >= 0 ? `${listboxId}-option-${activeIndex}` : undefined
@@ -141,7 +133,7 @@ export function SurveySelect({
         data-empty={selectedOption ? undefined : "true"}
         data-open={isOpen ? "true" : undefined}
         id={id}
-        onClick={() => (isOpen ? setIsOpen(false) : openMenu())}
+        onClick={() => (isOpen ? closeMenu() : openMenu())}
         onKeyDown={handleKeyDown}
         role="combobox"
         type="button"
@@ -151,31 +143,39 @@ export function SurveySelect({
         </span>
         <span aria-hidden="true" className={styles.selectChevron} />
       </button>
-      {isOpen ? (
-        <div className={styles.selectMenu} id={listboxId} ref={listboxRef} role="listbox">
-          {options.map((option, index) => (
-            <button
-              aria-selected={option.value === value}
-              className={styles.selectOption}
-              data-active={index === activeIndex ? "true" : undefined}
-              data-option-index={index}
-              disabled={option.disabled}
-              id={`${listboxId}-option-${index}`}
-              key={option.value}
-              onClick={() => selectOption(index)}
-              onMouseEnter={() => setActiveIndex(index)}
-              role="option"
-              tabIndex={-1}
-              type="button"
-            >
-              <span>{option.label}</span>
-              {option.value === value ? (
-                <span aria-hidden="true" className={styles.selectOptionCheck} />
-              ) : null}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <SurveyDropdownSurface
+        id={listboxId}
+        isOpen={isOpen}
+        placement={placement}
+        ref={menuRef}
+        role="listbox"
+      >
+        {options.map((option, index) => (
+          <button
+            aria-selected={option.value === value}
+            className={styles.selectOption}
+            data-active={index === activeIndex ? "true" : undefined}
+            data-option-index={index}
+            disabled={option.disabled}
+            id={`${listboxId}-option-${index}`}
+            key={option.value}
+            onClick={() => selectOption(index)}
+            onMouseEnter={() => {
+              if (!option.disabled) setActiveIndex(index);
+            }}
+            role="option"
+            tabIndex={-1}
+            type="button"
+          >
+            <SurveyOptionContent
+              index={index}
+              label={option.label}
+              labelMode={optionLabelMode}
+              selected={option.value === value}
+            />
+          </button>
+        ))}
+      </SurveyDropdownSurface>
     </div>
   );
 }
