@@ -134,7 +134,7 @@ final class SurveyUserController {
             Authentication authentication,
             @PathVariable UUID responseId
     ) {
-        return responses.findDetail(
+                return responses.findDetail(
                         userId(authentication),
                         new SurveyResponseId(responseId))
                 .map(this::responseDetail)

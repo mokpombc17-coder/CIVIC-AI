@@ -120,6 +120,22 @@ public class SurveyContentVersionJpaAdapter
                 .getResultList()
                 .forEach(entityManager::detach);
         entityManager.createQuery("""
+                        SELECT group
+                        FROM SurveyQuestionGroupJpaEntity group
+                        WHERE group.contentVersionId = :contentVersionId
+                        """, SurveyQuestionGroupJpaEntity.class)
+                .setParameter("contentVersionId", contentVersionId)
+                .getResultList()
+                .forEach(entityManager::detach);
+        entityManager.createQuery("""
+                        SELECT section
+                        FROM SurveyQuestionSectionJpaEntity section
+                        WHERE section.contentVersionId = :contentVersionId
+                        """, SurveyQuestionSectionJpaEntity.class)
+                .setParameter("contentVersionId", contentVersionId)
+                .getResultList()
+                .forEach(entityManager::detach);
+        entityManager.createQuery("""
                         DELETE FROM SurveyOptionJpaEntity option
                         WHERE option.contentVersionId = :contentVersionId
                         """)
@@ -131,10 +147,30 @@ public class SurveyContentVersionJpaAdapter
                         """)
                 .setParameter("contentVersionId", contentVersionId)
                 .executeUpdate();
+        entityManager.createQuery("""
+                        DELETE FROM SurveyQuestionGroupJpaEntity group
+                        WHERE group.contentVersionId = :contentVersionId
+                        """)
+                .setParameter("contentVersionId", contentVersionId)
+                .executeUpdate();
+        entityManager.createQuery("""
+                        DELETE FROM SurveyQuestionSectionJpaEntity section
+                        WHERE section.contentVersionId = :contentVersionId
+                        """)
+                .setParameter("contentVersionId", contentVersionId)
+                .executeUpdate();
     }
 
     private void persistChildren(SurveyContentVersion contentVersion) {
         UUID contentVersionId = contentVersion.id().value();
+        contentVersion.questionSections().forEach(section ->
+                entityManager.persist(new SurveyQuestionSectionJpaEntity(
+                        contentVersionId,
+                        section)));
+        contentVersion.questionGroups().forEach(group ->
+                entityManager.persist(new SurveyQuestionGroupJpaEntity(
+                        contentVersionId,
+                        group)));
         contentVersion.questions().forEach(question -> {
             entityManager.persist(new SurveyQuestionJpaEntity(
                     contentVersionId,
@@ -156,6 +192,26 @@ public class SurveyContentVersionJpaAdapter
         List<UUID> contentIds = contents.stream()
                 .map(SurveyContentVersionJpaEntity::id)
                 .toList();
+        List<SurveyQuestionSectionJpaEntity> sections = entityManager
+                .createQuery("""
+                        SELECT section
+                        FROM SurveyQuestionSectionJpaEntity section
+                        WHERE section.contentVersionId IN :contentIds
+                        ORDER BY section.contentVersionId,
+                                 section.displayOrder
+                        """, SurveyQuestionSectionJpaEntity.class)
+                .setParameter("contentIds", contentIds)
+                .getResultList();
+        List<SurveyQuestionGroupJpaEntity> groups = entityManager
+                .createQuery("""
+                        SELECT group
+                        FROM SurveyQuestionGroupJpaEntity group
+                        WHERE group.contentVersionId IN :contentIds
+                        ORDER BY group.contentVersionId,
+                                 group.displayOrder
+                        """, SurveyQuestionGroupJpaEntity.class)
+                .setParameter("contentIds", contentIds)
+                .getResultList();
         List<SurveyQuestionJpaEntity> questions = entityManager
                 .createQuery("""
                         SELECT question
@@ -184,6 +240,18 @@ public class SurveyContentVersionJpaAdapter
                         SurveyQuestionJpaEntity::contentVersionId,
                         LinkedHashMap::new,
                         Collectors.toList()));
+        Map<UUID, SurveyQuestionGroupJpaEntity> groupsById =
+                groups.stream().collect(Collectors.toMap(
+                        SurveyQuestionGroupJpaEntity::id,
+                        group -> group,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
+        Map<UUID, SurveyQuestionSectionJpaEntity> sectionsById =
+                sections.stream().collect(Collectors.toMap(
+                        SurveyQuestionSectionJpaEntity::id,
+                        section -> section,
+                        (left, right) -> left,
+                        LinkedHashMap::new));
         Map<UUID, List<SurveyOptionJpaEntity>> optionsByQuestion =
                 options.stream().collect(Collectors.groupingBy(
                         SurveyOptionJpaEntity::questionId,
@@ -193,6 +261,8 @@ public class SurveyContentVersionJpaAdapter
         for (SurveyContentVersionJpaEntity content : contents) {
             result.add(SurveyContentJpaMapper.toDomain(
                     content,
+                    sectionsById,
+                    groupsById,
                     questionsByContent.getOrDefault(
                             content.id(), List.of()),
                     optionsByQuestion));

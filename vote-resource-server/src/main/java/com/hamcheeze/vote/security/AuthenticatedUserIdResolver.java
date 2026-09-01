@@ -7,10 +7,7 @@ import org.springframework.security.oauth2.server.resource.authentication.JwtAut
 public final class AuthenticatedUserIdResolver {
 
     public String resolve(Authentication authentication) {
-        if (!(authentication
-                instanceof JwtAuthenticationToken jwtAuthentication)) {
-            throw unauthenticated();
-        }
+        JwtAuthenticationToken jwtAuthentication = jwt(authentication);
         String subject = jwtAuthentication.getToken().getSubject();
         if (subject == null || subject.isBlank()) {
             throw unauthenticated();
@@ -18,7 +15,17 @@ public final class AuthenticatedUserIdResolver {
         return subject;
     }
 
-    private BadCredentialsException unauthenticated() {
+    private static JwtAuthenticationToken jwt(
+            Authentication authentication
+    ) {
+        if (!(authentication
+                instanceof JwtAuthenticationToken jwtAuthentication)) {
+            throw unauthenticated();
+        }
+        return jwtAuthentication;
+    }
+
+    private static BadCredentialsException unauthenticated() {
         return new BadCredentialsException(
                 "A valid JWT subject is required");
     }

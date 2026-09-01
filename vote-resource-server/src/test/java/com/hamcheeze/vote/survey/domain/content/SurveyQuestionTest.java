@@ -168,7 +168,7 @@ class SurveyQuestionTest {
                 .isInstanceOfSatisfying(
                         SurveyValidationException.class,
                         exception -> assertThat(exception.violations())
-                                .hasSize(3));
+                                .hasSize(4));
     }
 
     @Test

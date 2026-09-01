@@ -20,7 +20,18 @@
 | `GET` | `/api/v1/me/survey-responses/{responseId}` | 자신의 특정 응답 원문을 조회한다. 다른 사용자의 응답도 `404`로 숨긴다. |
 | `GET` | `/api/v1/me/service-eligibility` | 현재 서비스 이용 가능 여부와 capability를 조회한다. |
 
-현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다. `content.questions[]`는 질문 ID·lineage key·유형·문구·설명·순서·필수 여부·규칙·선택지를 포함하며 `required`는 항상 `true`다. 선택지는 `kind=STANDARD|OTHER`를 가지며 `OTHER`의 표시 문구는 `기타`다. 사용자용 `content`에는 관리자 actor와 내부 변경 audit 정보가 포함되지 않는다.
+현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다.
+`content.sections[].groups[].questions[]`는 7개 Section, 29개 화면 Group과
+42개 저장 Question을 반환한다. Section은 `sectionId`, `sectionLineageId`,
+`sectionKey`, `title`, `description`, `displayOrder`를 포함한다. Group은
+`groupId`, `groupLineageId`, `groupKey`, `sourceNumber`, `displayOrder`, 문구를
+포함하고, Question은 `questionId`, `questionLineageId`, `itemKey`, `itemLabel`,
+`itemDisplayOrder`, 유형·문구·규칙·선택지를 포함한다.
+선택지는 Question 종속 `optionLocalKey=A|B|C...`를 가지며 제출에는
+`optionId`만 사용한다. 모든 Question의 `required`는 `true`다. 사용자용
+`content`에는 관리자 actor와 내부 변경 audit 정보가 포함되지 않는다.
+Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 포함하지
+않으며 운영 서버 협의 범위로 둔다.
 
 활성 회차가 정확히 하나 존재하지 않는 경우는 사용자 미완료 상태가 아니라 운영 오류다. 현재 Survey와 Eligibility API는 `503 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다. 정상 활성 회차 안에서 `eligibility.eligible=false`인 경우만 사용자의 Survey 미완료 상태다.
 
@@ -62,8 +73,15 @@
 성공은 `201 SURVEY_RESPONSE_SUBMITTED`이며 `replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을 반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와 `replayed=true`를 반환한다.
 
 최신·과거 응답 상세에는 `answers[]`와 함께 그 응답이 참조한 불변 `content`를 반환한다. 따라서 현재 회차가 바뀐 뒤에도 당시 질문 문구와 선택지를 기준으로 원문을 표시할 수 있다.
+사용자 응답은 JWT `sub`에서 해석한 사용자 식별자로만 저장·조회하며, 이메일은
+Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 
 ## 3. 관리자 API
+
+> **후순위 메모:** 현재 관리자 endpoint는 기존 평면 Question 관리 기능의
+> 호환을 위해 유지한다. 2회차부터 필요한 Group 기반 전체 콘텐츠 등록·검증·발행
+> 계약은 별도 후속 작업으로 정의한다. 이번 1회차 사용자 기능의 완료 조건에는
+> 관리자 작성 API 확장이 포함되지 않는다.
 
 ### 내용 버전
 

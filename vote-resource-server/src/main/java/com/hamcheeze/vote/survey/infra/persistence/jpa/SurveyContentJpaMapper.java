@@ -6,7 +6,11 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionLineageKey;
 import com.hamcheeze.vote.survey.domain.content.LongTextRule;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
@@ -17,6 +21,8 @@ import com.hamcheeze.vote.survey.domain.content.SingleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 
 import java.util.List;
 import java.util.Map;
@@ -28,6 +34,8 @@ final class SurveyContentJpaMapper {
 
     static SurveyContentVersion toDomain(
             SurveyContentVersionJpaEntity content,
+            Map<java.util.UUID, SurveyQuestionSectionJpaEntity> sectionsById,
+            Map<java.util.UUID, SurveyQuestionGroupJpaEntity> groupsById,
             List<SurveyQuestionJpaEntity> questions,
             Map<java.util.UUID, List<SurveyOptionJpaEntity>> optionsByQuestion
     ) {
@@ -35,6 +43,13 @@ final class SurveyContentJpaMapper {
                 .map(question -> new SurveyQuestion(
                         new SurveyQuestionId(question.id()),
                         new SurveyQuestionLineageKey(question.lineageId()),
+                        toDomain(
+                                requiredGroup(
+                                        question.groupId(), groupsById),
+                                sectionsById),
+                        question.itemKey(),
+                        question.itemLabel(),
+                        question.itemDisplayOrder(),
                         question.type(),
                         question.prompt(),
                         question.description(),
@@ -125,8 +140,61 @@ final class SurveyContentJpaMapper {
         return new SurveyOption(
                 new SurveyOptionId(option.id()),
                 new SurveyOptionLineageKey(option.lineageId()),
+                option.localKey(),
                 option.kind(),
                 option.label(),
                 option.displayOrder());
+    }
+
+    private static SurveyQuestionGroupJpaEntity requiredGroup(
+            java.util.UUID groupId,
+            Map<java.util.UUID, SurveyQuestionGroupJpaEntity> groupsById
+    ) {
+        SurveyQuestionGroupJpaEntity group = groupsById.get(groupId);
+        if (group == null) {
+            throw new IllegalStateException(
+                    "survey question group not loaded: " + groupId);
+        }
+        return group;
+    }
+
+    private static SurveyQuestionGroup toDomain(
+            SurveyQuestionGroupJpaEntity group,
+            Map<java.util.UUID, SurveyQuestionSectionJpaEntity> sectionsById
+    ) {
+        return new SurveyQuestionGroup(
+                new SurveyQuestionGroupId(group.id()),
+                new SurveyQuestionGroupLineageKey(group.lineageId()),
+                toDomain(requiredSection(group.sectionId(), sectionsById)),
+                group.groupKey(),
+                group.sourceNumber(),
+                group.title(),
+                group.prompt(),
+                group.description(),
+                group.displayOrder());
+    }
+
+    private static SurveyQuestionSectionJpaEntity requiredSection(
+            java.util.UUID sectionId,
+            Map<java.util.UUID, SurveyQuestionSectionJpaEntity> sectionsById
+    ) {
+        SurveyQuestionSectionJpaEntity section = sectionsById.get(sectionId);
+        if (section == null) {
+            throw new IllegalStateException(
+                    "survey question section not loaded: " + sectionId);
+        }
+        return section;
+    }
+
+    private static SurveyQuestionSection toDomain(
+            SurveyQuestionSectionJpaEntity section
+    ) {
+        return new SurveyQuestionSection(
+                new SurveyQuestionSectionId(section.id()),
+                new SurveyQuestionSectionLineageKey(section.lineageId()),
+                section.sectionKey(),
+                section.title(),
+                section.description(),
+                section.displayOrder());
     }
 }

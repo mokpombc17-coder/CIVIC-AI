@@ -15,6 +15,8 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
@@ -129,6 +131,7 @@ final class SurveyApiModels {
     record OptionWriteRequest(
             UUID id,
             UUID lineageKey,
+            String optionLocalKey,
             SurveyOptionKind kind,
             String label,
             @Positive int displayOrder
@@ -139,6 +142,9 @@ final class SurveyApiModels {
             return new SurveyOption(
                     new SurveyOptionId(idOrRandom(id)),
                     new SurveyOptionLineageKey(idOrRandom(lineageKey)),
+                    optionLocalKey == null
+                            ? SurveyOption.localKeyForDisplayOrder(displayOrder)
+                            : optionLocalKey,
                     resolvedKind,
                     resolvedKind == SurveyOptionKind.OTHER
                             ? SurveyOption.OTHER_LABEL : label,
@@ -284,7 +290,7 @@ final class SurveyApiModels {
             Integer versionNumber,
             String name,
             String description,
-            List<QuestionResponse> questions
+            List<QuestionSectionResponse> sections
     ) {
         static PublishedContentResponse from(SurveyContentVersion value) {
             return new PublishedContentResponse(
@@ -293,8 +299,131 @@ final class SurveyApiModels {
                             .orElse(null),
                     value.name(),
                     value.description().orElse(null),
-                    value.questions().stream().map(QuestionResponse::from)
+                    value.questionSections().stream()
+                            .map(section -> QuestionSectionResponse.from(
+                                    section,
+                                    value.questionGroups().stream()
+                                            .filter(group -> group.section()
+                                                    .id().equals(
+                                                            section.id()))
+                                            .map(group -> QuestionGroupResponse
+                                                    .from(
+                                                            group,
+                                                            value.questions()
+                                                                    .stream()
+                                                                    .filter(question ->
+                                                                            question.group()
+                                                                                    .id()
+                                                                                    .equals(group.id()))
+                                                                    .toList()))
+                                            .toList()))
                             .toList());
+        }
+    }
+
+    record QuestionSectionResponse(
+            UUID sectionId,
+            UUID sectionLineageId,
+            String sectionKey,
+            String title,
+            String description,
+            int displayOrder,
+            List<QuestionGroupResponse> groups
+    ) {
+        static QuestionSectionResponse from(
+                SurveyQuestionSection section,
+                List<QuestionGroupResponse> groups
+        ) {
+            return new QuestionSectionResponse(
+                    section.id().value(),
+                    section.lineageKey().value(),
+                    section.sectionKey(),
+                    section.title(),
+                    section.description(),
+                    section.displayOrder(),
+                    groups);
+        }
+    }
+
+    record QuestionGroupResponse(
+            UUID groupId,
+            UUID groupLineageId,
+            String groupKey,
+            String sourceNumber,
+            int displayOrder,
+            String title,
+            String prompt,
+            String description,
+            List<PublishedQuestionResponse> questions
+    ) {
+        static QuestionGroupResponse from(
+                SurveyQuestionGroup group,
+                List<SurveyQuestion> questions
+        ) {
+            return new QuestionGroupResponse(
+                    group.id().value(),
+                    group.lineageKey().value(),
+                    group.groupKey(),
+                    group.sourceNumber(),
+                    group.displayOrder(),
+                    group.title(),
+                    group.prompt(),
+                    group.description(),
+                    questions.stream()
+                            .sorted(Comparator.comparingInt(
+                                    SurveyQuestion::itemDisplayOrder))
+                            .map(PublishedQuestionResponse::from)
+                            .toList());
+        }
+    }
+
+    record PublishedQuestionResponse(
+            UUID questionId,
+            UUID questionLineageId,
+            String itemKey,
+            String itemLabel,
+            int itemDisplayOrder,
+            SurveyQuestionType type,
+            String prompt,
+            String description,
+            boolean required,
+            RuleResponse rule,
+            List<PublishedOptionResponse> options
+    ) {
+        static PublishedQuestionResponse from(SurveyQuestion value) {
+            return new PublishedQuestionResponse(
+                    value.id().value(),
+                    value.lineageKey().value(),
+                    value.itemKey(),
+                    value.itemLabel(),
+                    value.itemDisplayOrder(),
+                    value.type(),
+                    value.prompt(),
+                    value.description(),
+                    value.required(),
+                    RuleResponse.from(value.rule()),
+                    value.options().stream()
+                            .map(PublishedOptionResponse::from)
+                            .toList());
+        }
+    }
+
+    record PublishedOptionResponse(
+            UUID optionId,
+            UUID optionLineageId,
+            String optionLocalKey,
+            SurveyOptionKind kind,
+            String label,
+            int displayOrder
+    ) {
+        static PublishedOptionResponse from(SurveyOption value) {
+            return new PublishedOptionResponse(
+                    value.id().value(),
+                    value.lineageKey().value(),
+                    value.localKey(),
+                    value.kind(),
+                    value.label(),
+                    value.displayOrder());
         }
     }
 
@@ -416,6 +545,7 @@ final class SurveyApiModels {
     record OptionResponse(
             UUID id,
             UUID lineageKey,
+            String optionLocalKey,
             SurveyOptionKind kind,
             String label,
             int displayOrder
@@ -423,7 +553,8 @@ final class SurveyApiModels {
         static OptionResponse from(SurveyOption value) {
             return new OptionResponse(
                     value.id().value(), value.lineageKey().value(),
-                    value.kind(), value.label(), value.displayOrder());
+                    value.localKey(), value.kind(), value.label(),
+                    value.displayOrder());
         }
     }
 

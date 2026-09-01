@@ -133,9 +133,14 @@ class SurveyJpaAdapterIntegrationTest {
                         SurveyQuestionType.LONG_TEXT,
                         SurveyQuestionType.NUMBER,
                         SurveyQuestionType.SCALE);
+        assertThat(stored.questionGroups()).hasSize(6);
+        assertThat(stored.questionSections()).hasSize(6);
         assertThat(stored.questions().get(1).options())
                 .extracting(SurveyOption::label)
                 .containsExactly("개발", "디자인", "기타");
+        assertThat(stored.questions().get(1).options())
+                .extracting(SurveyOption::localKey)
+                .containsExactly("A", "B", "C");
         assertThat(stored.questions().get(4).rule())
                 .isEqualTo(new NumberRule(
                         new BigDecimal("-10.50"),

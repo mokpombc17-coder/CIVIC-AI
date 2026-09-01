@@ -5,6 +5,8 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionStatus;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -148,6 +150,172 @@ class SurveyContentVersionJpaEntity {
 }
 
 @Entity
+@Table(name = "survey_question_sections")
+class SurveyQuestionSectionJpaEntity {
+
+    @Id
+    @Column(name = "section_id", nullable = false)
+    private UUID id;
+
+    @Column(name = "content_version_id", nullable = false)
+    private UUID contentVersionId;
+
+    @Column(name = "section_lineage_id", nullable = false)
+    private UUID lineageId;
+
+    @Column(name = "section_key", nullable = false, length = 150)
+    private String sectionKey;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
+    protected SurveyQuestionSectionJpaEntity() {
+    }
+
+    SurveyQuestionSectionJpaEntity(
+            UUID contentVersionId,
+            SurveyQuestionSection section
+    ) {
+        id = section.id().value();
+        this.contentVersionId = contentVersionId;
+        lineageId = section.lineageKey().value();
+        sectionKey = section.sectionKey();
+        title = section.title();
+        description = section.description();
+        displayOrder = section.displayOrder();
+    }
+
+    UUID id() {
+        return id;
+    }
+
+    UUID contentVersionId() {
+        return contentVersionId;
+    }
+
+    UUID lineageId() {
+        return lineageId;
+    }
+
+    String sectionKey() {
+        return sectionKey;
+    }
+
+    String title() {
+        return title;
+    }
+
+    String description() {
+        return description;
+    }
+
+    int displayOrder() {
+        return displayOrder;
+    }
+}
+
+@Entity
+@Table(name = "survey_question_groups")
+class SurveyQuestionGroupJpaEntity {
+
+    @Id
+    @Column(name = "group_id", nullable = false)
+    private UUID id;
+
+    @Column(name = "content_version_id", nullable = false)
+    private UUID contentVersionId;
+
+    @Column(name = "group_lineage_id", nullable = false)
+    private UUID lineageId;
+
+    @Column(name = "section_id", nullable = false)
+    private UUID sectionId;
+
+    @Column(name = "group_key", nullable = false, length = 150)
+    private String groupKey;
+
+    @Column(name = "source_number", nullable = false, length = 20)
+    private String sourceNumber;
+
+    @Column(nullable = false, length = 200)
+    private String title;
+
+    @Column(nullable = false, length = 1000)
+    private String prompt;
+
+    @Column(length = 1000)
+    private String description;
+
+    @Column(name = "display_order", nullable = false)
+    private int displayOrder;
+
+    protected SurveyQuestionGroupJpaEntity() {
+    }
+
+    SurveyQuestionGroupJpaEntity(
+            UUID contentVersionId,
+            SurveyQuestionGroup group
+    ) {
+        id = group.id().value();
+        this.contentVersionId = contentVersionId;
+        lineageId = group.lineageKey().value();
+        sectionId = group.section().id().value();
+        groupKey = group.groupKey();
+        sourceNumber = group.sourceNumber();
+        title = group.title();
+        prompt = group.prompt();
+        description = group.description();
+        displayOrder = group.displayOrder();
+    }
+
+    UUID id() {
+        return id;
+    }
+
+    UUID contentVersionId() {
+        return contentVersionId;
+    }
+
+    UUID lineageId() {
+        return lineageId;
+    }
+
+    UUID sectionId() {
+        return sectionId;
+    }
+
+    String groupKey() {
+        return groupKey;
+    }
+
+    String sourceNumber() {
+        return sourceNumber;
+    }
+
+    String title() {
+        return title;
+    }
+
+    String prompt() {
+        return prompt;
+    }
+
+    String description() {
+        return description;
+    }
+
+    int displayOrder() {
+        return displayOrder;
+    }
+}
+
+@Entity
 @Table(name = "survey_questions")
 class SurveyQuestionJpaEntity {
 
@@ -160,6 +328,18 @@ class SurveyQuestionJpaEntity {
 
     @Column(name = "question_lineage_id", nullable = false)
     private UUID lineageId;
+
+    @Column(name = "group_id", nullable = false)
+    private UUID groupId;
+
+    @Column(name = "item_key", nullable = false, length = 150)
+    private String itemKey;
+
+    @Column(name = "item_label", length = 200)
+    private String itemLabel;
+
+    @Column(name = "item_display_order", nullable = false)
+    private int itemDisplayOrder;
 
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
@@ -220,6 +400,10 @@ class SurveyQuestionJpaEntity {
         id = question.id().value();
         this.contentVersionId = contentVersionId;
         lineageId = question.lineageKey().value();
+        groupId = question.group().id().value();
+        itemKey = question.itemKey();
+        itemLabel = question.itemLabel();
+        itemDisplayOrder = question.itemDisplayOrder();
         type = question.type();
         prompt = question.prompt();
         description = question.description();
@@ -238,6 +422,22 @@ class SurveyQuestionJpaEntity {
 
     UUID lineageId() {
         return lineageId;
+    }
+
+    UUID groupId() {
+        return groupId;
+    }
+
+    String itemKey() {
+        return itemKey;
+    }
+
+    String itemLabel() {
+        return itemLabel;
+    }
+
+    int itemDisplayOrder() {
+        return itemDisplayOrder;
     }
 
     SurveyQuestionType type() {
@@ -366,6 +566,9 @@ class SurveyOptionJpaEntity {
     @Column(name = "option_lineage_id", nullable = false)
     private UUID lineageId;
 
+    @Column(name = "option_local_key", nullable = false, length = 20)
+    private String localKey;
+
     @Enumerated(EnumType.STRING)
     @Column(nullable = false, length = 30)
     private SurveyOptionKind kind;
@@ -388,6 +591,7 @@ class SurveyOptionJpaEntity {
         this.questionId = questionId;
         this.contentVersionId = contentVersionId;
         lineageId = option.lineageKey().value();
+        localKey = option.localKey();
         kind = option.kind();
         label = option.label();
         displayOrder = option.displayOrder();
@@ -403,6 +607,10 @@ class SurveyOptionJpaEntity {
 
     UUID lineageId() {
         return lineageId;
+    }
+
+    String localKey() {
+        return localKey;
     }
 
     SurveyOptionKind kind() {

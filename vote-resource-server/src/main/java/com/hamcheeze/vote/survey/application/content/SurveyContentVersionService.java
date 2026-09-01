@@ -7,6 +7,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentIdGenerator;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionPublication;
@@ -161,6 +163,16 @@ public class SurveyContentVersionService {
 
     private static final class UuidContentIdGenerator
             implements SurveyContentIdGenerator {
+
+        @Override
+        public SurveyQuestionSectionId nextQuestionSectionId() {
+            return new SurveyQuestionSectionId(UUID.randomUUID());
+        }
+
+        @Override
+        public SurveyQuestionGroupId nextQuestionGroupId() {
+            return new SurveyQuestionGroupId(UUID.randomUUID());
+        }
 
         @Override
         public SurveyQuestionId nextQuestionId() {

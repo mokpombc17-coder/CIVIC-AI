@@ -6,6 +6,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
 
@@ -13,7 +15,9 @@ import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
@@ -232,11 +236,30 @@ public final class SurveyContentVersion {
         Objects.requireNonNull(idGenerator, "idGenerator");
         Objects.requireNonNull(actor, "actor");
         requireNotBefore(at, publishedAt, "createdAt");
+        Map<SurveyQuestionSectionId, SurveyQuestionSection> clonedSections =
+                new LinkedHashMap<>();
+        Map<SurveyQuestionGroupId, SurveyQuestionGroup> clonedGroups =
+                new LinkedHashMap<>();
         List<SurveyQuestion> clonedQuestions = questions.stream()
                 .map(question -> question.copyWithIds(
                         Objects.requireNonNull(
                                 idGenerator.nextQuestionId(),
                                 "generated questionId"),
+                        clonedGroups.computeIfAbsent(
+                                question.group().id(),
+                                ignored -> question.group().copyWithIds(
+                                        Objects.requireNonNull(
+                                                idGenerator
+                                                        .nextQuestionGroupId(),
+                                                "generated groupId"),
+                                        clonedSections.computeIfAbsent(
+                                                question.group().section().id(),
+                                                sectionId -> question.group()
+                                                        .section().copyWithId(
+                                                        Objects.requireNonNull(
+                                                                idGenerator
+                                                                        .nextQuestionSectionId(),
+                                                                "generated sectionId"))))),
                         option -> Objects.requireNonNull(
                                 idGenerator.nextOptionId(),
                                 "generated optionId")))
@@ -284,6 +307,24 @@ public final class SurveyContentVersion {
 
     public List<SurveyQuestion> questions() {
         return questions;
+    }
+
+    public List<SurveyQuestionGroup> questionGroups() {
+        return questions.stream()
+                .map(SurveyQuestion::group)
+                .distinct()
+                .sorted(Comparator.comparingInt(
+                        SurveyQuestionGroup::displayOrder))
+                .toList();
+    }
+
+    public List<SurveyQuestionSection> questionSections() {
+        return questionGroups().stream()
+                .map(SurveyQuestionGroup::section)
+                .distinct()
+                .sorted(Comparator.comparingInt(
+                        SurveyQuestionSection::displayOrder))
+                .toList();
     }
 
     public Optional<SurveyContentVersionId> derivedFromContentVersionId() {
@@ -349,6 +390,89 @@ public final class SurveyContentVersion {
                 "SURVEY_QUESTION_DISPLAY_ORDER_DUPLICATED",
                 "question displayOrder must be unique",
                 violations);
+        Map<SurveyQuestionGroupId, SurveyQuestionGroup> groupsById =
+                new LinkedHashMap<>();
+        for (SurveyQuestion question : questions) {
+            if (question.group().groupKey().startsWith("legacy.")) {
+                continue;
+            }
+            SurveyQuestionGroup previous = groupsById.putIfAbsent(
+                    question.group().id(), question.group());
+            if (previous != null && !previous.equals(question.group())) {
+                violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_GROUP_METADATA_INCONSISTENT",
+                        "questions",
+                        "questions sharing a groupId must share group metadata"));
+            }
+        }
+        List<SurveyQuestionGroup> groups = List.copyOf(groupsById.values());
+        addDuplicateViolation(
+                groups,
+                SurveyQuestionGroup::lineageKey,
+                "SURVEY_QUESTION_GROUP_LINEAGE_DUPLICATED",
+                "group lineage must be unique",
+                violations);
+        addDuplicateViolation(
+                groups,
+                SurveyQuestionGroup::groupKey,
+                "SURVEY_QUESTION_GROUP_KEY_DUPLICATED",
+                "groupKey must be unique",
+                violations);
+        addDuplicateViolation(
+                groups,
+                SurveyQuestionGroup::displayOrder,
+                "SURVEY_QUESTION_GROUP_DISPLAY_ORDER_DUPLICATED",
+                "group displayOrder must be unique",
+                violations);
+        Map<SurveyQuestionSectionId, SurveyQuestionSection> sectionsById =
+                new LinkedHashMap<>();
+        for (SurveyQuestionGroup group : groups) {
+            SurveyQuestionSection previous = sectionsById.putIfAbsent(
+                    group.section().id(), group.section());
+            if (previous != null && !previous.equals(group.section())) {
+                violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_SECTION_METADATA_INCONSISTENT",
+                        "questions",
+                        "groups sharing a sectionId must share section metadata"));
+            }
+        }
+        List<SurveyQuestionSection> sections =
+                List.copyOf(sectionsById.values());
+        addDuplicateViolation(
+                sections,
+                SurveyQuestionSection::lineageKey,
+                "SURVEY_QUESTION_SECTION_LINEAGE_DUPLICATED",
+                "section lineage must be unique",
+                violations);
+        addDuplicateViolation(
+                sections,
+                SurveyQuestionSection::sectionKey,
+                "SURVEY_QUESTION_SECTION_KEY_DUPLICATED",
+                "sectionKey must be unique",
+                violations);
+        addDuplicateViolation(
+                sections,
+                SurveyQuestionSection::displayOrder,
+                "SURVEY_QUESTION_SECTION_DISPLAY_ORDER_DUPLICATED",
+                "section displayOrder must be unique",
+                violations);
+        for (SurveyQuestionGroup group : groups) {
+            List<SurveyQuestion> groupQuestions = questions.stream()
+                    .filter(question -> question.group().id().equals(group.id()))
+                    .toList();
+            addDuplicateViolation(
+                    groupQuestions,
+                    SurveyQuestion::itemKey,
+                    "SURVEY_QUESTION_ITEM_KEY_DUPLICATED",
+                    "itemKey must be unique within a group",
+                    violations);
+            addDuplicateViolation(
+                    groupQuestions,
+                    SurveyQuestion::itemDisplayOrder,
+                    "SURVEY_QUESTION_ITEM_DISPLAY_ORDER_DUPLICATED",
+                    "itemDisplayOrder must be unique within a group",
+                    violations);
+        }
         List<SurveyOption> allOptions = questions.stream()
                 .flatMap(question -> question.options().stream())
                 .toList();

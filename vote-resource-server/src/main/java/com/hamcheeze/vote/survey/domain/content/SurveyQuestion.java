@@ -21,6 +21,10 @@ public final class SurveyQuestion {
 
     private final SurveyQuestionId id;
     private final SurveyQuestionLineageKey lineageKey;
+    private final SurveyQuestionGroup group;
+    private final String itemKey;
+    private final String itemLabel;
+    private final int itemDisplayOrder;
     private final SurveyQuestionType type;
     private final String prompt;
     private final String description;
@@ -40,8 +44,59 @@ public final class SurveyQuestion {
             QuestionRule rule,
             List<SurveyOption> options
     ) {
+        this(
+                id,
+                lineageKey,
+                SurveyQuestionGroup.legacySingleton(
+                        id, lineageKey, prompt, displayOrder),
+                "value",
+                null,
+                1,
+                type,
+                prompt,
+                description,
+                displayOrder,
+                required,
+                rule,
+                options);
+    }
+
+    public SurveyQuestion(
+            SurveyQuestionId id,
+            SurveyQuestionLineageKey lineageKey,
+            SurveyQuestionGroup group,
+            String itemKey,
+            String itemLabel,
+            int itemDisplayOrder,
+            SurveyQuestionType type,
+            String prompt,
+            String description,
+            int displayOrder,
+            boolean required,
+            QuestionRule rule,
+            List<SurveyOption> options
+    ) {
         this.id = Objects.requireNonNull(id, "id");
         this.lineageKey = Objects.requireNonNull(lineageKey, "lineageKey");
+        this.group = Objects.requireNonNull(group, "group");
+        this.itemKey = SurveyContentText.required(
+                itemKey,
+                150,
+                "SURVEY_QUESTION_ITEM_KEY_REQUIRED",
+                "SURVEY_QUESTION_ITEM_KEY_TOO_LONG",
+                "question.itemKey");
+        this.itemLabel = SurveyContentText.optional(
+                itemLabel,
+                200,
+                "SURVEY_QUESTION_ITEM_LABEL_TOO_LONG",
+                "question.itemLabel");
+        if (itemDisplayOrder < 1) {
+            throw SurveyDomainException.invariant(
+                    "SURVEY_QUESTION_ITEM_DISPLAY_ORDER_INVALID",
+                    "question.itemDisplayOrder",
+                    "question itemDisplayOrder must be positive");
+        }
+        this.itemDisplayOrder = itemDisplayOrder;
         this.type = Objects.requireNonNull(type, "type");
         this.prompt = SurveyContentText.required(
                 prompt,
@@ -156,6 +211,22 @@ public final class SurveyQuestion {
         return lineageKey;
     }
 
+    public SurveyQuestionGroup group() {
+        return group;
+    }
+
+    public String itemKey() {
+        return itemKey;
+    }
+
+    public String itemLabel() {
+        return itemLabel;
+    }
+
+    public int itemDisplayOrder() {
+        return itemDisplayOrder;
+    }
+
     public SurveyQuestionType type() {
         return type;
     }
@@ -186,6 +257,7 @@ public final class SurveyQuestion {
 
     SurveyQuestion copyWithIds(
             SurveyQuestionId newId,
+            SurveyQuestionGroup newGroup,
             Function<SurveyOption, SurveyOptionId> optionIdGenerator
     ) {
         List<SurveyOption> clonedOptions = options.stream()
@@ -195,6 +267,10 @@ public final class SurveyQuestion {
         return new SurveyQuestion(
                 newId,
                 lineageKey,
+                newGroup,
+                itemKey,
+                itemLabel,
+                itemDisplayOrder,
                 type,
                 prompt,
                 description,
@@ -243,6 +319,11 @@ public final class SurveyQuestion {
                         "SURVEY_OPTION_LINEAGE_DUPLICATED",
                         "question.options",
                         "option lineage must be unique within a question")));
+        findDuplicates(options, SurveyOption::localKey).forEach(duplicate ->
+                violations.add(SurveyViolation.of(
+                        "SURVEY_OPTION_LOCAL_KEY_DUPLICATED",
+                        "question.options",
+                        "option localKey must be unique within a question")));
         findDuplicates(options, SurveyOption::displayOrder).forEach(duplicate ->
                 violations.add(SurveyViolation.of(
                         "SURVEY_OPTION_DISPLAY_ORDER_DUPLICATED",

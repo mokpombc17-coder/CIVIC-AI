@@ -201,6 +201,18 @@ class SurveyContentVersionTest {
                 .isNotEqualTo(published.questions().getFirst().id());
         assertThat(clone.questions().getFirst().lineageKey())
                 .isEqualTo(published.questions().getFirst().lineageKey());
+        assertThat(clone.questionSections().getFirst().id())
+                .isNotEqualTo(published.questionSections().getFirst().id());
+        assertThat(clone.questionSections().getFirst().lineageKey())
+                .isEqualTo(published.questionSections().getFirst()
+                        .lineageKey());
+        assertThat(clone.questionGroups().getFirst().id())
+                .isNotEqualTo(published.questionGroups().getFirst().id());
+        assertThat(clone.questionGroups().getFirst().lineageKey())
+                .isEqualTo(published.questionGroups().getFirst()
+                        .lineageKey());
+        assertThat(clone.questionGroups().getFirst().section())
+                .isEqualTo(clone.questionSections().getFirst());
         assertThat(clone.questions().getFirst().options())
                 .zipSatisfy(
                         published.questions().getFirst().options(),
@@ -308,6 +320,22 @@ class SurveyContentVersionTest {
             implements SurveyContentIdGenerator {
 
         private final AtomicLong sequence = new AtomicLong(100);
+
+        @Override
+        public com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId
+                nextQuestionSectionId() {
+            return new com.hamcheeze.vote.survey.domain.common
+                    .SurveyQuestionSectionId(
+                    new UUID(5, sequence.incrementAndGet()));
+        }
+
+        @Override
+        public com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId
+                nextQuestionGroupId() {
+            return new com.hamcheeze.vote.survey.domain.common
+                    .SurveyQuestionGroupId(
+                    new UUID(10, sequence.incrementAndGet()));
+        }
 
         @Override
         public SurveyQuestionId nextQuestionId() {

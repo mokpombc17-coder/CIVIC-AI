@@ -164,13 +164,33 @@ class PersonaSurveyResponseSubmittedConsumerIntegrationTest {
                 Timestamp.from(SUBMITTED_AT),
                 Timestamp.from(SUBMITTED_AT),
                 Timestamp.from(SUBMITTED_AT));
+        UUID sectionId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO survey_question_sections (
+                    section_id, content_version_id, section_lineage_id,
+                    section_key, title, display_order)
+                VALUES (?, ?, ?, ?, '섹션', 1)
+                """, sectionId, contentId, UUID.randomUUID(),
+                "test.section." + sectionId);
+        UUID groupId = UUID.randomUUID();
+        jdbcTemplate.update("""
+                INSERT INTO survey_question_groups (
+                    group_id, content_version_id, group_lineage_id,
+                    section_id, group_key, source_number, title, prompt,
+                    display_order)
+                VALUES (?, ?, ?, ?, ?, '1', '질문', '질문', 1)
+                """, groupId, contentId, UUID.randomUUID(),
+                sectionId,
+                "test.group." + groupId);
         jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
+                    group_id, item_key, item_display_order,
                     type, prompt, display_order, is_required,
                     text_max_length)
-                VALUES (?, ?, ?, 'SHORT_TEXT', '질문', 1, true, 200)
-                """, questionId, contentId, UUID.randomUUID());
+                VALUES (?, ?, ?, ?, 'value', 1,
+                    'SHORT_TEXT', '질문', 1, true, 200)
+                """, questionId, contentId, UUID.randomUUID(), groupId);
         jdbcTemplate.update("""
                 INSERT INTO survey_rounds (
                     round_id, round_number, content_version_id, status,

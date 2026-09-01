@@ -76,7 +76,12 @@ class LocalSurveyBootstrapIntegrationTest {
                 .isEqualTo(SurveyContentVersionStatus.PUBLISHED);
         assertThat(content.versionNumber())
                 .contains(LocalSurveyFixture.CONTENT_VERSION_NUMBER);
-        assertThat(content.questions()).hasSize(15);
+        assertThat(content.questions())
+                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
+        assertThat(content.questionGroups())
+                .hasSize(RoundOneSurveyFixture.GROUP_COUNT);
+        assertThat(content.questionSections())
+                .hasSize(RoundOneSurveyFixture.SECTION_COUNT);
         assertThat(LocalSurveyFixture.matchesContent(content)).isTrue();
 
         assertThat(rounds.findAll()).hasSize(1);
