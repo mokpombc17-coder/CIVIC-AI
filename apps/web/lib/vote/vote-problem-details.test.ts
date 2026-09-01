@@ -19,7 +19,28 @@ describe("isVoteProblemDetails", () => {
     ).toBe(true);
   });
 
-  it("필수 boolean이 없는 일반 객체를 거절한다", () => {
+  it("v4처럼 선택 boolean 없이 question/item violation을 보내도 인식한다", () => {
+    expect(
+      isVoteProblemDetails({
+        type: "about:blank",
+        title: "Validation failed",
+        status: 422,
+        detail: "invalid",
+        instance: "/api/v1/me/survey-responses",
+        code: "SURVEY_RESPONSE_VALIDATION_FAILED",
+        violations: [
+          {
+            code: "REQUIRED",
+            field: "itemAnswers",
+            questionId: "question-id",
+            itemId: "item-id",
+          },
+        ],
+      }),
+    ).toBe(true);
+  });
+
+  it("problem detail 필수 필드가 없는 일반 객체를 거절한다", () => {
     expect(isVoteProblemDetails({ status: 404, code: "TASK_NOT_FOUND" })).toBe(false);
   });
 });

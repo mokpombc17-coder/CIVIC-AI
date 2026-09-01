@@ -1,26 +1,19 @@
+import type { ChangeEvent } from "react";
+import type { SurveyQuestion, SurveySection } from "@/lib/survey/survey-contracts";
 import {
-  getSurveyQuestionLabel,
-  sortSurveyGroups,
-  sortSurveyOptions,
-  sortSurveyQuestions,
-  type SurveyQuestion,
-  type SurveyQuestionSection,
-} from "@/lib/survey/survey-model";
-import type {
-  SurveyAnswerDraft,
-  SurveyAnswerState,
-  SurveySelectionDraft,
-  SurveyValidationErrors,
+  surveyAnswerErrorKey,
+  type SurveyAnswerDraft,
+  type SurveyAnswerState,
+  type SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
+import { getSurveyQuestionPresentation } from "./survey-presentation";
 import { SurveySelect } from "./survey-select";
 import styles from "./survey.module.css";
-import { getSurveyQuestionPresentation } from "./survey-presentation";
 
-const BIRTH_YEAR_GROUP_KEY = "demographics.birth-year";
-const RESIDENCE_GROUP_KEY = "demographics.residence";
-const AGE_GROUP_PRESENCE_GROUP_KEY = "household.age-group-presence";
-const AFFECTIVE_DISTANCE_GROUP_KEY = "social.affective-distance";
-const MEDIA_DAILY_USE_DURATION_GROUP_KEY = "media.daily-use-duration";
+const BIRTH_YEAR_KEY = "demographics.birth-year";
+const RESIDENCE_KEY = "demographics.residence";
+const AGE_GROUP_PRESENCE_KEY = "household.age-group-presence";
+const MEDIA_DAILY_USE_DURATION_KEY = "media.daily-use-duration";
 
 export function SurveySectionFields({
   answers,
@@ -31,82 +24,33 @@ export function SurveySectionFields({
   answers: SurveyAnswerState;
   errors: SurveyValidationErrors;
   onAnswerChange: (questionId: string, answer: SurveyAnswerDraft) => void;
-  section: SurveyQuestionSection;
+  section: SurveySection;
 }) {
-  const groups = sortSurveyGroups(section.groups);
-
   return (
     <div className={styles.sectionFields}>
-      {section.description ? (
-        <p className={styles.sectionDescription}>{section.description}</p>
-      ) : null}
-      {groups.map((group) => {
-        const questions = sortSurveyQuestions(group.questions);
-        const isAgeGroupPresence = group.groupKey === AGE_GROUP_PRESENCE_GROUP_KEY;
-        const isAffectiveDistance = group.groupKey === AFFECTIVE_DISTANCE_GROUP_KEY;
-        const isMediaDailyUseDuration = group.groupKey === MEDIA_DAILY_USE_DURATION_GROUP_KEY;
-        const groupPrompt =
-          questions.length > 1 && group.prompt !== group.title ? group.prompt : null;
-        const presentation = getSurveyQuestionPresentation(group.groupKey);
-        const helperText = presentation?.helperText ?? groupPrompt;
-        const usesFieldHelperSpacing =
-          Boolean(presentation?.helperText) &&
-          group.groupKey !== RESIDENCE_GROUP_KEY &&
-          (questions.length === 1 || isAffectiveDistance || isMediaDailyUseDuration);
+      {section.questions.map((question) => {
+        const presentation = getSurveyQuestionPresentation(question.questionKey);
+        const helperText =
+          presentation?.helperText ?? (question.prompt !== question.title ? question.prompt : null);
         return (
-          <section className={styles.questionGroup} key={group.groupKey}>
+          <section className={styles.questionGroup} key={question.questionKey}>
             <div
               className={styles.questionGroupHeader}
-              data-helper-layout={usesFieldHelperSpacing ? "field" : undefined}
+              data-helper-layout={
+                helperText && question.questionKey !== RESIDENCE_KEY ? "field" : undefined
+              }
             >
-              <h3>{presentation?.title ?? group.title}</h3>
+              <h3>{presentation?.title ?? question.title}</h3>
               {helperText ? <p>{helperText}</p> : null}
-              {group.description ? <p>{group.description}</p> : null}
             </div>
             <div className={styles.questionList}>
-              {isMediaDailyUseDuration ? (
-                <MediaDailyUseDurationMatrix
-                  answers={answers}
-                  errors={errors}
-                  groupKey={group.groupKey}
-                  onAnswerChange={onAnswerChange}
-                  optionLabels={presentation?.optionLabels}
-                  questions={questions}
-                  sectionKey={section.sectionKey}
-                />
-              ) : isAffectiveDistance ? (
-                <AffectiveDistanceMatrix
-                  answers={answers}
-                  errors={errors}
-                  groupKey={group.groupKey}
-                  onAnswerChange={onAnswerChange}
-                  questions={questions}
-                  sectionKey={section.sectionKey}
-                />
-              ) : isAgeGroupPresence ? (
-                <AgeGroupPresenceMatrix
-                  answers={answers}
-                  errors={errors}
-                  groupKey={group.groupKey}
-                  onAnswerChange={onAnswerChange}
-                  questions={questions}
-                  sectionKey={section.sectionKey}
-                />
-              ) : (
-                questions.map((question) => (
-                  <SurveyQuestionField
-                    answer={answers[question.questionId]}
-                    controlId={`survey-question-${section.sectionKey}-${group.groupKey}-${question.itemKey}`}
-                    error={errors[question.questionId]}
-                    groupKey={group.groupKey}
-                    key={question.itemKey}
-                    onChange={(answer) => onAnswerChange(question.questionId, answer)}
-                    question={question}
-                    questionLabel={getSurveyQuestionLabel(group, question)}
-                    showItemLabel={questions.length > 1}
-                  />
-                ))
-              )}
+              <SurveyQuestionField
+                answer={answers[question.questionId]}
+                errors={errors}
+                onChange={(answer) => onAnswerChange(question.questionId, answer)}
+                question={question}
+                sectionKey={section.sectionKey}
+              />
             </div>
           </section>
         );
@@ -115,336 +59,63 @@ export function SurveySectionFields({
   );
 }
 
-function MediaDailyUseDurationMatrix({
-  answers,
-  errors,
-  groupKey,
-  onAnswerChange,
-  optionLabels,
-  questions,
-  sectionKey,
-}: {
-  answers: SurveyAnswerState;
-  errors: SurveyValidationErrors;
-  groupKey: string;
-  onAnswerChange: (questionId: string, answer: SurveyAnswerDraft) => void;
-  optionLabels: Readonly<Record<string, string>> | undefined;
-  questions: readonly SurveyQuestion[];
-  sectionKey: string;
-}) {
-  return (
-    <div className={styles.mediaDurationMatrix}>
-      {questions.map((question) => {
-        const controlId = `survey-question-${sectionKey}-${groupKey}-${question.itemKey}`;
-        const labelId = `${controlId}-label`;
-        const errorId = `${controlId}-error`;
-        const error = errors[question.questionId];
-
-        if (question.type !== "SINGLE_CHOICE") {
-          return (
-            <SurveyQuestionField
-              answer={answers[question.questionId]}
-              controlId={controlId}
-              error={error}
-              groupKey={groupKey}
-              key={question.itemKey}
-              onChange={(answer) => onAnswerChange(question.questionId, answer)}
-              question={question}
-              questionLabel={question.itemLabel?.trim() || question.prompt}
-              showItemLabel
-            />
-          );
-        }
-
-        const answer = answers[question.questionId];
-        const selection = answer?.type === "SINGLE_CHOICE" ? answer.selection : null;
-
-        return (
-          <div
-            className={styles.mediaDurationItem}
-            data-invalid={error ? "true" : undefined}
-            key={question.itemKey}
-          >
-            <p className={styles.mediaDurationLabel} id={labelId}>
-              {question.itemLabel?.trim() || question.prompt}
-            </p>
-            <div
-              aria-describedby={error ? errorId : undefined}
-              aria-labelledby={labelId}
-              aria-required={question.required || undefined}
-              className={styles.mediaDurationOptions}
-              id={controlId}
-              role="radiogroup"
-            >
-              {sortSurveyOptions(question.options).map((option) => {
-                const isSelected = selection?.optionId === option.optionId;
-                return (
-                  <label
-                    className={styles.mediaDurationOption}
-                    data-selected={isSelected ? "true" : undefined}
-                    key={option.optionLocalKey}
-                  >
-                    <input
-                      checked={isSelected}
-                      name={controlId}
-                      onChange={() =>
-                        onAnswerChange(question.questionId, {
-                          type: "SINGLE_CHOICE",
-                          selection: { optionId: option.optionId, inputText: "" },
-                        })
-                      }
-                      type="radio"
-                      value={option.optionId}
-                    />
-                    <span>{optionLabels?.[option.optionLocalKey] ?? option.label}</span>
-                  </label>
-                );
-              })}
-            </div>
-            {error ? (
-              <p className={styles.questionError} id={errorId} role="alert">
-                {error}
-              </p>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AffectiveDistanceMatrix({
-  answers,
-  errors,
-  groupKey,
-  onAnswerChange,
-  questions,
-  sectionKey,
-}: {
-  answers: SurveyAnswerState;
-  errors: SurveyValidationErrors;
-  groupKey: string;
-  onAnswerChange: (questionId: string, answer: SurveyAnswerDraft) => void;
-  questions: readonly SurveyQuestion[];
-  sectionKey: string;
-}) {
-  return (
-    <div className={styles.affectiveDistanceMatrix}>
-      {questions.map((question) => {
-        const controlId = `survey-question-${sectionKey}-${groupKey}-${question.itemKey}`;
-        const labelId = `${controlId}-label`;
-        const errorId = `${controlId}-error`;
-        const error = errors[question.questionId];
-
-        if (question.type !== "SCALE") {
-          return (
-            <SurveyQuestionField
-              answer={answers[question.questionId]}
-              controlId={controlId}
-              error={error}
-              groupKey={groupKey}
-              key={question.itemKey}
-              onChange={(answer) => onAnswerChange(question.questionId, answer)}
-              question={question}
-              questionLabel={question.itemLabel?.trim() || question.prompt}
-              showItemLabel
-            />
-          );
-        }
-
-        const answer = answers[question.questionId];
-        const value = answer?.type === "SCALE" ? answer.scale : null;
-        const minimum = question.rule.minimum ?? 0;
-        const maximum = question.rule.maximum ?? 10;
-
-        return (
-          <div
-            className={styles.affectiveDistanceItem}
-            data-invalid={error ? "true" : undefined}
-            key={question.itemKey}
-          >
-            <p className={styles.affectiveDistanceLabel} id={labelId}>
-              {question.itemLabel?.trim() || question.prompt}
-            </p>
-            <div
-              aria-describedby={error ? errorId : undefined}
-              aria-labelledby={labelId}
-              aria-required={question.required || undefined}
-              className={styles.affectiveDistanceOptions}
-              id={controlId}
-              role="radiogroup"
-            >
-              {Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index).map(
-                (scale) => (
-                  <label className={styles.affectiveDistanceOption} key={scale}>
-                    <input
-                      checked={value === scale}
-                      name={controlId}
-                      onChange={() => onAnswerChange(question.questionId, { type: "SCALE", scale })}
-                      type="radio"
-                      value={scale}
-                    />
-                    <span>{scale}</span>
-                  </label>
-                ),
-              )}
-            </div>
-            {error ? (
-              <p className={styles.questionError} id={errorId} role="alert">
-                {error}
-              </p>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
-function AgeGroupPresenceMatrix({
-  answers,
-  errors,
-  groupKey,
-  onAnswerChange,
-  questions,
-  sectionKey,
-}: {
-  answers: SurveyAnswerState;
-  errors: SurveyValidationErrors;
-  groupKey: string;
-  onAnswerChange: (questionId: string, answer: SurveyAnswerDraft) => void;
-  questions: readonly SurveyQuestion[];
-  sectionKey: string;
-}) {
-  return (
-    <div className={styles.familyMatrix}>
-      {questions.map((question) => {
-        const controlId = `survey-question-${sectionKey}-${groupKey}-${question.itemKey}`;
-        const labelId = `${controlId}-label`;
-        const errorId = `${controlId}-error`;
-        const error = errors[question.questionId];
-
-        if (question.type !== "SINGLE_CHOICE") {
-          return (
-            <SurveyQuestionField
-              answer={answers[question.questionId]}
-              controlId={controlId}
-              error={error}
-              groupKey={groupKey}
-              key={question.itemKey}
-              onChange={(answer) => onAnswerChange(question.questionId, answer)}
-              question={question}
-              questionLabel={question.itemLabel?.trim() || question.prompt}
-              showItemLabel
-            />
-          );
-        }
-
-        const answer = answers[question.questionId];
-        const selection = answer?.type === "SINGLE_CHOICE" ? answer.selection : null;
-
-        return (
-          <div
-            className={styles.familyMatrixItem}
-            data-invalid={error ? "true" : undefined}
-            key={question.itemKey}
-          >
-            <div className={styles.familyMatrixRow}>
-              <p className={styles.familyMatrixLabel} id={labelId}>
-                {question.itemLabel?.trim() || question.prompt}
-              </p>
-              <div
-                aria-describedby={error ? errorId : undefined}
-                aria-labelledby={labelId}
-                aria-required={question.required || undefined}
-                className={styles.familyMatrixOptions}
-                id={controlId}
-                role="radiogroup"
-              >
-                {sortSurveyOptions(question.options).map((option) => {
-                  const isSelected = selection?.optionId === option.optionId;
-                  return (
-                    <label
-                      className={styles.familyMatrixOption}
-                      data-selected={isSelected ? "true" : undefined}
-                      key={option.optionLocalKey}
-                    >
-                      <input
-                        checked={isSelected}
-                        name={controlId}
-                        onChange={() =>
-                          onAnswerChange(question.questionId, {
-                            type: "SINGLE_CHOICE",
-                            selection: { optionId: option.optionId, inputText: "" },
-                          })
-                        }
-                        type="radio"
-                        value={option.optionId}
-                      />
-                      <span>{option.label}</span>
-                    </label>
-                  );
-                })}
-              </div>
-            </div>
-            {error ? (
-              <p className={styles.questionError} id={errorId} role="alert">
-                {error}
-              </p>
-            ) : null}
-          </div>
-        );
-      })}
-    </div>
-  );
-}
-
 function SurveyQuestionField({
   answer,
-  controlId,
-  error,
-  groupKey,
+  errors,
   onChange,
   question,
-  questionLabel,
-  showItemLabel,
+  sectionKey,
 }: {
   answer: SurveyAnswerDraft | undefined;
-  controlId: string;
-  error: string | undefined;
-  groupKey: string;
+  errors: SurveyValidationErrors;
   onChange: (answer: SurveyAnswerDraft) => void;
   question: SurveyQuestion;
-  questionLabel: string;
-  showItemLabel: boolean;
+  sectionKey: string;
 }) {
-  const errorId = `${controlId}-error`;
-  const descriptionId = `${controlId}-description`;
-  const describedBy = [question.description ? descriptionId : null, error ? errorId : null]
-    .filter(Boolean)
-    .join(" ");
+  if (question.type === "MATRIX_SINGLE_CHOICE") {
+    return question.questionKey === MEDIA_DAILY_USE_DURATION_KEY ? (
+      <MatrixChoiceField
+        answer={answer}
+        errors={errors}
+        mode="media"
+        onChange={onChange}
+        question={question}
+        sectionKey={sectionKey}
+      />
+    ) : (
+      <MatrixChoiceField
+        answer={answer}
+        errors={errors}
+        mode={question.questionKey === AGE_GROUP_PRESENCE_KEY ? "family" : "media"}
+        onChange={onChange}
+        question={question}
+        sectionKey={sectionKey}
+      />
+    );
+  }
+  if (question.type === "MATRIX_SCALE") {
+    return (
+      <MatrixScaleField
+        answer={answer}
+        errors={errors}
+        onChange={onChange}
+        question={question}
+        sectionKey={sectionKey}
+      />
+    );
+  }
 
+  const controlId = `survey-question-${sectionKey}-${question.questionKey}`;
+  const error = errors[surveyAnswerErrorKey(question.questionId)];
+  const errorId = `${controlId}-error`;
   return (
     <div className={styles.questionField} data-invalid={error ? "true" : undefined}>
-      {showItemLabel ? (
-        <label className={styles.questionLabel} htmlFor={controlId}>
-          {questionLabel}
-          {question.required ? <span aria-label="필수"> *</span> : null}
-        </label>
-      ) : null}
-      {question.description ? (
-        <p className={styles.questionDescription} id={descriptionId}>
-          {question.description}
-        </p>
-      ) : null}
       <SurveyQuestionControl
         answer={answer}
         controlId={controlId}
-        describedBy={describedBy || undefined}
-        groupKey={groupKey}
+        describedBy={error ? errorId : undefined}
         onChange={onChange}
         question={question}
-        questionLabel={questionLabel}
       />
       {error ? (
         <p className={styles.questionError} id={errorId} role="alert">
@@ -455,30 +126,182 @@ function SurveyQuestionField({
   );
 }
 
+function MatrixChoiceField({
+  answer,
+  errors,
+  mode,
+  onChange,
+  question,
+  sectionKey,
+}: {
+  answer: SurveyAnswerDraft | undefined;
+  errors: SurveyValidationErrors;
+  mode: "family" | "media";
+  onChange: (answer: SurveyAnswerDraft) => void;
+  question: Extract<SurveyQuestion, { type: "MATRIX_SINGLE_CHOICE" }>;
+  sectionKey: string;
+}) {
+  const itemAnswers = answer?.type === question.type ? answer.itemAnswers : {};
+  const containerClass = mode === "family" ? styles.familyMatrix : styles.mediaDurationMatrix;
+  const itemClass = mode === "family" ? styles.familyMatrixItem : styles.mediaDurationItem;
+  const labelClass = mode === "family" ? styles.familyMatrixLabel : styles.mediaDurationLabel;
+  const optionsClass = mode === "family" ? styles.familyMatrixOptions : styles.mediaDurationOptions;
+  const optionClass = mode === "family" ? styles.familyMatrixOption : styles.mediaDurationOption;
+
+  return (
+    <div className={containerClass}>
+      {question.items.map((item) => {
+        const controlId = `survey-question-${sectionKey}-${question.questionKey}-${item.itemKey}`;
+        const labelId = `${controlId}-label`;
+        const errorId = `${controlId}-error`;
+        const error = errors[surveyAnswerErrorKey(question.questionId, item.itemId)];
+        const selection = itemAnswers[item.itemId];
+        const content = (
+          <>
+            <p className={labelClass} id={labelId}>
+              {item.itemLabel}
+            </p>
+            <div
+              aria-describedby={error ? errorId : undefined}
+              aria-labelledby={labelId}
+              aria-required={question.required || undefined}
+              className={optionsClass}
+              id={controlId}
+              role="radiogroup"
+            >
+              {question.options.map((option) => {
+                const selected = selection?.optionId === option.optionId;
+                return (
+                  <label
+                    className={optionClass}
+                    data-selected={selected ? "true" : undefined}
+                    key={option.optionId}
+                  >
+                    <input
+                      checked={selected}
+                      name={controlId}
+                      onChange={() =>
+                        onChange({
+                          type: "MATRIX_SINGLE_CHOICE",
+                          itemAnswers: {
+                            ...itemAnswers,
+                            [item.itemId]: { optionId: option.optionId },
+                          },
+                        })
+                      }
+                      type="radio"
+                      value={option.optionId}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          </>
+        );
+        return (
+          <div className={itemClass} data-invalid={error ? "true" : undefined} key={item.itemId}>
+            {mode === "family" ? <div className={styles.familyMatrixRow}>{content}</div> : content}
+            {error ? (
+              <p className={styles.questionError} id={errorId} role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function MatrixScaleField({
+  answer,
+  errors,
+  onChange,
+  question,
+  sectionKey,
+}: {
+  answer: SurveyAnswerDraft | undefined;
+  errors: SurveyValidationErrors;
+  onChange: (answer: SurveyAnswerDraft) => void;
+  question: Extract<SurveyQuestion, { type: "MATRIX_SCALE" }>;
+  sectionKey: string;
+}) {
+  const itemAnswers = answer?.type === question.type ? answer.itemAnswers : {};
+  return (
+    <div className={styles.affectiveDistanceMatrix}>
+      {question.items.map((item) => {
+        const controlId = `survey-question-${sectionKey}-${question.questionKey}-${item.itemKey}`;
+        const labelId = `${controlId}-label`;
+        const errorId = `${controlId}-error`;
+        const error = errors[surveyAnswerErrorKey(question.questionId, item.itemId)];
+        const value = itemAnswers[item.itemId];
+        return (
+          <div
+            className={styles.affectiveDistanceItem}
+            data-invalid={error ? "true" : undefined}
+            key={item.itemId}
+          >
+            <p className={styles.affectiveDistanceLabel} id={labelId}>
+              {item.itemLabel}
+            </p>
+            <div
+              aria-describedby={error ? errorId : undefined}
+              aria-labelledby={labelId}
+              className={styles.affectiveDistanceOptions}
+              id={controlId}
+              role="radiogroup"
+            >
+              {numberRange(question.minimum, question.maximum).map((scale) => (
+                <label className={styles.affectiveDistanceOption} key={scale}>
+                  <input
+                    checked={value === scale}
+                    name={controlId}
+                    onChange={() =>
+                      onChange({
+                        type: "MATRIX_SCALE",
+                        itemAnswers: { ...itemAnswers, [item.itemId]: scale },
+                      })
+                    }
+                    type="radio"
+                    value={scale}
+                  />
+                  <span>{scale}</span>
+                </label>
+              ))}
+            </div>
+            {error ? (
+              <p className={styles.questionError} id={errorId} role="alert">
+                {error}
+              </p>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
 function SurveyQuestionControl({
   answer,
   controlId,
   describedBy,
-  groupKey,
   onChange,
   question,
-  questionLabel,
 }: {
   answer: SurveyAnswerDraft | undefined;
   controlId: string;
   describedBy: string | undefined;
-  groupKey: string;
   onChange: (answer: SurveyAnswerDraft) => void;
-  question: SurveyQuestion;
-  questionLabel: string;
+  question: Exclude<SurveyQuestion, { type: "MATRIX_SINGLE_CHOICE" | "MATRIX_SCALE" }>;
 }) {
-  if (groupKey === RESIDENCE_GROUP_KEY && question.type === "SHORT_TEXT") {
+  if (question.questionKey === RESIDENCE_KEY && question.type === "SHORT_TEXT") {
     return (
       <ResidenceTextInputs
         answer={answer}
         controlId={controlId}
         describedBy={describedBy}
-        maxLength={question.rule.maxLength}
+        maxLength={question.maxLength}
         onChange={onChange}
       />
     );
@@ -487,77 +310,56 @@ function SurveyQuestionControl({
   switch (question.type) {
     case "SINGLE_CHOICE": {
       const selection = answer?.type === question.type ? answer.selection : null;
-      const options = sortSurveyOptions(question.options);
-      const selectedOption = options.find((option) => option.optionId === selection?.optionId);
       return (
-        <>
-          <SurveySelect
-            ariaDescribedBy={describedBy}
-            ariaLabel={questionLabel}
-            id={controlId}
-            onChange={(optionId) =>
-              onChange({
-                type: "SINGLE_CHOICE",
-                selection: { optionId, inputText: "" },
-              })
-            }
-            options={options.map((option) => ({ value: option.optionId, label: option.label }))}
-            value={selection?.optionId ?? null}
-          />
-          {selectedOption?.kind === "OTHER" && selection ? (
-            <OtherTextInput
-              controlId={`${controlId}-other`}
-              onChange={(inputText) =>
-                onChange({ type: "SINGLE_CHOICE", selection: { ...selection, inputText } })
-              }
-              value={selection.inputText}
-            />
-          ) : null}
-        </>
+        <SurveySelect
+          ariaDescribedBy={describedBy}
+          ariaLabel={question.prompt}
+          id={controlId}
+          onChange={(optionId) => onChange({ type: question.type, selection: { optionId } })}
+          options={question.options.map((option) => ({
+            value: option.optionId,
+            label: option.label,
+          }))}
+          value={selection?.optionId ?? null}
+        />
       );
     }
     case "MULTIPLE_CHOICE": {
       const selections = answer?.type === question.type ? answer.selections : [];
-      const options = sortSurveyOptions(question.options);
-      const selectedOptions = options.filter((option) =>
-        selections.some((selection) => selection.optionId === option.optionId),
+      const selected = question.options.filter((option) =>
+        selections.some((item) => item.optionId === option.optionId),
       );
       const summary =
-        selectedOptions.length === 0
-          ? "복수 선택"
-          : selectedOptions.map((option) => option.label).join(", ");
+        selected.length === 0 ? "복수 선택" : selected.map((option) => option.label).join(", ");
       return (
         <details className={styles.multiSelect}>
           <summary
             aria-describedby={describedBy}
-            aria-label={`${questionLabel} 복수 선택`}
+            aria-label={`${question.prompt} 복수 선택`}
             className={`${styles.selectControl} ${styles.multiSelectSummary}`}
-            data-empty={selectedOptions.length === 0 ? "true" : undefined}
+            data-empty={selected.length === 0 ? "true" : undefined}
             id={controlId}
           >
-            <span
-              className={styles.selectValue}
-              title={selectedOptions.length > 0 ? summary : undefined}
-            >
+            <span className={styles.selectValue} title={selected.length > 0 ? summary : undefined}>
               {summary}
             </span>
           </summary>
           <fieldset
-            aria-label={`${questionLabel} 선택지`}
+            aria-label={`${question.prompt} 선택지`}
             className={`${styles.choiceGroup} ${styles.multiSelectMenu}`}
           >
-            {options.map((option) => {
-              const selection = selections.find((item) => item.optionId === option.optionId);
+            {question.options.map((option) => {
+              const checked = selections.some((item) => item.optionId === option.optionId);
               return (
-                <div className={styles.choiceItem} key={option.optionLocalKey}>
+                <div className={styles.choiceItem} key={option.optionId}>
                   <label>
                     <input
-                      checked={Boolean(selection)}
+                      checked={checked}
                       onChange={(event) =>
                         onChange({
-                          type: "MULTIPLE_CHOICE",
+                          type: question.type,
                           selections: event.target.checked
-                            ? [...selections, { optionId: option.optionId, inputText: "" }]
+                            ? [...selections, { optionId: option.optionId }]
                             : selections.filter((item) => item.optionId !== option.optionId),
                         })
                       }
@@ -565,18 +367,6 @@ function SurveyQuestionControl({
                     />
                     <span>{option.label}</span>
                   </label>
-                  {option.kind === "OTHER" && selection ? (
-                    <OtherTextInput
-                      controlId={`${controlId}-${option.optionLocalKey}-other`}
-                      onChange={(inputText) =>
-                        onChange({
-                          type: "MULTIPLE_CHOICE",
-                          selections: replaceSelection(selections, { ...selection, inputText }),
-                        })
-                      }
-                      value={selection.inputText}
-                    />
-                  ) : null}
                 </div>
               );
             })}
@@ -589,12 +379,12 @@ function SurveyQuestionControl({
       const value = answer?.type === question.type ? answer.text : "";
       const commonProps = {
         "aria-describedby": describedBy,
-        "aria-label": questionLabel,
+        "aria-label": question.prompt,
         className: styles.textControl,
         id: controlId,
-        maxLength: question.rule.maxLength ?? undefined,
-        onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
-          onChange({ type: question.type as "SHORT_TEXT" | "LONG_TEXT", text: event.target.value }),
+        maxLength: question.maxLength ?? undefined,
+        onChange: (event: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+          onChange({ type: question.type, text: event.target.value }),
         value,
       };
       return question.type === "LONG_TEXT" ? (
@@ -606,21 +396,18 @@ function SurveyQuestionControl({
     case "NUMBER": {
       const value = answer?.type === question.type ? answer.number : null;
       if (canRenderNumberSelect(question)) {
-        const minimum = question.rule.minimum!;
-        const maximum = question.rule.maximum!;
+        const values = numberRange(question.minimum!, question.maximum!);
+        if (question.questionKey === BIRTH_YEAR_KEY) values.reverse();
         return (
           <SurveySelect
             ariaDescribedBy={describedBy}
-            ariaLabel={questionLabel}
+            ariaLabel={question.prompt}
             id={controlId}
             onChange={(selectedValue) =>
-              onChange({ type: "NUMBER", number: Number(selectedValue) })
+              onChange({ type: question.type, number: Number(selectedValue) })
             }
-            options={Array.from(
-              { length: maximum - minimum + 1 },
-              (_, index) => maximum - index,
-            ).map((number) => ({ value: String(number), label: String(number) }))}
-            placeholder={groupKey === BIRTH_YEAR_GROUP_KEY ? "YYYY" : "선택"}
+            options={values.map((number) => ({ value: String(number), label: String(number) }))}
+            placeholder={question.questionKey === BIRTH_YEAR_KEY ? "YYYY" : "선택"}
             value={value === null ? null : String(value)}
           />
         );
@@ -628,19 +415,19 @@ function SurveyQuestionControl({
       return (
         <input
           aria-describedby={describedBy}
-          aria-label={questionLabel}
+          aria-label={question.prompt}
           className={styles.textControl}
           id={controlId}
-          inputMode={question.rule.decimalAllowed === false ? "numeric" : "decimal"}
-          max={question.rule.maximum ?? undefined}
-          min={question.rule.minimum ?? undefined}
+          inputMode={question.decimalScale === 0 ? "numeric" : "decimal"}
+          max={question.maximum ?? undefined}
+          min={question.minimum ?? undefined}
           onChange={(event) =>
             onChange({
-              type: "NUMBER",
+              type: question.type,
               number: event.target.value === "" ? null : event.target.valueAsNumber,
             })
           }
-          step={question.rule.decimalAllowed === false ? 1 : "any"}
+          step={question.decimalScale === 0 ? 1 : 1 / 10 ** question.decimalScale}
           type="number"
           value={value ?? ""}
         />
@@ -648,29 +435,25 @@ function SurveyQuestionControl({
     }
     case "SCALE": {
       const value = answer?.type === question.type ? answer.scale : null;
-      const minimum = question.rule.minimum ?? 0;
-      const maximum = question.rule.maximum ?? 10;
       return (
         <fieldset aria-describedby={describedBy} className={styles.scaleField} id={controlId}>
-          <legend className={styles.visuallyHidden}>{questionLabel}</legend>
+          <legend className={styles.visuallyHidden}>{question.prompt}</legend>
           <div className={styles.scaleOptions}>
-            {Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index).map(
-              (scale) => (
-                <label className={styles.scaleOption} key={scale}>
-                  <input
-                    checked={value === scale}
-                    name={controlId}
-                    onChange={() => onChange({ type: "SCALE", scale })}
-                    type="radio"
-                  />
-                  <span>{scale}</span>
-                </label>
-              ),
-            )}
+            {numberRange(question.minimum, question.maximum).map((scale) => (
+              <label className={styles.scaleOption} key={scale}>
+                <input
+                  checked={value === scale}
+                  name={controlId}
+                  onChange={() => onChange({ type: question.type, scale })}
+                  type="radio"
+                />
+                <span>{scale}</span>
+              </label>
+            ))}
           </div>
           <div className={styles.scaleLabels}>
-            <span>{question.rule.minimumLabel}</span>
-            <span>{question.rule.maximumLabel}</span>
+            <span>{question.minimumLabel}</span>
+            <span>{question.maximumLabel}</span>
           </div>
         </fieldset>
       );
@@ -691,89 +474,51 @@ function ResidenceTextInputs({
   maxLength: number | null;
   onChange: (answer: SurveyAnswerDraft) => void;
 }) {
-  const segments =
+  const values =
     answer?.type === "SHORT_TEXT" && answer.inputSegments
       ? [...answer.inputSegments]
       : ["", "", ""];
-  const fields = [
-    { autoComplete: "address-level1", label: "행정구역", placeholder: "행정구역 (예: 서울특별시)" },
-    { autoComplete: "address-level2", label: "자치구", placeholder: "자치구 (예: 동대문구)" },
-    { autoComplete: "address-line1", label: "행정동", placeholder: "행정동 (예: 장안동)" },
-  ] as const;
-
-  function updateSegment(index: number, value: string) {
-    const nextSegments = fields.map((_, fieldIndex) =>
-      fieldIndex === index ? value : (segments[fieldIndex] ?? ""),
-    );
-    onChange({
-      type: "SHORT_TEXT",
-      inputSegments: nextSegments,
-      text: nextSegments
-        .map((segment) => segment.trim())
-        .filter(Boolean)
-        .join(" "),
-    });
-  }
-
+  const placeholders = ["시/도", "시/군/구", "읍/면/동"];
   return (
     <div className={styles.residenceFields}>
-      {fields.map((field, index) => (
+      {placeholders.map((placeholder, index) => (
         <input
           aria-describedby={describedBy}
-          aria-label={field.label}
-          autoComplete={field.autoComplete}
+          aria-label={`주소지 ${placeholder}`}
           className={styles.textControl}
-          id={`${controlId}-${index + 1}`}
-          key={field.label}
+          id={index === 0 ? controlId : undefined}
+          key={placeholder}
           maxLength={maxLength ?? undefined}
-          onChange={(event) => updateSegment(index, event.target.value)}
-          placeholder={field.placeholder}
+          onChange={(event) => {
+            const next = [...values];
+            next[index] = event.target.value;
+            onChange({
+              type: "SHORT_TEXT",
+              inputSegments: next,
+              text: next
+                .map((value) => value.trim())
+                .filter(Boolean)
+                .join(" "),
+            });
+          }}
+          placeholder={placeholder}
           type="text"
-          value={segments[index] ?? ""}
+          value={values[index] ?? ""}
         />
       ))}
     </div>
   );
 }
 
-function OtherTextInput({
-  controlId,
-  onChange,
-  value,
-}: {
-  controlId: string;
-  onChange: (value: string) => void;
-  value: string;
-}) {
+function canRenderNumberSelect(question: Extract<SurveyQuestion, { type: "NUMBER" }>): boolean {
   return (
-    <input
-      aria-label="기타 내용"
-      className={styles.otherTextControl}
-      id={controlId}
-      onChange={(event) => onChange(event.target.value)}
-      placeholder="내용을 입력해 주세요."
-      type="text"
-      value={value}
-    />
+    question.decimalScale === 0 &&
+    question.minimum !== null &&
+    question.maximum !== null &&
+    question.maximum - question.minimum <= 200
   );
 }
 
-function replaceSelection(
-  selections: readonly SurveySelectionDraft[],
-  next: SurveySelectionDraft,
-): SurveySelectionDraft[] {
-  return selections.map((selection) => (selection.optionId === next.optionId ? next : selection));
-}
-
-function canRenderNumberSelect(question: SurveyQuestion): boolean {
-  const { decimalAllowed, minimum, maximum } = question.rule;
-  return (
-    decimalAllowed === false &&
-    minimum !== null &&
-    maximum !== null &&
-    Number.isInteger(minimum) &&
-    Number.isInteger(maximum) &&
-    maximum >= minimum &&
-    maximum - minimum <= 200
-  );
+function numberRange(minimum: number, maximum: number): number[] {
+  return Array.from({ length: Math.max(0, maximum - minimum + 1) }, (_, index) => minimum + index);
 }

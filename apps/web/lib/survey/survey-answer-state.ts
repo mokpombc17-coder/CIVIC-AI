@@ -1,17 +1,11 @@
-import {
-  getSurveyQuestions,
-  sortSurveyGroups,
-  sortSurveyQuestions,
-  type PublishedSurveyContent,
-  type SurveyOption,
-  type SurveyQuestion,
-  type SurveyQuestionSection,
-} from "./survey-model";
+import type {
+  SubmitSurveyRequest,
+  SurveyAnswerInput,
+  SurveyQuestion,
+  SurveySection,
+} from "./survey-contracts";
 
-export type SurveySelectionDraft = Readonly<{
-  optionId: string;
-  inputText: string;
-}>;
+export type SurveySelectionDraft = Readonly<{ optionId: string }>;
 
 export type SurveyAnswerDraft =
   | Readonly<{ type: "SINGLE_CHOICE"; selection: SurveySelectionDraft | null }>
@@ -22,14 +16,30 @@ export type SurveyAnswerDraft =
       inputSegments?: readonly string[];
     }>
   | Readonly<{ type: "NUMBER"; number: number | null }>
-  | Readonly<{ type: "SCALE"; scale: number | null }>;
+  | Readonly<{ type: "SCALE"; scale: number | null }>
+  | Readonly<{
+      type: "MATRIX_SINGLE_CHOICE";
+      itemAnswers: Readonly<Record<string, SurveySelectionDraft | null | undefined>>;
+    }>
+  | Readonly<{
+      type: "MATRIX_SCALE";
+      itemAnswers: Readonly<Record<string, number | null | undefined>>;
+    }>;
 
 export type SurveyAnswerState = Readonly<Record<string, SurveyAnswerDraft | undefined>>;
 export type SurveyValidationErrors = Readonly<Record<string, string | undefined>>;
 
-export function createSurveyAnswerState(content: PublishedSurveyContent): SurveyAnswerState {
+export function surveyAnswerErrorKey(questionId: string, itemId?: string): string {
+  return itemId ? `${questionId}:${itemId}` : questionId;
+}
+
+export function getSurveyQuestions(sections: readonly SurveySection[]): SurveyQuestion[] {
+  return sections.flatMap((section) => section.questions);
+}
+
+export function createSurveyAnswerState(sections: readonly SurveySection[]): SurveyAnswerState {
   return Object.fromEntries(
-    getSurveyQuestions(content).map((question) => [
+    getSurveyQuestions(sections).map((question) => [
       question.questionId,
       createEmptyAnswer(question),
     ]),
@@ -37,32 +47,34 @@ export function createSurveyAnswerState(content: PublishedSurveyContent): Survey
 }
 
 export function validateSurveySection(
-  section: SurveyQuestionSection,
+  section: SurveySection,
   answers: SurveyAnswerState,
 ): SurveyValidationErrors {
-  return Object.fromEntries(
-    sortSurveyGroups(section.groups)
-      .flatMap((group) => sortSurveyQuestions(group.questions))
-      .map((question) => [
-        question.questionId,
-        validateSurveyAnswer(question, answers[question.questionId]),
-      ])
-      .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-  );
+  return validateQuestions(section.questions, answers);
 }
 
 export function validateSurvey(
-  content: PublishedSurveyContent,
+  sections: readonly SurveySection[],
   answers: SurveyAnswerState,
 ): SurveyValidationErrors {
-  return Object.fromEntries(
-    getSurveyQuestions(content)
-      .map((question) => [
-        question.questionId,
-        validateSurveyAnswer(question, answers[question.questionId]),
-      ])
-      .filter((entry): entry is [string, string] => typeof entry[1] === "string"),
-  );
+  return validateQuestions(getSurveyQuestions(sections), answers);
+}
+
+export function buildSubmitSurveyRequest(
+  roundId: string,
+  sections: readonly SurveySection[],
+  answers: SurveyAnswerState,
+): SubmitSurveyRequest {
+  if (Object.keys(validateSurvey(sections, answers)).length > 0) {
+    throw new Error("유효하지 않은 설문 답변으로 제출 payload를 만들 수 없습니다.");
+  }
+
+  return {
+    roundId,
+    answers: getSurveyQuestions(sections).map((question) =>
+      toSurveyAnswerInput(question, answers[question.questionId]!),
+    ),
+  };
 }
 
 function createEmptyAnswer(question: SurveyQuestion): SurveyAnswerDraft {
@@ -78,96 +90,177 @@ function createEmptyAnswer(question: SurveyQuestion): SurveyAnswerDraft {
       return { type: question.type, number: null };
     case "SCALE":
       return { type: question.type, scale: null };
+    case "MATRIX_SINGLE_CHOICE":
+    case "MATRIX_SCALE":
+      return {
+        type: question.type,
+        itemAnswers: Object.fromEntries(question.items.map((item) => [item.itemId, null])),
+      };
   }
+}
+
+function validateQuestions(
+  questions: readonly SurveyQuestion[],
+  answers: SurveyAnswerState,
+): SurveyValidationErrors {
+  const entries: [string, string][] = [];
+  for (const question of questions) {
+    entries.push(...validateSurveyAnswer(question, answers[question.questionId]));
+  }
+  return Object.fromEntries(entries);
 }
 
 function validateSurveyAnswer(
   question: SurveyQuestion,
   answer: SurveyAnswerDraft | undefined,
-): string | undefined {
-  if (!answer || answer.type !== question.type) return "답변을 입력해 주세요.";
+): [string, string][] {
+  const key = surveyAnswerErrorKey(question.questionId);
+  if (!answer || answer.type !== question.type) return [[key, "답변을 입력해 주세요."]];
 
-  switch (answer.type) {
+  switch (question.type) {
     case "SINGLE_CHOICE": {
-      if (!answer.selection) return question.required ? "답변을 선택해 주세요." : undefined;
-      const option = findOption(question, answer.selection.optionId);
-      if (!option) return "선택지를 다시 확인해 주세요.";
-      return validateOtherInput(option, answer.selection.inputText);
+      const selection = answer.type === question.type ? answer.selection : null;
+      if (!selection) return question.required ? [[key, "답변을 선택해 주세요."]] : [];
+      return question.options.some((option) => option.optionId === selection.optionId)
+        ? []
+        : [[key, "선택지를 다시 확인해 주세요."]];
     }
     case "MULTIPLE_CHOICE": {
-      const count = answer.selections.length;
-      const minimum = question.rule.minimumSelections ?? (question.required ? 1 : 0);
-      const maximum = question.rule.maximumSelections;
-      if (count < minimum) return `${minimum}개 이상 선택해 주세요.`;
-      if (maximum !== null && count > maximum) return `${maximum}개 이하로 선택해 주세요.`;
-      for (const selection of answer.selections) {
-        const option = findOption(question, selection.optionId);
-        if (!option) return "선택지를 다시 확인해 주세요.";
-        const otherError = validateOtherInput(option, selection.inputText);
-        if (otherError) return otherError;
+      const selections = answer.type === question.type ? answer.selections : [];
+      const count = selections.length;
+      if (count < question.minimumSelections) {
+        return [[key, `${question.minimumSelections}개 이상 선택해 주세요.`]];
       }
-      return undefined;
+      if (question.maximumSelections !== null && count > question.maximumSelections) {
+        return [[key, `${question.maximumSelections}개 이하로 선택해 주세요.`]];
+      }
+      const validOptionIds = new Set(question.options.map((option) => option.optionId));
+      return selections.every((selection) => validOptionIds.has(selection.optionId))
+        ? []
+        : [[key, "선택지를 다시 확인해 주세요."]];
     }
     case "SHORT_TEXT":
     case "LONG_TEXT": {
-      const value = answer.text.trim();
-      if (question.required && value.length === 0) return "답변을 입력해 주세요.";
-      if (answer.inputSegments?.some((segment) => segment.trim().length === 0)) {
-        return "항목을 모두 입력해 주세요.";
+      const textAnswer = answer.type === question.type ? answer : null;
+      if (!textAnswer) return [[key, "답변을 입력해 주세요."]];
+      if (question.required && textAnswer.text.trim().length === 0) {
+        return [[key, "답변을 입력해 주세요."]];
       }
-      if (
-        question.rule.maxLength !== null &&
-        Array.from(answer.text).length > question.rule.maxLength
-      ) {
-        return `${question.rule.maxLength}자 이하로 입력해 주세요.`;
+      if (textAnswer.inputSegments?.some((segment) => segment.trim().length === 0)) {
+        return [[key, "항목을 모두 입력해 주세요."]];
       }
-      return undefined;
+      if (question.maxLength !== null && Array.from(textAnswer.text).length > question.maxLength) {
+        return [[key, `${question.maxLength}자 이하로 입력해 주세요.`]];
+      }
+      return [];
     }
     case "NUMBER": {
-      const value = answer.number;
-      if (value === null) return question.required ? "숫자를 입력해 주세요." : undefined;
-      if (!Number.isFinite(value)) return "올바른 숫자를 입력해 주세요.";
-      if (question.rule.decimalAllowed === false && !Number.isInteger(value)) {
-        return "정수로 입력해 주세요.";
+      const value = answer.type === question.type ? answer.number : null;
+      if (value === null) return question.required ? [[key, "숫자를 입력해 주세요."]] : [];
+      if (!Number.isFinite(value)) return [[key, "올바른 숫자를 입력해 주세요."]];
+      if (getDecimalPlaces(value) > question.decimalScale) {
+        return [
+          [
+            key,
+            question.decimalScale === 0
+              ? "정수로 입력해 주세요."
+              : `소수점 ${question.decimalScale}자리 이하로 입력해 주세요.`,
+          ],
+        ];
       }
-      if (
-        question.rule.decimalAllowed === true &&
-        question.rule.decimalScale !== null &&
-        getDecimalPlaces(value) > question.rule.decimalScale
-      ) {
-        return `소수점 ${question.rule.decimalScale}자리 이하로 입력해 주세요.`;
+      if (question.minimum !== null && value < question.minimum) {
+        return [[key, `${question.minimum} 이상으로 입력해 주세요.`]];
       }
-      if (question.rule.minimum !== null && value < question.rule.minimum) {
-        return `${question.rule.minimum} 이상으로 입력해 주세요.`;
+      if (question.maximum !== null && value > question.maximum) {
+        return [[key, `${question.maximum} 이하로 입력해 주세요.`]];
       }
-      if (question.rule.maximum !== null && value > question.rule.maximum) {
-        return `${question.rule.maximum} 이하로 입력해 주세요.`;
-      }
-      return undefined;
+      return [];
     }
     case "SCALE": {
-      const value = answer.scale;
-      if (value === null) return question.required ? "답변을 선택해 주세요." : undefined;
-      if (!Number.isInteger(value)) return "척도 값을 다시 선택해 주세요.";
-      if (question.rule.minimum !== null && value < question.rule.minimum) {
-        return "척도 값을 다시 선택해 주세요.";
-      }
-      if (question.rule.maximum !== null && value > question.rule.maximum) {
-        return "척도 값을 다시 선택해 주세요.";
-      }
-      return undefined;
+      const value = answer.type === question.type ? answer.scale : null;
+      return validateScale(key, value, question.minimum, question.maximum, question.required);
+    }
+    case "MATRIX_SINGLE_CHOICE": {
+      const itemAnswers = answer.type === question.type ? answer.itemAnswers : {};
+      const validOptionIds = new Set(question.options.map((option) => option.optionId));
+      return question.items.flatMap((item): [string, string][] => {
+        const itemKey = surveyAnswerErrorKey(question.questionId, item.itemId);
+        const selection = itemAnswers[item.itemId];
+        if (!selection) return question.required ? [[itemKey, "답변을 선택해 주세요."]] : [];
+        return validOptionIds.has(selection.optionId)
+          ? []
+          : [[itemKey, "선택지를 다시 확인해 주세요."]];
+      });
+    }
+    case "MATRIX_SCALE": {
+      const itemAnswers = answer.type === question.type ? answer.itemAnswers : {};
+      return question.items.flatMap((item) =>
+        validateScale(
+          surveyAnswerErrorKey(question.questionId, item.itemId),
+          itemAnswers[item.itemId] ?? null,
+          question.minimum,
+          question.maximum,
+          question.required,
+        ),
+      );
     }
   }
 }
 
-function findOption(question: SurveyQuestion, optionId: string): SurveyOption | undefined {
-  return question.options.find((option) => option.optionId === optionId);
+function validateScale(
+  key: string,
+  value: number | null,
+  minimum: number,
+  maximum: number,
+  required: boolean,
+): [string, string][] {
+  if (value === null) return required ? [[key, "답변을 선택해 주세요."]] : [];
+  return Number.isInteger(value) && value >= minimum && value <= maximum
+    ? []
+    : [[key, "척도 값을 다시 선택해 주세요."]];
 }
 
-function validateOtherInput(option: SurveyOption, inputText: string): string | undefined {
-  return option.kind === "OTHER" && inputText.trim().length === 0
-    ? "기타 내용을 입력해 주세요."
-    : undefined;
+function toSurveyAnswerInput(
+  question: SurveyQuestion,
+  answer: SurveyAnswerDraft,
+): SurveyAnswerInput {
+  switch (answer.type) {
+    case "SINGLE_CHOICE":
+      return { questionId: question.questionId, type: answer.type, selection: answer.selection! };
+    case "MULTIPLE_CHOICE":
+      return {
+        questionId: question.questionId,
+        type: answer.type,
+        selections: [...answer.selections],
+      };
+    case "SHORT_TEXT":
+    case "LONG_TEXT":
+      return { questionId: question.questionId, type: answer.type, text: answer.text.trim() };
+    case "NUMBER":
+      return { questionId: question.questionId, type: answer.type, number: answer.number! };
+    case "SCALE":
+      return { questionId: question.questionId, type: answer.type, scale: answer.scale! };
+    case "MATRIX_SINGLE_CHOICE":
+      if (question.type !== answer.type) throw new Error("설문 답변 타입이 일치하지 않습니다.");
+      return {
+        questionId: question.questionId,
+        type: answer.type,
+        itemAnswers: question.items.map((item) => ({
+          itemId: item.itemId,
+          selection: answer.itemAnswers[item.itemId]!,
+        })),
+      };
+    case "MATRIX_SCALE":
+      if (question.type !== answer.type) throw new Error("설문 답변 타입이 일치하지 않습니다.");
+      return {
+        questionId: question.questionId,
+        type: answer.type,
+        itemAnswers: question.items.map((item) => ({
+          itemId: item.itemId,
+          scale: answer.itemAnswers[item.itemId]!,
+        })),
+      };
+  }
 }
 
 function getDecimalPlaces(value: number): number {

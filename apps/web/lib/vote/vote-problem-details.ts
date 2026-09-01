@@ -1,7 +1,11 @@
 export type VoteApiViolation = Readonly<{
   code: string;
-  path: string;
-  message: string;
+  path?: string;
+  field?: string;
+  message?: string;
+  questionId?: string;
+  itemId?: string;
+  optionId?: string;
   details?: Readonly<Record<string, unknown>>;
 }>;
 
@@ -12,8 +16,8 @@ export type VoteProblemDetails = Readonly<{
   detail: string;
   instance: string;
   code: string;
-  replayed: boolean;
-  retryable: boolean;
+  replayed?: boolean;
+  retryable?: boolean;
   traceId?: string;
   violations?: readonly VoteApiViolation[];
 }>;
@@ -30,8 +34,8 @@ export function isVoteProblemDetails(value: unknown): value is VoteProblemDetail
     typeof value.detail === "string" &&
     typeof value.instance === "string" &&
     typeof value.code === "string" &&
-    typeof value.replayed === "boolean" &&
-    typeof value.retryable === "boolean" &&
+    (value.replayed === undefined || typeof value.replayed === "boolean") &&
+    (value.retryable === undefined || typeof value.retryable === "boolean") &&
     (value.traceId === undefined || typeof value.traceId === "string") &&
     (value.violations === undefined ||
       (Array.isArray(value.violations) && value.violations.every(isVoteApiViolation)))
@@ -42,8 +46,12 @@ function isVoteApiViolation(value: unknown): value is VoteApiViolation {
   return (
     isRecord(value) &&
     typeof value.code === "string" &&
-    typeof value.path === "string" &&
-    typeof value.message === "string" &&
+    (value.path === undefined || typeof value.path === "string") &&
+    (value.field === undefined || typeof value.field === "string") &&
+    (value.message === undefined || typeof value.message === "string") &&
+    (value.questionId === undefined || typeof value.questionId === "string") &&
+    (value.itemId === undefined || typeof value.itemId === "string") &&
+    (value.optionId === undefined || typeof value.optionId === "string") &&
     (value.details === undefined || isRecord(value.details))
   );
 }

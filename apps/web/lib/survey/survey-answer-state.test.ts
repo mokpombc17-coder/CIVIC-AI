@@ -1,27 +1,85 @@
 import { describe, expect, it } from "vitest";
+import type { SurveySection } from "./survey-contracts";
 import {
+  buildSubmitSurveyRequest,
   createSurveyAnswerState,
   validateSurvey,
-  validateSurveySection,
 } from "./survey-answer-state";
-import { SURVEY_MOCK_CONTENT } from "./survey-mock-data";
-import { getSurveyQuestions } from "./survey-model";
+
+const ROUND_ID = "11111111-1111-4111-8111-111111111111";
+const SINGLE_ID = "22222222-2222-4222-8222-222222222222";
+const MATRIX_ID = "33333333-3333-4333-8333-333333333333";
+const ITEM_A = "44444444-4444-4444-8444-444444444444";
+const ITEM_B = "55555555-5555-4555-8555-555555555555";
+const OPTION_YES = "66666666-6666-4666-8666-666666666666";
+const OPTION_NO = "77777777-7777-4777-8777-777777777777";
+
+const sections: SurveySection[] = [
+  {
+    sectionKey: "test-section",
+    title: "테스트",
+    questions: [
+      {
+        questionId: SINGLE_ID,
+        questionKey: "test.single",
+        title: "단일 선택",
+        prompt: "선택해 주세요",
+        required: true,
+        type: "SINGLE_CHOICE",
+        options: [{ optionId: OPTION_YES, label: "예" }],
+      },
+      {
+        questionId: MATRIX_ID,
+        questionKey: "test.matrix",
+        title: "행렬",
+        prompt: "각 항목을 선택해 주세요",
+        required: true,
+        type: "MATRIX_SINGLE_CHOICE",
+        items: [
+          { itemId: ITEM_A, itemKey: "a", itemLabel: "항목 A" },
+          { itemId: ITEM_B, itemKey: "b", itemLabel: "항목 B" },
+        ],
+        options: [
+          { optionId: OPTION_YES, label: "있음" },
+          { optionId: OPTION_NO, label: "없음" },
+        ],
+      },
+    ],
+  },
+];
 
 describe("survey answer state", () => {
-  it("creates one empty draft for every mock input", () => {
-    const questions = getSurveyQuestions(SURVEY_MOCK_CONTENT);
-    const answers = createSurveyAnswerState(SURVEY_MOCK_CONTENT);
-
-    expect(questions).toHaveLength(42);
-    expect(Object.keys(answers)).toHaveLength(42);
-    expect(answers["demographics.birth-year:value"]).toEqual({ type: "NUMBER", number: null });
+  it("Question과 행렬 Item을 분리해 관리할 수 있는 빈 상태를 만든다", () => {
+    const answers = createSurveyAnswerState(sections);
+    expect(Object.keys(answers)).toHaveLength(2);
+    expect(answers[MATRIX_ID]).toEqual({
+      type: "MATRIX_SINGLE_CHOICE",
+      itemAnswers: { [ITEM_A]: null, [ITEM_B]: null },
+    });
+    expect(Object.keys(validateSurvey(sections, answers))).toHaveLength(3);
   });
 
-  it("validates only the active section while moving between design steps", () => {
-    const answers = createSurveyAnswerState(SURVEY_MOCK_CONTENT);
-    const firstSection = SURVEY_MOCK_CONTENT.sections[0]!;
+  it("행렬 Item을 한 Question answer 안에 접고 kind와 inputText를 보내지 않는다", () => {
+    const payload = buildSubmitSurveyRequest(ROUND_ID, sections, {
+      [SINGLE_ID]: { type: "SINGLE_CHOICE", selection: { optionId: OPTION_YES } },
+      [MATRIX_ID]: {
+        type: "MATRIX_SINGLE_CHOICE",
+        itemAnswers: {
+          [ITEM_A]: { optionId: OPTION_YES },
+          [ITEM_B]: { optionId: OPTION_NO },
+        },
+      },
+    });
 
-    expect(Object.keys(validateSurveySection(firstSection, answers))).toHaveLength(3);
-    expect(Object.keys(validateSurvey(SURVEY_MOCK_CONTENT, answers))).toHaveLength(42);
+    expect(payload.answers).toHaveLength(2);
+    expect(payload.answers[1]).toEqual({
+      questionId: MATRIX_ID,
+      type: "MATRIX_SINGLE_CHOICE",
+      itemAnswers: [
+        { itemId: ITEM_A, selection: { optionId: OPTION_YES } },
+        { itemId: ITEM_B, selection: { optionId: OPTION_NO } },
+      ],
+    });
+    expect(JSON.stringify(payload)).not.toMatch(/kind|inputText/);
   });
 });

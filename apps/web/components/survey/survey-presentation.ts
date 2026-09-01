@@ -1,6 +1,5 @@
 export type SurveyQuestionPresentation = Readonly<{
   helperText: string;
-  optionLabels?: Readonly<Record<string, string>>;
   title?: string;
 }>;
 
@@ -64,12 +63,6 @@ export const SURVEY_QUESTION_PRESENTATION = {
   },
   "media.daily-use-duration": {
     helperText: "하루 평균 이용 시간을 매체별로 선택해 주세요",
-    optionLabels: {
-      A: "시청안함",
-      B: "1시간 미만",
-      C: "1~3시간",
-      D: "3시간 이상",
-    },
   },
   "media.sns-use-frequency": {
     helperText: "SNS를 이용하는 빈도",

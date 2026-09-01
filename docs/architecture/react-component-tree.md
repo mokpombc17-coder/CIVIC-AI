@@ -70,11 +70,12 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 
 ## Route `/survey`
 
-`SurveyLayout`은 별도 provider 없이 설문 route child를 전달한다. `SurveyPage`는 검증한 `from`을
-`SurveyScreen`의 취소 목적지로 전달한다. `SurveyScreen`은 Figma 검수용 mock의 7개 Section을
-조립하고 프론트 전용 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 그 안의 Question을
-검증하고 최종 제출은 네트워크 요청 없이 화면 수명 동안의 완료 상태만 갱신한다. 답변과 필수 확인
-상태는 browser storage에 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
+`SurveyLayout`은 설문 조회·제출·본인 응답 조회가 공유하는 `VoteQueryProvider`를 조립한다.
+`SurveyPage`는 검증한 `from`을 `SurveyScreen`의 취소 목적지로 전달한다. `SurveyScreen`은 Current
+Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`의 7개 Section과 29개 Question을
+조립한 뒤 프론트 전용 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 일반 Question과 행렬
+Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API mutation에 전달한다. 답변과 필수
+확인 상태는 browser storage에 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
 `SurveyProgress`는 고정 영역에 두고 현재 단계의 카드와 action만 내부 viewport에서 스크롤한다.
@@ -84,7 +85,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
     └── children [slot: App Router가 route child를 제공]
         └── SurveyLayout [Server] [Route] (apps/web/app/survey/layout.tsx)
-            └── survey children [slot: nested page를 제공]
+            └── VoteQueryProvider [Client] [Provider]
+              └── survey children [slot: nested page를 제공]
                 ├── route /survey: SurveyPage [Server] [Route] (apps/web/app/survey/page.tsx)
                 │   └── SurveyScreen [Client] [Screen] (apps/web/components/survey/survey-screen.tsx)
                 │       └── PlatformShell [Server-compatible] [View] [scroll: child] [bottom navigation: omitted]
@@ -92,20 +94,22 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │           └── SurveyFlowLayout [Client graph] [View]
                 │               ├── SurveyProgress [Client graph] [View]
                 │               ├── SurveyStepCard [Client graph] [View]
-                │               │   ├── SurveySectionFields [Client graph] [Feature] [mock-driven: step 1~7]
+                │               │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
                 │               │   │   └── SurveySelect [Client] [Control] [single-choice and bounded number]
                 │               │   └── SurveyConfirmation [Client graph] [Feature] [frontend-only: step 8]
                 │               │       └── SurveyStepActions [Client graph] [Feature] [inside card]
                 │               └── SurveyStepActions [Client graph] [Feature] [step 1~7]
                 └── route /survey/responses/latest, /survey/responses/[responseId]
-                    └── SurveyResponseScreen [Client] [Screen] [API unavailable status]
+                    └── SurveyResponseScreen [Client] [Screen] [latest/specific API response]
                         └── PlatformShell [Server-compatible] [View] [bottom navigation: omitted]
 ```
 
-`lib/survey/survey-model.ts`는 API 계약과 분리된 화면용 Section → Group → Question 모델을,
-`survey-mock-data.ts`는 1~7단계의 디자인 검수 데이터를 소유한다. `survey-answer-state.ts`는 Question
-type별 draft와 화면 이동용 rule 검증만 담당한다. `survey-navigation.ts`는 `/survey?from=...` URL 생성과
-내부 복귀 경로 검증을 소유한다. Survey API transport와 query cache는 명세 확정 전까지 조립하지 않는다.
+`survey-contracts.ts`는 v4의 Section → Question 및 행렬 Item read/write union을 소유하고,
+`survey-api.ts`와 `survey-queries.ts`는 transport·runtime parsing·query cache를 담당한다.
+`survey-answer-state.ts`는 Question type별 draft, 행렬 Item 상태, 화면 이동용 검증과 29개 answer 제출
+payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?from=...` URL 생성과 내부 복귀 경로 검증을
+소유한다. `SurveyResponseScreen`은 latest/specific query가 반환한 제출 당시 content와 answer를 ID로
+결합해 읽기 전용으로 표시한다.
 `SurveySelect`는 단일 선택과 범위형 숫자 입력이 공유하는 listbox 표시, 선택 상태, 외부 클릭 닫기와
 키보드 탐색을 소유한다.
 
@@ -594,7 +598,8 @@ flowchart TD
     VoteTaskResultScreen --> PlatformNavigationClient
 
     ChildrenSlot -. "route /survey" .-> SurveyLayout
-    SurveyLayout --> SurveyChildrenSlot
+    SurveyLayout --> VoteQueryProvider
+    VoteQueryProvider --> SurveyChildrenSlot
     SurveyChildrenSlot -. "route /survey" .-> SurveyPage
     SurveyPage --> SurveyScreen
     SurveyScreen --> PlatformShell

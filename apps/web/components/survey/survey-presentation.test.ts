@@ -30,12 +30,9 @@ describe("survey presentation", () => {
     expect(SURVEY_QUESTION_PRESENTATION["trust.local-government"].helperText).toBe(
       "기초·광역자치단체에 대한 신뢰 정도",
     );
-    expect(SURVEY_QUESTION_PRESENTATION["media.daily-use-duration"].optionLabels).toEqual({
-      A: "시청안함",
-      B: "1시간 미만",
-      C: "1~3시간",
-      D: "3시간 이상",
-    });
+    expect(SURVEY_QUESTION_PRESENTATION["media.daily-use-duration"].helperText).toBe(
+      "하루 평균 이용 시간을 매체별로 선택해 주세요",
+    );
     expect(SURVEY_QUESTION_PRESENTATION["media.video-content-topics"].title).toBe(
       "관심 주제 콘텐츠",
     );
