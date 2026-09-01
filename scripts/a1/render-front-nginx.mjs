@@ -80,6 +80,12 @@ const block = [
   "    location ^~ /vote/ {",
   `        ${frontProxy}`,
   "    }",
+  "    location = /survey {",
+  `        ${frontProxy}`,
+  "    }",
+  "    location ^~ /survey/ {",
+  `        ${frontProxy}`,
+  "    }",
   ...assets.flatMap((asset) => [`    location = ${asset} {`, `        ${frontProxy}`, "    }"]),
   "    location = /_next/image {",
   ...(ownerMap
