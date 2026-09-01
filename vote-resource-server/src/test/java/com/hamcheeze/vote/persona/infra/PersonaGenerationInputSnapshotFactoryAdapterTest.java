@@ -48,13 +48,19 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
                 "\"questionId\":\"" + uuid(30) + "\"",
                 "\"questionId\":\"" + uuid(40) + "\"",
                 "\"questionId\":\"" + uuid(50) + "\"",
-                "\"questionId\":\"" + uuid(60) + "\"");
+                "\"questionId\":\"" + uuid(60) + "\"",
+                "\"questionId\":\"" + uuid(70) + "\"",
+                "\"questionId\":\"" + uuid(80) + "\"");
         assertThat(first.requestPayload())
                 .contains("\"description\":null")
                 .contains("\"kind\":\"OTHER\"")
                 .contains("\"inputText\":\"직접 입력\"")
                 .contains("\"numberValue\":123.45")
                 .contains("\"scaleValue\":7")
+                .contains("\"type\":\"MATRIX_SINGLE_CHOICE\"")
+                .contains("\"type\":\"MATRIX_SCALE\"")
+                .contains("\"itemId\":\"" + uuid(201) + "\"")
+                .contains("\"itemId\":\"" + uuid(211) + "\"")
                 .contains("\"roundNumber\":7")
                 .contains("\"contentVersionNumber\":9")
                 .contains("\"submittedAt\":\"2026-08-20T02:00:00Z\"");
@@ -69,6 +75,10 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
                 uuid(103), uuid(104),
                 PersonaSurveySource.OptionKind.OTHER,
                 "기타", 2, Optional.of("직접 입력"));
+        var choiceItem = new PersonaSurveySource.PersonaSurveyQuestionItem(
+                uuid(201), uuid(202), "choice-item", "선택 항목", 1);
+        var scaleItem = new PersonaSurveySource.PersonaSurveyQuestionItem(
+                uuid(211), uuid(212), "scale-item", "척도 항목", 1);
         return new PersonaSurveySource(
                 new PersonaSourceId(uuid(2)),
                 new PersonaUserId("user-a"),
@@ -96,7 +106,24 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
                                 Optional.empty()),
                         answer(60, PersonaSurveySource.QuestionType.SCALE,
                                 new PersonaSurveySource.ScaleValue(7),
-                                Optional.of("척도"))));
+                                Optional.of("척도")),
+                        answer(70, PersonaSurveySource.QuestionType
+                                        .MATRIX_SINGLE_CHOICE,
+                                new PersonaSurveySource
+                                        .MatrixSingleChoiceValue(List.of(
+                                        new PersonaSurveySource
+                                                .MatrixSingleChoiceItemValue(
+                                                choiceItem.itemId(), standard))),
+                                Optional.of("행렬 단일 선택"),
+                                List.of(choiceItem)),
+                        answer(80, PersonaSurveySource.QuestionType
+                                        .MATRIX_SCALE,
+                                new PersonaSurveySource.MatrixScaleValue(
+                                        List.of(new PersonaSurveySource
+                                                .MatrixScaleItemValue(
+                                                scaleItem.itemId(), 9))),
+                                Optional.of("행렬 척도"),
+                                List.of(scaleItem))));
     }
 
     private static PersonaSurveySource.PersonaSurveyAnswer answer(
@@ -105,10 +132,20 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
             PersonaSurveySource.PersonaSurveyAnswerValue value,
             Optional<String> description
     ) {
+        return answer(id, type, value, description, List.of());
+    }
+
+    private static PersonaSurveySource.PersonaSurveyAnswer answer(
+            long id,
+            PersonaSurveySource.QuestionType type,
+            PersonaSurveySource.PersonaSurveyAnswerValue value,
+            Optional<String> description,
+            List<PersonaSurveySource.PersonaSurveyQuestionItem> items
+    ) {
         return new PersonaSurveySource.PersonaSurveyAnswer(
                 new PersonaSurveySource.PersonaSurveyQuestion(
                         uuid(id), uuid(id + 1), type,
-                        "질문-" + id, description, (int) (id / 10)),
+                        "질문-" + id, description, (int) (id / 10), items),
                 value);
     }
 

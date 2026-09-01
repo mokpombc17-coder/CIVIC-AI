@@ -101,6 +101,33 @@ class LocalSurveyFixtureTest {
                 .flatMap(question -> question.options().stream())
                 .filter(option -> option.kind() == SurveyOptionKind.OTHER))
                 .isEmpty();
+        assertThat(first.stream()
+                .flatMap(question -> question.options().stream())
+                .map(option -> option.label()))
+                .contains(
+                        "연간 1천만원 이상 ~ 3천만원 미만",
+                        "연간 3천만원 이상 ~ 5천만원 미만",
+                        "연간 5천만원 이상 ~ 7천만원 미만",
+                        "연간 7천만원 이상 ~ 1억원 미만",
+                        "주 5 ~ 6회",
+                        "주 3 ~ 4회",
+                        "주 1 ~ 2회",
+                        "월 2 ~ 3회",
+                        "시청 안 함",
+                        "1시간 이상 ~ 3시간 미만",
+                        "천주교(가톨릭)")
+                .doesNotContain(
+                        "연간 1천만원 이상~3천만원 미만",
+                        "연간 3천만원 이상~5천만원 미만",
+                        "연간 5천만원 이상~7천만원 미만",
+                        "연간 7천만원 이상~1억원 미만",
+                        "주 5~6회",
+                        "주 3~4회",
+                        "주 1~2회",
+                        "월 2~3회",
+                        "시청안함",
+                        "1시간 이상~3시간 미만",
+                        "천주교(카톨릭)");
         assertThat(first).allSatisfy(question ->
                 assertThat(question.options())
                         .allSatisfy(option -> assertThat(option.localKey())

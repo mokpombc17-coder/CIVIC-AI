@@ -4,6 +4,7 @@ import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
@@ -16,6 +17,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.ScaleRule;
 import com.hamcheeze.vote.survey.domain.content.ShortTextRule;
@@ -26,6 +28,10 @@ import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
 import com.hamcheeze.vote.survey.domain.response.ScaleAnswer;
@@ -44,6 +50,8 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MultipleChoiceValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixScaleValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixSingleChoiceValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.NumberValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.ScaleValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.SingleChoiceValue;
@@ -105,6 +113,83 @@ class PersonaSurveySourceMapperTest {
     }
 
     @Test
+    void mapsCanonicalRoundOneWithoutLosingMatrixItemValues() {
+        SurveyContentVersion content = LocalSurveyFixture.publishedContent();
+        SurveyRound round = SurveyRound.rehydrate(
+                LocalSurveyFixture.ROUND_ID,
+                LocalSurveyFixture.ROUND_NUMBER,
+                LocalSurveyFixture.CONTENT_VERSION_ID,
+                SurveyRoundStatus.ACTIVE,
+                SurveyRoundEnforcementMode.REQUIRED,
+                null,
+                LocalSurveyFixture.CREATED_AT,
+                null,
+                null,
+                null,
+                LocalSurveyFixture.ACTOR,
+                LocalSurveyFixture.CREATED_AT,
+                0);
+        List<SurveyAnswer> answers = content.questions().stream()
+                .map(PersonaSurveySourceMapperTest::validRoundOneAnswer)
+                .toList();
+        SurveyResponse response = SurveyResponse.rehydrate(
+                RESPONSE_ID,
+                new SurveyUserId("round-one-user"),
+                LocalSurveyFixture.ROUND_ID,
+                LocalSurveyFixture.ROUND_NUMBER,
+                LocalSurveyFixture.CONTENT_VERSION_ID,
+                LocalSurveyFixture.CREATED_AT.plusSeconds(1),
+                answers);
+
+        PersonaSurveySource source = mapper.map(response, round, content);
+
+        assertThat(source.answers()).hasSize(29);
+        assertThat(source.answers().stream()
+                .flatMap(answer -> answer.question().items().stream()))
+                .hasSize(16);
+        assertThat(source.answers().stream()
+                .filter(answer -> answer.value()
+                        instanceof MatrixSingleChoiceValue))
+                .hasSize(2)
+                .allSatisfy(answer -> {
+                    MatrixSingleChoiceValue value =
+                            (MatrixSingleChoiceValue) answer.value();
+                    assertThat(value.itemValues())
+                            .extracting(item -> item.itemId())
+                            .containsExactlyElementsOf(answer.question().items()
+                                    .stream()
+                                    .map(item -> item.itemId())
+                                    .toList());
+                    assertThat(value.itemValues())
+                            .allSatisfy(item -> assertThat(
+                                    item.selectedOption().label())
+                                    .isNotBlank());
+                });
+        assertThat(source.answers().stream()
+                .filter(answer -> answer.value() instanceof MatrixScaleValue))
+                .singleElement()
+                .satisfies(answer -> {
+                    MatrixScaleValue value =
+                            (MatrixScaleValue) answer.value();
+                    assertThat(value.itemValues())
+                            .extracting(item -> item.itemId())
+                            .containsExactlyElementsOf(answer.question().items()
+                                    .stream()
+                                    .map(item -> item.itemId())
+                                    .toList());
+                });
+        long expandedValueCount = source.answers().stream()
+                .mapToLong(answer -> switch (answer.value()) {
+                    case MatrixSingleChoiceValue matrix ->
+                            matrix.itemValues().size();
+                    case MatrixScaleValue matrix -> matrix.itemValues().size();
+                    default -> 1;
+                })
+                .sum();
+        assertThat(expandedValueCount).isEqualTo(42);
+    }
+
+    @Test
     void rejectsResponseRoundAndContentRelationshipMismatch() {
         Fixture fixture = fixture();
         SurveyRound differentRound = round(
@@ -153,6 +238,58 @@ class PersonaSurveySourceMapperTest {
                 .extracting("code")
                 .isEqualTo(PersonaSurveySourceErrorCode
                         .PERSONA_SURVEY_SOURCE_INTEGRITY_VIOLATION);
+    }
+
+    private static SurveyAnswer validRoundOneAnswer(
+            SurveyQuestion question
+    ) {
+        return switch (question.type()) {
+            case SINGLE_CHOICE -> new SingleChoiceAnswer(
+                    question.id(),
+                    new OptionSelection(
+                            question.options().getFirst().id(), null));
+            case MULTIPLE_CHOICE -> {
+                int minimum = ((MultipleChoiceRule) question.rule())
+                        .minimumSelections();
+                yield new MultipleChoiceAnswer(
+                        question.id(),
+                        question.options().stream()
+                                .limit(minimum)
+                                .map(option -> new OptionSelection(
+                                        option.id(), null))
+                                .toList());
+            }
+            case SHORT_TEXT -> new ShortTextAnswer(
+                    question.id(), "서울특별시 종로구 청운효자동");
+            case NUMBER -> new NumberAnswer(
+                    question.id(), BigDecimal.valueOf(1990));
+            case SCALE -> new ScaleAnswer(
+                    question.id(),
+                    ((ScaleRule) question.rule()).minimum());
+            case LONG_TEXT -> throw new IllegalStateException(
+                    "round one fixture must not contain LONG_TEXT");
+            case MATRIX_SINGLE_CHOICE ->
+                    new MatrixSingleChoiceAnswer(
+                            question.id(),
+                            question.items().stream()
+                                    .map(item ->
+                                            new MatrixSingleChoiceItemAnswer(
+                                                    item.id(),
+                                                    new OptionSelection(
+                                                            question.options()
+                                                                    .getFirst()
+                                                                    .id(),
+                                                            null)))
+                                    .toList());
+            case MATRIX_SCALE -> new MatrixScaleAnswer(
+                    question.id(),
+                    question.items().stream()
+                            .map(item -> new MatrixScaleItemAnswer(
+                                    item.id(),
+                                    ((MatrixScaleRule) question.rule())
+                                            .minimum()))
+                            .toList());
+        };
     }
 
     private static Fixture fixture() {

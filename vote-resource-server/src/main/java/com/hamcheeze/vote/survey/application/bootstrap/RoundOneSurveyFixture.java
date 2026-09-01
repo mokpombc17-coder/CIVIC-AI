@@ -129,9 +129,9 @@ public final class RoundOneSurveyFixture {
                 "[1개 선택]");
         questions.add(single(order++, income,
                 income.prompt(),
-                "연간 1천만원 미만", "연간 1천만원 이상~3천만원 미만",
-                "연간 3천만원 이상~5천만원 미만", "연간 5천만원 이상~7천만원 미만",
-                "연간 7천만원 이상~1억원 미만", "연간 1억원 이상"));
+                "연간 1천만원 미만", "연간 1천만원 이상 ~ 3천만원 미만",
+                "연간 3천만원 이상 ~ 5천만원 미만", "연간 5천만원 이상 ~ 7천만원 미만",
+                "연간 7천만원 이상 ~ 1억원 미만", "연간 1억원 이상"));
 
         QuestionDefinition health = definition(
                 11, "11", "wellbeing.health-status", "건강 상태",
@@ -146,7 +146,7 @@ public final class RoundOneSurveyFixture {
                 "귀하께서 믿고 계신 종교는 무엇입니까?",
                 "[1개 선택]");
         questions.add(single(order++, religion,
-                religion.prompt(), "불교", "기독교(개신교)", "천주교(카톨릭)",
+                religion.prompt(), "불교", "기독교(개신교)", "천주교(가톨릭)",
                 "그 외", "종교 없음"));
 
         QuestionDefinition moral = definition(
@@ -248,7 +248,7 @@ public final class RoundOneSurveyFixture {
                 "귀하께서는 하루 평균 다음 매체를 얼마나 이용하십니까?",
                 "[각 항목별 1개 선택]");
         String[] durationOptions = {
-                "시청안함", "1시간 미만", "1시간 이상~3시간 미만", "3시간 이상"
+                "시청 안 함", "1시간 미만", "1시간 이상 ~ 3시간 미만", "3시간 이상"
         };
         questions.add(matrixSingle(
                 order++, mediaDuration, mediaDuration.prompt(),
@@ -263,8 +263,8 @@ public final class RoundOneSurveyFixture {
                 "귀하께서는 SNS를 얼마나 자주 이용하십니까?",
                 "[1개 선택]");
         questions.add(single(order++, sns, sns.prompt(),
-                "매일 1회 이상", "주 5~6회", "주 3~4회", "주 1~2회",
-                "월 2~3회", "월 1회 이하",
+                "매일 1회 이상", "주 5 ~ 6회", "주 3 ~ 4회", "주 1 ~ 2회",
+                "월 2 ~ 3회", "월 1회 이하",
                 "업로드는 하지 않고, 주로 다른 사람의 사진/동영상/글만 본다"));
 
         QuestionDefinition ott = definition(
@@ -272,7 +272,7 @@ public final class RoundOneSurveyFixture {
                 "귀하께서는 하루 평균 OTT 서비스를 얼마나 시청하십니까?",
                 "[1개 선택]");
         questions.add(single(order++, ott, ott.prompt(),
-                "시청안함", "1시간 미만", "1시간 이상~3시간 미만", "3시간 이상"));
+                "시청 안 함", "1시간 미만", "1시간 이상 ~ 3시간 미만", "3시간 이상"));
 
         QuestionDefinition topics = definition(
                 27, "26", "media.video-content-topics", "관심 주제 콘텐츠 탐색",
