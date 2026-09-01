@@ -2,6 +2,8 @@ package com.hamcheeze.vote.persona.infra;
 
 import com.hamcheeze.vote.persona.application.PersonaSurveySource;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.MultipleChoiceValue;
+import com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixScaleValue;
+import com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixSingleChoiceValue;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.NumberValue;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswer;
 import com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswerValue;
@@ -66,6 +68,7 @@ final class PersonaProviderRequestJson {
             String prompt,
             String description,
             int displayOrder,
+            List<QuestionItemPayload> items,
             ValuePayload value
     ) {
         static AnswerPayload from(PersonaSurveyAnswer answer) {
@@ -77,7 +80,29 @@ final class PersonaProviderRequestJson {
                     question.prompt(),
                     question.description().orElse(null),
                     question.displayOrder(),
+                    question.items().stream()
+                            .map(QuestionItemPayload::from)
+                            .toList(),
                     ValuePayload.from(answer.value()));
+        }
+    }
+
+    record QuestionItemPayload(
+            UUID itemId,
+            UUID itemLineageId,
+            String itemKey,
+            String itemLabel,
+            int displayOrder
+    ) {
+        static QuestionItemPayload from(
+                PersonaSurveySource.PersonaSurveyQuestionItem item
+        ) {
+            return new QuestionItemPayload(
+                    item.itemId(),
+                    item.itemLineageId(),
+                    item.itemKey(),
+                    item.itemLabel(),
+                    item.displayOrder());
         }
     }
 
@@ -86,37 +111,69 @@ final class PersonaProviderRequestJson {
             List<OptionPayload> selectedOptions,
             String textValue,
             BigDecimal numberValue,
-            Integer scaleValue
+            Integer scaleValue,
+            List<ItemValuePayload> itemValues
     ) {
         static ValuePayload from(PersonaSurveyAnswerValue value) {
             if (value instanceof SingleChoiceValue single) {
                 return new ValuePayload(
                         "SINGLE_CHOICE",
                         List.of(OptionPayload.from(single.selectedOption())),
-                        null, null, null);
+                        null, null, null, List.of());
             }
             if (value instanceof MultipleChoiceValue multiple) {
                 return new ValuePayload(
                         "MULTIPLE_CHOICE",
                         multiple.selectedOptions().stream()
                                 .map(OptionPayload::from).toList(),
-                        null, null, null);
+                        null, null, null, List.of());
             }
             if (value instanceof TextValue text) {
                 return new ValuePayload(
-                        "TEXT", List.of(), text.value(), null, null);
+                        "TEXT", List.of(), text.value(), null, null,
+                        List.of());
             }
             if (value instanceof NumberValue number) {
                 return new ValuePayload(
-                        "NUMBER", List.of(), null, number.value(), null);
+                        "NUMBER", List.of(), null, number.value(), null,
+                        List.of());
             }
             if (value instanceof ScaleValue scale) {
                 return new ValuePayload(
-                        "SCALE", List.of(), null, null, scale.value());
+                        "SCALE", List.of(), null, null, scale.value(),
+                        List.of());
+            }
+            if (value instanceof MatrixSingleChoiceValue matrix) {
+                return new ValuePayload(
+                        "MATRIX_SINGLE_CHOICE",
+                        List.of(), null, null, null,
+                        matrix.itemValues().stream()
+                                .map(item -> new ItemValuePayload(
+                                        item.itemId(),
+                                        OptionPayload.from(
+                                                item.selectedOption()),
+                                        null))
+                                .toList());
+            }
+            if (value instanceof MatrixScaleValue matrix) {
+                return new ValuePayload(
+                        "MATRIX_SCALE",
+                        List.of(), null, null, null,
+                        matrix.itemValues().stream()
+                                .map(item -> new ItemValuePayload(
+                                        item.itemId(), null, item.value()))
+                                .toList());
             }
             throw new IllegalArgumentException(
                     "unsupported persona survey answer value");
         }
+    }
+
+    record ItemValuePayload(
+            UUID itemId,
+            OptionPayload selectedOption,
+            Integer scaleValue
+    ) {
     }
 
     record OptionPayload(

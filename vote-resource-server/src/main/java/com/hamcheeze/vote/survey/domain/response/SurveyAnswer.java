@@ -4,7 +4,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
 
 public sealed interface SurveyAnswer permits SingleChoiceAnswer,
         MultipleChoiceAnswer, ShortTextAnswer, LongTextAnswer,
-        NumberAnswer, ScaleAnswer {
+        NumberAnswer, ScaleAnswer, MatrixSingleChoiceAnswer,
+        MatrixScaleAnswer {
 
     SurveyQuestionId questionId();
 

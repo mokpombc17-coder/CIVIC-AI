@@ -5,6 +5,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -169,6 +171,46 @@ public class SurveyResponseJpaAdapter implements SurveyResponseRepository {
                             answer.questionId().value(),
                             selection.optionId().value(),
                             selection.inputText())));
+            persistItemValues(
+                    answerId, responseId, contentVersionId, answer);
+        }
+    }
+
+    private void persistItemValues(
+            UUID answerId,
+            UUID responseId,
+            UUID contentVersionId,
+            SurveyAnswer answer
+    ) {
+        switch (answer) {
+            case MatrixSingleChoiceAnswer matrix -> matrix.itemAnswers()
+                    .forEach(itemAnswer -> entityManager.persist(
+                            new SurveyAnswerItemValueJpaEntity(
+                                    UUID.randomUUID(),
+                                    answerId,
+                                    responseId,
+                                    contentVersionId,
+                                    answer.questionId().value(),
+                                    itemAnswer.itemId().value(),
+                                    answer.answerType(),
+                                    itemAnswer.selection().optionId().value(),
+                                    itemAnswer.selection().inputText(),
+                                    null)));
+            case MatrixScaleAnswer matrix -> matrix.itemAnswers()
+                    .forEach(itemAnswer -> entityManager.persist(
+                            new SurveyAnswerItemValueJpaEntity(
+                                    UUID.randomUUID(),
+                                    answerId,
+                                    responseId,
+                                    contentVersionId,
+                                    answer.questionId().value(),
+                                    itemAnswer.itemId().value(),
+                                    answer.answerType(),
+                                    null,
+                                    null,
+                                    itemAnswer.value())));
+            default -> {
+            }
         }
     }
 
@@ -251,12 +293,29 @@ public class SurveyResponseJpaAdapter implements SurveyResponseRepository {
                         SurveyAnswerSelectionJpaEntity::answerId,
                         LinkedHashMap::new,
                         Collectors.toList()));
+        List<SurveyAnswerItemValueJpaEntity> itemValues = answerIds.isEmpty()
+                ? List.of()
+                : entityManager.createQuery("""
+                        SELECT value
+                        FROM SurveyAnswerItemValueJpaEntity value
+                        JOIN FETCH value.item item
+                        WHERE value.answerId IN :answerIds
+                        ORDER BY value.answerId, item.displayOrder
+                        """, SurveyAnswerItemValueJpaEntity.class)
+                .setParameter("answerIds", answerIds)
+                .getResultList();
+        Map<UUID, List<SurveyAnswerItemValueJpaEntity>> itemValuesByAnswer =
+                itemValues.stream().collect(Collectors.groupingBy(
+                        SurveyAnswerItemValueJpaEntity::answerId,
+                        LinkedHashMap::new,
+                        Collectors.toList()));
         List<SurveyResponse> result = new ArrayList<>(responses.size());
         for (SurveyResponseJpaEntity response : responses) {
             result.add(SurveyResponseJpaMapper.toDomain(
                     response,
                     answersByResponse.getOrDefault(response.id(), List.of()),
-                    selectionsByAnswer));
+                    selectionsByAnswer,
+                    itemValuesByAnswer));
         }
         return List.copyOf(result);
     }

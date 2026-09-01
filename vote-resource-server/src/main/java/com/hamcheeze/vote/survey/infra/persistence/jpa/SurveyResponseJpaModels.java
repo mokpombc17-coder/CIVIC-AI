@@ -272,3 +272,112 @@ class SurveyAnswerSelectionJpaEntity {
         return inputText;
     }
 }
+
+@Entity
+@Immutable
+@Table(name = "survey_answer_item_values")
+class SurveyAnswerItemValueJpaEntity {
+
+    @Id
+    @Column(name = "item_value_id", nullable = false)
+    private UUID id;
+
+    @Column(name = "answer_id", nullable = false)
+    private UUID answerId;
+
+    @Column(name = "response_id", nullable = false)
+    private UUID responseId;
+
+    @Column(name = "content_version_id", nullable = false)
+    private UUID contentVersionId;
+
+    @Column(name = "question_id", nullable = false)
+    private UUID questionId;
+
+    @Column(name = "item_id", nullable = false)
+    private UUID itemId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "answer_type", nullable = false, length = 30)
+    private SurveyAnswerType answerType;
+
+    @Column(name = "option_id")
+    private UUID optionId;
+
+    @Column(name = "input_text", length = 200)
+    private String inputText;
+
+    @Column(name = "scale_value")
+    private Integer scaleValue;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumns({
+            @JoinColumn(
+                    name = "item_id",
+                    referencedColumnName = "item_id",
+                    insertable = false,
+                    updatable = false),
+            @JoinColumn(
+                    name = "question_id",
+                    referencedColumnName = "question_id",
+                    insertable = false,
+                    updatable = false),
+            @JoinColumn(
+                    name = "content_version_id",
+                    referencedColumnName = "content_version_id",
+                    insertable = false,
+                    updatable = false)
+    })
+    private SurveyQuestionItemJpaEntity item;
+
+    protected SurveyAnswerItemValueJpaEntity() {
+    }
+
+    SurveyAnswerItemValueJpaEntity(
+            UUID id,
+            UUID answerId,
+            UUID responseId,
+            UUID contentVersionId,
+            UUID questionId,
+            UUID itemId,
+            SurveyAnswerType answerType,
+            UUID optionId,
+            String inputText,
+            Integer scaleValue
+    ) {
+        this.id = id;
+        this.answerId = answerId;
+        this.responseId = responseId;
+        this.contentVersionId = contentVersionId;
+        this.questionId = questionId;
+        this.itemId = itemId;
+        this.answerType = answerType;
+        this.optionId = optionId;
+        this.inputText = inputText;
+        this.scaleValue = scaleValue;
+    }
+
+    UUID answerId() {
+        return answerId;
+    }
+
+    UUID itemId() {
+        return itemId;
+    }
+
+    SurveyAnswerType answerType() {
+        return answerType;
+    }
+
+    UUID optionId() {
+        return optionId;
+    }
+
+    String inputText() {
+        return inputText;
+    }
+
+    Integer scaleValue() {
+        return scaleValue;
+    }
+}

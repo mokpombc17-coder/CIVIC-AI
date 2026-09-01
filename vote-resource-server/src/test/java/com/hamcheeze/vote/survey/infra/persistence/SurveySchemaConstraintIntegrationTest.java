@@ -36,8 +36,8 @@ class SurveySchemaConstraintIntegrationTest {
         List<String> expectedTables = List.of(
                 "survey_content_versions",
                 "survey_question_sections",
-                "survey_question_groups",
                 "survey_questions",
+                "survey_question_items",
                 "survey_options",
                 "survey_round_control",
                 "survey_rounds",
@@ -45,6 +45,7 @@ class SurveySchemaConstraintIntegrationTest {
                 "survey_responses",
                 "survey_answers",
                 "survey_answer_selections",
+                "survey_answer_item_values",
                 "survey_idempotency_receipts",
                 "survey_response_submitted_replays",
                 "persona_generations");
@@ -88,22 +89,23 @@ class SurveySchemaConstraintIntegrationTest {
     }
 
     @Test
-    void rejectsAQuestionGroupUsingASectionFromAnotherContentVersion() {
+    void rejectsAQuestionUsingASectionFromAnotherContentVersion() {
         UUID sectionContentId = insertPublishedContent(1);
-        UUID groupContentId = insertPublishedContent(2);
+        UUID questionContentId = insertPublishedContent(2);
         UUID sectionId = insertQuestionSection(sectionContentId, 1);
-        UUID groupId = UUID.randomUUID();
+        UUID questionId = UUID.randomUUID();
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
-                INSERT INTO survey_question_groups (
-                    group_id, content_version_id, group_lineage_id,
-                    section_id, group_key, source_number, title, prompt,
-                    display_order)
-                VALUES (?, ?, ?, ?, ?, '1', '질문', '질문', 1)
-                """, groupId, groupContentId, UUID.randomUUID(),
-                sectionId, "test.group." + groupId))
+                INSERT INTO survey_questions (
+                    question_id, content_version_id, question_lineage_id,
+                    section_id, question_key, source_number, title,
+                    type, prompt, display_order, is_required)
+                VALUES (?, ?, ?, ?, ?, '1', '질문',
+                    'SINGLE_CHOICE', '질문', 1, true)
+                """, questionId, questionContentId, UUID.randomUUID(),
+                sectionId, "test.question." + questionId))
                 .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("fk_survey_question_group_section");
+                .hasMessageContaining("fk_survey_question_section");
     }
 
     @Test
@@ -184,18 +186,19 @@ class SurveySchemaConstraintIntegrationTest {
     @Test
     void rejectsRuleColumnsThatDoNotMatchTheQuestionType() {
         UUID contentId = insertPublishedContent(1);
-        UUID groupId = insertQuestionGroup(contentId, 1, "질문");
+        UUID sectionId = insertQuestionSection(contentId, 1);
+        UUID questionId = UUID.randomUUID();
 
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
-                    group_id, item_key, item_display_order,
+                    section_id, question_key, source_number, title,
                     type, prompt, display_order, is_required,
                     text_max_length)
-                VALUES (?, ?, ?, ?, 'value', 1,
+                VALUES (?, ?, ?, ?, ?, '1', '질문',
                     'SINGLE_CHOICE', '질문', 1, true, 200)
-                """, UUID.randomUUID(), contentId, UUID.randomUUID(),
-                groupId))
+                """, questionId, contentId, UUID.randomUUID(),
+                sectionId, "test.question." + questionId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_survey_question_rules");
     }
@@ -204,17 +207,16 @@ class SurveySchemaConstraintIntegrationTest {
     void requiresEverySurveyQuestionAtTheDatabaseBoundary() {
         UUID contentId = insertPublishedContent(1);
         UUID defaultedQuestionId = UUID.randomUUID();
-        UUID firstGroupId = insertQuestionGroup(
-                contentId, 1, "기본 필수 질문");
+        UUID firstSectionId = insertQuestionSection(contentId, 1);
         jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
-                    group_id, item_key, item_display_order,
+                    section_id, question_key, source_number, title,
                     type, prompt, display_order, text_max_length)
-                VALUES (?, ?, ?, ?, 'value', 1,
+                VALUES (?, ?, ?, ?, ?, '1', '기본 필수 질문',
                     'SHORT_TEXT', '기본 필수 질문', 1, 200)
                 """, defaultedQuestionId, contentId, UUID.randomUUID(),
-                firstGroupId);
+                firstSectionId, "test.question." + defaultedQuestionId);
         Boolean defaultedRequired = jdbcTemplate.queryForObject("""
                 SELECT is_required
                 FROM survey_questions
@@ -226,17 +228,18 @@ class SurveySchemaConstraintIntegrationTest {
                 WHERE version = '9' AND success = true
                 """, Integer.class);
 
-        UUID secondGroupId = insertQuestionGroup(contentId, 2, "질문");
+        UUID secondSectionId = insertQuestionSection(contentId, 2);
+        UUID secondQuestionId = UUID.randomUUID();
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
-                    group_id, item_key, item_display_order,
+                    section_id, question_key, source_number, title,
                     type, prompt, display_order, is_required,
                     text_max_length)
-                VALUES (?, ?, ?, ?, 'value', 1,
+                VALUES (?, ?, ?, ?, ?, '2', '질문',
                     'SHORT_TEXT', '질문', 2, false, 200)
-                """, UUID.randomUUID(), contentId, UUID.randomUUID(),
-                secondGroupId))
+                """, secondQuestionId, contentId, UUID.randomUUID(),
+                secondSectionId, "test.question." + secondQuestionId))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_survey_question_required");
 
@@ -265,38 +268,19 @@ class SurveySchemaConstraintIntegrationTest {
             int displayOrder
     ) {
         UUID questionId = UUID.randomUUID();
-        UUID groupId = insertQuestionGroup(
-                contentId, displayOrder, "질문 " + displayOrder);
+        UUID sectionId = insertQuestionSection(contentId, displayOrder);
         jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
-                    group_id, item_key, item_display_order,
+                    section_id, question_key, source_number, title,
                     type, prompt, display_order, is_required)
-                VALUES (?, ?, ?, ?, 'value', 1,
+                VALUES (?, ?, ?, ?, ?, ?, ?,
                     'SINGLE_CHOICE', ?, ?, true)
                 """, questionId, contentId, UUID.randomUUID(),
-                groupId, "질문 " + displayOrder, displayOrder);
+                sectionId, "test.question." + questionId,
+                Integer.toString(displayOrder), "질문 " + displayOrder,
+                "질문 " + displayOrder, displayOrder);
         return questionId;
-    }
-
-    private UUID insertQuestionGroup(
-            UUID contentId,
-            int displayOrder,
-            String prompt
-    ) {
-        UUID groupId = UUID.randomUUID();
-        UUID sectionId = insertQuestionSection(contentId, displayOrder);
-        jdbcTemplate.update("""
-                INSERT INTO survey_question_groups (
-                    group_id, content_version_id, group_lineage_id,
-                    section_id, group_key, source_number, title, prompt,
-                    display_order)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, groupId, contentId, UUID.randomUUID(),
-                sectionId,
-                "test.group." + groupId,
-                Integer.toString(displayOrder), prompt, prompt, displayOrder);
-        return groupId;
     }
 
     private UUID insertQuestionSection(

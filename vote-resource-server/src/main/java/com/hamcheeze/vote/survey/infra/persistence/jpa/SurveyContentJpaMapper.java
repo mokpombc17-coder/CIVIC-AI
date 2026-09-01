@@ -6,12 +6,14 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupLineageKey;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionLineageKey;
 import com.hamcheeze.vote.survey.domain.content.LongTextRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixSingleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.QuestionRule;
@@ -21,7 +23,7 @@ import com.hamcheeze.vote.survey.domain.content.SingleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
-import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 
 import java.util.List;
@@ -35,21 +37,19 @@ final class SurveyContentJpaMapper {
     static SurveyContentVersion toDomain(
             SurveyContentVersionJpaEntity content,
             Map<java.util.UUID, SurveyQuestionSectionJpaEntity> sectionsById,
-            Map<java.util.UUID, SurveyQuestionGroupJpaEntity> groupsById,
             List<SurveyQuestionJpaEntity> questions,
-            Map<java.util.UUID, List<SurveyOptionJpaEntity>> optionsByQuestion
+            Map<java.util.UUID, List<SurveyOptionJpaEntity>> optionsByQuestion,
+            Map<java.util.UUID, List<SurveyQuestionItemJpaEntity>> itemsByQuestion
     ) {
         List<SurveyQuestion> domainQuestions = questions.stream()
                 .map(question -> new SurveyQuestion(
                         new SurveyQuestionId(question.id()),
                         new SurveyQuestionLineageKey(question.lineageId()),
-                        toDomain(
-                                requiredGroup(
-                                        question.groupId(), groupsById),
-                                sectionsById),
-                        question.itemKey(),
-                        question.itemLabel(),
-                        question.itemDisplayOrder(),
+                        toDomain(requiredSection(
+                                question.sectionId(), sectionsById)),
+                        question.questionKey(),
+                        question.sourceNumber(),
+                        question.title(),
                         question.type(),
                         question.prompt(),
                         question.description(),
@@ -57,6 +57,11 @@ final class SurveyContentJpaMapper {
                         question.required(),
                         toRule(question),
                         optionsByQuestion
+                                .getOrDefault(question.id(), List.of())
+                                .stream()
+                                .map(SurveyContentJpaMapper::toDomain)
+                                .toList(),
+                        itemsByQuestion
                                 .getOrDefault(question.id(), List.of())
                                 .stream()
                                 .map(SurveyContentJpaMapper::toDomain)
@@ -94,6 +99,8 @@ final class SurveyContentJpaMapper {
         switch (rule) {
             case SingleChoiceRule ignored -> {
             }
+            case MatrixSingleChoiceRule ignored -> {
+            }
             case MultipleChoiceRule multiple -> {
                 entity.minimumSelections(multiple.minimumSelections());
                 entity.maximumSelections(multiple.maximumSelections());
@@ -107,6 +114,12 @@ final class SurveyContentJpaMapper {
                 entity.decimalScale(number.decimalScale());
             }
             case ScaleRule scale -> {
+                entity.scaleMinimum(scale.minimum());
+                entity.scaleMaximum(scale.maximum());
+                entity.scaleMinimumLabel(scale.minimumLabel());
+                entity.scaleMaximumLabel(scale.maximumLabel());
+            }
+            case MatrixScaleRule scale -> {
                 entity.scaleMinimum(scale.minimum());
                 entity.scaleMaximum(scale.maximum());
                 entity.scaleMinimumLabel(scale.minimumLabel());
@@ -133,7 +146,24 @@ final class SurveyContentJpaMapper {
                     question.scaleMaximum(),
                     question.scaleMinimumLabel(),
                     question.scaleMaximumLabel());
+            case MATRIX_SINGLE_CHOICE -> new MatrixSingleChoiceRule();
+            case MATRIX_SCALE -> new MatrixScaleRule(
+                    question.scaleMinimum(),
+                    question.scaleMaximum(),
+                    question.scaleMinimumLabel(),
+                    question.scaleMaximumLabel());
         };
+    }
+
+    private static SurveyQuestionItem toDomain(
+            SurveyQuestionItemJpaEntity item
+    ) {
+        return new SurveyQuestionItem(
+                new SurveyQuestionItemId(item.id()),
+                new SurveyQuestionItemLineageKey(item.lineageId()),
+                item.itemKey(),
+                item.itemLabel(),
+                item.displayOrder());
     }
 
     private static SurveyOption toDomain(SurveyOptionJpaEntity option) {
@@ -144,34 +174,6 @@ final class SurveyContentJpaMapper {
                 option.kind(),
                 option.label(),
                 option.displayOrder());
-    }
-
-    private static SurveyQuestionGroupJpaEntity requiredGroup(
-            java.util.UUID groupId,
-            Map<java.util.UUID, SurveyQuestionGroupJpaEntity> groupsById
-    ) {
-        SurveyQuestionGroupJpaEntity group = groupsById.get(groupId);
-        if (group == null) {
-            throw new IllegalStateException(
-                    "survey question group not loaded: " + groupId);
-        }
-        return group;
-    }
-
-    private static SurveyQuestionGroup toDomain(
-            SurveyQuestionGroupJpaEntity group,
-            Map<java.util.UUID, SurveyQuestionSectionJpaEntity> sectionsById
-    ) {
-        return new SurveyQuestionGroup(
-                new SurveyQuestionGroupId(group.id()),
-                new SurveyQuestionGroupLineageKey(group.lineageId()),
-                toDomain(requiredSection(group.sectionId(), sectionsById)),
-                group.groupKey(),
-                group.sourceNumber(),
-                group.title(),
-                group.prompt(),
-                group.description(),
-                group.displayOrder());
     }
 
     private static SurveyQuestionSectionJpaEntity requiredSection(

@@ -4,6 +4,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
@@ -21,10 +22,10 @@ public final class SurveyQuestion {
 
     private final SurveyQuestionId id;
     private final SurveyQuestionLineageKey lineageKey;
-    private final SurveyQuestionGroup group;
-    private final String itemKey;
-    private final String itemLabel;
-    private final int itemDisplayOrder;
+    private final SurveyQuestionSection section;
+    private final String questionKey;
+    private final String sourceNumber;
+    private final String title;
     private final SurveyQuestionType type;
     private final String prompt;
     private final String description;
@@ -32,6 +33,7 @@ public final class SurveyQuestion {
     private final boolean required;
     private final QuestionRule rule;
     private final List<SurveyOption> options;
+    private final List<SurveyQuestionItem> items;
 
     public SurveyQuestion(
             SurveyQuestionId id,
@@ -47,27 +49,58 @@ public final class SurveyQuestion {
         this(
                 id,
                 lineageKey,
-                SurveyQuestionGroup.legacySingleton(
-                        id, lineageKey, prompt, displayOrder),
-                "value",
-                null,
-                1,
+                SurveyQuestionSection.legacySingleton(
+                        id, lineageKey, legacyTitle(prompt), displayOrder),
+                "legacy." + id.value(),
+                Integer.toString(displayOrder),
+                legacyTitle(prompt),
                 type,
                 prompt,
                 description,
                 displayOrder,
                 required,
                 rule,
-                options);
+                options,
+                List.of());
     }
 
     public SurveyQuestion(
             SurveyQuestionId id,
             SurveyQuestionLineageKey lineageKey,
-            SurveyQuestionGroup group,
-            String itemKey,
-            String itemLabel,
-            int itemDisplayOrder,
+            SurveyQuestionType type,
+            String prompt,
+            String description,
+            int displayOrder,
+            boolean required,
+            QuestionRule rule,
+            List<SurveyOption> options,
+            List<SurveyQuestionItem> items
+    ) {
+        this(
+                id,
+                lineageKey,
+                SurveyQuestionSection.legacySingleton(
+                        id, lineageKey, legacyTitle(prompt), displayOrder),
+                "legacy." + id.value(),
+                Integer.toString(displayOrder),
+                legacyTitle(prompt),
+                type,
+                prompt,
+                description,
+                displayOrder,
+                required,
+                rule,
+                options,
+                items);
+    }
+
+    public SurveyQuestion(
+            SurveyQuestionId id,
+            SurveyQuestionLineageKey lineageKey,
+            SurveyQuestionSection section,
+            String questionKey,
+            String sourceNumber,
+            String title,
             SurveyQuestionType type,
             String prompt,
             String description,
@@ -76,27 +109,67 @@ public final class SurveyQuestion {
             QuestionRule rule,
             List<SurveyOption> options
     ) {
+        this(
+                id,
+                lineageKey,
+                section,
+                questionKey,
+                sourceNumber,
+                title,
+                type,
+                prompt,
+                description,
+                displayOrder,
+                required,
+                rule,
+                options,
+                List.of());
+    }
+
+    public SurveyQuestion(
+            SurveyQuestionId id,
+            SurveyQuestionLineageKey lineageKey,
+            SurveyQuestionSection section,
+            String questionKey,
+            String sourceNumber,
+            String title,
+            SurveyQuestionType type,
+            String prompt,
+            String description,
+            int displayOrder,
+            boolean required,
+            QuestionRule rule,
+            List<SurveyOption> options,
+            List<SurveyQuestionItem> items
+    ) {
         this.id = Objects.requireNonNull(id, "id");
         this.lineageKey = Objects.requireNonNull(lineageKey, "lineageKey");
-        this.group = Objects.requireNonNull(group, "group");
-        this.itemKey = SurveyContentText.required(
-                itemKey,
+        this.section = Objects.requireNonNull(section, "section");
+        this.questionKey = SurveyContentText.required(
+                questionKey,
                 150,
-                "SURVEY_QUESTION_ITEM_KEY_REQUIRED",
-                "SURVEY_QUESTION_ITEM_KEY_TOO_LONG",
-                "question.itemKey");
-        this.itemLabel = SurveyContentText.optional(
-                itemLabel,
-                200,
-                "SURVEY_QUESTION_ITEM_LABEL_TOO_LONG",
-                "question.itemLabel");
-        if (itemDisplayOrder < 1) {
+                "SURVEY_QUESTION_KEY_REQUIRED",
+                "SURVEY_QUESTION_KEY_TOO_LONG",
+                "question.questionKey");
+        if (!this.questionKey.matches(
+                "[a-z0-9]+(?:[.-][a-z0-9]+)*")) {
             throw SurveyDomainException.invariant(
-                    "SURVEY_QUESTION_ITEM_DISPLAY_ORDER_INVALID",
-                    "question.itemDisplayOrder",
-                    "question itemDisplayOrder must be positive");
+                    "SURVEY_QUESTION_KEY_INVALID",
+                    "question.questionKey",
+                    "questionKey must use lowercase dot or hyphen segments");
         }
-        this.itemDisplayOrder = itemDisplayOrder;
+        this.sourceNumber = SurveyContentText.required(
+                sourceNumber,
+                20,
+                "SURVEY_QUESTION_SOURCE_NUMBER_REQUIRED",
+                "SURVEY_QUESTION_SOURCE_NUMBER_TOO_LONG",
+                "question.sourceNumber");
+        this.title = SurveyContentText.required(
+                title,
+                200,
+                "SURVEY_QUESTION_TITLE_REQUIRED",
+                "SURVEY_QUESTION_TITLE_TOO_LONG",
+                "question.title");
         this.type = Objects.requireNonNull(type, "type");
         this.prompt = SurveyContentText.required(
                 prompt,
@@ -139,6 +212,7 @@ public final class SurveyQuestion {
                 .toList();
         validateOptions(type, rule, orderedOptions);
         this.options = List.copyOf(orderedOptions);
+        this.items = validateAndOrderItems(type, items);
     }
 
     public static SurveyQuestion choice(
@@ -211,20 +285,20 @@ public final class SurveyQuestion {
         return lineageKey;
     }
 
-    public SurveyQuestionGroup group() {
-        return group;
+    public SurveyQuestionSection section() {
+        return section;
     }
 
-    public String itemKey() {
-        return itemKey;
+    public String questionKey() {
+        return questionKey;
     }
 
-    public String itemLabel() {
-        return itemLabel;
+    public String sourceNumber() {
+        return sourceNumber;
     }
 
-    public int itemDisplayOrder() {
-        return itemDisplayOrder;
+    public String title() {
+        return title;
     }
 
     public SurveyQuestionType type() {
@@ -255,29 +329,92 @@ public final class SurveyQuestion {
         return options;
     }
 
+    public List<SurveyQuestionItem> items() {
+        return items;
+    }
+
     SurveyQuestion copyWithIds(
             SurveyQuestionId newId,
-            SurveyQuestionGroup newGroup,
+            SurveyQuestionSection newSection,
+            Function<SurveyQuestionItem, SurveyQuestionItemId> itemIdGenerator,
             Function<SurveyOption, SurveyOptionId> optionIdGenerator
     ) {
         List<SurveyOption> clonedOptions = options.stream()
                 .map(option -> option.copyWithId(
                         optionIdGenerator.apply(option)))
                 .toList();
+        List<SurveyQuestionItem> clonedItems = items.stream()
+                .map(item -> item.copyWithId(itemIdGenerator.apply(item)))
+                .toList();
         return new SurveyQuestion(
                 newId,
                 lineageKey,
-                newGroup,
-                itemKey,
-                itemLabel,
-                itemDisplayOrder,
+                newSection,
+                questionKey,
+                sourceNumber,
+                title,
                 type,
                 prompt,
                 description,
                 displayOrder,
                 required,
                 rule,
-                clonedOptions);
+                clonedOptions,
+                clonedItems);
+    }
+
+    private static List<SurveyQuestionItem> validateAndOrderItems(
+            SurveyQuestionType type,
+            List<SurveyQuestionItem> items
+    ) {
+        Objects.requireNonNull(items, "items");
+        if (items.stream().anyMatch(Objects::isNull)) {
+            throw new IllegalArgumentException("items must not contain null");
+        }
+        List<SurveyQuestionItem> ordered = items.stream()
+                .sorted(Comparator.comparingInt(
+                        SurveyQuestionItem::displayOrder))
+                .toList();
+        List<SurveyViolation> violations = new ArrayList<>();
+        if (type.isMatrix()) {
+            if (ordered.isEmpty()
+                    || ordered.size()
+                    > SurveyContentLimits.MAX_ITEMS_PER_QUESTION) {
+                violations.add(SurveyViolation.of(
+                        "SURVEY_MATRIX_ITEM_COUNT_INVALID",
+                        "question.items",
+                        "matrix questions require between 1 and "
+                                + SurveyContentLimits.MAX_ITEMS_PER_QUESTION
+                                + " items"));
+            }
+        } else if (!ordered.isEmpty()) {
+            violations.add(SurveyViolation.of(
+                    "SURVEY_NON_MATRIX_ITEMS_NOT_ALLOWED",
+                    "question.items",
+                    "non-matrix questions must not have items"));
+        }
+        findDuplicates(ordered, SurveyQuestionItem::id).forEach(duplicate ->
+                violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_ITEM_ID_DUPLICATED",
+                        "question.items",
+                        "item id must be unique within a question")));
+        findDuplicates(ordered, SurveyQuestionItem::lineageKey)
+                .forEach(duplicate -> violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_ITEM_LINEAGE_DUPLICATED",
+                        "question.items",
+                        "item lineage must be unique within a question")));
+        findDuplicates(ordered, SurveyQuestionItem::itemKey)
+                .forEach(duplicate -> violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_ITEM_KEY_DUPLICATED",
+                        "question.items",
+                        "itemKey must be unique within a question")));
+        findDuplicates(ordered, SurveyQuestionItem::displayOrder)
+                .forEach(duplicate -> violations.add(SurveyViolation.of(
+                        "SURVEY_QUESTION_ITEM_DISPLAY_ORDER_DUPLICATED",
+                        "question.items",
+                        "item displayOrder must be unique within a question")));
+        throwIfAny(violations);
+        return List.copyOf(ordered);
     }
 
     private static void validateOptions(
@@ -298,6 +435,7 @@ public final class SurveyQuestion {
         }
 
         int maximumOptionCount = type == SurveyQuestionType.SINGLE_CHOICE
+                || type == SurveyQuestionType.MATRIX_SINGLE_CHOICE
                 ? 20
                 : SurveyContentLimits.MAX_OPTIONS_PER_QUESTION;
         if (options.size() < 2 || options.size() > maximumOptionCount) {
@@ -379,5 +517,14 @@ public final class SurveyQuestion {
         if (!violations.isEmpty()) {
             throw new SurveyValidationException(violations);
         }
+    }
+
+    private static String legacyTitle(String prompt) {
+        Objects.requireNonNull(prompt, "prompt");
+        int codePoints = prompt.codePointCount(0, prompt.length());
+        if (codePoints <= 200) {
+            return prompt;
+        }
+        return prompt.substring(0, prompt.offsetByCodePoints(0, 200));
     }
 }

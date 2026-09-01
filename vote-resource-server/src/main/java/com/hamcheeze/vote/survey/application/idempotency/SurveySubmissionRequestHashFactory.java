@@ -2,6 +2,10 @@ package com.hamcheeze.vote.survey.application.idempotency;
 
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -22,7 +26,7 @@ import java.util.UUID;
 
 public final class SurveySubmissionRequestHashFactory {
 
-    private static final String FORMAT_VERSION = "survey-submit-v1";
+    private static final String FORMAT_VERSION = "survey-submit-v2";
 
     public SurveyRequestHash hash(
             SurveyRoundId roundId,
@@ -74,7 +78,43 @@ public final class SurveySubmissionRequestHashFactory {
                         writeNullableString(output, canonicalNumber(number.value()));
                 case ScaleAnswer scale ->
                         writeNullableInteger(output, scale.value());
+                case MatrixSingleChoiceAnswer matrix -> {
+                    List<byte[]> itemAnswers = matrix.itemAnswers().stream()
+                            .map(this::canonicalMatrixSelection)
+                            .sorted(Arrays::compareUnsigned)
+                            .toList();
+                    output.writeInt(itemAnswers.size());
+                    for (byte[] itemAnswer : itemAnswers) {
+                        writeBytes(output, itemAnswer);
+                    }
+                }
+                case MatrixScaleAnswer matrix -> {
+                    List<byte[]> itemAnswers = matrix.itemAnswers().stream()
+                            .map(this::canonicalMatrixScale)
+                            .sorted(Arrays::compareUnsigned)
+                            .toList();
+                    output.writeInt(itemAnswers.size());
+                    for (byte[] itemAnswer : itemAnswers) {
+                        writeBytes(output, itemAnswer);
+                    }
+                }
             }
+        });
+    }
+
+    private byte[] canonicalMatrixSelection(
+            MatrixSingleChoiceItemAnswer itemAnswer
+    ) {
+        return write(output -> {
+            writeUuid(output, itemAnswer.itemId().value());
+            writeSelection(output, itemAnswer.selection());
+        });
+    }
+
+    private byte[] canonicalMatrixScale(MatrixScaleItemAnswer itemAnswer) {
+        return write(output -> {
+            writeUuid(output, itemAnswer.itemId().value());
+            writeNullableInteger(output, itemAnswer.value());
         });
     }
 

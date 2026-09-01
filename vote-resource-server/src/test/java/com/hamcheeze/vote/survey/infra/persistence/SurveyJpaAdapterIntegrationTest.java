@@ -10,6 +10,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
@@ -17,6 +19,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundTransitionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.LongTextRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixSingleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.ScaleRule;
@@ -26,8 +30,13 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionStatus;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -132,9 +141,18 @@ class SurveyJpaAdapterIntegrationTest {
                         SurveyQuestionType.SHORT_TEXT,
                         SurveyQuestionType.LONG_TEXT,
                         SurveyQuestionType.NUMBER,
-                        SurveyQuestionType.SCALE);
-        assertThat(stored.questionGroups()).hasSize(6);
-        assertThat(stored.questionSections()).hasSize(6);
+                        SurveyQuestionType.SCALE,
+                        SurveyQuestionType.MATRIX_SINGLE_CHOICE,
+                        SurveyQuestionType.MATRIX_SCALE);
+        assertThat(stored.questionSections()).hasSize(8);
+        assertThat(stored.questions().get(6).items())
+                .extracting(SurveyQuestionItem::itemLabel)
+                .containsExactly("아동", "실버");
+        assertThat(stored.questions().get(7).description())
+                .isEqualTo("0점부터 10점");
+        assertThat(stored.questions())
+                .extracting(SurveyQuestion::questionKey)
+                .doesNotHaveDuplicates();
         assertThat(stored.questions().get(1).options())
                 .extracting(SurveyOption::label)
                 .containsExactly("개발", "디자인", "기타");
@@ -307,6 +325,14 @@ class SurveyJpaAdapterIntegrationTest {
                 optionId(base + 23),
                 optionLineageId(base + 123),
                 3);
+        SurveyOption matrixYes = standardOption(base + 31, "있음", 1);
+        SurveyOption matrixNo = standardOption(base + 32, "없음", 2);
+        List<SurveyQuestionItem> choiceItems = List.of(
+                questionItem(base + 41, "child", "아동", 1),
+                questionItem(base + 42, "senior", "실버", 2));
+        List<SurveyQuestionItem> scaleItems = List.of(
+                questionItem(base + 51, "stranger", "처음 만난 낯선 사람", 1),
+                questionItem(base + 52, "foreigner", "국내 거주 외국인", 2));
         List<SurveyQuestion> questions = List.of(
                 new SurveyQuestion(
                         questionId(base + 1),
@@ -371,7 +397,29 @@ class SurveyJpaAdapterIntegrationTest {
                         6,
                         true,
                         new ScaleRule(1, 5, "낮음", "높음"),
-                        List.of()));
+                        List.of()),
+                new SurveyQuestion(
+                        questionId(base + 7),
+                        questionLineageId(base + 107),
+                        SurveyQuestionType.MATRIX_SINGLE_CHOICE,
+                        "가구원 중 해당 연령대가 있습니까?",
+                        "각 항목별 1개 선택",
+                        7,
+                        true,
+                        new MatrixSingleChoiceRule(),
+                        List.of(matrixYes, matrixNo),
+                        choiceItems),
+                new SurveyQuestion(
+                        questionId(base + 8),
+                        questionLineageId(base + 108),
+                        SurveyQuestionType.MATRIX_SCALE,
+                        "각 집단에 대한 호감도를 평가해 주세요.",
+                        "0점부터 10점",
+                        8,
+                        true,
+                        new MatrixScaleRule(0, 10, "비호감", "호감"),
+                        List.of(),
+                        scaleItems));
         SurveyContentVersion draft = SurveyContentVersion.createDraft(
                 contentId(base),
                 "사용자 특성 설문",
@@ -423,7 +471,31 @@ class SurveyJpaAdapterIntegrationTest {
                         new BigDecimal("12.34")),
                 new ScaleAnswer(
                         questions.get(5).id(),
-                        4));
+                        4),
+                new MatrixSingleChoiceAnswer(
+                        questions.get(6).id(),
+                        List.of(
+                                new MatrixSingleChoiceItemAnswer(
+                                        questions.get(6).items().get(0).id(),
+                                        new OptionSelection(
+                                                questions.get(6).options()
+                                                        .get(0).id(),
+                                                null)),
+                                new MatrixSingleChoiceItemAnswer(
+                                        questions.get(6).items().get(1).id(),
+                                        new OptionSelection(
+                                                questions.get(6).options()
+                                                        .get(1).id(),
+                                                null)))),
+                new MatrixScaleAnswer(
+                        questions.get(7).id(),
+                        List.of(
+                                new MatrixScaleItemAnswer(
+                                        questions.get(7).items().get(0).id(),
+                                        3),
+                                new MatrixScaleItemAnswer(
+                                        questions.get(7).items().get(1).id(),
+                                        8))));
         return SurveyResponse.rehydrate(
                 responseId(id),
                 userId,
@@ -438,7 +510,7 @@ class SurveyJpaAdapterIntegrationTest {
             SurveyResponse response,
             ContentFixture fixture
     ) {
-        assertThat(response.answers()).hasSize(6);
+        assertThat(response.answers()).hasSize(8);
         assertThat(((SingleChoiceAnswer) response.answers().get(0))
                 .selection().optionId()).isEqualTo(fixture.singleOptionId());
         MultipleChoiceAnswer multiple =
@@ -458,6 +530,25 @@ class SurveyJpaAdapterIntegrationTest {
                 .isEqualByComparingTo("12.34");
         assertThat(((ScaleAnswer) response.answers().get(5)).value())
                 .isEqualTo(4);
+        MatrixSingleChoiceAnswer matrixChoice =
+                (MatrixSingleChoiceAnswer) response.answers().get(6);
+        assertThat(matrixChoice.itemAnswers())
+                .extracting(MatrixSingleChoiceItemAnswer::itemId)
+                .containsExactlyElementsOf(fixture.content().questions().get(6)
+                        .items().stream()
+                        .map(SurveyQuestionItem::id)
+                        .toList());
+        assertThat(matrixChoice.itemAnswers())
+                .extracting(itemAnswer -> itemAnswer.selection().optionId())
+                .containsExactlyElementsOf(fixture.content().questions().get(6)
+                        .options().stream()
+                        .map(SurveyOption::id)
+                        .toList());
+        MatrixScaleAnswer matrixScale =
+                (MatrixScaleAnswer) response.answers().get(7);
+        assertThat(matrixScale.itemAnswers())
+                .extracting(MatrixScaleItemAnswer::value)
+                .containsExactly(3, 8);
     }
 
     private static SurveyRound activeRound(
@@ -526,6 +617,20 @@ class SurveyJpaAdapterIntegrationTest {
 
     private static SurveyQuestionLineageKey questionLineageId(long value) {
         return new SurveyQuestionLineageKey(uuid(value));
+    }
+
+    private static SurveyQuestionItem questionItem(
+            long value,
+            String key,
+            String label,
+            int order
+    ) {
+        return new SurveyQuestionItem(
+                new SurveyQuestionItemId(uuid(value)),
+                new SurveyQuestionItemLineageKey(uuid(value + 100)),
+                key,
+                label,
+                order);
     }
 
     private static SurveyOptionId optionId(long value) {

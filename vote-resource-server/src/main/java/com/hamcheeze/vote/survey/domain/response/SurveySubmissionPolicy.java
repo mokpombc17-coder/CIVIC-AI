@@ -4,12 +4,14 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import com.hamcheeze.vote.survey.domain.common.SurveyViolation;
 import com.hamcheeze.vote.survey.domain.content.LongTextRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.ScaleRule;
@@ -20,6 +22,7 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionStatus;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
@@ -245,7 +248,135 @@ public final class SurveySubmissionPolicy {
                     question,
                     scale,
                     violations);
+            case MatrixSingleChoiceAnswer matrix ->
+                    normalizeMatrixSingleChoice(
+                            question, matrix, violations);
+            case MatrixScaleAnswer matrix -> normalizeMatrixScale(
+                    question, matrix, violations);
         };
+    }
+
+    private static MatrixSingleChoiceAnswer normalizeMatrixSingleChoice(
+            SurveyQuestion question,
+            MatrixSingleChoiceAnswer answer,
+            List<SurveyViolation> violations
+    ) {
+        Map<SurveyQuestionItemId, SurveyQuestionItem> itemsById =
+                question.items().stream().collect(
+                        java.util.stream.Collectors.toMap(
+                                SurveyQuestionItem::id,
+                                Function.identity(),
+                                (left, right) -> left,
+                                LinkedHashMap::new));
+        Map<SurveyQuestionItemId, List<MatrixSingleChoiceItemAnswer>>
+                submittedByItem = answer.itemAnswers().stream().collect(
+                        java.util.stream.Collectors.groupingBy(
+                                MatrixSingleChoiceItemAnswer::itemId,
+                                LinkedHashMap::new,
+                                java.util.stream.Collectors.toList()));
+        validateMatrixItemCoverage(
+                question, itemsById, submittedByItem, violations);
+        List<MatrixSingleChoiceItemAnswer> normalized = new ArrayList<>();
+        for (SurveyQuestionItem item : question.items()) {
+            List<MatrixSingleChoiceItemAnswer> submitted =
+                    submittedByItem.get(item.id());
+            if (submitted == null || submitted.size() != 1) {
+                continue;
+            }
+            String path = itemAnswerPath(question.id(), item.id())
+                    + ".selection";
+            OptionSelection selection = normalizeSelection(
+                    question,
+                    submitted.getFirst().selection(),
+                    violations,
+                    path,
+                    item.id());
+            if (selection != null) {
+                normalized.add(new MatrixSingleChoiceItemAnswer(
+                        item.id(), selection));
+            }
+        }
+        return new MatrixSingleChoiceAnswer(question.id(), normalized);
+    }
+
+    private static MatrixScaleAnswer normalizeMatrixScale(
+            SurveyQuestion question,
+            MatrixScaleAnswer answer,
+            List<SurveyViolation> violations
+    ) {
+        Map<SurveyQuestionItemId, SurveyQuestionItem> itemsById =
+                question.items().stream().collect(
+                        java.util.stream.Collectors.toMap(
+                                SurveyQuestionItem::id,
+                                Function.identity(),
+                                (left, right) -> left,
+                                LinkedHashMap::new));
+        Map<SurveyQuestionItemId, List<MatrixScaleItemAnswer>> submittedByItem =
+                answer.itemAnswers().stream().collect(
+                        java.util.stream.Collectors.groupingBy(
+                                MatrixScaleItemAnswer::itemId,
+                                LinkedHashMap::new,
+                                java.util.stream.Collectors.toList()));
+        validateMatrixItemCoverage(
+                question, itemsById, submittedByItem, violations);
+        MatrixScaleRule rule = (MatrixScaleRule) question.rule();
+        List<MatrixScaleItemAnswer> normalized = new ArrayList<>();
+        for (SurveyQuestionItem item : question.items()) {
+            List<MatrixScaleItemAnswer> submitted =
+                    submittedByItem.get(item.id());
+            if (submitted == null || submitted.size() != 1) {
+                continue;
+            }
+            Integer value = submitted.getFirst().value();
+            String path = itemAnswerPath(question.id(), item.id()) + ".scale";
+            if (value == null) {
+                violations.add(itemViolation(
+                        "SURVEY_MATRIX_SCALE_ANSWER_REQUIRED",
+                        question.id(), item.id(), path,
+                        "matrix scale answer is required"));
+            } else if (value < rule.minimum() || value > rule.maximum()) {
+                violations.add(itemViolation(
+                        "SURVEY_MATRIX_SCALE_OUT_OF_RANGE",
+                        question.id(), item.id(), path,
+                        "matrix scale is outside the configured range"));
+            }
+            normalized.add(new MatrixScaleItemAnswer(item.id(), value));
+        }
+        return new MatrixScaleAnswer(question.id(), normalized);
+    }
+
+    private static <T> void validateMatrixItemCoverage(
+            SurveyQuestion question,
+            Map<SurveyQuestionItemId, SurveyQuestionItem> itemsById,
+            Map<SurveyQuestionItemId, List<T>> submittedByItem,
+            List<SurveyViolation> violations
+    ) {
+        for (Map.Entry<SurveyQuestionItemId, List<T>> entry
+                : submittedByItem.entrySet()) {
+            if (!itemsById.containsKey(entry.getKey())) {
+                violations.add(itemViolation(
+                        "SURVEY_MATRIX_ITEM_UNKNOWN",
+                        question.id(), entry.getKey(),
+                        answerPath(question.id()) + ".itemAnswers",
+                        "item answer references an unknown item"));
+            }
+            if (entry.getValue().size() > 1) {
+                violations.add(itemViolation(
+                        "SURVEY_MATRIX_ITEM_ANSWER_DUPLICATED",
+                        question.id(), entry.getKey(),
+                        itemAnswerPath(question.id(), entry.getKey()),
+                        "an item must have exactly one answer"));
+            }
+        }
+        for (SurveyQuestionItem item : question.items()) {
+            if (!submittedByItem.containsKey(item.id())) {
+                violations.add(itemViolation(
+                        "SURVEY_MATRIX_ITEM_ANSWER_MISSING",
+                        question.id(), item.id(),
+                        itemAnswerPath(question.id(), item.id()),
+                        "matrix item answer is required"));
+            }
+        }
     }
 
     private static SingleChoiceAnswer normalizeSingleChoice(
@@ -310,17 +441,35 @@ public final class SurveySubmissionPolicy {
             OptionSelection selection,
             List<SurveyViolation> violations
     ) {
+        return normalizeSelection(
+                question,
+                selection,
+                violations,
+                answerPath(question.id()) + ".selections",
+                null);
+    }
+
+    private static OptionSelection normalizeSelection(
+            SurveyQuestion question,
+            OptionSelection selection,
+            List<SurveyViolation> violations,
+            String path,
+            SurveyQuestionItemId itemId
+    ) {
         SurveyOption option = question.options().stream()
                 .filter(candidate -> candidate.id().equals(selection.optionId()))
                 .findFirst()
                 .orElse(null);
-        String path = answerPath(question.id()) + ".selections";
         if (option == null) {
-            violations.add(violation(
+            violations.add(itemId == null ? violation(
                     "SURVEY_OPTION_NOT_IN_QUESTION",
                     question.id(),
                     path,
-                    "selected option does not belong to the question"));
+                    "selected option does not belong to the question")
+                    : itemViolation(
+                            "SURVEY_OPTION_NOT_IN_QUESTION",
+                            question.id(), itemId, path,
+                            "selected option does not belong to the question"));
             return null;
         }
         SurveyAnswerTextNormalizer.NormalizedText input =
@@ -518,8 +667,31 @@ public final class SurveySubmissionPolicy {
                 Map.of("questionId", questionId.value().toString()));
     }
 
+    private static SurveyViolation itemViolation(
+            String code,
+            SurveyQuestionId questionId,
+            SurveyQuestionItemId itemId,
+            String path,
+            String message
+    ) {
+        return new SurveyViolation(
+                code,
+                path,
+                message,
+                Map.of(
+                        "questionId", questionId.value().toString(),
+                        "itemId", itemId.value().toString()));
+    }
+
     private static String answerPath(SurveyQuestionId questionId) {
         return "answers[" + questionId.value() + "]";
+    }
+
+    private static String itemAnswerPath(
+            SurveyQuestionId questionId,
+            SurveyQuestionItemId itemId
+    ) {
+        return answerPath(questionId) + ".itemAnswers[" + itemId.value() + "]";
     }
 
     private record NormalizedAnswer(

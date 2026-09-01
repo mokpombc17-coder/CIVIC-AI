@@ -3,8 +3,11 @@ package com.hamcheeze.vote.survey.api;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 import com.hamcheeze.vote.survey.domain.content.LongTextRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixSingleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.QuestionRule;
@@ -15,11 +18,14 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
-import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -75,6 +81,10 @@ final class SurveyApiModels {
             List<@Valid OptionWriteRequest> options
     ) {
         SurveyQuestion toDomain() {
+            if (type.isMatrix()) {
+                throw new IllegalArgumentException(
+                        "matrix question administration is not supported yet");
+            }
             List<SurveyOption> mappedOptions = options == null
                     ? List.of()
                     : options.stream().map(OptionWriteRequest::toDomain)
@@ -183,6 +193,12 @@ final class SurveyApiModels {
                         required(maximum, "maximum").intValueExact(),
                         minimumLabel,
                         maximumLabel);
+                case MATRIX_SINGLE_CHOICE -> new MatrixSingleChoiceRule();
+                case MATRIX_SCALE -> new MatrixScaleRule(
+                        required(minimum, "minimum").intValueExact(),
+                        required(maximum, "maximum").intValueExact(),
+                        minimumLabel,
+                        maximumLabel);
             };
         }
     }
@@ -203,7 +219,8 @@ final class SurveyApiModels {
             BigDecimal number,
             Integer scale,
             SelectionRequest selection,
-            List<@Valid SelectionRequest> selections
+            List<@Valid SelectionRequest> selections,
+            List<@Valid ItemAnswerRequest> itemAnswers
     ) {
         SurveyAnswer toDomain() {
             SurveyQuestionId id = new SurveyQuestionId(questionId);
@@ -218,7 +235,35 @@ final class SurveyApiModels {
                 case LONG_TEXT -> new LongTextAnswer(id, text);
                 case NUMBER -> new NumberAnswer(id, number);
                 case SCALE -> new ScaleAnswer(id, scale);
+                case MATRIX_SINGLE_CHOICE ->
+                        new MatrixSingleChoiceAnswer(
+                                id,
+                                required(itemAnswers, "itemAnswers").stream()
+                                        .map(ItemAnswerRequest::toSelection)
+                                        .toList());
+                case MATRIX_SCALE -> new MatrixScaleAnswer(
+                        id,
+                        required(itemAnswers, "itemAnswers").stream()
+                                .map(ItemAnswerRequest::toScale)
+                                .toList());
             };
+        }
+    }
+
+    record ItemAnswerRequest(
+            @NotNull UUID itemId,
+            SelectionRequest selection,
+            Integer scale
+    ) {
+        MatrixSingleChoiceItemAnswer toSelection() {
+            return new MatrixSingleChoiceItemAnswer(
+                    new SurveyQuestionItemId(itemId),
+                    required(selection, "selection").toDomain());
+        }
+
+        MatrixScaleItemAnswer toScale() {
+            return new MatrixScaleItemAnswer(
+                    new SurveyQuestionItemId(itemId), scale);
         }
     }
 
@@ -302,20 +347,11 @@ final class SurveyApiModels {
                     value.questionSections().stream()
                             .map(section -> QuestionSectionResponse.from(
                                     section,
-                                    value.questionGroups().stream()
-                                            .filter(group -> group.section()
-                                                    .id().equals(
-                                                            section.id()))
-                                            .map(group -> QuestionGroupResponse
-                                                    .from(
-                                                            group,
-                                                            value.questions()
-                                                                    .stream()
-                                                                    .filter(question ->
-                                                                            question.group()
-                                                                                    .id()
-                                                                                    .equals(group.id()))
-                                                                    .toList()))
+                                    value.questions().stream()
+                                            .filter(question -> question
+                                                    .section().id()
+                                                    .equals(section.id()))
+                                            .map(PublishedQuestionResponse::from)
                                             .toList()))
                             .toList());
         }
@@ -326,75 +362,70 @@ final class SurveyApiModels {
             String title,
             String description,
             int displayOrder,
-            List<QuestionGroupResponse> groups
+            List<PublishedQuestionResponse> questions
     ) {
         static QuestionSectionResponse from(
                 SurveyQuestionSection section,
-                List<QuestionGroupResponse> groups
+                List<PublishedQuestionResponse> questions
         ) {
             return new QuestionSectionResponse(
                     section.sectionKey(),
                     section.title(),
                     section.description(),
                     section.displayOrder(),
-                    groups);
-        }
-    }
-
-    record QuestionGroupResponse(
-            String groupKey,
-            String sourceNumber,
-            int displayOrder,
-            String title,
-            String prompt,
-            String description,
-            List<PublishedQuestionResponse> questions
-    ) {
-        static QuestionGroupResponse from(
-                SurveyQuestionGroup group,
-                List<SurveyQuestion> questions
-        ) {
-            return new QuestionGroupResponse(
-                    group.groupKey(),
-                    group.sourceNumber(),
-                    group.displayOrder(),
-                    group.title(),
-                    group.prompt(),
-                    group.description(),
-                    questions.stream()
-                            .sorted(Comparator.comparingInt(
-                                    SurveyQuestion::itemDisplayOrder))
-                            .map(PublishedQuestionResponse::from)
-                            .toList());
+                    questions);
         }
     }
 
     record PublishedQuestionResponse(
             UUID questionId,
-            String itemKey,
-            String itemLabel,
-            int itemDisplayOrder,
+            String questionKey,
+            String sourceNumber,
+            int displayOrder,
+            String title,
             SurveyQuestionType type,
             String prompt,
             String description,
             boolean required,
             RuleResponse rule,
+            List<QuestionItemResponse> items,
             List<PublishedOptionResponse> options
     ) {
         static PublishedQuestionResponse from(SurveyQuestion value) {
             return new PublishedQuestionResponse(
                     value.id().value(),
-                    value.itemKey(),
-                    value.itemLabel(),
-                    value.itemDisplayOrder(),
+                    value.questionKey(),
+                    value.sourceNumber(),
+                    value.displayOrder(),
+                    value.title(),
                     value.type(),
                     value.prompt(),
                     value.description(),
                     value.required(),
                     RuleResponse.from(value.rule()),
+                    value.items().stream()
+                            .map(QuestionItemResponse::from)
+                            .toList(),
                     value.options().stream()
                             .map(PublishedOptionResponse::from)
                             .toList());
+        }
+    }
+
+    record QuestionItemResponse(
+            UUID itemId,
+            String itemKey,
+            String itemLabel,
+            int displayOrder
+    ) {
+        static QuestionItemResponse from(
+                com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem value
+        ) {
+            return new QuestionItemResponse(
+                    value.id().value(),
+                    value.itemKey(),
+                    value.itemLabel(),
+                    value.displayOrder());
         }
     }
 
@@ -474,6 +505,7 @@ final class SurveyApiModels {
             boolean required,
             RuleResponse rule,
             boolean allowOther,
+            List<QuestionItemResponse> items,
             List<OptionResponse> options
     ) {
         static QuestionResponse from(SurveyQuestion value) {
@@ -488,6 +520,8 @@ final class SurveyApiModels {
                     RuleResponse.from(value.rule()),
                     value.options().stream().anyMatch(option ->
                             option.kind() == SurveyOptionKind.OTHER),
+                    value.items().stream().map(QuestionItemResponse::from)
+                            .toList(),
                     value.options().stream().map(OptionResponse::from)
                             .toList());
         }
@@ -508,6 +542,8 @@ final class SurveyApiModels {
             return switch (rule) {
                 case SingleChoiceRule ignored -> new RuleResponse(
                         null, null, null, null, null, null, null, null, null);
+                case MatrixSingleChoiceRule ignored -> new RuleResponse(
+                        null, null, null, null, null, null, null, null, null);
                 case MultipleChoiceRule value -> new RuleResponse(
                         value.minimumSelections(), value.maximumSelections(),
                         null, null, null, null, null, null, null);
@@ -522,6 +558,11 @@ final class SurveyApiModels {
                         value.decimalAllowed(), value.decimalScale(), null,
                         null);
                 case ScaleRule value -> new RuleResponse(
+                        null, null, null,
+                        BigDecimal.valueOf(value.minimum()),
+                        BigDecimal.valueOf(value.maximum()), null, null,
+                        value.minimumLabel(), value.maximumLabel());
+                case MatrixScaleRule value -> new RuleResponse(
                         null, null, null,
                         BigDecimal.valueOf(value.minimum()),
                         BigDecimal.valueOf(value.maximum()), null, null,
@@ -674,31 +715,65 @@ final class SurveyApiModels {
             String text,
             BigDecimal number,
             Integer scale,
-            List<SelectionResponse> selections
+            List<SelectionResponse> selections,
+            List<ItemAnswerResponse> itemAnswers
     ) {
         static AnswerResponse from(SurveyAnswer answer) {
             return switch (answer) {
                 case SingleChoiceAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(), null,
                         null, null,
-                        List.of(SelectionResponse.from(value.selection())));
+                        List.of(SelectionResponse.from(value.selection())),
+                        List.of());
                 case MultipleChoiceAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(), null,
                         null, null, value.selections().stream()
-                        .map(SelectionResponse::from).toList());
+                        .map(SelectionResponse::from).toList(), List.of());
                 case ShortTextAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(),
-                        value.value(), null, null, List.of());
+                        value.value(), null, null, List.of(), List.of());
                 case LongTextAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(),
-                        value.value(), null, null, List.of());
+                        value.value(), null, null, List.of(), List.of());
                 case NumberAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(), null,
-                        value.value(), null, List.of());
+                        value.value(), null, List.of(), List.of());
                 case ScaleAnswer value -> new AnswerResponse(
                         value.questionId().value(), value.answerType(), null,
-                        null, value.value(), List.of());
+                        null, value.value(), List.of(), List.of());
+                case MatrixSingleChoiceAnswer value -> new AnswerResponse(
+                        value.questionId().value(), value.answerType(), null,
+                        null, null, List.of(),
+                        value.itemAnswers().stream()
+                                .map(ItemAnswerResponse::from)
+                                .toList());
+                case MatrixScaleAnswer value -> new AnswerResponse(
+                        value.questionId().value(), value.answerType(), null,
+                        null, null, List.of(),
+                        value.itemAnswers().stream()
+                                .map(ItemAnswerResponse::from)
+                                .toList());
             };
+        }
+    }
+
+    record ItemAnswerResponse(
+            UUID itemId,
+            SelectionResponse selection,
+            Integer scale
+    ) {
+        static ItemAnswerResponse from(
+                MatrixSingleChoiceItemAnswer value
+        ) {
+            return new ItemAnswerResponse(
+                    value.itemId().value(),
+                    SelectionResponse.from(value.selection()),
+                    null);
+        }
+
+        static ItemAnswerResponse from(MatrixScaleItemAnswer value) {
+            return new ItemAnswerResponse(
+                    value.itemId().value(), null, value.value());
         }
     }
 

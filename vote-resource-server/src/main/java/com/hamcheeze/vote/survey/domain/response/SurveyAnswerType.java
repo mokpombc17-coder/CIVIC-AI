@@ -6,5 +6,7 @@ public enum SurveyAnswerType {
     SHORT_TEXT,
     LONG_TEXT,
     NUMBER,
-    SCALE
+    SCALE,
+    MATRIX_SINGLE_CHOICE,
+    MATRIX_SCALE
 }

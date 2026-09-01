@@ -55,7 +55,8 @@ public record PersonaSurveySource(
             QuestionType type,
             String prompt,
             Optional<String> description,
-            int displayOrder
+            int displayOrder,
+            List<PersonaSurveyQuestionItem> items
     ) {
 
         public PersonaSurveyQuestion {
@@ -65,6 +66,45 @@ public record PersonaSurveySource(
             prompt = requireText(prompt, "prompt");
             description = Objects.requireNonNull(
                     description, "description");
+            items = immutableList(items, "items");
+            if (displayOrder < 1) {
+                throw new IllegalArgumentException(
+                        "displayOrder must be positive");
+            }
+        }
+
+        public PersonaSurveyQuestion(
+                UUID questionId,
+                UUID questionLineageId,
+                QuestionType type,
+                String prompt,
+                Optional<String> description,
+                int displayOrder
+        ) {
+            this(
+                    questionId,
+                    questionLineageId,
+                    type,
+                    prompt,
+                    description,
+                    displayOrder,
+                    List.of());
+        }
+    }
+
+    public record PersonaSurveyQuestionItem(
+            UUID itemId,
+            UUID itemLineageId,
+            String itemKey,
+            String itemLabel,
+            int displayOrder
+    ) {
+
+        public PersonaSurveyQuestionItem {
+            Objects.requireNonNull(itemId, "itemId");
+            Objects.requireNonNull(itemLineageId, "itemLineageId");
+            itemKey = requireText(itemKey, "itemKey");
+            itemLabel = requireText(itemLabel, "itemLabel");
             if (displayOrder < 1) {
                 throw new IllegalArgumentException(
                         "displayOrder must be positive");
@@ -74,7 +114,8 @@ public record PersonaSurveySource(
 
     public sealed interface PersonaSurveyAnswerValue
             permits SingleChoiceValue, MultipleChoiceValue, TextValue,
-            NumberValue, ScaleValue {
+            NumberValue, ScaleValue, MatrixSingleChoiceValue,
+            MatrixScaleValue {
     }
 
     public record SingleChoiceValue(
@@ -120,6 +161,45 @@ public record PersonaSurveySource(
             implements PersonaSurveyAnswerValue {
     }
 
+    public record MatrixSingleChoiceValue(
+            List<MatrixSingleChoiceItemValue> itemValues
+    ) implements PersonaSurveyAnswerValue {
+
+        public MatrixSingleChoiceValue {
+            itemValues = immutableList(itemValues, "itemValues");
+        }
+    }
+
+    public record MatrixSingleChoiceItemValue(
+            UUID itemId,
+            PersonaSurveyOption selectedOption
+    ) {
+
+        public MatrixSingleChoiceItemValue {
+            Objects.requireNonNull(itemId, "itemId");
+            Objects.requireNonNull(selectedOption, "selectedOption");
+        }
+    }
+
+    public record MatrixScaleValue(
+            List<MatrixScaleItemValue> itemValues
+    ) implements PersonaSurveyAnswerValue {
+
+        public MatrixScaleValue {
+            itemValues = immutableList(itemValues, "itemValues");
+        }
+    }
+
+    public record MatrixScaleItemValue(
+            UUID itemId,
+            int value
+    ) {
+
+        public MatrixScaleItemValue {
+            Objects.requireNonNull(itemId, "itemId");
+        }
+    }
+
     public record PersonaSurveyOption(
             UUID optionId,
             UUID optionLineageId,
@@ -157,7 +237,9 @@ public record PersonaSurveySource(
         SHORT_TEXT,
         LONG_TEXT,
         NUMBER,
-        SCALE
+        SCALE,
+        MATRIX_SINGLE_CHOICE,
+        MATRIX_SCALE
     }
 
     public enum OptionKind {

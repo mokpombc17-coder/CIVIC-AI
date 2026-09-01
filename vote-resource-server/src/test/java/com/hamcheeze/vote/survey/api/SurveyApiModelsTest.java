@@ -33,7 +33,7 @@ class SurveyApiModelsTest {
     }
 
     @Test
-    void exposesPublishedContentAsTwentyNineQuestionGroups() {
+    void exposesPublishedContentAsTwentyNineQuestions() {
         SurveyApiModels.PublishedContentResponse response =
                 SurveyApiModels.PublishedContentResponse.from(
                         LocalSurveyFixture.publishedContent());
@@ -50,21 +50,17 @@ class SurveyApiModelsTest {
                         "미디어 · 의견 성향",
                         "사회 · 기관 신뢰",
                         "매체 이용 · 정보 습관");
-        List<SurveyApiModels.QuestionGroupResponse> groups =
+        List<SurveyApiModels.PublishedQuestionResponse> questions =
                 response.sections().stream()
-                        .flatMap(section -> section.groups().stream())
+                        .flatMap(section -> section.questions().stream())
                         .toList();
-        assertThat(groups).hasSize(RoundOneSurveyFixture.GROUP_COUNT);
-        assertThat(groups.stream()
-                .flatMap(group -> group.questions().stream()))
-                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
-        assertThat(groups.get(4).questions())
-                .extracting(SurveyApiModels.PublishedQuestionResponse::itemKey)
+        assertThat(questions).hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
+        assertThat(questions.get(4).items())
+                .extracting(SurveyApiModels.QuestionItemResponse::itemKey)
                 .containsExactly(
                         "infant", "preschool", "elementary-school",
                         "middle-school", "high-school", "senior");
-        assertThat(groups.get(15).questions().getFirst()
-                .options())
+        assertThat(questions.get(15).options())
                 .extracting(
                         SurveyApiModels.PublishedOptionResponse::optionLocalKey)
                 .containsExactly("A", "B", "C", "D");
@@ -78,24 +74,19 @@ class SurveyApiModelsTest {
 
         JsonNode content = new ObjectMapper().valueToTree(response);
         JsonNode section = content.path("sections").get(0);
-        JsonNode group = section.path("groups").get(0);
-        JsonNode question = group.path("questions").get(0);
+        JsonNode question = section.path("questions").get(0);
         JsonNode option = content.path("sections").get(1)
-                .path("groups").get(0)
-                .path("questions").get(0)
+                .path("questions").get(1)
                 .path("options").get(0);
 
         assertThat(section.has("sectionId")).isFalse();
         assertThat(section.has("sectionLineageId")).isFalse();
-        assertThat(group.has("groupId")).isFalse();
-        assertThat(group.has("groupLineageId")).isFalse();
         assertThat(question.has("questionLineageId")).isFalse();
         assertThat(option.has("optionLineageId")).isFalse();
 
         assertThat(section.path("sectionKey").asText()).isNotBlank();
-        assertThat(group.path("groupKey").asText()).isNotBlank();
         assertThat(question.path("questionId").asText()).isNotBlank();
-        assertThat(question.path("itemKey").asText()).isNotBlank();
+        assertThat(question.path("questionKey").asText()).isNotBlank();
         assertThat(option.path("optionId").asText()).isNotBlank();
         assertThat(option.path("optionLocalKey").asText()).isNotBlank();
     }

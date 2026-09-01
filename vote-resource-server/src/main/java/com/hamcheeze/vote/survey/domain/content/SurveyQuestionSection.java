@@ -1,10 +1,10 @@
 package com.hamcheeze.vote.survey.domain.content;
 
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId;
-import com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionSectionLineageKey;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionLineageKey;
 
 import java.util.Objects;
 
@@ -46,19 +46,19 @@ public record SurveyQuestionSection(
     }
 
     public static SurveyQuestionSection legacySingleton(
-            SurveyQuestionGroupId groupId,
-            SurveyQuestionGroupLineageKey groupLineageKey,
-            String groupTitle,
-            int groupDisplayOrder
+            SurveyQuestionId questionId,
+            SurveyQuestionLineageKey questionLineageKey,
+            String questionTitle,
+            int questionDisplayOrder
     ) {
         return new SurveyQuestionSection(
-                new SurveyQuestionSectionId(groupId.value()),
+                new SurveyQuestionSectionId(questionId.value()),
                 new SurveyQuestionSectionLineageKey(
-                        groupLineageKey.value()),
-                "legacy." + groupId.value(),
-                groupTitle,
+                        questionLineageKey.value()),
+                "legacy." + questionId.value(),
+                questionTitle,
                 null,
-                groupDisplayOrder);
+                questionDisplayOrder);
     }
 
     public SurveyQuestionSection copyWithId(

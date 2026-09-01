@@ -4,6 +4,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemLineageKey;
 import com.hamcheeze.vote.survey.domain.common.SurveyValidationException;
 import org.junit.jupiter.api.Test;
 
@@ -73,7 +75,17 @@ class SurveyQuestionTest {
                                 new BigDecimal("100"))),
                 textQuestion(
                         6, SurveyQuestionType.SCALE,
-                        ScaleRule.defaults()));
+                        ScaleRule.defaults()),
+                matrixQuestion(
+                        7,
+                        SurveyQuestionType.MATRIX_SINGLE_CHOICE,
+                        new MatrixSingleChoiceRule(),
+                        List.of(standardOption(5), standardOption(6))),
+                matrixQuestion(
+                        8,
+                        SurveyQuestionType.MATRIX_SCALE,
+                        new MatrixScaleRule(0, 10, null, null),
+                        List.of()));
 
         assertThat(questions)
                 .extracting(SurveyQuestion::type)
@@ -214,6 +226,31 @@ class SurveyQuestionTest {
                 true,
                 rule,
                 List.of());
+    }
+
+    private static SurveyQuestion matrixQuestion(
+            int sequence,
+            SurveyQuestionType type,
+            QuestionRule rule,
+            List<SurveyOption> options
+    ) {
+        return new SurveyQuestion(
+                questionIdFor(sequence),
+                questionLineageKeyFor(sequence),
+                type,
+                "행렬 질문 " + sequence,
+                null,
+                sequence,
+                true,
+                rule,
+                options,
+                List.of(new SurveyQuestionItem(
+                        new SurveyQuestionItemId(new UUID(7, sequence)),
+                        new SurveyQuestionItemLineageKey(
+                                new UUID(8, sequence)),
+                        "item-" + sequence,
+                        "항목 " + sequence,
+                        1)));
     }
 
     private static SurveyQuestionId questionIdFor(int sequence) {

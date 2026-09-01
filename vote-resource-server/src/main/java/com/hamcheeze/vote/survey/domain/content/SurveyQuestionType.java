@@ -6,9 +6,17 @@ public enum SurveyQuestionType {
     SHORT_TEXT,
     LONG_TEXT,
     NUMBER,
-    SCALE;
+    SCALE,
+    MATRIX_SINGLE_CHOICE,
+    MATRIX_SCALE;
 
     public boolean isChoice() {
-        return this == SINGLE_CHOICE || this == MULTIPLE_CHOICE;
+        return this == SINGLE_CHOICE
+                || this == MULTIPLE_CHOICE
+                || this == MATRIX_SINGLE_CHOICE;
+    }
+
+    public boolean isMatrix() {
+        return this == MATRIX_SINGLE_CHOICE || this == MATRIX_SCALE;
     }
 }

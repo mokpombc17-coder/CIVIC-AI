@@ -13,7 +13,8 @@ import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionStatus;
 import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
-import com.hamcheeze.vote.survey.domain.content.SurveyQuestionGroup;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem;
+import com.hamcheeze.vote.survey.domain.content.SurveyQuestionSection;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
@@ -33,7 +34,7 @@ public final class LocalSurveyFixture {
     public static final String NAME =
             "AI시민의회 M패널 사용자 특성 기초설문 1회차";
     public static final String DESCRIPTION =
-            "정책 확정된 7개 Section, 29개 문항 Group, 42개 저장 Question으로 구성된 공식 1회차 설문입니다.";
+            "정책 확정된 7개 Section과 29개 Question으로 구성된 공식 1회차 설문입니다.";
     public static final SurveyActorId ACTOR =
             new SurveyActorId("SYSTEM:LOCAL_SURVEY_BOOTSTRAP");
     public static final Instant CREATED_AT =
@@ -146,17 +147,18 @@ public final class LocalSurveyFixture {
                 .map(question -> new QuestionSnapshot(
                         question.id(),
                         question.lineageKey(),
-                        question.group(),
-                        question.itemKey(),
-                        question.itemLabel(),
-                        question.itemDisplayOrder(),
+                        question.section(),
+                        question.questionKey(),
+                        question.sourceNumber(),
+                        question.title(),
                         question.type(),
                         question.prompt(),
                         question.description(),
                         question.displayOrder(),
                         question.required(),
                         question.rule(),
-                        question.options()))
+                        question.options(),
+                        question.items()))
                 .toList();
     }
 
@@ -169,21 +171,23 @@ public final class LocalSurveyFixture {
     private record QuestionSnapshot(
             SurveyQuestionId id,
             SurveyQuestionLineageKey lineageKey,
-            SurveyQuestionGroup group,
-            String itemKey,
-            String itemLabel,
-            int itemDisplayOrder,
+            SurveyQuestionSection section,
+            String questionKey,
+            String sourceNumber,
+            String title,
             SurveyQuestionType type,
             String prompt,
             String description,
             int displayOrder,
             boolean required,
             QuestionRule rule,
-            List<SurveyOption> options
+            List<SurveyOption> options,
+            List<SurveyQuestionItem> items
     ) {
 
         private QuestionSnapshot {
             options = List.copyOf(options);
+            items = List.copyOf(items);
         }
     }
 }

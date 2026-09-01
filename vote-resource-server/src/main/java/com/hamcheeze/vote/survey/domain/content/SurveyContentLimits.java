@@ -3,6 +3,7 @@ package com.hamcheeze.vote.survey.domain.content;
 public final class SurveyContentLimits {
 
     public static final int MAX_QUESTIONS = 100;
+    public static final int MAX_ITEMS_PER_QUESTION = 30;
     public static final int MAX_QUESTION_PROMPT_LENGTH = 500;
     public static final int MAX_QUESTION_DESCRIPTION_LENGTH = 1_000;
     public static final int MAX_OPTIONS_PER_QUESTION = 30;

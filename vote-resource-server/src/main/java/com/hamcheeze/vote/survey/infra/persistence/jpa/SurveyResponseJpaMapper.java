@@ -3,11 +3,16 @@ package com.hamcheeze.vote.survey.infra.persistence.jpa;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
+import com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -30,12 +35,15 @@ final class SurveyResponseJpaMapper {
     static SurveyResponse toDomain(
             SurveyResponseJpaEntity response,
             List<SurveyAnswerJpaEntity> answers,
-            Map<UUID, List<SurveyAnswerSelectionJpaEntity>> selectionsByAnswer
+            Map<UUID, List<SurveyAnswerSelectionJpaEntity>> selectionsByAnswer,
+            Map<UUID, List<SurveyAnswerItemValueJpaEntity>> itemValuesByAnswer
     ) {
         List<SurveyAnswer> domainAnswers = answers.stream()
                 .map(answer -> toDomain(
                         answer,
                         selectionsByAnswer.getOrDefault(
+                                answer.id(), List.of()),
+                        itemValuesByAnswer.getOrDefault(
                                 answer.id(), List.of())))
                 .toList();
         return SurveyResponse.rehydrate(
@@ -51,7 +59,8 @@ final class SurveyResponseJpaMapper {
 
     private static SurveyAnswer toDomain(
             SurveyAnswerJpaEntity answer,
-            List<SurveyAnswerSelectionJpaEntity> selections
+            List<SurveyAnswerSelectionJpaEntity> selections,
+            List<SurveyAnswerItemValueJpaEntity> itemValues
     ) {
         SurveyQuestionId questionId = new SurveyQuestionId(
                 answer.questionId());
@@ -76,6 +85,23 @@ final class SurveyResponseJpaMapper {
             case SCALE -> new ScaleAnswer(
                     questionId,
                     answer.scaleValue());
+            case MATRIX_SINGLE_CHOICE -> new MatrixSingleChoiceAnswer(
+                    questionId,
+                    itemValues.stream()
+                            .map(value -> new MatrixSingleChoiceItemAnswer(
+                                    new SurveyQuestionItemId(value.itemId()),
+                                    new OptionSelection(
+                                            new SurveyOptionId(
+                                                    value.optionId()),
+                                            value.inputText())))
+                            .toList());
+            case MATRIX_SCALE -> new MatrixScaleAnswer(
+                    questionId,
+                    itemValues.stream()
+                            .map(value -> new MatrixScaleItemAnswer(
+                                    new SurveyQuestionItemId(value.itemId()),
+                                    value.scaleValue()))
+                            .toList());
         };
     }
 

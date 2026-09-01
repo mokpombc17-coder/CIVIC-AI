@@ -13,6 +13,8 @@ import com.hamcheeze.vote.survey.domain.content.SurveyOption;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
@@ -33,12 +35,17 @@ import java.util.Objects;
 import java.util.Optional;
 
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MultipleChoiceValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixScaleItemValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixScaleValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixSingleChoiceItemValue;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.MatrixSingleChoiceValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.NumberValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.OptionKind;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswer;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyAnswerValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyOption;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyQuestion;
+import static com.hamcheeze.vote.persona.application.PersonaSurveySource.PersonaSurveyQuestionItem;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.QuestionType;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.ScaleValue;
 import static com.hamcheeze.vote.persona.application.PersonaSurveySource.SingleChoiceValue;
@@ -132,7 +139,15 @@ public final class PersonaSurveySourceMapper {
                 QuestionType.valueOf(question.type().name()),
                 question.prompt(),
                 Optional.ofNullable(question.description()),
-                question.displayOrder());
+                question.displayOrder(),
+                question.items().stream()
+                        .map(item -> new PersonaSurveyQuestionItem(
+                                item.id().value(),
+                                item.lineageKey().value(),
+                                item.itemKey(),
+                                item.itemLabel(),
+                                item.displayOrder()))
+                        .toList());
     }
 
     private static PersonaSurveyAnswerValue toValue(
@@ -166,6 +181,25 @@ public final class PersonaSurveySourceMapper {
                     response, question, number.value(), "number"));
             case ScaleAnswer scale -> new ScaleValue(requireValue(
                     response, question, scale.value(), "scale"));
+            case MatrixSingleChoiceAnswer matrix ->
+                    new MatrixSingleChoiceValue(matrix.itemAnswers().stream()
+                            .map(item -> new MatrixSingleChoiceItemValue(
+                                    item.itemId().value(),
+                                    toOption(
+                                            response,
+                                            question,
+                                            item.selection())))
+                            .toList());
+            case MatrixScaleAnswer matrix -> new MatrixScaleValue(
+                    matrix.itemAnswers().stream()
+                            .map(item -> new MatrixScaleItemValue(
+                                    item.itemId().value(),
+                                    requireValue(
+                                            response,
+                                            question,
+                                            item.value(),
+                                            "matrix scale")))
+                            .toList());
         };
     }
 

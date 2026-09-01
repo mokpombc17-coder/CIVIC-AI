@@ -78,8 +78,18 @@ class LocalSurveyBootstrapIntegrationTest {
                 .contains(LocalSurveyFixture.CONTENT_VERSION_NUMBER);
         assertThat(content.questions())
                 .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
-        assertThat(content.questionGroups())
-                .hasSize(RoundOneSurveyFixture.GROUP_COUNT);
+        assertThat(content.questions().stream()
+                .filter(question -> question.description() != null))
+                .hasSize(26);
+        assertThat(content.questions().stream()
+                .filter(question -> question.questionKey().equals(
+                        "values.moral-foundation"))
+                .findFirst()
+                .orElseThrow()
+                .description())
+                .contains("[1개 선택]\n"
+                        + "A. 남에게 피해를 주지 않는 것\n"
+                        + "B. 내가 속한 집단에서 규칙을 지키고 잘 뭉치는 것");
         assertThat(content.questionSections())
                 .hasSize(RoundOneSurveyFixture.SECTION_COUNT);
         assertThat(LocalSurveyFixture.matchesContent(content)).isTrue();

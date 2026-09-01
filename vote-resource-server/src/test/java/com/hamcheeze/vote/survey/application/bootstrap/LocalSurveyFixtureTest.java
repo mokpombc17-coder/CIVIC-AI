@@ -5,8 +5,13 @@ import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestionType;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.ScaleRule;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
 import com.hamcheeze.vote.survey.domain.response.ScaleAnswer;
@@ -35,10 +40,8 @@ class LocalSurveyFixtureTest {
         List<SurveyQuestion> second = LocalSurveyFixture.questions();
 
         assertThat(first).hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
-        assertThat(first.stream().map(SurveyQuestion::group).distinct())
-                .hasSize(RoundOneSurveyFixture.GROUP_COUNT);
         assertThat(first.stream()
-                .map(question -> question.group().section())
+                .map(SurveyQuestion::section)
                 .distinct())
                 .hasSize(RoundOneSurveyFixture.SECTION_COUNT)
                 .extracting(section -> section.title())
@@ -66,7 +69,34 @@ class LocalSurveyFixtureTest {
                         SurveyQuestionType.MULTIPLE_CHOICE,
                         SurveyQuestionType.SHORT_TEXT,
                         SurveyQuestionType.NUMBER,
-                        SurveyQuestionType.SCALE);
+                        SurveyQuestionType.MATRIX_SINGLE_CHOICE,
+                        SurveyQuestionType.MATRIX_SCALE);
+        assertThat(first.stream()
+                .filter(question -> question.type().isMatrix()))
+                .hasSize(RoundOneSurveyFixture.MATRIX_QUESTION_COUNT);
+        assertThat(first.stream()
+                .flatMap(question -> question.items().stream()))
+                .hasSize(RoundOneSurveyFixture.ITEM_COUNT)
+                .allSatisfy(item -> assertThat(item.itemLabel()).isNotBlank());
+        assertThat(first.stream()
+                .filter(question -> question.description() != null))
+                .hasSize(26);
+        assertThat(first.stream()
+                .filter(question -> question.questionKey().equals(
+                        "demographics.residence"))
+                .findFirst()
+                .orElseThrow()
+                .description())
+                .contains("(주소지 설문은 읍/면까지 포함)");
+        assertThat(first.stream()
+                .filter(question -> question.questionKey().equals(
+                        "social.affective-distance"))
+                .findFirst()
+                .orElseThrow()
+                .description())
+                .contains("(0점 = 전혀 호감이 가지 않는다 ~ "
+                        + "10점 = 매우 호감이 간다)\n"
+                        + "[각 항목별 1개 선택]");
         assertThat(first.stream()
                 .flatMap(question -> question.options().stream())
                 .filter(option -> option.kind() == SurveyOptionKind.OTHER))
@@ -97,13 +127,13 @@ class LocalSurveyFixtureTest {
         assertThat(published.name()).contains("1회차");
         assertThat(published.description()).hasValueSatisfying(
                 description -> assertThat(description)
-                        .contains("29개 문항 Group"));
+                        .contains("29개 Question"));
         assertThat(published.questionSections())
                 .hasSize(RoundOneSurveyFixture.SECTION_COUNT);
     }
 
     @Test
-    void acceptsOneCompleteFortyTwoAnswerSubmission() {
+    void acceptsOneCompleteTwentyNineAnswerSubmission() {
         var content = LocalSurveyFixture.publishedContent();
         List<SurveyAnswer> answers = content.questions().stream()
                 .map(LocalSurveyFixtureTest::validAnswer)
@@ -163,6 +193,23 @@ class LocalSurveyFixtureTest {
                     ((ScaleRule) question.rule()).minimum());
             case LONG_TEXT -> throw new IllegalStateException(
                     "round one fixture must not contain LONG_TEXT");
+            case MATRIX_SINGLE_CHOICE -> new MatrixSingleChoiceAnswer(
+                    question.id(),
+                    question.items().stream()
+                            .map(item -> new MatrixSingleChoiceItemAnswer(
+                                    item.id(),
+                                    new OptionSelection(
+                                            question.options().getFirst().id(),
+                                            null)))
+                            .toList());
+            case MATRIX_SCALE -> new MatrixScaleAnswer(
+                    question.id(),
+                    question.items().stream()
+                            .map(item -> new MatrixScaleItemAnswer(
+                                    item.id(),
+                                    ((MatrixScaleRule) question.rule())
+                                            .minimum()))
+                            .toList());
         };
     }
 }

@@ -9,11 +9,16 @@ import com.hamcheeze.vote.survey.application.port.out.SurveyResponseSubmittedEve
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
+import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
 import com.hamcheeze.vote.survey.domain.content.ScaleRule;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
 import com.hamcheeze.vote.survey.domain.response.MultipleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixScaleItemAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceAnswer;
+import com.hamcheeze.vote.survey.domain.response.MatrixSingleChoiceItemAnswer;
 import com.hamcheeze.vote.survey.domain.response.NumberAnswer;
 import com.hamcheeze.vote.survey.domain.response.OptionSelection;
 import com.hamcheeze.vote.survey.domain.response.ScaleAnswer;
@@ -145,6 +150,23 @@ class SurveyResponseSubmissionServicePreviewTest {
             case SCALE -> new ScaleAnswer(
                     question.id(),
                     ((ScaleRule) question.rule()).minimum());
+            case MATRIX_SINGLE_CHOICE -> new MatrixSingleChoiceAnswer(
+                    question.id(),
+                    question.items().stream()
+                            .map(item -> new MatrixSingleChoiceItemAnswer(
+                                    item.id(),
+                                    new OptionSelection(
+                                            question.options().getFirst().id(),
+                                            null)))
+                            .toList());
+            case MATRIX_SCALE -> new MatrixScaleAnswer(
+                    question.id(),
+                    question.items().stream()
+                            .map(item -> new MatrixScaleItemAnswer(
+                                    item.id(),
+                                    ((MatrixScaleRule) question.rule())
+                                            .minimum()))
+                            .toList());
         };
     }
 }

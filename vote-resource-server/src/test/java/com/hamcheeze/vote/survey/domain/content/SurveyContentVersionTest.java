@@ -108,6 +108,7 @@ class SurveyContentVersionTest {
                                 .containsExactlyInAnyOrder(
                                         "SURVEY_QUESTION_ID_DUPLICATED",
                                         "SURVEY_QUESTION_LINEAGE_DUPLICATED",
+                                        "SURVEY_QUESTION_KEY_DUPLICATED",
                                         "SURVEY_QUESTION_DISPLAY_ORDER_DUPLICATED"));
     }
 
@@ -206,12 +207,7 @@ class SurveyContentVersionTest {
         assertThat(clone.questionSections().getFirst().lineageKey())
                 .isEqualTo(published.questionSections().getFirst()
                         .lineageKey());
-        assertThat(clone.questionGroups().getFirst().id())
-                .isNotEqualTo(published.questionGroups().getFirst().id());
-        assertThat(clone.questionGroups().getFirst().lineageKey())
-                .isEqualTo(published.questionGroups().getFirst()
-                        .lineageKey());
-        assertThat(clone.questionGroups().getFirst().section())
+        assertThat(clone.questions().getFirst().section())
                 .isEqualTo(clone.questionSections().getFirst());
         assertThat(clone.questions().getFirst().options())
                 .zipSatisfy(
@@ -330,17 +326,17 @@ class SurveyContentVersionTest {
         }
 
         @Override
-        public com.hamcheeze.vote.survey.domain.common.SurveyQuestionGroupId
-                nextQuestionGroupId() {
-            return new com.hamcheeze.vote.survey.domain.common
-                    .SurveyQuestionGroupId(
-                    new UUID(10, sequence.incrementAndGet()));
-        }
-
-        @Override
         public SurveyQuestionId nextQuestionId() {
             return new SurveyQuestionId(
                     new UUID(20, sequence.incrementAndGet()));
+        }
+
+        @Override
+        public com.hamcheeze.vote.survey.domain.common.SurveyQuestionItemId
+                nextQuestionItemId() {
+            return new com.hamcheeze.vote.survey.domain.common
+                    .SurveyQuestionItemId(
+                    new UUID(25, sequence.incrementAndGet()));
         }
 
         @Override

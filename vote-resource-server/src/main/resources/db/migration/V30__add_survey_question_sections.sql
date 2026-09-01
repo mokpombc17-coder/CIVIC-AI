@@ -37,24 +37,24 @@ INSERT INTO survey_question_sections (
     description,
     display_order)
 SELECT
-    group_id,
+    question_id,
     content_version_id,
-    group_lineage_id,
-    'legacy.' || group_id::text,
+    question_lineage_id,
+    'legacy.' || question_id::text,
     title,
     NULL,
     display_order
-FROM survey_question_groups;
+FROM survey_questions;
 
-ALTER TABLE survey_question_groups
+ALTER TABLE survey_questions
     ADD COLUMN section_id uuid;
 
-UPDATE survey_question_groups
-SET section_id = group_id;
+UPDATE survey_questions
+SET section_id = question_id;
 
-ALTER TABLE survey_question_groups
+ALTER TABLE survey_questions
     ALTER COLUMN section_id SET NOT NULL,
-    ADD CONSTRAINT fk_survey_question_group_section
+    ADD CONSTRAINT fk_survey_question_section
         FOREIGN KEY (section_id, content_version_id)
         REFERENCES survey_question_sections (
             section_id,
