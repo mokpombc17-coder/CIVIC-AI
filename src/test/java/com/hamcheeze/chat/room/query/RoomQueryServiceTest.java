@@ -168,7 +168,8 @@ class RoomQueryServiceTest {
                 "m-02",
                 "room-1",
                 "user-2",
-                MembershipStatus.ACTIVE);
+                MembershipStatus.ACTIVE,
+                123);
         when(reader.findRoomById("room-1"))
                 .thenReturn(Optional.of(room));
         when(reader.findMembership("room-1", "user-1"))
@@ -209,6 +210,9 @@ class RoomQueryServiceTest {
         assertThat(page.items())
                 .extracting(RoomMemberView::profileVersion)
                 .containsExactly(1L, 1L);
+        assertThat(page.items())
+                .extracting(RoomMemberView::enteredAfterMessageSequence)
+                .containsExactly(0L, 123L);
     }
 
     @Test
@@ -333,6 +337,21 @@ class RoomQueryServiceTest {
             String userId,
             MembershipStatus status
     ) {
+        return membership(
+                membershipId,
+                roomId,
+                userId,
+                status,
+                0);
+    }
+
+    private Membership membership(
+            String membershipId,
+            String roomId,
+            String userId,
+            MembershipStatus status,
+            long messageVisibleAfterSequence
+    ) {
         return Membership.restore(
                 membershipId,
                 roomId,
@@ -349,7 +368,7 @@ class RoomQueryServiceTest {
                 status == MembershipStatus.BANNED
                         ? CREATED_AT.plusSeconds(10)
                         : null,
-                0,
+                messageVisibleAfterSequence,
                 0);
     }
 }

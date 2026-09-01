@@ -9,6 +9,7 @@ public record RoomMemberView(
         String membershipId,
         String userId,
         String userLabel,
+        long enteredAfterMessageSequence,
         String displayName,
         String imageUrl,
         long profileVersion,

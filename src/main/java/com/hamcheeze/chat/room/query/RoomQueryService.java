@@ -186,6 +186,7 @@ public final class RoomQueryService {
                         membership.membershipId(),
                         membership.userId(),
                         labelsByUserId.get(membership.userId()),
+                        membership.messageVisibleAfterSequence(),
                         membership.profile().displayName(),
                         membership.profile().imageUrl(),
                         membership.profile().version(),

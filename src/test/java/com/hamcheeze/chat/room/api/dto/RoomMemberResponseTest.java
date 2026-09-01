@@ -22,6 +22,8 @@ class RoomMemberResponseTest {
                         "junseok"));
 
         assertThat(response.userLabel()).isEqualTo("junseok");
+        assertThat(response.enteredAfterMessageSequence())
+                .isEqualTo(123);
     }
 
     @Test
@@ -40,6 +42,7 @@ class RoomMemberResponseTest {
                 "membership-1",
                 userId,
                 userLabel,
+                123,
                 "참여자 1",
                 null,
                 1,

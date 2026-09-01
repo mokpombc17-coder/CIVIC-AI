@@ -9,6 +9,7 @@ import java.time.Instant;
 public record RoomMemberResponse(
         String membershipId,
         String userLabel,
+        long enteredAfterMessageSequence,
         String displayName,
         String imageUrl,
         long profileVersion,
@@ -24,6 +25,7 @@ public record RoomMemberResponse(
         return new RoomMemberResponse(
                 view.membershipId(),
                 view.userLabel(),
+                view.enteredAfterMessageSequence(),
                 view.displayName(),
                 view.imageUrl(),
                 view.profileVersion(),

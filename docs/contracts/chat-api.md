@@ -1143,6 +1143,7 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
     {
       "membershipId": "membership-02",
       "userLabel": "junseok",
+      "enteredAfterMessageSequence": 123,
       "displayName": "참여자 2",
       "imageUrl": null,
       "profileVersion": 1,
@@ -1165,6 +1166,12 @@ GET /api/v1/rooms/{roomId}/memberships?status=ACTIVE&cursor={cursor}&limit=20
 경우에는 `displayName`을 사용하며, 로컬 fixture의 비 UUID subject는 기존 값을
 유지한다. 화면 표시 전용이며 중복될 수 있으므로 식별자, 권한 판정 또는 React
 key로 사용하지 않는다. participant identity는 계속 `membershipId`를 사용한다.
+
+`enteredAfterMessageSequence`는 해당 참여자의 가장 최근 입장 또는 재입장
+시점에 존재했던 마지막 메시지의 `roomSequence`다. 값이 `123`이면 123번
+메시지 다음에 입장 안내를 표시할 수 있다. 기존 메시지가 없으면 `0`이며 항상
+숫자로 제공된다. 이 경계값을 기록하기 위해 메시지를 생성하거나 메시지의
+`roomSequence`를 증가시키지는 않는다.
 
 `displayName`은 1~50 Unicode code point의 Room 단위 표시 이름이다.
 현재는 최초 참여 순서에 따라 서버가 `참여자 N` 형태로 생성한다.
