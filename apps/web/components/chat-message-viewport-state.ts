@@ -35,6 +35,9 @@ type ChatMessageInitialScrollItem =
   | Readonly<{
       afterSequence: number;
       kind: "read-boundary";
+    }>
+  | Readonly<{
+      kind: "system-activity";
     }>;
 
 export type ChatMessageViewportState = Readonly<{

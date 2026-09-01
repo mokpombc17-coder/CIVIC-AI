@@ -1,5 +1,6 @@
 import type { ChatMessage } from "./chat-room-contracts";
 import type { ChatOutgoingMessage } from "./realtime/chat-message-outbox";
+import type { ChatRoomSystemActivity } from "./realtime/chat-room-system-activity";
 
 const CHAT_MESSAGE_DATE_TIME_ZONE = "Asia/Seoul";
 const CHAT_MESSAGE_DATE_FORMATTER = new Intl.DateTimeFormat("en-US", {
@@ -38,12 +39,19 @@ export type ChatMessageTimelineRow =
       renderKey: string;
     }>
   | Readonly<{
+      activity: ChatRoomSystemActivity;
+      kind: "system-activity";
+      renderKey: string;
+    }>
+  | Readonly<{
       item: ChatMessageTimelineItem;
       kind: "message";
     }>;
 
 export type CreateChatMessageTimelineRowsOptions = Readonly<{
   readBoundaryAfterSequence?: number | null;
+  systemActivityStartAfterSequence?: number;
+  systemActivities?: readonly ChatRoomSystemActivity[];
 }>;
 
 export function createChatMessageTimeline(
@@ -69,7 +77,11 @@ export function createChatMessageTimeline(
 
 export function createChatMessageTimelineRows(
   timeline: readonly ChatMessageTimelineItem[],
-  { readBoundaryAfterSequence = null }: CreateChatMessageTimelineRowsOptions = {},
+  {
+    readBoundaryAfterSequence = null,
+    systemActivityStartAfterSequence = 0,
+    systemActivities = [],
+  }: CreateChatMessageTimelineRowsOptions = {},
 ): readonly ChatMessageTimelineRow[] {
   if (
     readBoundaryAfterSequence !== null &&
@@ -81,20 +93,55 @@ export function createChatMessageTimelineRows(
   const rows: ChatMessageTimelineRow[] = [];
   let previousDateKey: string | null = null;
   let readBoundaryInserted = false;
+  const confirmedSequences = new Set(
+    timeline.flatMap((item) => (item.kind === "confirmed" ? [item.message.roomSequence] : [])),
+  );
+  const visibleActivities = systemActivities.filter(
+    (activity) =>
+      activity.afterMessageSequence === systemActivityStartAfterSequence ||
+      confirmedSequences.has(activity.afterMessageSequence),
+  );
+  const activitiesBySequence = new Map<number, ChatRoomSystemActivity[]>();
+
+  for (const activity of visibleActivities) {
+    const activities = activitiesBySequence.get(activity.afterMessageSequence) ?? [];
+    activities.push(activity);
+    activitiesBySequence.set(activity.afterMessageSequence, activities);
+  }
+
+  const appendDateSeparator = (date: ChatMessageTimelineDate) => {
+    if (date.key === previousDateKey) {
+      return;
+    }
+
+    rows.push(
+      Object.freeze({
+        date,
+        kind: "date-separator",
+        renderKey: `date-separator-${date.key}`,
+      }),
+    );
+    previousDateKey = date.key;
+  };
+
+  const appendActivitiesAfterSequence = (afterMessageSequence: number) => {
+    for (const activity of activitiesBySequence.get(afterMessageSequence) ?? []) {
+      appendDateSeparator(getChatMessageTimelineDateFromTimestamp(activity.emittedAt));
+      rows.push(
+        Object.freeze({
+          activity,
+          kind: "system-activity",
+          renderKey: `system-activity-${activity.eventKey}`,
+        }),
+      );
+    }
+  };
+
+  appendActivitiesAfterSequence(systemActivityStartAfterSequence);
 
   for (const item of timeline) {
     const date = getChatMessageTimelineDate(item);
-
-    if (date.key !== previousDateKey) {
-      rows.push(
-        Object.freeze({
-          date,
-          kind: "date-separator",
-          renderKey: `date-separator-${date.key}`,
-        }),
-      );
-      previousDateKey = date.key;
-    }
+    appendDateSeparator(date);
 
     if (
       !readBoundaryInserted &&
@@ -113,6 +160,10 @@ export function createChatMessageTimelineRows(
     }
 
     rows.push(Object.freeze({ item, kind: "message" }));
+
+    if (item.kind === "confirmed") {
+      appendActivitiesAfterSequence(item.message.roomSequence);
+    }
   }
 
   return Object.freeze(rows);
@@ -121,6 +172,14 @@ export function createChatMessageTimelineRows(
 function getChatMessageTimelineDate(item: ChatMessageTimelineItem): ChatMessageTimelineDate {
   const timestamp =
     item.kind === "confirmed" ? Date.parse(item.message.createdAt) : item.message.enqueuedAt;
+
+  return getChatMessageTimelineDateFromTimestamp(timestamp);
+}
+
+function getChatMessageTimelineDateFromTimestamp(
+  createdAt: string | number,
+): ChatMessageTimelineDate {
+  const timestamp = typeof createdAt === "number" ? createdAt : Date.parse(createdAt);
 
   if (!Number.isFinite(timestamp)) {
     throw new RangeError("채팅 메시지 날짜를 계산할 수 없습니다.");

@@ -502,6 +502,26 @@ describe("chat realtime payload contracts", () => {
     expect(parseChatRoomEventEnvelope(JSON.stringify({ ...event, eventVersion: 1 }))).toBeNull();
   });
 
+  it("Membership topology event의 userLabel을 받고 eventId 미제공도 호환한다", () => {
+    const eventWithoutId: Record<string, unknown> = createRoomEvent("ROOM_MEMBER_JOINED", {
+      member: {
+        ...createMemberState("membership-02", "MEMBER"),
+        userLabel: "member-02",
+      },
+    });
+    delete eventWithoutId.eventId;
+
+    expect(parseChatRoomEventEnvelope(JSON.stringify(eventWithoutId))).toMatchObject({
+      eventType: "ROOM_MEMBER_JOINED",
+      payload: {
+        member: {
+          membershipId: "membership-02",
+          userLabel: "member-02",
+        },
+      },
+    });
+  });
+
   it("방장 위임 Room Event의 양쪽 사용자 상태를 검증한다", () => {
     const event = createRoomEvent("ROOM_OWNERSHIP_TRANSFERRED", {
       previousOwner: createMemberState("membership-01", "MEMBER"),

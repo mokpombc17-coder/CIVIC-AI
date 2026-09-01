@@ -8,18 +8,21 @@ import { useChatRoomMessagePresentation } from "@/components/use-chat-room-messa
 import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-contracts";
 import type { ChatRoomReadReceiptState } from "@/lib/chat/chat-room-read-receipt-state";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
+import type { ChatRoomSystemActivity } from "@/lib/chat/realtime/chat-room-system-activity";
 
 type ChatRoomMessageExperienceInput = Readonly<{
   confirmedMessages: readonly ChatMessage[];
   enabled: boolean;
   generation: number;
   includeOutgoingMessages?: boolean;
+  messageVisibleAfterSequence: number;
   participantProfiles: readonly RoomMembershipListItem[];
   readBoundaryAfterSequence: number | null;
   receiptState: ChatRoomReadReceiptState | undefined;
   receiptSyncStatus: ChatRoomReadReceiptSyncStatus;
   roomId: string;
   selfMembershipId: string | null;
+  systemActivities: readonly ChatRoomSystemActivity[];
 }>;
 
 export function useChatRoomMessageExperience({
@@ -27,12 +30,14 @@ export function useChatRoomMessageExperience({
   enabled,
   generation,
   includeOutgoingMessages = true,
+  messageVisibleAfterSequence,
   participantProfiles,
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
   roomId,
   selfMembershipId,
+  systemActivities,
 }: ChatRoomMessageExperienceInput) {
   const outbox = useChatMessageOutbox();
   const outgoingMessages = useChatOutgoingMessages(roomId);
@@ -43,6 +48,7 @@ export function useChatRoomMessageExperience({
   });
   const presentation = useChatRoomMessagePresentation({
     confirmedMessages,
+    messageVisibleAfterSequence,
     mutationStates: mutations.states,
     outgoingMessages: includeOutgoingMessages ? outgoingMessages : [],
     participantProfiles,
@@ -50,6 +56,7 @@ export function useChatRoomMessageExperience({
     receiptState,
     receiptSyncStatus,
     selfMembershipId,
+    systemActivities,
   });
   const viewportKey = createChatRoomViewportKey(roomId, generation);
   const actions = useChatMessageActionsBottomSheet({

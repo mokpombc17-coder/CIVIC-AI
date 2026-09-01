@@ -62,12 +62,14 @@ export function useChatRoomContentExperience(
     enabled: session.isActive,
     generation: session.generation,
     includeOutgoingMessages: !contextNavigationActive,
+    messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
     participantProfiles,
     readBoundaryAfterSequence: contextNavigationActive ? null : read.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
     selfMembershipId: room?.myMembership?.membershipId ?? null,
+    systemActivities: messageNavigationActive ? [] : realtime.systemActivities,
   });
   const loadOlder = useCallback(async () => {
     const result = await fetchNextPage();
@@ -101,6 +103,9 @@ export function useChatRoomContentExperience(
             isActive: session.isActive,
             isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
             isPending: messageHistory.isPending,
+            hasSystemActivities: message.viewportItems.some(
+              (item) => item.kind === "system-activity",
+            ),
             messageCount: message.messageItems.length,
           }),
       initialScrollTarget:
@@ -174,15 +179,17 @@ export function createChatRoomMessageHistoryFeedback({
   isActive,
   isError,
   isPending,
+  hasSystemActivities = false,
   messageCount,
 }: Readonly<{
   error: unknown;
+  hasSystemActivities?: boolean;
   isActive: boolean;
   isError: boolean;
   isPending: boolean;
   messageCount: number;
 }>): ChatMessageHistoryFeedback | null {
-  const hasMessages = messageCount > 0;
+  const hasMessages = messageCount > 0 || hasSystemActivities;
 
   if (!isActive && !hasMessages) {
     return {

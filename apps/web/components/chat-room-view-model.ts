@@ -8,6 +8,7 @@ import type {
 } from "@/components/chat-message-mutation-state";
 import type { ChatMessageReadReceiptSummary } from "@/lib/chat/chat-message-read-receipt-projector";
 import { UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME } from "@/lib/chat/chat-room-participant-profiles";
+import { createChatRoomSystemActivityMessage } from "@/lib/chat/realtime/chat-room-system-activity";
 
 const MESSAGE_TIME_FORMATTER = new Intl.DateTimeFormat("ko-KR", {
   hour: "numeric",
@@ -68,6 +69,11 @@ export type ChatMessageViewportItemViewModel =
   | Readonly<{
       afterSequence: number;
       kind: "read-boundary";
+      renderKey: string;
+    }>
+  | Readonly<{
+      kind: "system-activity";
+      message: string;
       renderKey: string;
     }>
   | Readonly<{
@@ -160,6 +166,15 @@ export function createChatMessageViewportItemViewModels(
       return {
         afterSequence: row.afterSequence,
         kind: "read-boundary",
+        renderKey: row.renderKey,
+      };
+    }
+
+    if (row.kind === "system-activity") {
+      previousGroupKey = null;
+      return {
+        kind: "system-activity",
+        message: createChatRoomSystemActivityMessage(row.activity, participantDisplayNames),
         renderKey: row.renderKey,
       };
     }

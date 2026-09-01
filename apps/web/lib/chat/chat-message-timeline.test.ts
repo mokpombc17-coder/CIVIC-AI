@@ -191,6 +191,74 @@ describe("createChatMessageTimelineRows", () => {
 
     expect(() => createChatMessageTimelineRows(timeline)).toThrowError(RangeError);
   });
+
+  it("시스템 활동을 지정된 확정 메시지 뒤에 두고 optimistic 메시지보다 앞에 표시한다", () => {
+    const timeline = createChatMessageTimeline(
+      [{ ...createConfirmed("confirmed"), roomSequence: 12 }],
+      [createOutgoing("optimistic", "queued", Date.parse("2026-07-31T00:00:02Z"))],
+    );
+    const rows = createChatMessageTimelineRows(timeline, {
+      systemActivities: [
+        {
+          afterMessageSequence: 12,
+          emittedAt: "2026-07-31T00:00:01Z",
+          eventKey: "event-join",
+          kind: "joined",
+          membershipId: "membership-02",
+          receivedOrder: 1,
+          userLabel: "철수",
+        },
+      ],
+    });
+
+    expect(rows.map(({ kind }) => kind)).toEqual([
+      "date-separator",
+      "message",
+      "system-activity",
+      "message",
+    ]);
+  });
+
+  it("아직 불러오지 않은 sequence의 시스템 활동은 anchor 메시지가 나타날 때까지 숨긴다", () => {
+    const timeline = createChatMessageTimeline(
+      [{ ...createConfirmed("confirmed"), roomSequence: 12 }],
+      [],
+    );
+    const rows = createChatMessageTimelineRows(timeline, {
+      systemActivities: [
+        {
+          afterMessageSequence: 5,
+          emittedAt: "2026-07-31T00:00:01Z",
+          eventKey: "event-old",
+          kind: "left",
+          membershipId: "membership-02",
+          receivedOrder: 1,
+          userLabel: "철수",
+        },
+      ],
+    });
+
+    expect(rows.some((row) => row.kind === "system-activity")).toBe(false);
+  });
+
+  it("표시 가능한 메시지가 없으면 현재 사용자의 시작 경계 뒤 활동을 첫 항목으로 표시한다", () => {
+    const rows = createChatMessageTimelineRows([], {
+      systemActivityStartAfterSequence: 100,
+      systemActivities: [
+        {
+          afterMessageSequence: 100,
+          emittedAt: "2026-07-31T00:00:01Z",
+          eventKey: "event-first",
+          kind: "joined",
+          membershipId: "membership-02",
+          receivedOrder: 1,
+          userLabel: "철수",
+        },
+      ],
+    });
+
+    expect(rows.map(({ kind }) => kind)).toEqual(["date-separator", "system-activity"]);
+  });
 });
 
 function createConfirmed(clientMessageId: string, createdAt = "2026-07-31T00:00:00Z"): ChatMessage {

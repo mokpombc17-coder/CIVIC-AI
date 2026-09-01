@@ -31,6 +31,10 @@ import type {
   RoomMessageSearchResponse,
   RoomCreationRequestResponse,
 } from "./chat-room-contracts";
+import {
+  createEmptyChatRoomSystemActivityJournal,
+  type ChatRoomSystemActivityJournal,
+} from "./realtime/chat-room-system-activity";
 
 const DEFAULT_LIST_LIMIT = 20;
 const ROOM_INBOX_RETRY_BASE_DELAY_MS = 500;
@@ -159,6 +163,9 @@ export const chatRoomQueryKeys = {
     ] as const,
   roomEventJournals: () => [...chatRoomQueryKeys.all, "room-event-journal"] as const,
   roomEventJournal: (roomId: string) => [...chatRoomQueryKeys.roomEventJournals(), roomId] as const,
+  systemActivityJournals: () => [...chatRoomQueryKeys.all, "system-activity-journal"] as const,
+  systemActivityJournal: (roomId: string) =>
+    [...chatRoomQueryKeys.systemActivityJournals(), roomId] as const,
   readReceiptStates: () => [...chatRoomQueryKeys.all, "read-receipt-state"] as const,
   readReceiptStatesForRoom: (roomId: string) =>
     [...chatRoomQueryKeys.readReceiptStates(), roomId] as const,
@@ -613,6 +620,17 @@ export function useRoomMembershipsQuery(
     ...query,
     memberships,
   };
+}
+
+export function useRoomSystemActivityJournalQuery(roomId: string) {
+  return useQuery({
+    queryKey: chatRoomQueryKeys.systemActivityJournal(roomId),
+    queryFn: async (): Promise<ChatRoomSystemActivityJournal> =>
+      createEmptyChatRoomSystemActivityJournal(roomId),
+    enabled: false,
+    initialData: () => createEmptyChatRoomSystemActivityJournal(roomId),
+    staleTime: Number.POSITIVE_INFINITY,
+  });
 }
 
 export function useRoomMessageHistoryQuery(roomId: string, params: ChatMessageHistoryQueryParams) {

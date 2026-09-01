@@ -34,6 +34,7 @@ import type {
 const AT_END_THRESHOLD = 96;
 const ESTIMATED_DATE_SEPARATOR_HEIGHT = 24;
 const ESTIMATED_READ_BOUNDARY_HEIGHT = 28;
+const ESTIMATED_SYSTEM_ACTIVITY_HEIGHT = 28;
 const ESTIMATED_MESSAGE_HEIGHT = 76;
 const MESSAGE_GAP = 20;
 const MESSAGE_OVERSCAN = 10;
@@ -111,6 +112,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
       if (item?.kind === "read-boundary") {
         return ESTIMATED_READ_BOUNDARY_HEIGHT;
+      }
+
+      if (item?.kind === "system-activity") {
+        return ESTIMATED_SYSTEM_ACTIVITY_HEIGHT;
       }
 
       return ESTIMATED_MESSAGE_HEIGHT;
@@ -458,6 +463,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     const appendedMessages = appendedItems.flatMap((item) =>
       item.kind === "message" ? [item.item] : [],
     );
+    const hasAppendedSystemActivity = appendedItems.some((item) => item.kind === "system-activity");
     const appendSource: ChatMessageAppendSource = appendedMessages.some(
       (item) => item.isMine && item.deliveryTone !== null,
     )
@@ -466,8 +472,9 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     const isInitializing = isNewViewport || viewportPositionRef.current === "initializing";
     const shouldFollowLatest =
       !isInitializing &&
-      appendedMessages.length > 0 &&
-      shouldFollowLatestMessages(viewportPositionRef.current, appendSource);
+      ((appendedMessages.length > 0 &&
+        shouldFollowLatestMessages(viewportPositionRef.current, appendSource)) ||
+        (hasAppendedSystemActivity && viewportPositionRef.current !== "detached"));
 
     if (isNewViewport) {
       viewportPositionRef.current = "initializing";

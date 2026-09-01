@@ -1,5 +1,11 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { chatRoomApi, type ChatRoomApi } from "../chat-room-api";
+import type {
+  RoomDetails,
+  RoomMembership,
+  RoomMembershipListResponse,
+} from "../chat-room-contracts";
+import { getRoomParticipantDisplayName } from "../chat-room-participant-profiles";
 import { DEFAULT_MESSAGE_HISTORY_LIMIT, chatRoomQueryKeys } from "../chat-room-queries";
 import {
   inspectSortedChatMessages,
@@ -23,6 +29,11 @@ import {
   type ChatRoomReadReceiptCoordinatorOptions,
 } from "./chat-room-read-receipt-coordinator";
 import { applyChatRoomMessageSearchCacheEffects } from "./chat-room-message-search-cache-effects";
+import {
+  createChatRoomEventKey,
+  mergeChatRoomSystemActivities,
+  type ChatRoomSystemActivityJournal,
+} from "./chat-room-system-activity";
 import {
   applyChatRoomEventCacheProjection,
   createChatRoomEventCacheProjection,
@@ -349,6 +360,28 @@ export function applyChatRealtimeEventDelivery(
     messageEvents,
   );
   const roomEvents = delivery.events.filter((event) => event.kind === "room");
+  const initialLatestMessageSequence = currentHistory.pages.reduce(
+    (latest, page) =>
+      page.items.reduce(
+        (pageLatest, message) =>
+          message.roomSequence > messageVisibleAfterSequence
+            ? Math.max(pageLatest, message.roomSequence)
+            : pageLatest,
+        latest,
+      ),
+    messageVisibleAfterSequence,
+  );
+  const systemActivityJournalKey = chatRoomQueryKeys.systemActivityJournal(delivery.roomId);
+  const currentSystemActivityJournal =
+    queryClient.getQueryData<ChatRoomSystemActivityJournal>(systemActivityJournalKey);
+  const nextSystemActivityJournal = mergeChatRoomSystemActivities({
+    delivery,
+    initialLatestMessageSequence,
+    journal: currentSystemActivityJournal,
+    messageVisibleAfterSequence,
+    participantDisplayNames: getCachedRoomParticipantDisplayNames(queryClient, delivery.roomId),
+    selfMembershipId: getCurrentRoomMembershipId(queryClient, delivery.roomId),
+  });
   const { history: nextHistory, merge: historyMerge } = mergeMessagesIntoChatHistory(
     delivery.roomId,
     currentHistory,
@@ -385,6 +418,10 @@ export function applyChatRealtimeEventDelivery(
 
   if (roomEventJournalMerge.journal !== currentRoomEventJournal) {
     queryClient.setQueryData(roomEventJournalKey, roomEventJournalMerge.journal);
+  }
+
+  if (nextSystemActivityJournal !== currentSystemActivityJournal) {
+    queryClient.setQueryData(systemActivityJournalKey, nextSystemActivityJournal);
   }
 
   applyChatRoomEventCacheProjection(queryClient, roomEventProjection, onAuthoritativeRefreshError);
@@ -455,7 +492,9 @@ function mergeRoomEventJournal(
   }
 
   const events = [...(journal?.events ?? [])];
-  const eventsById = new Map(events.map((event) => [event.eventId, event] as const));
+  const eventsById = new Map(
+    events.map((event) => [createChatRoomEventKey(event), event] as const),
+  );
   const addedEvents: ChatRoomEventEnvelope[] = [];
 
   for (const event of incomingEvents) {
@@ -466,19 +505,20 @@ function mergeRoomEventJournal(
       );
     }
 
-    const existing = eventsById.get(event.eventId);
+    const eventKey = createChatRoomEventKey(event);
+    const existing = eventsById.get(eventKey);
 
     if (existing) {
       if (!isSameRoomEvent(existing, event)) {
         throw new ChatRealtimeQueryCoordinatorError(
           "ROOM_EVENT_CONFLICT",
-          `Room Event ${event.eventId}의 payload가 기존 journal과 다릅니다.`,
+          `Room Event ${eventKey}의 payload가 기존 journal과 다릅니다.`,
         );
       }
       continue;
     }
 
-    eventsById.set(event.eventId, event);
+    eventsById.set(eventKey, event);
     events.push(event);
     addedEvents.push(event);
   }
@@ -494,6 +534,31 @@ function mergeRoomEventJournal(
 
 function isSameRoomEvent(left: ChatRoomEventEnvelope, right: ChatRoomEventEnvelope): boolean {
   return JSON.stringify(left) === JSON.stringify(right);
+}
+
+function getCurrentRoomMembershipId(queryClient: QueryClient, roomId: string): string | null {
+  const membership = queryClient.getQueryData<RoomMembership>(
+    chatRoomQueryKeys.myMembership(roomId),
+  );
+  const room = queryClient.getQueryData<RoomDetails>(chatRoomQueryKeys.detail(roomId));
+  return membership?.membershipId ?? room?.myMembership?.membershipId ?? null;
+}
+
+function getCachedRoomParticipantDisplayNames(
+  queryClient: QueryClient,
+  roomId: string,
+): ReadonlyMap<string, string> {
+  const displayNames = new Map<string, string>();
+
+  for (const [, data] of queryClient.getQueriesData<
+    InfiniteData<RoomMembershipListResponse, string | null>
+  >({ queryKey: chatRoomQueryKeys.membershipLists(roomId) })) {
+    for (const membership of data?.pages.flatMap((page) => page.items) ?? []) {
+      displayNames.set(membership.membershipId, getRoomParticipantDisplayName(membership));
+    }
+  }
+
+  return displayNames;
 }
 
 function getDeliveryRecoveryTarget(

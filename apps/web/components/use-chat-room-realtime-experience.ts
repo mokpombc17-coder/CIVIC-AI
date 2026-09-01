@@ -9,6 +9,7 @@ import { useChatRoomMessageHistoryData } from "@/components/use-chat-room-screen
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomReadReceiptStateQuery,
+  useRoomSystemActivityJournalQuery,
 } from "@/lib/chat/chat-room-queries";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
@@ -23,6 +24,7 @@ export function useChatRoomRealtimeExperience(roomId: string) {
     enabled: session.isActive,
     generation: session.generation,
   });
+  const systemActivityJournalQuery = useRoomSystemActivityJournalQuery(roomId);
   const coordinatorEnabled = isChatRoomRealtimeCoordinatorEnabled({
     hasMessageHistory: messageHistory.data !== undefined,
     isMessageHistoryRefetching: messageHistory.isRefetching,
@@ -54,6 +56,7 @@ export function useChatRoomRealtimeExperience(roomId: string) {
     realtimeReady,
     session,
     sessionView: getChatRoomSessionView(session, roomId, realtimeReady),
+    systemActivities: systemActivityJournalQuery.data?.activities ?? [],
   };
 }
 

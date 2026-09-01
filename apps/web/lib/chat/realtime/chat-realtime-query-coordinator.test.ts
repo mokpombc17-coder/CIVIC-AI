@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import { chatRoomQueryKeys, DEFAULT_MESSAGE_HISTORY_LIMIT } from "../chat-room-queries";
 import type { ChatMessage, MessageHistoryResponse, RoomDetails } from "../chat-room-contracts";
 import type { ChatRealtimeEventDelivery } from "./chat-realtime-event-buffer";
+import type { ChatRoomSystemActivityJournal } from "./chat-room-system-activity";
 import {
   applyChatRealtimeEventDelivery,
   ChatRealtimeQueryCoordinator,
@@ -295,11 +296,22 @@ describe("ChatRealtimeQueryCoordinator", () => {
     const journal = queryClient.getQueryData<ChatRoomEventJournal>(
       chatRoomQueryKeys.roomEventJournal("room-01"),
     );
+    const systemActivityJournal = queryClient.getQueryData<ChatRoomSystemActivityJournal>(
+      chatRoomQueryKeys.systemActivityJournal("room-01"),
+    );
 
     expect(history.pages[0]?.items.map((message) => message.roomSequence)).toEqual([3, 4, 5]);
     expect(history.pages[1]?.items.map((message) => message.roomSequence)).toEqual([1, 2]);
     expect(history.pageParams).toEqual([null, 3]);
     expect(journal?.events.map((event) => event.eventId)).toEqual(["event-1"]);
+    expect(systemActivityJournal?.activities).toEqual([
+      expect.objectContaining({
+        afterMessageSequence: 5,
+        eventKey: "event-1",
+        kind: "joined",
+        membershipId: "membership-01",
+      }),
+    ]);
     expect(transport.acknowledgedDeliveries).toEqual(["delivery-1"]);
     expect(onApplied).toHaveBeenCalledWith(
       expect.objectContaining({

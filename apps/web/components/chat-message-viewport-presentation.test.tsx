@@ -103,4 +103,25 @@ describe("ChatMessageViewport presentation", () => {
     expect(markup).toContain('data-read-boundary-after-sequence="12"');
     expect(markup).toContain("translateY(128px)");
   });
+
+  it("시스템 활동을 메시지 동작과 분리된 가운데 안내로 렌더링한다", () => {
+    const markup = renderToStaticMarkup(
+      <ChatMessageViewportVirtualRow
+        item={{
+          kind: "system-activity",
+          message: "철수님이 입장했습니다.",
+          renderKey: "system-activity-event-join",
+        }}
+        measureElement={() => undefined}
+        onOpenMessageActions={vi.fn()}
+        start={200}
+        virtualIndex={5}
+      />,
+    );
+
+    expect(markup).toContain("철수님이 입장했습니다.");
+    expect(markup).toContain('data-system-activity="true"');
+    expect(markup).toContain('data-render-key="system-activity-event-join"');
+    expect(markup).not.toContain("button");
+  });
 });

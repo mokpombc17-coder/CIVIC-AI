@@ -469,6 +469,23 @@ describe("chat room REST contracts", () => {
     });
   });
 
+  it("Room 참여자의 입장 message sequence anchor를 파싱한다", () => {
+    const result = roomMembershipListResponseSchema.parse({
+      items: [createRoomMembershipListItem({ enteredAfterMessageSequence: 12 })],
+      nextCursor: null,
+      hasNext: false,
+    });
+
+    expect(result.items[0]?.enteredAfterMessageSequence).toBe(12);
+    expect(
+      roomMembershipListResponseSchema.safeParse({
+        items: [createRoomMembershipListItem({ enteredAfterMessageSequence: -1 })],
+        nextCursor: null,
+        hasNext: false,
+      }).success,
+    ).toBe(false);
+  });
+
   it("userLabel 미배포 응답은 허용하고 null 값은 거절한다", () => {
     expect(
       roomMembershipListResponseSchema.safeParse({

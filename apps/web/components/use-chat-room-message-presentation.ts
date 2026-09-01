@@ -16,6 +16,11 @@ import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-c
 import type { ChatRoomReadReceiptState } from "@/lib/chat/chat-room-read-receipt-state";
 import { createRoomParticipantDisplayNames } from "@/lib/chat/chat-room-participant-profiles";
 import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbox";
+import {
+  combineChatRoomSystemActivities,
+  createMembershipEntrySystemActivities,
+  type ChatRoomSystemActivity,
+} from "@/lib/chat/realtime/chat-room-system-activity";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
 
 export type ChatRoomMessagePresentation = Readonly<{
@@ -27,45 +32,53 @@ export type ChatRoomMessagePresentation = Readonly<{
 type ChatRoomMessagePresentationInput = Readonly<{
   confirmedMessages: readonly ChatMessage[];
   mutationStates: ChatMessageMutationStates;
+  messageVisibleAfterSequence?: number;
   outgoingMessages: readonly ChatOutgoingMessage[];
   participantProfiles: readonly RoomMembershipListItem[];
   readBoundaryAfterSequence: number | null;
   receiptState: ChatRoomReadReceiptState | undefined;
   receiptSyncStatus: ChatRoomReadReceiptSyncStatus;
   selfMembershipId: string | null;
+  systemActivities?: readonly ChatRoomSystemActivity[];
 }>;
 
 export function useChatRoomMessagePresentation({
   confirmedMessages,
   mutationStates,
+  messageVisibleAfterSequence = 0,
   outgoingMessages,
   participantProfiles,
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
   selfMembershipId,
+  systemActivities = [],
 }: ChatRoomMessagePresentationInput): ChatRoomMessagePresentation {
   return useMemo(
     () =>
       createChatRoomMessagePresentation({
         confirmedMessages,
         mutationStates,
+        messageVisibleAfterSequence,
         outgoingMessages,
         participantProfiles,
         readBoundaryAfterSequence,
         receiptState,
         receiptSyncStatus,
         selfMembershipId,
+        systemActivities,
       }),
     [
       confirmedMessages,
       mutationStates,
+      messageVisibleAfterSequence,
       outgoingMessages,
       participantProfiles,
       readBoundaryAfterSequence,
       receiptState,
       receiptSyncStatus,
       selfMembershipId,
+      systemActivities,
     ],
   );
 }
@@ -73,12 +86,14 @@ export function useChatRoomMessagePresentation({
 export function createChatRoomMessagePresentation({
   confirmedMessages,
   mutationStates,
+  messageVisibleAfterSequence = 0,
   outgoingMessages,
   participantProfiles,
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
   selfMembershipId,
+  systemActivities = [],
 }: ChatRoomMessagePresentationInput): ChatRoomMessagePresentation {
   const participantDisplayNames = createRoomParticipantDisplayNames(participantProfiles);
   const ownerMembershipId =
@@ -90,8 +105,14 @@ export function createChatRoomMessagePresentation({
     selfMembershipId,
   });
   const timeline = createChatMessageTimeline(confirmedMessages, outgoingMessages);
+  const restoredActivities = createMembershipEntrySystemActivities(
+    participantProfiles,
+    selfMembershipId,
+  );
   const timelineRows = createChatMessageTimelineRows(timeline, {
     readBoundaryAfterSequence,
+    systemActivityStartAfterSequence: messageVisibleAfterSequence,
+    systemActivities: combineChatRoomSystemActivities(restoredActivities, systemActivities),
   });
   const viewportItems = createChatMessageViewportItemViewModels(
     timelineRows,

@@ -225,9 +225,11 @@ card와 상세 진입, 다음 page 적재를 표현한다.
 
 `ChatRoomScreen`은 화면에 필요한 controller와 ViewModel을 조립하는 container다.
 `useChatRoomRealtimeExperience`는 Room session, Message History와 Read Receipt snapshot,
-실시간 Query coordinator를 한 생명주기로 묶는다. Message History snapshot과 두 sequence 경계가
-모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session view로 변환한다.
-Receipt 오류는 기존 coordinator 경계에서 core message realtime과 분리한다.
+실시간 Query coordinator 및 Room system activity journal을 한 생명주기로 묶는다. Message History
+snapshot과 두 sequence 경계가 모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session
+view로 변환한다. Membership topology event는 수신 시점의 마지막 확정 message sequence를 표시
+anchor로 기록하되 Message History, 읽음 수와 검색 cache에는 합치지 않는다. Receipt 오류는 기존
+coordinator 경계에서 core message realtime과 분리한다.
 `useChatRoomContentExperience`는 Room detail과 ACTIVE participant profile을 조회하고, realtime
 snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Header, viewport ViewModel, history feedback과
 Room 오류 복구 동작까지 UI가 바로 소비할 수 있는 content model로 반환한다.
@@ -246,14 +248,16 @@ lifecycle이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사용
 새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된
 검색 결과와 Context에 반영한다. 검색이나 Context 오류는 core message 수신·전송을 막지 않는다.
 `useChatRoomParticipantProfiles`는 ACTIVE membership profile을 메시지 이력과 병렬로 조회하고,
-`membershipId` cursor page를 끝까지 이어 Backend `displayName`을 제공한다. profile 조회 실패는 core
+`membershipId` cursor page를 끝까지 이어 Backend `userLabel`과 입장 sequence를 제공한다. profile 조회 실패는 core
 message 동작을 막지 않으며, 현재 ACTIVE 목록에 없는 과거 발신자는 `알 수 없는 참여자`로 표시한다.
 `useChatRoomMessageHistoryData`는 최신 message Query와 과거 page load를 진입 위치 탐색용 history
 snapshot으로 변환하여 Screen이 TanStack infinite page 구조를 직접 해석하지 않게 한다.
 `useChatRoomMessageExperience`는 확정 Message History와 Outbox의 optimistic outgoing을 합치고,
 확정된 `clientMessageId`를 Outbox에서 정리한다. 수정·삭제 mutation, 메시지 action sheet와
 `useChatRoomMessagePresentation`도 같은 경험 경계에서 조립한다. presentation hook은 참여자 이름 map,
-Read Receipt projection, 날짜·읽음 구분선 timeline과 viewport item을 만든다. receipt sync가 ready이며
+Read Receipt projection, 날짜·읽음 구분선과 Membership system activity가 포함된 화면용 timeline 및
+viewport item을 만든다. system activity는 ACTIVE 참여자 목록의 입장 위치와 WebSocket journal을
+중복 제거해 조립하며 현재 사용자의 활동은 제외한다. receipt sync가 ready이며
 Room detail의 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은
 인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
 Room 진입 시에는 `ChatRoomScreen`이 실시간 generation별 최초 receipt position을 고정하고, 읽음
@@ -277,7 +281,8 @@ trigger를 배치하고, `ChatRoomScreenOverlay`는 채팅방 메뉴와 메시�
 표현한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유한다. 검색 결과 이동
 목표는 virtualization index의 중앙으로 정착시킨 뒤 focus하고, 최신 대화 복귀 시 원래 timeline
-viewport key로 전환한다. 이 책임 때문에 독립 Feature로 유지하고,
+viewport key로 전환한다. system activity가 추가되면 viewport가 최신 위치에 고정된 경우에만 따라가며
+새 메시지 수에는 포함하지 않는다. 이 책임 때문에 독립 Feature로 유지하고,
 상단 loading/error, 이력 안내, 새 메시지 이동 버튼과 가상 row 선택 렌더링은
 `chat-message-viewport-presentation.tsx`의 순수 표현 컴포넌트로 위임한다. 이 내부 표현 컴포넌트와
 반복되는 개별 message item은 책임 경계를 새로 만들지 않으므로 트리에서는 생략한다.
