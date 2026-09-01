@@ -16,6 +16,15 @@ public interface SurveyResponseRepository {
             SurveyUserId userId,
             SurveyRoundId roundId);
 
+    default Optional<SurveyResponse> findByUserIdAndRoundId(
+            SurveyUserId userId,
+            SurveyRoundId roundId
+    ) {
+        return findAllByUserId(userId).stream()
+                .filter(response -> response.roundId().equals(roundId))
+                .findFirst();
+    }
+
     Optional<SurveyResponse> findById(SurveyResponseId responseId);
 
     Optional<SurveyResponse> findByIdAndUserId(

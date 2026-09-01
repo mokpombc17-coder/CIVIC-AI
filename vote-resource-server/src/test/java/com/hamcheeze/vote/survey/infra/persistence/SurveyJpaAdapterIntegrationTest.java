@@ -255,6 +255,10 @@ class SurveyJpaAdapterIntegrationTest {
         assertAllAnswerValues(restored, fixture);
         assertThat(responseRepository.existsByUserIdAndRoundId(
                 userId, firstRound.id())).isTrue();
+        assertThat(responseRepository.findByUserIdAndRoundId(
+                userId, firstRound.id()))
+                .map(SurveyResponse::id)
+                .contains(firstResponse.id());
         assertThatThrownBy(() -> responseRepository.insert(firstResponse))
                 .isInstanceOf(UnsupportedOperationException.class)
                 .hasMessageContaining("immutable");

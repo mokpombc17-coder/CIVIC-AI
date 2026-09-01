@@ -1,339 +1,340 @@
-# 1회차 사용자 특성 설문 Frontend API Handoff v3
+# 1회차 사용자 특성 설문 Frontend API Handoff v4
 
-> 목표 계약: 백엔드 도메인 개편 완료 후 제공할 API 형식이다.
-> 현재 백엔드는 v2 구조이므로 프론트 연동 전 백엔드 패치와 로컬 DB 초기화가 필요하다.
+이 문서는 프론트엔드가 연동할 최종 목표 계약이다. 백엔드는 이 문서를 기준으로 사용자 Read/Write API를 패치한다.
 
-## 1. 핵심 변경 사항
+## 1. 확정 사항
 
-- 원본 설문 기준으로 7개 Section, 29개 Question을 반환한다.
-- 가족 구성, 집단별 감정적 거리, 매체별 이용 시간은 하나의 Question과 여러 Item으로 반환한다.
-- 기존 `sections[].groups[].questions[]`는 `sections[].questions[]`로 단순화한다.
-- 일반 Question은 `items=[]`다.
-- 행렬 Question의 `items[].itemLabel`은 항상 `string`이며 `null`이 아니다.
-- 행렬 Question은 `MATRIX_SINGLE_CHOICE`, `MATRIX_SCALE` 타입을 사용한다.
-- 제출은 29개 Question 답변을 보내고, 행렬 답변 안에 `itemAnswers[]`를 포함한다.
-- 전체 필수 응답 값은 42개다. Question 수 29개와 응답 값 수 42개는 서로 다른 개념이다.
-- 원본 질문 문구는 Question의 `prompt`에 한 번만 존재한다. Item별 합성 문구는 만들거나 반환하지 않는다.
+- 1회차 설문은 7개 Section, 29개 Question이다.
+- 행렬 Question은 3개이며 총 16개 Item을 가진다.
+  - 가족 구성: `MATRIX_SINGLE_CHOICE`, Item 6개
+  - 집단별 감정적 거리: `MATRIX_SCALE`, Item 7개
+  - 매체별 이용 시간: `MATRIX_SINGLE_CHOICE`, Item 3개
+- 제출 payload의 최상위 `answers`는 29개다.
+- 행렬 답변을 펼치면 실제 응답 값은 총 42개다.
+- 1인 1회 제출이며 제출 후 수정할 수 없다.
+- 임시 저장 API는 제공하지 않는다. 필요하면 프론트가 브라우저에서 처리한다.
+- 이메일은 설문 요청·응답에 포함하지 않고 저장하지 않는다. 사용자는 JWT `sub`의 UUID로 식별한다.
+- PDF 원문과 설명은 백엔드 DB에 보존한다.
+- Figma 전용 helper text, placeholder, control 형태는 프론트가 `questionKey`로 관리한다.
+- `기타`, `그 외`를 포함한 모든 1회차 선택지는 추가 입력 없는 고정 값이다.
+- 사용자 API의 Option과 Selection에는 `kind`, `inputText`를 포함하지 않는다.
+- 사용자 Read API는 PDF `description`, `sourceNumber`, lineage ID와 표시 순서를 노출하지 않는다.
+- 배열은 백엔드가 표시 순서대로 정렬해 반환한다.
+- Figma의 필수 동의·확인 페이지는 운영 서버 책임이며 Survey Question과 제출 payload에 포함하지 않는다.
 
-## 2. 구현 범위와 정책
+## 2. 접속 및 인증
 
-- 7개 Section과 29개 Question 조회 및 렌더링
-- 일반 문항 26개와 행렬 Item 16개의 총 42개 값 수집
-- 사용자당 회차별 1회 최종 제출 및 제출 후 수정 불가
-- 서버 임시 저장 미지원
-- 제출 완료 상태 및 본인 응답 재조회
-- 관리자용 설문 작성·수정·발행 API는 이번 범위가 아니다.
-- Figma 8페이지의 필수 동의·확인은 운영 서버 범위이며 Survey API에 포함하지 않는다.
-- 사용자는 JWT `sub`로만 식별한다. 이메일과 사용자 식별자를 request body에 넣지 않는다.
-- 프론트는 API가 반환한 ID를 그대로 사용하며 UUID를 코드에 고정하거나 key로 재구성하지 않는다.
+로컬 Vote Resource Server:
 
-## 3. 접속 및 인증
-
-| 환경 | Base URL |
-|---|---|
-| 로컬 | `http://localhost:8083/api/v1` |
-| 스테이징·운영 | `NEXT_PUBLIC_VOTE_API_URL`에서 구성 |
-
-```ts
-import { voteFetch } from "@/lib/vote/vote-fetch";
-
-const survey = await voteFetch<CurrentSurveyResponse>(
-  "/me/surveys/current",
-);
+```text
+http://localhost:8083
 ```
 
-사용자 조회에는 `vote:surveys:read`, 제출에는 `vote:survey-responses:write` scope가 필요하다.
+프론트 프록시를 통하면 기존 프론트 base URL 정책을 사용한다.
 
-### 로컬 로그인
+모든 사용자 API는 로그인 사용자의 Bearer JWT를 사용한다. 프론트가 user UUID나 이메일을 별도로 전달하지 않는다.
+
+최종 제출에는 논리적인 제출 시도마다 새로운 `Idempotency-Key`가 필요하다. 네트워크 재시도에는 같은 key와 같은 payload를 사용한다.
 
 ```http
-POST http://localhost:3000/api/dev/auth/session
+Authorization: Bearer <JWT>
+Idempotency-Key: <UUID>
 Content-Type: application/json
-
-{
-  "subject": "local-user-1"
-}
 ```
 
-응답은 `204 No Content`이며 `civic_ai_access_token` HttpOnly 쿠키가 설정된다.
-
-### `local-user-1` preview
-
-- 현재 설문 조회는 항상 `submitted=false`를 반환한다.
-- 유효한 제출은 실제 응답, 멱등성 receipt, Outbox event를 저장하지 않고 `200 OK`를 반환한다.
-- 성공 body의 `responseId`는 요청의 `Idempotency-Key`와 동일한 임시 식별자다.
-- preview 제출은 최신 응답 및 제출 이력에 나타나지 않는다.
-- 그 외 사용자는 `201 Created`, 1인 1제출, 영구 저장 정책을 적용한다.
-- 기본 preview 사용자는 `local-user-1`이며 `VOTE_SURVEY_PREVIEW_USER_IDS`로 재정의할 수 있다.
-
-## 4. Endpoint
+## 3. Endpoint
 
 | Method | Path | 용도 |
 |---|---|---|
-| `GET` | `/me/surveys/current` | 현재 활성 설문, 전체 문항, 제출 여부 조회 |
-| `POST` | `/me/survey-responses` | 현재 회차 답변 최종 제출 |
-| `GET` | `/me/survey-responses/latest` | 본인의 최근 제출 상세 조회 |
-| `GET` | `/me/survey-responses` | 본인의 제출 이력 목록 조회 |
-| `GET` | `/me/survey-responses/{responseId}` | 본인의 특정 제출 상세 조회 |
-| `GET` | `/me/service-eligibility` | 서비스 이용 가능 상태 조회 |
+| `GET` | `/api/v1/me/surveys/current` | 현재 설문 상태 및 미제출 설문 내용 조회 |
+| `POST` | `/api/v1/me/survey-responses` | 최종 제출 또는 로컬 preview 검증 |
+| `GET` | `/api/v1/me/survey-responses/latest` | 최신 본인 응답 상세 조회 |
+| `GET` | `/api/v1/me/survey-responses` | 본인 응답 이력 요약 조회 |
+| `GET` | `/api/v1/me/survey-responses/{responseId}` | 특정 본인 응답 상세 조회 |
+| `GET` | `/api/v1/me/service-eligibility` | 서비스 이용 가능 여부 조회 |
 
-## 5. 공통 조회 타입
+`service-eligibility`는 현재 설문 Read Model에 포함하지 않고 별도 호출한다.
 
-```ts
-type UUID = string;
-type ISO8601 = string;
+## 4. ID 사용 계약
 
-type QuestionType =
-  | "SINGLE_CHOICE"
-  | "MULTIPLE_CHOICE"
-  | "SHORT_TEXT"
-  | "LONG_TEXT"
-  | "NUMBER"
-  | "SCALE"
-  | "MATRIX_SINGLE_CHOICE"
-  | "MATRIX_SCALE";
-
-type OptionKind = "STANDARD" | "OTHER";
-type EnforcementMode = "ADVISORY" | "REQUIRED";
-
-type Rule = {
-  minimumSelections: number | null;
-  maximumSelections: number | null;
-  maxLength: number | null;
-  minimum: number | null;
-  maximum: number | null;
-  decimalAllowed: boolean | null;
-  decimalScale: number | null;
-  minimumLabel: string | null;
-  maximumLabel: string | null;
-};
-
-type SurveyOption = {
-  optionId: UUID;
-  optionLocalKey: string;
-  kind: OptionKind;
-  label: string;
-  displayOrder: number;
-};
-
-type SurveyQuestionItem = {
-  itemId: UUID;
-  itemKey: string;
-  itemLabel: string;
-  displayOrder: number;
-};
-
-type SurveyQuestion = {
-  questionId: UUID;
-  questionKey: string;
-  sourceNumber: string;
-  displayOrder: number;
-  title: string;
-  prompt: string;
-  description: string | null;
-  type: QuestionType;
-  required: true;
-  rule: Rule;
-  options: SurveyOption[];
-  items: SurveyQuestionItem[];
-};
-
-type SurveyQuestionSection = {
-  sectionKey: string;
-  title: string;
-  description: string | null;
-  displayOrder: number;
-  questions: SurveyQuestion[];
-};
-
-type PublishedSurveyContent = {
-  id: UUID;
-  versionNumber: number;
-  name: string;
-  description: string | null;
-  sections: SurveyQuestionSection[];
-};
-
-type Eligibility = {
-  eligible: boolean;
-  surveyRequirement:
-    | "SATISFIED"
-    | "RECOMMENDED"
-    | "REQUIRED"
-    | "UNAVAILABLE";
-  reason:
-    | "CURRENT_SURVEY_RESPONSE_RECOMMENDED"
-    | "CURRENT_SURVEY_RESPONSE_REQUIRED"
-    | "ACTIVE_SURVEY_ROUND_UNAVAILABLE"
-    | null;
-  nextAction: "COMPLETE_CURRENT_SURVEY" | null;
-  activeRoundId: UUID | null;
-  evaluatedAt: ISO8601;
-  capabilities: Array<
-    | "USE_GENERAL_SERVICE"
-    | "USE_PERSONALIZED_SERVICE"
-    | "VIEW_CURRENT_SURVEY"
-    | "SUBMIT_CURRENT_SURVEY"
-    | "VIEW_OWN_SURVEY_RESPONSES"
-  >;
-};
-```
-
-### ID 사용 계약
-
-| 값 | 조회 응답 | 제출 사용 | 용도 |
+| 필드 | 조회 | 제출 | 용도 |
 |---|---:|---:|---|
-| `round.id` | O | O | 제출 회차 지정 |
-| `questionId` | O | O | 29개 Question 답변 식별 |
+| `roundId` | O | O | 제출 대상 회차 식별 |
+| `contentVersionId` | O | X | 조회 캐시와 제출 당시 내용 버전 식별 |
+| `responseId` | 제출 후 O | X | 저장된 본인 응답 식별 |
+| `questionId` | O | O | 29개 Question의 답변 식별 |
 | `itemId` | 행렬만 O | 행렬만 O | 행렬의 각 응답 행 식별 |
 | `optionId` | 선택형만 O | 선택형만 O | 선택 값 식별 |
-| `sectionKey` | O | X | 렌더링·테스트 key |
-| `questionKey` | O | X | 렌더링·테스트 key |
-| `itemKey` | 행렬만 O | X | 렌더링·테스트 key |
-| `optionLocalKey` | 선택형만 O | X | 렌더링·테스트 key |
-| 모든 lineage ID | X | X | 서버 내부 추적 전용 |
+| `sectionKey` | O | X | 프론트 Section 연결 |
+| `questionKey` | O | X | Figma presentation 및 테스트 연결 |
+| `itemKey` | 행렬만 O | X | Item presentation 및 테스트 연결 |
 
-## 6. 현재 설문 조회
+다음 값은 사용자 API에 노출하지 않는다.
+
+- Question, Item, Option lineage ID
+- `sourceNumber`
+- `displayOrder`
+- `optionLocalKey`
+- DB row version
+
+`questionKey`, `itemKey`는 화면 연결용 안정 키이며 제출 식별자로 사용하지 않는다.
+
+## 5. 현재 설문 조회
 
 ```http
 GET /api/v1/me/surveys/current
-Accept: application/json
-Cookie: civic_ai_access_token=...
 ```
 
+응답은 `status`를 discriminator로 사용하는 union이다.
+
 ```ts
-type CurrentSurveyResponse = {
-  round: {
-    id: UUID;
-    roundNumber: number;
-    contentVersionId: UUID;
-    enforcementMode: EnforcementMode;
-    activatedAt: ISO8601;
-  };
-  content: PublishedSurveyContent;
-  submitted: boolean;
-  eligibility: Eligibility;
+type CurrentSurveyResponse =
+  | PendingSurveyResponse
+  | SubmittedSurveyResponse;
+
+type PendingSurveyResponse = {
+  status: "PENDING";
+  roundId: UUID;
+  contentVersionId: UUID;
+  sections: SurveySection[];
+};
+
+type SubmittedSurveyResponse = {
+  status: "SUBMITTED";
+  roundId: UUID;
+  contentVersionId: UUID;
+  responseId: UUID;
+  submittedAt: ISO8601;
 };
 ```
 
-### `MATRIX_SINGLE_CHOICE` 예시
+### `PENDING` 예시
 
 ```json
 {
-  "questionId": "55555555-5555-5555-5555-555555555555",
-  "questionKey": "household.age-group-presence",
-  "sourceNumber": "5",
-  "displayOrder": 5,
-  "title": "가족 구성",
-  "prompt": "귀댁의 가구원 중 다음 각 연령대에 해당하는 분이 있습니까?",
-  "description": null,
-  "type": "MATRIX_SINGLE_CHOICE",
-  "required": true,
-  "rule": {
-    "minimumSelections": null,
-    "maximumSelections": null,
-    "maxLength": null,
-    "minimum": null,
-    "maximum": null,
-    "decimalAllowed": null,
-    "decimalScale": null,
-    "minimumLabel": null,
-    "maximumLabel": null
-  },
-  "options": [
+  "status": "PENDING",
+  "roundId": "11111111-1111-1111-1111-111111111111",
+  "contentVersionId": "22222222-2222-2222-2222-222222222222",
+  "sections": [
     {
-      "optionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-      "optionLocalKey": "A",
-      "kind": "STANDARD",
-      "label": "있음",
-      "displayOrder": 1
-    },
-    {
-      "optionId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-      "optionLocalKey": "B",
-      "kind": "STANDARD",
-      "label": "없음",
-      "displayOrder": 2
-    }
-  ],
-  "items": [
-    {
-      "itemId": "11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-      "itemKey": "infant",
-      "itemLabel": "영아",
-      "displayOrder": 1
-    },
-    {
-      "itemId": "22222222-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-      "itemKey": "middle-school",
-      "itemLabel": "중등",
-      "displayOrder": 4
+      "sectionKey": "personal-information",
+      "title": "일반 개인정보",
+      "questions": []
     }
   ]
 }
 ```
 
-실제 응답에는 가족 구성 Item 6개가 모두 포함된다. 위 JSON은 구조 설명용 축약 예시다.
+### `SUBMITTED` 예시
 
-### 렌더링 규칙
+```json
+{
+  "status": "SUBMITTED",
+  "roundId": "11111111-1111-1111-1111-111111111111",
+  "contentVersionId": "22222222-2222-2222-2222-222222222222",
+  "responseId": "33333333-3333-3333-3333-333333333333",
+  "submittedAt": "2026-09-01T07:00:00Z"
+}
+```
 
-1. `sections`, `questions`, `items`, `options`를 각각 `displayOrder` 순으로 렌더링한다.
-2. 1회차는 Section 7개, Question 29개가 정상이다.
-3. 일반 Question은 `items.length === 0`이며 입력 UI 하나를 그린다.
-4. 행렬 Question은 `items`마다 입력 UI 하나를 그린다.
-5. 행렬 UI는 표, 카드, 세로형 목록 중 어느 형태로 표현해도 된다.
-6. `MATRIX_SINGLE_CHOICE`의 `options`는 모든 Item이 공유하며 각 Item에서 하나를 선택한다.
-7. `MATRIX_SCALE`의 척도 rule은 모든 Item에 동일하게 적용한다.
-8. 출생연도 `NUMBER`는 정수 dropdown으로 표현할 수 있다.
-9. Question 또는 Item별 문장을 프론트에서 조합하거나 생성하지 않는다.
+제출 완료 사용자에게는 전체 설문 내용을 다시 반환하지 않는다.
 
-### 타입별 UI
+### Section
 
-| `type` | 의미 | 일반 UI |
-|---|---|---|
-| `SINGLE_CHOICE` | Question에서 선택지 1개 | radio, select |
-| `MULTIPLE_CHOICE` | Question에서 선택지 여러 개 | checkbox |
-| `SHORT_TEXT` | 짧은 문자열 | input |
-| `LONG_TEXT` | 긴 문자열 | textarea |
-| `NUMBER` | 숫자 하나 | number input, dropdown |
-| `SCALE` | 척도 값 하나 | segmented control |
-| `MATRIX_SINGLE_CHOICE` | 각 Item마다 선택지 1개 | radio matrix, item card |
-| `MATRIX_SCALE` | 각 Item마다 척도 값 1개 | scale matrix, item card |
+```ts
+type SurveySection = {
+  sectionKey: string;
+  title: string;
+  questions: SurveyQuestion[];
+};
+```
 
-### 1회차 Section 구성
+### Question 공통 필드
 
-| 순서 | Section | 포함 Question |
-|---:|---|---|
-| 1 | 일반 개인정보 | 출생연도, 성별, 주소지 |
-| 2 | 가구 정보 | 혼인상태, 가족 구성, 자녀 유무 |
-| 3 | 생활 · 경제 | 주거형태, 직업, 학력, 가구소득, 건강 상태, 종교 |
-| 4 | 가치 · 정치 성향 | 도덕 기반 성향, 정치 성향, 지지정당, 정치 관심도 |
-| 5 | 미디어 · 의견 성향 | 선호매체, 의견 고집 정도, 소득 만족도 |
-| 6 | 사회 · 기관 신뢰 | 집단별 감정적 거리, 사회 신뢰, 지방정부 신뢰도, 중앙정부 신뢰도 |
-| 7 | 매체 이용 · 정보 습관 | 매체별 이용 시간, SNS 이용 빈도, OTT 이용 시간, 관심 주제 콘텐츠, 정보 실천 유형, 생활양식 |
+```ts
+type QuestionBase = {
+  questionId: UUID;
+  questionKey: string;
+  title: string;
+  prompt: string;
+  required: boolean;
+};
+```
 
-| 행렬 Question | 타입 | Item 수 |
-|---|---|---:|
-| 가족 구성 | `MATRIX_SINGLE_CHOICE` | 6 |
-| 집단별 감정적 거리 | `MATRIX_SCALE` | 7 |
-| 매체별 이용 시간 | `MATRIX_SINGLE_CHOICE` | 3 |
+### Question 타입
 
-## 7. 최종 제출
+```ts
+type SurveyQuestion =
+  | (QuestionBase & {
+      type: "SINGLE_CHOICE";
+      options: SurveyOption[];
+    })
+  | (QuestionBase & {
+      type: "MULTIPLE_CHOICE";
+      minimumSelections: number;
+      maximumSelections: number | null;
+      options: SurveyOption[];
+    })
+  | (QuestionBase & {
+      type: "SHORT_TEXT" | "LONG_TEXT";
+      maxLength: number | null;
+    })
+  | (QuestionBase & {
+      type: "NUMBER";
+      minimum: number | null;
+      maximum: number | null;
+      decimalScale: number;
+    })
+  | (QuestionBase & {
+      type: "SCALE";
+      minimum: number;
+      maximum: number;
+      minimumLabel: string | null;
+      maximumLabel: string | null;
+    })
+  | (QuestionBase & {
+      type: "MATRIX_SINGLE_CHOICE";
+      items: SurveyQuestionItem[];
+      options: SurveyOption[];
+    })
+  | (QuestionBase & {
+      type: "MATRIX_SCALE";
+      items: SurveyQuestionItem[];
+      minimum: number;
+      maximum: number;
+      minimumLabel: string | null;
+      maximumLabel: string | null;
+    });
+
+type SurveyQuestionItem = {
+  itemId: UUID;
+  itemKey: string;
+  itemLabel: string;
+};
+
+type SurveyOption = {
+  optionId: UUID;
+  label: string;
+};
+```
+
+불필요한 `null`, 빈 `options`, 빈 `items`를 공통으로 반환하지 않는다. 해당 타입에 필요한 필드만 반환한다.
+
+### 행렬 Question 예시
+
+```json
+{
+  "questionId": "55555555-5555-5555-5555-555555555555",
+  "questionKey": "household.age-group-presence",
+  "title": "가족 구성",
+  "prompt": "귀댁의 가구원 중 다음 각 연령대에 해당하는 분이 있습니까?",
+  "required": true,
+  "type": "MATRIX_SINGLE_CHOICE",
+  "items": [
+    {
+      "itemId": "aaaaaaaa-1111-1111-1111-111111111111",
+      "itemKey": "infant",
+      "itemLabel": "영아"
+    },
+    {
+      "itemId": "aaaaaaaa-2222-2222-2222-222222222222",
+      "itemKey": "preschool",
+      "itemLabel": "유아"
+    }
+  ],
+  "options": [
+    {
+      "optionId": "bbbbbbbb-1111-1111-1111-111111111111",
+      "label": "있음"
+    },
+    {
+      "optionId": "bbbbbbbb-2222-2222-2222-222222222222",
+      "label": "없음"
+    }
+  ]
+}
+```
+
+## 6. 1회차 Section 구성
+
+백엔드는 다음 순서로 배열을 반환한다.
+
+1. 일반 개인정보
+   - 출생연도, 성별, 주소지
+2. 가구 정보
+   - 혼인상태, 가족 구성, 자녀 유무
+3. 생활 · 경제
+   - 주거형태, 직업, 학력, 가구소득, 건강 상태, 종교
+4. 가치 · 정치 성향
+   - 도덕 기반 성향, 정치 성향, 지지정당, 정치 관심도
+5. 미디어 · 의견 성향
+   - 선호매체, 의견 고집 정도, 소득 만족도
+6. 사회 · 기관 신뢰
+   - 집단별 감정적 거리, 사회 신뢰, 지방정부 신뢰도, 중앙정부 신뢰도
+7. 매체 이용 · 정보 습관
+   - 매체별 이용 시간, SNS 이용 빈도, OTT 이용 시간, 관심 주제 콘텐츠 탐색, 정보 실천 유형, 생활양식
+
+## 7. 프론트 presentation 책임
+
+다음 UI 정보는 API에 추가하지 않는다.
+
+- 페이지별 축약 안내 문구
+- placeholder
+- dropdown, radio, checkbox 같은 control 형태
+- 주소지 3단계 선택 데이터
+- Figma 전용 helper text
+
+프론트는 `questionKey`로 presentation을 연결한다.
+
+```ts
+const SURVEY_PRESENTATION = {
+  "demographics.birth-year": {
+    control: "year-select",
+    placeholder: "YYYY",
+  },
+  "demographics.residence": {
+    control: "korean-address-select",
+  },
+  "household.age-group-presence": {
+    control: "binary-matrix",
+  },
+  "social.affective-distance": {
+    control: "scale-matrix",
+  },
+  "media.daily-use-duration": {
+    control: "choice-matrix",
+  },
+} as const;
+```
+
+주소지는 프론트가 선택 결과를 공백 하나로 연결해 `SHORT_TEXT`로 제출한다.
+
+```text
+서울특별시 동대문구 장안동
+```
+
+출생연도 선택지는 API가 1900~현재연도 배열을 반환하지 않는다. `NUMBER.minimum`, `NUMBER.maximum` 범위로 프론트가 생성한다.
+
+## 8. 최종 제출
 
 ```http
 POST /api/v1/me/survey-responses
+Authorization: Bearer <JWT>
+Idempotency-Key: <UUID>
 Content-Type: application/json
-Idempotency-Key: <client-generated UUID>
-Cookie: civic_ai_access_token=...
 ```
 
 ```ts
-type SelectionInput = {
-  optionId: UUID;
-  inputText?: string | null;
+type SubmitSurveyRequest = {
+  roundId: UUID;
+  answers: SurveyAnswerInput[];
 };
 
-type SubmitAnswer =
+type SelectionInput = {
+  optionId: UUID;
+};
+
+type SurveyAnswerInput =
   | {
       questionId: UUID;
       type: "SINGLE_CHOICE";
@@ -375,12 +376,10 @@ type SubmitAnswer =
         scale: number;
       }>;
     };
-
-type SubmitSurveyRequest = {
-  roundId: UUID;
-  answers: SubmitAnswer[];
-};
 ```
+
+1회차 설문의 `기타`, `그 외`는 모두 추가 입력 없는 고정 선택지다. 직접 입력형
+Option은 사용자 API에서 지원하지 않으며, 필요해지면 계약 버전을 확장한다.
 
 ### 행렬 제출 예시
 
@@ -393,27 +392,25 @@ type SubmitSurveyRequest = {
       "type": "MATRIX_SINGLE_CHOICE",
       "itemAnswers": [
         {
-          "itemId": "11111111-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "itemId": "aaaaaaaa-1111-1111-1111-111111111111",
           "selection": {
-            "optionId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
-            "inputText": null
+            "optionId": "bbbbbbbb-1111-1111-1111-111111111111"
           }
         },
         {
-          "itemId": "22222222-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "itemId": "aaaaaaaa-2222-2222-2222-222222222222",
           "selection": {
-            "optionId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
-            "inputText": null
+            "optionId": "bbbbbbbb-2222-2222-2222-222222222222"
           }
         }
       ]
     },
     {
-      "questionId": "77777777-7777-7777-7777-777777777777",
+      "questionId": "66666666-6666-6666-6666-666666666666",
       "type": "MATRIX_SCALE",
       "itemAnswers": [
         {
-          "itemId": "33333333-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+          "itemId": "cccccccc-1111-1111-1111-111111111111",
           "scale": 7
         }
       ]
@@ -422,50 +419,78 @@ type SubmitSurveyRequest = {
 }
 ```
 
-위 JSON은 구조 설명용 축약 예시다. 실제 제출 규칙은 다음과 같다.
+실제 1회차 제출에서는 모든 29개 Question과 모든 행렬 Item을 포함해야 한다.
 
-- `answers.length === 29`
-- 모든 Question의 `questionId`가 정확히 한 번 존재
-- 행렬 Question은 정의된 모든 `itemId`를 정확히 한 번씩 포함
-- 전체 응답 값은 42개
-- 정의되지 않았거나 중복된 Question, Item, Option ID는 `422`로 거부
-- Option은 해당 Question에 소속되어야 함
-- 제출 payload에는 `sectionKey`, `questionKey`, `itemKey`, `optionLocalKey`를 넣지 않음
+백엔드는 다음을 검증한다.
 
-```ts
-const idempotencyKey = crypto.randomUUID();
+- 모든 필수 Question의 `questionId`가 정확히 한 번 존재
+- Question 타입과 Answer 타입 일치
+- 선택한 `optionId`가 해당 Question에 소속
+- 행렬의 모든 `itemId`가 정확히 한 번 존재
+- 행렬 Item이 해당 Question에 소속
+- 복수 선택 개수, 숫자 범위, scale 범위와 문자열 길이
+- 동일 사용자의 동일 회차 중복 제출 여부
 
-const result = await voteFetch<SubmissionResponse>(
-  "/me/survey-responses",
-  {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Idempotency-Key": idempotencyKey,
-    },
-    body: JSON.stringify(payload),
-  },
-);
-```
+## 9. 제출 성공 응답
 
-네트워크 재시도에는 같은 `Idempotency-Key`와 같은 payload를 사용한다. 답변이 바뀐 새 제출 시도에는 새 key를 사용한다.
-
-### 성공 응답
-
-일반 사용자는 `201 Created`, `local-user-1` preview는 `200 OK`다.
+영구 저장과 로컬 preview 응답은 `status`와 `persisted`로 구분한다.
 
 ```ts
-type SubmissionResponse = {
-  code: "SURVEY_RESPONSE_SUBMITTED";
-  replayed: boolean;
-  responseId: UUID;
-  roundId: UUID;
-  contentVersionId: UUID;
-  submittedAt: ISO8601;
-};
+type SubmissionResponse =
+  | {
+      status: "SUBMITTED";
+      persisted: true;
+      replayed: boolean;
+      responseId: UUID;
+      roundId: UUID;
+      contentVersionId: UUID;
+      submittedAt: ISO8601;
+    }
+  | {
+      status: "PREVIEW_VALIDATED";
+      persisted: false;
+      roundId: UUID;
+      contentVersionId: UUID;
+      validatedAt: ISO8601;
+    };
 ```
 
-## 8. 본인 응답 조회
+### 영구 제출
+
+- HTTP `201 Created`
+- 동일한 `Idempotency-Key`와 동일 payload 재호출 시 동일 결과와 `replayed=true`
+
+```json
+{
+  "status": "SUBMITTED",
+  "persisted": true,
+  "replayed": false,
+  "responseId": "33333333-3333-3333-3333-333333333333",
+  "roundId": "11111111-1111-1111-1111-111111111111",
+  "contentVersionId": "22222222-2222-2222-2222-222222222222",
+  "submittedAt": "2026-09-01T07:00:00Z"
+}
+```
+
+### `local-user-1` preview
+
+- HTTP `200 OK`
+- 실제 응답, 멱등성 receipt, Persona 생성 이벤트를 저장하지 않는다.
+- 임시 `responseId`를 반환하지 않는다.
+- 성공 후에도 `GET /me/surveys/current`는 계속 `PENDING`을 반환한다.
+- 프론트는 현재 화면에서만 완료 상태를 표시하며 최신 응답 조회나 query invalidate에 의존하지 않는다.
+
+```json
+{
+  "status": "PREVIEW_VALIDATED",
+  "persisted": false,
+  "roundId": "11111111-1111-1111-1111-111111111111",
+  "contentVersionId": "22222222-2222-2222-2222-222222222222",
+  "validatedAt": "2026-09-01T07:00:00Z"
+}
+```
+
+## 10. 본인 응답 조회
 
 ```http
 GET /api/v1/me/survey-responses/latest
@@ -473,49 +498,84 @@ GET /api/v1/me/survey-responses
 GET /api/v1/me/survey-responses/{responseId}
 ```
 
-본인 소유가 아닌 `responseId`도 `404`를 반환한다.
+이력 API는 요약 배열을 반환한다.
 
 ```ts
 type SurveyResponseSummary = {
-  id: UUID;
+  responseId: UUID;
   roundId: UUID;
-  roundNumber: number;
   contentVersionId: UUID;
   submittedAt: ISO8601;
-};
-
-type StoredAnswer = SubmitAnswer;
-
-type SurveyResponseDetail = {
-  id: UUID;
-  roundId: UUID;
-  roundNumber: number;
-  contentVersionId: UUID;
-  submittedAt: ISO8601;
-  answers: StoredAnswer[];
-  content: PublishedSurveyContent;
 };
 ```
 
-상세 응답의 `content`는 제출 당시의 불변 content version이다. 프론트는 `questionId`, `itemId`, `optionId`로 답변과 당시 문구·항목·선택지 label을 결합한다.
-
-## 9. 오류 계약
-
-오류 응답 Content-Type은 `application/problem+json`이다.
+최신/상세 API는 제출 당시의 불변 Content와 답변을 반환한다.
 
 ```ts
-type SurveyViolation = {
-  code: string;
-  path: string;
-  message: string;
-  details: {
-    questionId?: UUID;
-    itemId?: UUID;
-    optionId?: UUID;
-    [key: string]: unknown;
-  };
+type SurveyResponseDetail = {
+  responseId: UUID;
+  roundId: UUID;
+  contentVersionId: UUID;
+  submittedAt: ISO8601;
+  sections: SurveySection[];
+  answers: SurveyAnswerValue[];
 };
 
+type SurveyAnswerValue =
+  | {
+      questionId: UUID;
+      type: "SINGLE_CHOICE";
+      selection: SelectionValue;
+    }
+  | {
+      questionId: UUID;
+      type: "MULTIPLE_CHOICE";
+      selections: SelectionValue[];
+    }
+  | {
+      questionId: UUID;
+      type: "SHORT_TEXT" | "LONG_TEXT";
+      text: string;
+    }
+  | {
+      questionId: UUID;
+      type: "NUMBER";
+      number: number;
+    }
+  | {
+      questionId: UUID;
+      type: "SCALE";
+      scale: number;
+    }
+  | {
+      questionId: UUID;
+      type: "MATRIX_SINGLE_CHOICE";
+      itemAnswers: Array<{
+        itemId: UUID;
+        selection: SelectionValue;
+      }>;
+    }
+  | {
+      questionId: UUID;
+      type: "MATRIX_SCALE";
+      itemAnswers: Array<{
+        itemId: UUID;
+        scale: number;
+      }>;
+    };
+
+type SelectionValue = {
+  optionId: UUID;
+};
+```
+
+프론트는 `questionId`, `itemId`, `optionId`로 답변과 제출 당시의 Question, Item, Option label을 결합한다.
+
+## 11. 오류 계약
+
+오류는 `application/problem+json` 형식을 사용한다.
+
+```ts
 type SurveyProblem = {
   type: string;
   title: string;
@@ -523,57 +583,51 @@ type SurveyProblem = {
   detail: string;
   instance: string;
   code: string;
-  replayed: boolean;
-  retryable: boolean;
-  violations?: SurveyViolation[];
+  replayed?: boolean;
+  violations?: Array<{
+    code: string;
+    field: string;
+    questionId?: UUID;
+    itemId?: UUID;
+    optionId?: UUID;
+  }>;
 };
 ```
 
-| HTTP | `code` | 프론트 처리 |
-|---|---|---|
-| `400` | `INVALID_REQUEST` | payload와 필수 header 점검 |
-| `400` | `INVALID_IDEMPOTENCY_KEY` | UUID key 생성 코드 점검 |
-| `401` | 인증 오류 | 공통 인증 갱신 흐름 사용 |
-| `403` | scope 부족 | 권한·환경 설정 오류 처리 |
-| `404` | `SURVEY_RESPONSE_NOT_FOUND` | 미제출 또는 접근 불가 처리 |
+프론트가 우선 처리할 오류:
+
+| HTTP | code | 처리 |
+|---:|---|---|
+| `400` | `INVALID_IDEMPOTENCY_KEY` | 새로운 UUID key로 재시도 |
+| `404` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 현재 설문 없음 화면 |
+| `404` | `SURVEY_RESPONSE_NOT_FOUND` | 본인 응답 없음 화면 |
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED` | 입력 화면을 닫고 최신 응답 조회 |
-| `409` | `SURVEY_SUBMISSION_ROUND_CHANGED` | 현재 설문 재조회 후 화면 상태 폐기 |
-| `409` | `IDEMPOTENCY_CONFLICT` | 같은 key를 다른 payload에 재사용한 오류 |
-| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | `questionId`, `itemId` 기준으로 입력 오류 연결 |
-| `503` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 운영 장애 상태 처리 |
+| `409` | `IDEMPOTENCY_CONFLICT` | 새로운 UUID key로 새 제출 요청 |
+| `409` | `SURVEY_SUBMISSION_ROUND_CHANGED` | Current Survey 재조회 |
+| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | `questionId`, `itemId` 기준 오류 연결 |
 
-## 10. 권장 화면 흐름
+## 12. 권장 화면 흐름
 
-1. 설문 진입 시 `GET /me/surveys/current`를 호출한다.
-2. `submitted=true`이면 완료 상태와 최신 응답 보기 동선을 표시한다.
-3. `submitted=false`이면 7개 Section과 29개 Question을 렌더링한다.
-4. 일반 문항은 `questionId`, 행렬 문항은 `questionId + itemId`로 form state를 관리한다.
-5. 필수·범위·선택 개수와 행렬 Item 누락을 사전 검증한다.
-6. 최종 확인 시 idempotency UUID와 payload snapshot을 고정하고 제출한다.
-7. 성공 후 현재 설문, eligibility, 최신 응답, 이력 query를 invalidate한다.
-8. 마이페이지는 제출 당시 `content`로 읽기 전용 렌더링한다.
+1. 설문 진입 시 `GET /api/v1/me/surveys/current`를 호출한다.
+2. `status=SUBMITTED`이면 입력 화면을 표시하지 않고 완료 또는 응답 보기로 이동한다.
+3. `status=PENDING`이면 `sections` 배열 순서대로 렌더링한다.
+4. `questionKey`로 Figma presentation을 연결한다.
+5. 일반 문항은 `questionId`, 행렬 문항은 `questionId + itemId`로 form state를 관리한다.
+6. 클라이언트 사전 검증 후 새로운 `Idempotency-Key`로 최종 제출한다.
+7. `SUBMITTED`이면 Current/Latest query를 갱신한다.
+8. `PREVIEW_VALIDATED`이면 현재 화면에서만 완료 상태를 표시한다.
 
-## 11. 완료 조건
+## 13. 백엔드 패치 범위
 
-- `local-user-1`로 현재 설문 조회와 preview 제출이 성공한다.
-- Section 7개, Question 29개가 렌더링된다.
-- 일반 Question 26개와 행렬 Item 16개의 총 42개 값이 관리된다.
-- 가족 구성과 매체별 이용 시간은 `MATRIX_SINGLE_CHOICE`로 렌더링된다.
-- 집단별 감정적 거리는 `MATRIX_SCALE`로 렌더링된다.
-- 행렬의 모든 `itemLabel`이 API 원문 그대로 표시된다.
-- Question 또는 Item별 합성 질문 문구를 만들지 않는다.
-- 제출에는 `round.id`, `questionId`, 행렬의 `itemId`, 선택형의 `optionId`를 사용한다.
-- lineage ID에 의존하지 않는다.
-- 제출 완료 후 수정 UI를 제공하지 않는다.
-- 이메일과 사용자 식별자를 Survey API body 또는 form state에 추가하지 않는다.
+현재 백엔드의 도메인과 DB는 29개 Question 및 Matrix 구조를 지원한다. 사용자 API는 이 문서의 Read Model에 맞춰 다음 패치가 필요하다.
 
-## 12. 백엔드 패치 필요 사항
+- Current Survey 응답을 `PENDING | SUBMITTED` union으로 변경
+- Current Survey에서 eligibility 제거
+- 제출 완료 시 전체 Content 미반환
+- Section/Question/Item/Option의 `displayOrder` 제거 및 정렬 보장
+- `sourceNumber`, `description`, `optionLocalKey` 제거
+- Question 타입별 union 적용
+- 응답 상세의 Answer 타입별 union 적용
+- 영구 제출과 preview 성공 응답 분리
 
-- `SurveyQuestionGroup`을 원본 `SurveyQuestion`으로 통합
-- 29개 Question과 행렬 Item 모델 도입
-- `MATRIX_SINGLE_CHOICE`, `MATRIX_SCALE` 타입 및 검증 추가
-- Question 공통 Option과 행렬 Item별 답변 저장 지원
-- 조회·제출·본인 응답 DTO를 v3 형식으로 변경
-- Persona 입력을 29개 원본 Question 구조로 변경
-- 1회차 fixture를 원문 기준으로 다시 생성
-- 로컬 DB 초기화 후 재검증
+이 패치가 완료된 시점을 프론트 연동 기준으로 삼는다.

@@ -66,17 +66,15 @@ final class SurveyUserController {
     SurveyApiModels.CurrentSurveyResponse current(
             Authentication authentication
     ) {
-        CurrentSurveyQueryService.CurrentSurveyResult result =
-                currentSurveys.findCurrent(userId(authentication));
-        CurrentSurveyQueryService.CurrentSurvey current = result.current()
+        CurrentSurveyQueryService.CurrentSurvey current = currentSurveys
+                .findCurrent(userId(authentication))
                 .orElseThrow(SurveyUserController::activeRoundUnavailable);
-        return new SurveyApiModels.CurrentSurveyResponse(
-                SurveyApiModels.CurrentRoundResponse.from(current.round()),
-                SurveyApiModels.PublishedContentResponse.from(
-                        current.contentVersion()),
-                current.submitted(),
-                SurveyApiModels.EligibilityResponse.from(
-                        result.eligibility()));
+        return current.submittedResponse()
+                .<SurveyApiModels.CurrentSurveyResponse>map(response ->
+                        SurveyApiModels.SubmittedSurveyResponse.from(
+                                current.round(), response))
+                .orElseGet(() -> SurveyApiModels.PendingSurveyResponse.from(
+                        current.round(), current.contentVersion()));
     }
 
     @PostMapping("/survey-responses")
@@ -111,13 +109,20 @@ final class SurveyUserController {
                             execution.replayed(),
                             outcome.violations()));
         }
-        return ResponseEntity.status(outcome.httpStatus()).body(
-                new SurveyApiModels.SubmissionResponse(
-                        outcome.code(), execution.replayed(),
-                        outcome.responseId().value(),
-                        outcome.roundId().value(),
-                        outcome.contentVersionId().value(),
-                        outcome.submittedAt()));
+        SurveyApiModels.SubmissionResponse response =
+                previewMode.enabledFor(userId)
+                        ? new SurveyApiModels.PreviewValidatedResponse(
+                                "PREVIEW_VALIDATED", false,
+                                outcome.roundId().value(),
+                                outcome.contentVersionId().value(),
+                                outcome.submittedAt())
+                        : new SurveyApiModels.SubmittedResponse(
+                                "SUBMITTED", true, execution.replayed(),
+                                outcome.responseId().value(),
+                                outcome.roundId().value(),
+                                outcome.contentVersionId().value(),
+                                outcome.submittedAt());
+        return ResponseEntity.status(outcome.httpStatus()).body(response);
     }
 
     @GetMapping("/survey-responses/latest")
@@ -184,7 +189,7 @@ final class SurveyUserController {
 
     private static SurveyApiException activeRoundUnavailable() {
         return new SurveyApiException(
-                HttpStatus.SERVICE_UNAVAILABLE,
+                HttpStatus.NOT_FOUND,
                 "SURVEY_ACTIVE_ROUND_UNAVAILABLE",
                 "Exactly one active survey round is required.");
     }

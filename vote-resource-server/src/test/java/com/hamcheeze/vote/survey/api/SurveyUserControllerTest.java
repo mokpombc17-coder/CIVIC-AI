@@ -5,6 +5,7 @@ import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
+import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
 import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
@@ -12,7 +13,8 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
-import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
+import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
+import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
@@ -73,20 +75,70 @@ class SurveyUserControllerTest {
     }
 
     @Test
-    void activeRoundAbsenceIsOperationalProblem() throws Exception {
-        ServiceEligibilityDecision decision =
-                mock(ServiceEligibilityDecision.class);
+    void activeRoundAbsenceReturnsCurrentSurveyNotFound() throws Exception {
         when(currentSurveys.findCurrent(any())).thenReturn(
-                new CurrentSurveyQueryService.CurrentSurveyResult(
-                        Optional.empty(), decision));
+                Optional.empty());
 
         mockMvc.perform(get("/api/v1/me/surveys/current")
                         .principal(authentication))
-                .andExpect(status().isServiceUnavailable())
+                .andExpect(status().isNotFound())
                 .andExpect(content().contentType(
                         MediaType.APPLICATION_PROBLEM_JSON))
                 .andExpect(jsonPath("$.code").value(
                         "SURVEY_ACTIVE_ROUND_UNAVAILABLE"));
+    }
+
+    @Test
+    void pendingCurrentSurveyReturnsOnlyFrontendReadModel() throws Exception {
+        var publishedContent = LocalSurveyFixture.publishedContent();
+        SurveyRound round = mock(SurveyRound.class);
+        when(round.id()).thenReturn(new SurveyRoundId(UUID.randomUUID()));
+        when(round.contentVersionId())
+                .thenReturn(publishedContent.id());
+        when(currentSurveys.findCurrent(any())).thenReturn(
+                Optional.of(new CurrentSurveyQueryService.CurrentSurvey(
+                        round, publishedContent, Optional.empty())));
+
+        mockMvc.perform(get("/api/v1/me/surveys/current")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.roundId")
+                        .value(round.id().value().toString()))
+                .andExpect(jsonPath("$.contentVersionId")
+                        .value(publishedContent.id().value().toString()))
+                .andExpect(jsonPath("$.sections.length()").value(7))
+                .andExpect(jsonPath("$.content").doesNotExist())
+                .andExpect(jsonPath("$.submitted").doesNotExist())
+                .andExpect(jsonPath("$.eligibility").doesNotExist());
+    }
+
+    @Test
+    void submittedCurrentSurveyOmitsSurveyContent() throws Exception {
+        var publishedContent = LocalSurveyFixture.publishedContent();
+        SurveyRound round = mock(SurveyRound.class);
+        SurveyResponse response = mock(SurveyResponse.class);
+        SurveyResponseId responseId = new SurveyResponseId(UUID.randomUUID());
+        Instant submittedAt = Instant.parse("2026-09-01T00:00:00Z");
+        when(round.id()).thenReturn(new SurveyRoundId(UUID.randomUUID()));
+        when(round.contentVersionId()).thenReturn(publishedContent.id());
+        when(response.id()).thenReturn(responseId);
+        when(response.contentVersionId()).thenReturn(publishedContent.id());
+        when(response.submittedAt()).thenReturn(submittedAt);
+        when(currentSurveys.findCurrent(any())).thenReturn(
+                Optional.of(new CurrentSurveyQueryService.CurrentSurvey(
+                        round, publishedContent, Optional.of(response))));
+
+        mockMvc.perform(get("/api/v1/me/surveys/current")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("SUBMITTED"))
+                .andExpect(jsonPath("$.responseId")
+                        .value(responseId.value().toString()))
+                .andExpect(jsonPath("$.submittedAt")
+                        .value("2026-09-01T00:00:00Z"))
+                .andExpect(jsonPath("$.sections").doesNotExist())
+                .andExpect(jsonPath("$.content").doesNotExist());
     }
 
     @Test
@@ -132,8 +184,8 @@ class SurveyUserControllerTest {
                                 {"roundId":"%s","answers":[]}
                                 """.formatted(roundId)))
                 .andExpect(status().isCreated())
-                .andExpect(jsonPath("$.code")
-                        .value("SURVEY_RESPONSE_SUBMITTED"))
+                .andExpect(jsonPath("$.status").value("SUBMITTED"))
+                .andExpect(jsonPath("$.persisted").value(true))
                 .andExpect(jsonPath("$.replayed").value(true))
                 .andExpect(jsonPath("$.responseId")
                         .value(responseId.toString()));
@@ -168,11 +220,13 @@ class SurveyUserControllerTest {
                                 {"roundId":"%s","answers":[]}
                                 """.formatted(roundId)))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code")
-                        .value("SURVEY_RESPONSE_SUBMITTED"))
-                .andExpect(jsonPath("$.replayed").value(false))
-                .andExpect(jsonPath("$.responseId")
-                        .value(idempotencyKey.toString()));
+                .andExpect(jsonPath("$.status")
+                        .value("PREVIEW_VALIDATED"))
+                .andExpect(jsonPath("$.persisted").value(false))
+                .andExpect(jsonPath("$.responseId").doesNotExist())
+                .andExpect(jsonPath("$.replayed").doesNotExist())
+                .andExpect(jsonPath("$.validatedAt")
+                        .value("2026-09-01T00:00:00Z"));
 
         verify(submissions, never()).submit(any(), any(), any());
     }

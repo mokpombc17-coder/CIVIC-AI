@@ -13,28 +13,44 @@
 
 | Method | Path | 설명 |
 |---|---|---|
-| `GET` | `/api/v1/me/surveys/current` | 활성 회차, 불변 내용 버전, 제출 여부, Eligibility를 함께 조회한다. |
+| `GET` | `/api/v1/me/surveys/current` | 현재 설문 상태와 미제출 설문 내용을 조회한다. |
 | `POST` | `/api/v1/me/survey-responses` | 현재 회차의 응답을 한 번 최종 제출한다. |
 | `GET` | `/api/v1/me/survey-responses/latest` | 자신의 가장 최근 최종 응답 원문을 조회한다. |
 | `GET` | `/api/v1/me/survey-responses` | 자신의 과거 응답 목록을 최신순으로 조회한다. |
 | `GET` | `/api/v1/me/survey-responses/{responseId}` | 자신의 특정 응답 원문을 조회한다. 다른 사용자의 응답도 `404`로 숨긴다. |
 | `GET` | `/api/v1/me/service-eligibility` | 현재 서비스 이용 가능 여부와 capability를 조회한다. |
 
-현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다.
-`content.sections[].groups[].questions[]`는 7개 Section, 29개 화면 Group과
-42개 저장 Question을 반환한다. Section은 `sectionKey`, `title`, `description`,
-`displayOrder`를 포함한다. Group은 `groupKey`, `sourceNumber`, `displayOrder`,
-문구를 포함하고, Question은 제출 식별자인 `questionId`와 `itemKey`,
-`itemLabel`, `itemDisplayOrder`, 유형·문구·규칙·선택지를 포함한다. 선택지는
-제출 식별자인 `optionId`와 Question 종속 `optionLocalKey=A|B|C...`를 가진다.
-사용자 API에는 `sectionId`, `groupId`와 모든 lineage ID를 노출하지 않는다.
-해당 값은 버전 추적을 위해 DB와 서버 도메인 내부에서만 유지한다. 모든
-Question의 `required`는 `true`다. 사용자용 `content`에는 관리자 actor와
-내부 변경 audit 정보가 포함되지 않는다.
-Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 포함하지
-않으며 운영 서버 협의 범위로 둔다.
+현재 Survey 응답은 `status`로 구분하는 union이다.
 
-활성 회차가 정확히 하나 존재하지 않는 경우는 사용자 미완료 상태가 아니라 운영 오류다. 현재 Survey와 Eligibility API는 `503 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다. 정상 활성 회차 안에서 `eligibility.eligible=false`인 경우만 사용자의 Survey 미완료 상태다.
+- `PENDING`: `status`, `roundId`, `contentVersionId`, `sections`
+- `SUBMITTED`: `status`, `roundId`, `contentVersionId`, `responseId`, `submittedAt`
+
+제출 완료 상태에는 전체 설문 내용을 반환하지 않는다. Eligibility는 현재 Survey에
+포함하지 않고 `/api/v1/me/service-eligibility`에서 별도로 조회한다.
+
+미제출 콘텐츠는 `Section -> Question -> Item` 구조이며 7개 Section, 29개
+Question, 16개 Matrix Item을 반환한다. 배열은 DB의 표시 순서대로 정렬하지만
+사용자 API에는 `displayOrder`를 노출하지 않는다. Section은 `sectionKey`,
+`title`, `questions`만 가진다. Question 공통 필드는 `questionId`, `questionKey`,
+`title`, `prompt`, `required`, `type`이다. 타입별 추가 필드는 다음과 같다.
+
+| type | 추가 필드 |
+|---|---|
+| `SINGLE_CHOICE` | `options[]` |
+| `MULTIPLE_CHOICE` | `minimumSelections`, `maximumSelections`, `options[]` |
+| `SHORT_TEXT`, `LONG_TEXT` | `maxLength` |
+| `NUMBER` | `minimum`, `maximum`, `decimalScale` |
+| `SCALE` | `minimum`, `maximum`, `minimumLabel`, `maximumLabel` |
+| `MATRIX_SINGLE_CHOICE` | `items[]`, `options[]` |
+| `MATRIX_SCALE` | `items[]`, `minimum`, `maximum`, `minimumLabel`, `maximumLabel` |
+
+Item은 `itemId`, `itemKey`, `itemLabel`, Option은 `optionId`, `label`만
+가진다. DB에 보존하는 `description`, `sourceNumber`, `optionLocalKey`, 모든
+lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전용 표현과
+필수 동의·확인 페이지도 Survey payload에 포함하지 않는다.
+
+활성 회차가 정확히 하나 존재하지 않으면 현재 Survey와 Eligibility API는
+`404 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다.
 
 ### 최종 제출
 
@@ -48,8 +64,7 @@ Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 
       "questionId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
       "type": "SINGLE_CHOICE",
       "selection": {
-        "optionId": "cccccccc-cccc-cccc-cccc-cccccccccccc",
-        "inputText": null
+        "optionId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
       }
     },
     {
@@ -70,8 +85,13 @@ Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 
 | `SHORT_TEXT`, `LONG_TEXT` | `text` |
 | `NUMBER` | `number` |
 | `SCALE` | `scale` |
+| `MATRIX_SINGLE_CHOICE` | `itemAnswers[].itemId`, `itemAnswers[].selection` |
+| `MATRIX_SCALE` | `itemAnswers[].itemId`, `itemAnswers[].scale` |
 
-성공은 `201 SURVEY_RESPONSE_SUBMITTED`이며 `replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을 반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와 `replayed=true`를 반환한다.
+영구 저장 성공은 HTTP `201`과 함께 `status=SUBMITTED`, `persisted=true`,
+`replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을
+반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와
+`replayed=true`를 반환한다.
 
 ### 로컬 preview 사용자
 
@@ -81,13 +101,19 @@ HTTP API를 반복 확인 모드로 제공한다. 기본 대상은 `local-user-1
 
 - 현재 설문 조회와 Eligibility는 해당 사용자의 기존 응답을 무시하고 미제출로 평가한다.
 - 제출 payload는 일반 제출과 같은 규칙으로 검증한다.
-- 검증 성공은 기존 성공 body와 `code=SURVEY_RESPONSE_SUBMITTED`를 유지하면서 `200`을 반환한다.
-- `responseId`에는 요청 `Idempotency-Key` UUID를 사용한다.
+- 검증 성공은 HTTP `200`과 함께 `status=PREVIEW_VALIDATED`,
+  `persisted=false`, `roundId`, `contentVersionId`, `validatedAt`을 반환한다.
+- 임시 `responseId`와 `replayed`는 반환하지 않는다.
 - 응답, 답변, 멱등성 receipt와 Outbox event는 저장하지 않는다.
-- 반환된 임시 `responseId`의 상세 조회는 지원하지 않고 preview 제출은 최신·이력 조회에 나타나지 않는다.
+- preview 제출은 최신·이력 조회에 나타나지 않는다.
 - 내부 local Task/Persona bootstrap과 비로컬 프로필은 이 예외를 적용하지 않는다.
 
-최신·과거 응답 상세에는 `answers[]`와 함께 그 응답이 참조한 불변 `content`를 반환한다. 따라서 현재 회차가 바뀐 뒤에도 당시 질문 문구와 선택지를 기준으로 원문을 표시할 수 있다.
+이력 요약은 `responseId`, `roundId`, `contentVersionId`, `submittedAt`을
+반환한다. 최신·과거 응답 상세는 같은 메타데이터와 `sections`, `answers`를
+반환한다. Question과 Answer 모두 타입별로 필요한 필드만 포함하며 불필요한
+`null`과 빈 배열을 공통 필드로 반환하지 않는다. 선택 값은 `optionId`만
+반환한다. 따라서 현재 회차가 바뀐 뒤에도 응답이
+참조한 불변 Content를 기준으로 질문과 선택지 label을 복원할 수 있다.
 사용자 응답은 JWT `sub`에서 해석한 사용자 식별자로만 저장·조회하며, 이메일은
 Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 
@@ -109,7 +135,7 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `GET` | `/api/v1/admin/survey-content-versions` | 내용 버전 목록 |
 | `GET` | `/api/v1/admin/survey-content-versions/{id}` | 내용 버전 상세 |
 
-생성·교체 body는 `name`, `description`, `questions[]`를 가진다. 모든 질문은 필수이므로 question의 `required`는 생략하면 `true`로 처리하며, 호환 입력으로 명시할 때도 `true`만 허용한다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 작성 편의 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 플래그 자체는 저장하지 않고 조회 DTO에서 물질화된 선택지를 기준으로 다시 계산한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
+생성·교체 body는 `name`, `description`, `questions[]`를 가진다. 모든 질문은 필수이므로 question의 `required`는 생략하면 `true`로 처리하며, 호환 입력으로 명시할 때도 `true`만 허용한다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 관리자 호환 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 이 내부 확장 구조는 1회차에서 사용하지 않는다. 직접 입력형 Option을 실제 회차에 적용하려면 사용자 API 계약을 먼저 확장해야 한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
 
 ### 회차
 
@@ -137,4 +163,4 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `409` | `IDEMPOTENCY_CONFLICT` | 같은 key를 다른 요청에 재사용 |
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED`, `SURVEY_SUBMISSION_ROUND_CHANGED` | 제출 상태 충돌 |
 | `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 질문 규칙에 맞지 않는 답변 |
-| `503` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 활성 회차 불변식이 깨진 운영 오류 |
+| `404` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 조회할 활성 회차가 없음 |

@@ -7,7 +7,7 @@ import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
-import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
+import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -22,7 +22,6 @@ public class CurrentSurveyQueryService {
     private final SurveyRoundRepository rounds;
     private final SurveyContentVersionRepository contents;
     private final SurveyResponseRepository responses;
-    private final SurveyEligibilityQueryService eligibility;
     private final SurveyPreviewMode previewMode;
 
     @Autowired
@@ -30,14 +29,11 @@ public class CurrentSurveyQueryService {
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
-            SurveyEligibilityQueryService eligibility,
             SurveyPreviewMode previewMode
     ) {
         this.rounds = Objects.requireNonNull(rounds, "rounds");
         this.contents = Objects.requireNonNull(contents, "contents");
         this.responses = Objects.requireNonNull(responses, "responses");
-        this.eligibility = Objects.requireNonNull(
-                eligibility, "eligibility");
         this.previewMode = Objects.requireNonNull(
                 previewMode, "previewMode");
     }
@@ -45,20 +41,16 @@ public class CurrentSurveyQueryService {
     CurrentSurveyQueryService(
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
-            SurveyResponseRepository responses,
-            SurveyEligibilityQueryService eligibility
+            SurveyResponseRepository responses
     ) {
-        this(rounds, contents, responses, eligibility,
-                SurveyPreviewMode.disabled());
+        this(rounds, contents, responses, SurveyPreviewMode.disabled());
     }
 
     @Transactional(readOnly = true)
-    public CurrentSurveyResult findCurrent(SurveyUserId userId) {
+    public Optional<CurrentSurvey> findCurrent(SurveyUserId userId) {
         Objects.requireNonNull(userId, "userId");
         Optional<SurveyRound> activeRound = rounds.findActive();
-        ServiceEligibilityDecision decision = eligibility.evaluate(
-                userId, activeRound);
-        Optional<CurrentSurvey> current = activeRound.map(round -> {
+        return activeRound.map(round -> {
             SurveyContentVersion content = contents
                     .findById(round.contentVersionId())
                     .orElseThrow(() -> SurveyDomainException.invariant(
@@ -68,31 +60,28 @@ public class CurrentSurveyQueryService {
             return new CurrentSurvey(
                     round,
                     content,
-                    !previewMode.enabledFor(userId)
-                            && responses.existsByUserIdAndRoundId(
+                    previewMode.enabledFor(userId)
+                            ? Optional.empty()
+                            : responses.findByUserIdAndRoundId(
                                     userId, round.id()));
         });
-        return new CurrentSurveyResult(current, decision);
     }
 
     public record CurrentSurvey(
             SurveyRound round,
             SurveyContentVersion contentVersion,
-            boolean submitted
+            Optional<SurveyResponse> submittedResponse
     ) {
         public CurrentSurvey {
             Objects.requireNonNull(round, "round");
             Objects.requireNonNull(contentVersion, "contentVersion");
+            submittedResponse = Objects.requireNonNull(
+                    submittedResponse, "submittedResponse");
+        }
+
+        public boolean submitted() {
+            return submittedResponse.isPresent();
         }
     }
 
-    public record CurrentSurveyResult(
-            Optional<CurrentSurvey> current,
-            ServiceEligibilityDecision eligibility
-    ) {
-        public CurrentSurveyResult {
-            current = Objects.requireNonNull(current, "current");
-            Objects.requireNonNull(eligibility, "eligibility");
-        }
-    }
 }

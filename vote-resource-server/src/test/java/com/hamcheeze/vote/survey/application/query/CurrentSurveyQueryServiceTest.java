@@ -8,15 +8,12 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
-import com.hamcheeze.vote.survey.domain.eligibility.SurveyRequirement;
+import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
 import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
 import org.junit.jupiter.api.Test;
 
-import java.time.Clock;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -36,16 +33,9 @@ class CurrentSurveyQueryServiceTest {
             SurveyContentVersionRepository.class);
     private final SurveyResponseRepository responses = mock(
             SurveyResponseRepository.class);
-    private final SurveyEligibilityQueryService eligibility =
-            new SurveyEligibilityQueryService(
-                    rounds,
-                    responses,
-                    Clock.fixed(
-                            Instant.parse("2026-08-20T00:00:00Z"),
-                            ZoneOffset.UTC));
     private final CurrentSurveyQueryService currentSurveys =
             new CurrentSurveyQueryService(
-                    rounds, contents, responses, eligibility);
+                    rounds, contents, responses);
 
     @Test
     void usesOneResolvedRoundForEligibilityContentAndSubmission() {
@@ -58,36 +48,37 @@ class CurrentSurveyQueryServiceTest {
                 secondRoundId,
                 new SurveyContentVersionId(UUID.randomUUID()));
         SurveyContentVersion content = mock(SurveyContentVersion.class);
+        SurveyResponse submittedResponse = mock(SurveyResponse.class);
         when(rounds.findActive()).thenReturn(
                 Optional.of(firstRound), Optional.of(secondRound));
         when(contents.findById(contentId)).thenReturn(Optional.of(content));
-        when(responses.existsByUserIdAndRoundId(USER, firstRoundId))
-                .thenReturn(true);
+        when(responses.findByUserIdAndRoundId(USER, firstRoundId))
+                .thenReturn(Optional.of(submittedResponse));
 
-        CurrentSurveyQueryService.CurrentSurveyResult result =
+        Optional<CurrentSurveyQueryService.CurrentSurvey> result =
                 currentSurveys.findCurrent(USER);
 
-        assertThat(result.current()).get().satisfies(current -> {
+        assertThat(result).get().satisfies(current -> {
             assertThat(current.round()).isSameAs(firstRound);
             assertThat(current.contentVersion()).isSameAs(content);
             assertThat(current.submitted()).isTrue();
+            assertThat(current.submittedResponse())
+                    .containsSame(submittedResponse);
         });
         verify(rounds).findActive();
         verify(rounds, never()).findAll();
         verify(contents).findById(contentId);
-        verify(responses, never()).existsByUserIdAndRoundId(
+        verify(responses, never()).findByUserIdAndRoundId(
                 USER, secondRoundId);
     }
 
     @Test
     void keepsUnavailableContractWhenNoRoundIsActive() {
         when(rounds.findActive()).thenReturn(Optional.empty());
-        when(responses.existsByUserId(USER)).thenReturn(false);
-
-        CurrentSurveyQueryService.CurrentSurveyResult result =
+        Optional<CurrentSurveyQueryService.CurrentSurvey> result =
                 currentSurveys.findCurrent(USER);
 
-        assertThat(result.current()).isEmpty();
+        assertThat(result).isEmpty();
         verify(rounds).findActive();
         verify(rounds, never()).findAll();
         verify(contents, never()).findById(
@@ -99,20 +90,11 @@ class CurrentSurveyQueryServiceTest {
         SurveyUserId previewUser = new SurveyUserId("local-user-1");
         SurveyPreviewMode previewMode =
                 new SurveyPreviewMode("local-user-1");
-        SurveyEligibilityQueryService previewEligibility =
-                new SurveyEligibilityQueryService(
-                        rounds,
-                        responses,
-                        previewMode,
-                        Clock.fixed(
-                                Instant.parse("2026-08-20T00:00:00Z"),
-                                ZoneOffset.UTC));
         CurrentSurveyQueryService previewCurrent =
                 new CurrentSurveyQueryService(
                         rounds,
                         contents,
                         responses,
-                        previewEligibility,
                         previewMode);
         SurveyRoundId roundId = new SurveyRoundId(UUID.randomUUID());
         SurveyContentVersionId contentId =
@@ -122,16 +104,13 @@ class CurrentSurveyQueryServiceTest {
         when(rounds.findActive()).thenReturn(Optional.of(round));
         when(contents.findById(contentId)).thenReturn(Optional.of(content));
 
-        CurrentSurveyQueryService.CurrentSurveyResult result =
+        Optional<CurrentSurveyQueryService.CurrentSurvey> result =
                 previewCurrent.findCurrent(previewUser);
 
-        assertThat(result.current()).get().satisfies(current ->
+        assertThat(result).get().satisfies(current ->
                 assertThat(current.submitted()).isFalse());
-        assertThat(result.eligibility().surveyRequirement())
-                .isEqualTo(SurveyRequirement.REQUIRED);
-        verify(responses, never()).existsByUserIdAndRoundId(
+        verify(responses, never()).findByUserIdAndRoundId(
                 previewUser, roundId);
-        verify(responses, never()).existsByUserId(previewUser);
     }
 
     private static SurveyRound round(

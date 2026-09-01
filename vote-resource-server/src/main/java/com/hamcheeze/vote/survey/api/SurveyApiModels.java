@@ -268,12 +268,10 @@ final class SurveyApiModels {
     }
 
     record SelectionRequest(
-            @NotNull UUID optionId,
-            String inputText
+            @NotNull UUID optionId
     ) {
         OptionSelection toDomain() {
-            return new OptionSelection(
-                    new SurveyOptionId(optionId), inputText);
+            return new OptionSelection(new SurveyOptionId(optionId), null);
         }
     }
 
@@ -305,63 +303,51 @@ final class SurveyApiModels {
     ) {
     }
 
-    record CurrentSurveyResponse(
-            CurrentRoundResponse round,
-            PublishedContentResponse content,
-            boolean submitted,
-            EligibilityResponse eligibility
-    ) {
+    sealed interface CurrentSurveyResponse permits PendingSurveyResponse,
+            SubmittedSurveyResponse {
     }
 
-    record CurrentRoundResponse(
-            UUID id,
-            int roundNumber,
+    record PendingSurveyResponse(
+            String status,
+            UUID roundId,
             UUID contentVersionId,
-            SurveyRoundEnforcementMode enforcementMode,
-            Instant activatedAt
-    ) {
-        static CurrentRoundResponse from(SurveyRound value) {
-            return new CurrentRoundResponse(
-                    value.id().value(),
-                    value.roundNumber().value(),
-                    value.contentVersionId().value(),
-                    value.enforcementMode().orElse(null),
-                    value.activatedAt().orElse(null));
+            List<QuestionSectionResponse> sections
+    ) implements CurrentSurveyResponse {
+        static PendingSurveyResponse from(
+                SurveyRound round,
+                SurveyContentVersion content
+        ) {
+            return new PendingSurveyResponse(
+                    "PENDING",
+                    round.id().value(),
+                    content.id().value(),
+                    sectionsFrom(content));
         }
     }
 
-    record PublishedContentResponse(
-            UUID id,
-            Integer versionNumber,
-            String name,
-            String description,
-            List<QuestionSectionResponse> sections
-    ) {
-        static PublishedContentResponse from(SurveyContentVersion value) {
-            return new PublishedContentResponse(
-                    value.id().value(),
-                    value.versionNumber().map(number -> number.value())
-                            .orElse(null),
-                    value.name(),
-                    value.description().orElse(null),
-                    value.questionSections().stream()
-                            .map(section -> QuestionSectionResponse.from(
-                                    section,
-                                    value.questions().stream()
-                                            .filter(question -> question
-                                                    .section().id()
-                                                    .equals(section.id()))
-                                            .map(PublishedQuestionResponse::from)
-                                            .toList()))
-                            .toList());
+    record SubmittedSurveyResponse(
+            String status,
+            UUID roundId,
+            UUID contentVersionId,
+            UUID responseId,
+            Instant submittedAt
+    ) implements CurrentSurveyResponse {
+        static SubmittedSurveyResponse from(
+                SurveyRound round,
+                SurveyResponse response
+        ) {
+            return new SubmittedSurveyResponse(
+                    "SUBMITTED",
+                    round.id().value(),
+                    response.contentVersionId().value(),
+                    response.id().value(),
+                    response.submittedAt());
         }
     }
 
     record QuestionSectionResponse(
             String sectionKey,
             String title,
-            String description,
-            int displayOrder,
             List<PublishedQuestionResponse> questions
     ) {
         static QuestionSectionResponse from(
@@ -371,44 +357,146 @@ final class SurveyApiModels {
             return new QuestionSectionResponse(
                     section.sectionKey(),
                     section.title(),
-                    section.description(),
-                    section.displayOrder(),
                     questions);
         }
     }
 
-    record PublishedQuestionResponse(
-            UUID questionId,
-            String questionKey,
-            String sourceNumber,
-            int displayOrder,
-            String title,
-            SurveyQuestionType type,
-            String prompt,
-            String description,
-            boolean required,
-            RuleResponse rule,
-            List<QuestionItemResponse> items,
-            List<PublishedOptionResponse> options
-    ) {
+    sealed interface PublishedQuestionResponse permits
+            SingleChoiceQuestionResponse,
+            MultipleChoiceQuestionResponse,
+            TextQuestionResponse,
+            NumberQuestionResponse,
+            ScaleQuestionResponse,
+            MatrixSingleChoiceQuestionResponse,
+            MatrixScaleQuestionResponse {
+
+        UUID questionId();
+
+        String questionKey();
+
+        String title();
+
+        String prompt();
+
+        boolean required();
+
+        SurveyQuestionType type();
+
         static PublishedQuestionResponse from(SurveyQuestion value) {
-            return new PublishedQuestionResponse(
-                    value.id().value(),
-                    value.questionKey(),
-                    value.sourceNumber(),
-                    value.displayOrder(),
-                    value.title(),
-                    value.type(),
-                    value.prompt(),
-                    value.description(),
-                    value.required(),
-                    RuleResponse.from(value.rule()),
-                    value.items().stream()
-                            .map(QuestionItemResponse::from)
-                            .toList(),
-                    value.options().stream()
-                            .map(PublishedOptionResponse::from)
-                            .toList());
+            UUID id = value.id().value();
+            return switch (value.type()) {
+                case SINGLE_CHOICE -> new SingleChoiceQuestionResponse(
+                        id, value.questionKey(), value.title(), value.prompt(),
+                        value.required(), value.type(), optionsFrom(value));
+                case MULTIPLE_CHOICE -> {
+                    MultipleChoiceRule rule =
+                            (MultipleChoiceRule) value.rule();
+                    yield new MultipleChoiceQuestionResponse(
+                            id, value.questionKey(), value.title(),
+                            value.prompt(), value.required(), value.type(),
+                            rule.minimumSelections(), rule.maximumSelections(),
+                            optionsFrom(value));
+                }
+                case SHORT_TEXT, LONG_TEXT -> new TextQuestionResponse(
+                        id, value.questionKey(), value.title(), value.prompt(),
+                        value.required(), value.type(),
+                        value.rule() instanceof ShortTextRule rule
+                                ? rule.maxLength()
+                                : ((LongTextRule) value.rule()).maxLength());
+                case NUMBER -> {
+                    NumberRule rule = (NumberRule) value.rule();
+                    yield new NumberQuestionResponse(
+                            id, value.questionKey(), value.title(),
+                            value.prompt(), value.required(), value.type(),
+                            rule.minimum(), rule.maximum(),
+                            rule.decimalScale());
+                }
+                case SCALE -> {
+                    ScaleRule rule = (ScaleRule) value.rule();
+                    yield new ScaleQuestionResponse(
+                            id, value.questionKey(), value.title(),
+                            value.prompt(), value.required(), value.type(),
+                            rule.minimum(), rule.maximum(),
+                            rule.minimumLabel(), rule.maximumLabel());
+                }
+                case MATRIX_SINGLE_CHOICE ->
+                        new MatrixSingleChoiceQuestionResponse(
+                                id, value.questionKey(), value.title(),
+                                value.prompt(), value.required(), value.type(),
+                                itemsFrom(value), optionsFrom(value));
+                case MATRIX_SCALE -> {
+                    MatrixScaleRule rule = (MatrixScaleRule) value.rule();
+                    yield new MatrixScaleQuestionResponse(
+                            id, value.questionKey(), value.title(),
+                            value.prompt(), value.required(), value.type(),
+                            itemsFrom(value), rule.minimum(), rule.maximum(),
+                            rule.minimumLabel(), rule.maximumLabel());
+                }
+            };
+        }
+    }
+
+    record SingleChoiceQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            List<PublishedOptionResponse> options
+    ) implements PublishedQuestionResponse {
+    }
+
+    record MultipleChoiceQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            int minimumSelections, Integer maximumSelections,
+            List<PublishedOptionResponse> options
+    ) implements PublishedQuestionResponse {
+    }
+
+    record TextQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type, Integer maxLength
+    ) implements PublishedQuestionResponse {
+    }
+
+    record NumberQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            BigDecimal minimum, BigDecimal maximum, int decimalScale
+    ) implements PublishedQuestionResponse {
+    }
+
+    record ScaleQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            int minimum, int maximum, String minimumLabel, String maximumLabel
+    ) implements PublishedQuestionResponse {
+    }
+
+    record MatrixSingleChoiceQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            List<PublishedQuestionItemResponse> items,
+            List<PublishedOptionResponse> options
+    ) implements PublishedQuestionResponse {
+    }
+
+    record MatrixScaleQuestionResponse(
+            UUID questionId, String questionKey, String title, String prompt,
+            boolean required, SurveyQuestionType type,
+            List<PublishedQuestionItemResponse> items,
+            int minimum, int maximum, String minimumLabel, String maximumLabel
+    ) implements PublishedQuestionResponse {
+    }
+
+    record PublishedQuestionItemResponse(
+            UUID itemId,
+            String itemKey,
+            String itemLabel
+    ) {
+        static PublishedQuestionItemResponse from(
+                com.hamcheeze.vote.survey.domain.content.SurveyQuestionItem value
+        ) {
+            return new PublishedQuestionItemResponse(
+                    value.id().value(), value.itemKey(), value.itemLabel());
         }
     }
 
@@ -431,29 +519,37 @@ final class SurveyApiModels {
 
     record PublishedOptionResponse(
             UUID optionId,
-            String optionLocalKey,
-            SurveyOptionKind kind,
-            String label,
-            int displayOrder
+            String label
     ) {
         static PublishedOptionResponse from(SurveyOption value) {
             return new PublishedOptionResponse(
                     value.id().value(),
-                    value.localKey(),
-                    value.kind(),
-                    value.label(),
-                    value.displayOrder());
+                    value.label());
         }
     }
 
-    record SubmissionResponse(
-            String code,
+    sealed interface SubmissionResponse permits SubmittedResponse,
+            PreviewValidatedResponse {
+    }
+
+    record SubmittedResponse(
+            String status,
+            boolean persisted,
             boolean replayed,
             UUID responseId,
             UUID roundId,
             UUID contentVersionId,
             Instant submittedAt
-    ) {
+    ) implements SubmissionResponse {
+    }
+
+    record PreviewValidatedResponse(
+            String status,
+            boolean persisted,
+            UUID roundId,
+            UUID contentVersionId,
+            Instant validatedAt
+    ) implements SubmissionResponse {
     }
 
     record ContentResponse(
@@ -672,28 +768,25 @@ final class SurveyApiModels {
     }
 
     record ResponseSummary(
-            UUID id,
+            UUID responseId,
             UUID roundId,
-            int roundNumber,
             UUID contentVersionId,
             Instant submittedAt
     ) {
         static ResponseSummary from(SurveyResponse value) {
             return new ResponseSummary(
                     value.id().value(), value.roundId().value(),
-                    value.roundNumber().value(),
                     value.contentVersionId().value(), value.submittedAt());
         }
     }
 
     record ResponseDetail(
-            UUID id,
+            UUID responseId,
             UUID roundId,
-            int roundNumber,
             UUID contentVersionId,
             Instant submittedAt,
-            List<AnswerResponse> answers,
-            PublishedContentResponse content
+            List<QuestionSectionResponse> sections,
+            List<AnswerResponse> answers
     ) {
         static ResponseDetail from(
                 SurveyResponse value,
@@ -701,87 +794,138 @@ final class SurveyApiModels {
         ) {
             return new ResponseDetail(
                     value.id().value(), value.roundId().value(),
-                    value.roundNumber().value(),
                     value.contentVersionId().value(), value.submittedAt(),
+                    sectionsFrom(content),
                     value.answers().stream().map(AnswerResponse::from)
-                            .toList(),
-                    PublishedContentResponse.from(content));
+                            .toList());
         }
     }
 
-    record AnswerResponse(
-            UUID questionId,
-            SurveyAnswerType type,
-            String text,
-            BigDecimal number,
-            Integer scale,
-            List<SelectionResponse> selections,
-            List<ItemAnswerResponse> itemAnswers
-    ) {
+    sealed interface AnswerResponse permits SingleChoiceAnswerResponse,
+            MultipleChoiceAnswerResponse,
+            TextAnswerResponse,
+            NumberAnswerResponse,
+            ScaleAnswerResponse,
+            MatrixSingleChoiceAnswerResponse,
+            MatrixScaleAnswerResponse {
+
+        UUID questionId();
+
+        SurveyAnswerType type();
+
         static AnswerResponse from(SurveyAnswer answer) {
             return switch (answer) {
-                case SingleChoiceAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        null, null,
-                        List.of(SelectionResponse.from(value.selection())),
-                        List.of());
-                case MultipleChoiceAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        null, null, value.selections().stream()
-                        .map(SelectionResponse::from).toList(), List.of());
-                case ShortTextAnswer value -> new AnswerResponse(
+                case SingleChoiceAnswer value ->
+                        new SingleChoiceAnswerResponse(
+                                value.questionId().value(),
+                                value.answerType(),
+                                SelectionResponse.from(value.selection()));
+                case MultipleChoiceAnswer value ->
+                        new MultipleChoiceAnswerResponse(
+                                value.questionId().value(), value.answerType(),
+                                value.selections().stream()
+                                        .map(SelectionResponse::from)
+                                        .toList());
+                case ShortTextAnswer value -> new TextAnswerResponse(
                         value.questionId().value(), value.answerType(),
-                        value.value(), null, null, List.of(), List.of());
-                case LongTextAnswer value -> new AnswerResponse(
+                        value.value());
+                case LongTextAnswer value -> new TextAnswerResponse(
                         value.questionId().value(), value.answerType(),
-                        value.value(), null, null, List.of(), List.of());
-                case NumberAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        value.value(), null, List.of(), List.of());
-                case ScaleAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        null, value.value(), List.of(), List.of());
-                case MatrixSingleChoiceAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        null, null, List.of(),
-                        value.itemAnswers().stream()
-                                .map(ItemAnswerResponse::from)
-                                .toList());
-                case MatrixScaleAnswer value -> new AnswerResponse(
-                        value.questionId().value(), value.answerType(), null,
-                        null, null, List.of(),
-                        value.itemAnswers().stream()
-                                .map(ItemAnswerResponse::from)
-                                .toList());
+                        value.value());
+                case NumberAnswer value -> new NumberAnswerResponse(
+                        value.questionId().value(), value.answerType(),
+                        value.value());
+                case ScaleAnswer value -> new ScaleAnswerResponse(
+                        value.questionId().value(), value.answerType(),
+                        value.value());
+                case MatrixSingleChoiceAnswer value ->
+                        new MatrixSingleChoiceAnswerResponse(
+                                value.questionId().value(), value.answerType(),
+                                value.itemAnswers().stream()
+                                        .map(MatrixSelectionItemResponse::from)
+                                        .toList());
+                case MatrixScaleAnswer value ->
+                        new MatrixScaleAnswerResponse(
+                                value.questionId().value(), value.answerType(),
+                                value.itemAnswers().stream()
+                                        .map(MatrixScaleItemResponse::from)
+                                        .toList());
             };
         }
     }
 
-    record ItemAnswerResponse(
+    record SingleChoiceAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            SelectionResponse selection
+    ) implements AnswerResponse {
+    }
+
+    record MultipleChoiceAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            List<SelectionResponse> selections
+    ) implements AnswerResponse {
+    }
+
+    record TextAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            String text
+    ) implements AnswerResponse {
+    }
+
+    record NumberAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            BigDecimal number
+    ) implements AnswerResponse {
+    }
+
+    record ScaleAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            int scale
+    ) implements AnswerResponse {
+    }
+
+    record MatrixSingleChoiceAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            List<MatrixSelectionItemResponse> itemAnswers
+    ) implements AnswerResponse {
+    }
+
+    record MatrixScaleAnswerResponse(
+            UUID questionId,
+            SurveyAnswerType type,
+            List<MatrixScaleItemResponse> itemAnswers
+    ) implements AnswerResponse {
+    }
+
+    record MatrixSelectionItemResponse(
             UUID itemId,
-            SelectionResponse selection,
-            Integer scale
+            SelectionResponse selection
     ) {
-        static ItemAnswerResponse from(
+        static MatrixSelectionItemResponse from(
                 MatrixSingleChoiceItemAnswer value
         ) {
-            return new ItemAnswerResponse(
+            return new MatrixSelectionItemResponse(
                     value.itemId().value(),
-                    SelectionResponse.from(value.selection()),
-                    null);
-        }
-
-        static ItemAnswerResponse from(MatrixScaleItemAnswer value) {
-            return new ItemAnswerResponse(
-                    value.itemId().value(), null, value.value());
+                    SelectionResponse.from(value.selection()));
         }
     }
 
-    record SelectionResponse(UUID optionId, String inputText) {
+    record MatrixScaleItemResponse(UUID itemId, int scale) {
+        static MatrixScaleItemResponse from(MatrixScaleItemAnswer value) {
+            return new MatrixScaleItemResponse(
+                    value.itemId().value(), value.value());
+        }
+    }
+
+    record SelectionResponse(UUID optionId) {
         static SelectionResponse from(OptionSelection value) {
-            return new SelectionResponse(
-                    value.optionId().value(),
-                    value.optionalInputText().orElse(null));
+            return new SelectionResponse(value.optionId().value());
         }
     }
 
@@ -790,6 +934,36 @@ final class SurveyApiModels {
                 .sorted(Comparator.comparing(SurveyResponse::submittedAt)
                         .reversed())
                 .map(ResponseSummary::from)
+                .toList();
+    }
+
+    static List<QuestionSectionResponse> sectionsFrom(
+            SurveyContentVersion value
+    ) {
+        return value.questionSections().stream()
+                .map(section -> QuestionSectionResponse.from(
+                        section,
+                        value.questions().stream()
+                                .filter(question -> question.section().id()
+                                        .equals(section.id()))
+                                .map(PublishedQuestionResponse::from)
+                                .toList()))
+                .toList();
+    }
+
+    private static List<PublishedQuestionItemResponse> itemsFrom(
+            SurveyQuestion value
+    ) {
+        return value.items().stream()
+                .map(PublishedQuestionItemResponse::from)
+                .toList();
+    }
+
+    private static List<PublishedOptionResponse> optionsFrom(
+            SurveyQuestion value
+    ) {
+        return value.options().stream()
+                .map(PublishedOptionResponse::from)
                 .toList();
     }
 

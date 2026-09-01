@@ -132,10 +132,10 @@ class SurveyApplicationUseCaseIntegrationTest {
                 .targetRound();
 
         var before = currentSurveyQuery.findCurrent(USER);
-        assertThat(before.current()).isPresent();
-        assertThat(before.current().orElseThrow().submitted()).isFalse();
-        assertThat(before.eligibility().eligible()).isFalse();
-        assertThat(before.eligibility().surveyRequirement())
+        assertThat(before).isPresent();
+        assertThat(before.orElseThrow().submitted()).isFalse();
+        assertThat(eligibilityQuery.evaluate(USER).eligible()).isFalse();
+        assertThat(eligibilityQuery.evaluate(USER).surveyRequirement())
                 .isEqualTo(SurveyRequirement.REQUIRED);
 
         String idempotencyKey = UUID.randomUUID().toString();
@@ -227,9 +227,9 @@ class SurveyApplicationUseCaseIntegrationTest {
                 .isEqualTo("CURRENT_SURVEY_ALREADY_SUBMITTED");
 
         var after = currentSurveyQuery.findCurrent(USER);
-        assertThat(after.current().orElseThrow().submitted()).isTrue();
-        assertThat(after.eligibility().eligible()).isTrue();
-        assertThat(after.eligibility().surveyRequirement())
+        assertThat(after.orElseThrow().submitted()).isTrue();
+        assertThat(eligibilityQuery.evaluate(USER).eligible()).isTrue();
+        assertThat(eligibilityQuery.evaluate(USER).surveyRequirement())
                 .isEqualTo(SurveyRequirement.SATISFIED);
         assertThat(myResponseQuery.findLatest(USER)).isPresent();
         assertThat(myResponseQuery.findHistory(USER)).hasSize(1);
