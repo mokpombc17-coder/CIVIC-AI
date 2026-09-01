@@ -6,6 +6,7 @@ import com.hamcheeze.chat.message.audit.ChatMessageAuditActorType;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEvent;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -25,10 +26,8 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HexFormat;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Consumer;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -65,7 +64,7 @@ class ResearchChatExportArtifactGeneratorTest {
         try (ZipFile zip = new ZipFile(artifact.path().toFile())) {
             assertThat(zip.stream().map(ZipEntry::getName).toList())
                     .containsExactlyInAnyOrder(
-                            "manifest.json",
+                            "metadata.json",
                             "messages.jsonl",
                             "message_changes.jsonl",
                             "transcript.html");
@@ -123,39 +122,34 @@ class ResearchChatExportArtifactGeneratorTest {
                     .doesNotContain("Participants")
                     .doesNotContain("displayName");
 
-            JsonNode manifest = JsonMapper.builder().build()
-                    .readTree(entry(zip, "manifest.json"));
-            assertThat(manifest.propertyNames()).containsExactlyInAnyOrder(
-                    "schemaVersion",
-                    "exportId",
-                    "roomId",
-                    "roomName",
-                    "roomDescription",
-                    "capturedChangeSequence",
-                    "capturedAt",
-                    "generatedAt",
-                    "identityMode",
-                    "messageRepresentation",
-                    "deletedContentIncluded",
-                    "changeHistoryIncluded",
-                    "jsonTimezone",
-                    "htmlTimezone",
-                    "counts",
-                    "files");
-            assertThat(manifest.get("schemaVersion").intValue())
+            JsonNode metadata = JsonMapper.builder().build()
+                    .readTree(entry(zip, "metadata.json"));
+            assertThat(metadata.propertyNames()).containsExactlyInAnyOrder(
+                    "schemaVersion", "capturedAt", "room", "participants");
+            assertThat(metadata.get("schemaVersion").intValue())
                     .isEqualTo(1);
-            assertThat(manifest.has("roomCategoryIds")).isFalse();
-            assertThat(manifest.has("roomCategories")).isFalse();
-            assertThat(manifest.has("categories")).isFalse();
-            assertThat(manifest.get("capturedChangeSequence").longValue())
-                    .isEqualTo(6);
-            assertThat(manifest.get("identityMode").stringValue())
-                    .isEqualTo("INTERNAL_USER_ID");
-            assertThat(manifest.get("counts").get("messages").longValue())
-                    .isEqualTo(2);
-            assertThat(manifest.get("counts").get("changes").longValue())
-                    .isEqualTo(6);
-            assertDescriptors(zip, manifest.get("files"));
+            assertThat(metadata.get("capturedAt").stringValue())
+                    .isEqualTo(CREATED_AT.toString());
+
+            JsonNode room = metadata.get("room");
+            assertThat(room.propertyNames()).containsExactlyInAnyOrder(
+                    "roomId", "name", "description", "categories",
+                    "status", "createdAt", "closedAt");
+            assertThat(room.get("roomId").stringValue()).isEqualTo("room-1");
+            assertThat(room.get("name").stringValue())
+                    .isEqualTo("연구 <Room>");
+            assertThat(room.get("status").stringValue()).isEqualTo("ACTIVE");
+            assertThat(room.get("closedAt").isNull()).isTrue();
+            assertThat(room.get("categories").get(0).get("categoryId")
+                    .stringValue()).isEqualTo("custom-category-id");
+            assertThat(room.get("categories").get(0).get("name")
+                    .stringValue()).isEqualTo("연구 카테고리");
+
+            JsonNode participants = metadata.get("participants");
+            assertThat(participants.size()).isEqualTo(3);
+            assertParticipant(participants.get(0), "user-1", "ACTIVE", 1);
+            assertParticipant(participants.get(1), "user-2", "LEFT", 1);
+            assertParticipant(participants.get(2), "user-3", "BANNED", 0);
         }
     }
 
@@ -172,14 +166,13 @@ class ResearchChatExportArtifactGeneratorTest {
             assertThat(entry(zip, "transcript.html"))
                     .startsWith("<!doctype html>")
                     .endsWith("</body></html>\n");
-            JsonNode counts = JsonMapper.builder().build()
-                    .readTree(entry(zip, "manifest.json"))
-                    .get("counts");
-            assertThat(counts.get("messages").longValue()).isZero();
-            assertThat(counts.get("changes").longValue()).isZero();
-            assertThat(counts.get("created").longValue()).isZero();
-            assertThat(counts.get("updated").longValue()).isZero();
-            assertThat(counts.get("deleted").longValue()).isZero();
+            JsonNode participants = JsonMapper.builder().build()
+                    .readTree(entry(zip, "metadata.json"))
+                    .get("participants");
+            for (JsonNode participant : participants) {
+                    assertThat(participant.get("messageCount").longValue())
+                            .isZero();
+            }
         }
     }
 
@@ -341,7 +334,19 @@ class ResearchChatExportArtifactGeneratorTest {
                 RoomStatus.ACTIVE,
                 RoomVisibility.LISTED, JoinPolicy.OPEN, "membership-owner",
                 1, CREATED_AT, null, CREATED_AT);
-        return new ResearchChatExportSnapshot(room, watermark, CREATED_AT);
+        return new ResearchChatExportSnapshot(
+                room,
+                List.of(new ResearchChatExportCategorySnapshot(
+                        "custom-category-id", "연구 카테고리")),
+                List.of(
+                        new ResearchChatExportParticipantSnapshot(
+                                "user-1", MembershipStatus.ACTIVE),
+                        new ResearchChatExportParticipantSnapshot(
+                                "user-2", MembershipStatus.LEFT),
+                        new ResearchChatExportParticipantSnapshot(
+                                "user-3", MembershipStatus.BANNED)),
+                watermark,
+                CREATED_AT);
     }
 
     private List<ChatMessageAuditEvent> revisions() {
@@ -444,24 +449,18 @@ class ResearchChatExportArtifactGeneratorTest {
         return JsonMapper.builder().build().readValue(json, Map.class);
     }
 
-    private void assertDescriptors(ZipFile zip, JsonNode descriptors)
-            throws Exception {
-        Set<String> names = new LinkedHashSet<>();
-        for (JsonNode descriptor : descriptors) {
-            String name = descriptor.get("name").stringValue();
-            names.add(name);
-            byte[] bytes;
-            try (var input = zip.getInputStream(zip.getEntry(name))) {
-                bytes = input.readAllBytes();
-            }
-            assertThat(descriptor.get("sizeBytes").longValue())
-                    .isEqualTo(bytes.length);
-            assertThat(descriptor.get("sha256").stringValue())
-                    .isEqualTo(sha256(bytes));
-        }
-        assertThat(names).containsExactly(
-                "messages.jsonl", "message_changes.jsonl",
-                "transcript.html");
+    private void assertParticipant(
+            JsonNode participant,
+            String userId,
+            String status,
+            long messageCount
+    ) {
+        assertThat(participant.propertyNames()).containsExactlyInAnyOrder(
+                "userId", "status", "messageCount");
+        assertThat(participant.get("userId").stringValue()).isEqualTo(userId);
+        assertThat(participant.get("status").stringValue()).isEqualTo(status);
+        assertThat(participant.get("messageCount").longValue())
+                .isEqualTo(messageCount);
     }
 
     private static String entry(ZipFile zip, String name)

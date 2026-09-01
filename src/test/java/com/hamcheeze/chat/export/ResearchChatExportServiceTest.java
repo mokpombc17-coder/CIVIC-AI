@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -185,7 +186,8 @@ class ResearchChatExportServiceTest {
     }
 
     private ResearchChatExportSnapshot snapshot(long watermark) {
-        return new ResearchChatExportSnapshot(null, watermark, NOW);
+        return new ResearchChatExportSnapshot(
+                null, List.of(), List.of(), watermark, NOW);
     }
 
     private ResearchChatExportTempWorkspace workspace() {
@@ -195,7 +197,7 @@ class ResearchChatExportServiceTest {
                 tempDirectory.resolve("messages.jsonl"),
                 tempDirectory.resolve("message_changes.jsonl"),
                 tempDirectory.resolve("transcript.html"),
-                tempDirectory.resolve("manifest.json"),
+                tempDirectory.resolve("metadata.json"),
                 tempDirectory.resolve("artifact.part"),
                 tempDirectory.resolve("artifact.zip"));
     }

@@ -102,7 +102,7 @@ class ResearchChatExportControllerTest {
                         tempDirectory.resolve("messages.jsonl"),
                         tempDirectory.resolve("message_changes.jsonl"),
                         tempDirectory.resolve("transcript.html"),
-                        tempDirectory.resolve("manifest.json"),
+                        tempDirectory.resolve("metadata.json"),
                         tempDirectory.resolve("artifact.part"),
                         artifactPath);
         ResearchChatExportArtifact artifact =

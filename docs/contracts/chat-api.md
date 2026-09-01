@@ -3216,14 +3216,18 @@ X-Export-Id: {exportId}
 X-Export-SHA256: {sha256LowercaseHex}
 ```
 
-ZIP entry는 `manifest.json`, `messages.jsonl`, `message_changes.jsonl`,
+ZIP entry는 `metadata.json`, `messages.jsonl`, `message_changes.jsonl`,
 `transcript.html` 네 개뿐이다. `messages.jsonl`은 capture 시점의 최종 대화를
 `messageSequence` 순서로, `message_changes.jsonl`은 모든 CREATE/UPDATE/DELETE를
 `changeSequence` 순서로 제공한다. 삭제 메시지는 삭제 직전 content와
 `deleted=true`를 제공한다.
 
-현재 연구용 `manifest.json`의 `schemaVersion`은 `1`이며 Room 카테고리 ID·이름을
-포함하지 않는다.
+현재 연구용 `metadata.json`의 `schemaVersion`은 `1`이다. `room`은 Room ID·이름·
+설명, 카테고리 ID·이름, 상태, 생성·종료 시각을 제공하며 ACTIVE Room의
+`closedAt`은 `null`이다. `participants`는 capture 시점의 모든 Membership을
+`userId`, `status`, `messageCount`로 제공한다. status는 `ACTIVE`, `LEFT`,
+`BANNED` 중 하나고, 삭제 메시지를 포함해 작성한 `messages.jsonl` 행이 없으면
+`messageCount`는 `0`이다.
 
 연구용 Export는 `chat_message_audit_events`만 canonical source로 사용하며
 `chat_messages` fallback을 수행하지 않는다. 메시지 감사 원장 도입 전에 생성된
@@ -3245,7 +3249,7 @@ changeSequence, messageSequence, userId, changeType, content, changedAt
 ```
 
 `userId`는 가명화되지 않은 내부 senderUserId이므로 제한 데이터다. messageId,
-roomId, membershipId, displayName, actor, profile, 참여자·접속·읽음 정보는 포함하지
-않는다. Artifact는 전송 후 temp workspace에서 삭제되며 영구 보관과 재다운로드
-API는 없다. 상세 replay와 watermark 계약은
+membershipId, displayName, actor, profile, 참여자의 가입·상태 변경 시각과 접속·읽음
+정보는 포함하지 않는다. Artifact는 전송 후 temp workspace에서 삭제되며 영구
+보관과 재다운로드 API는 없다. 상세 replay와 snapshot 계약은
 `docs/architecture/chat-research-room-export.md`를 따른다.

@@ -1,0 +1,40 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-24T03:00:00Z",
+  "room": {
+    "roomId": "11000000-0000-0000-0000-000000000001",
+    "name": "지역 교통 정책 토론방",
+    "description": "지역 교통 정책 개선안을 논의하는 채팅방입니다.",
+    "categories": [
+      {
+        "categoryId": "31000000-0000-0000-0000-000000000001",
+        "name": "지역 이슈"
+      }
+    ],
+    "status": "CLOSED",
+    "createdAt": "2026-08-20T01:00:00Z",
+    "closedAt": "2026-08-24T02:45:00Z"
+  },
+  "participants": [
+    {
+      "userId": "user-9",
+      "status": "ACTIVE",
+      "messageCount": 1
+    },
+    {
+      "userId": "user-4",
+      "status": "LEFT",
+      "messageCount": 1
+    },
+    {
+      "userId": "user-12",
+      "status": "BANNED",
+      "messageCount": 1
+    },
+    {
+      "userId": "user-15",
+      "status": "ACTIVE",
+      "messageCount": 0
+    }
+  ]
+}

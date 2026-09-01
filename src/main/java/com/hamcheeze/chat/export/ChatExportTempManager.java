@@ -139,7 +139,7 @@ public final class ChatExportTempManager {
                 directory.resolve("messages.jsonl"),
                 directory.resolve("message_changes.jsonl"),
                 directory.resolve("transcript.html"),
-                directory.resolve("manifest.json"),
+                directory.resolve("metadata.json"),
                 directory.resolve("artifact.part"),
                 directory.resolve("artifact.zip"));
     }

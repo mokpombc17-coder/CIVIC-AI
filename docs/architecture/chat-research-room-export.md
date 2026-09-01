@@ -27,8 +27,9 @@ Membership 상태, 프로필, 연락처와 참여자 목록은 결합하거나 �
 생성되었거나 별도 backfill이 완료되었다는 운영 전제를 따른다. 감사 원장에 존재하지
 않는 기존 `chat_messages` 데이터는 연구용 Artifact에 포함되지 않는다.
 
-Export 시작 시 Room을 읽고 audit watermark를 읽은 뒤 Room을 다시 읽는다. 두 Room
-read의 version과 status가 같아야 snapshot이 확정되며, 설정된
+Export 시작 시 Room을 읽고 audit watermark, Room 카테고리 및 모든 Membership을
+읽은 뒤 Room을 다시 읽는다. 두 Room read의 version과 status가 같아야 snapshot이
+확정되며, 설정된
 `snapshotMaxAttempts` 안에 안정화되지 않으면 retryable
 `503 CHAT_EXPORT_UNAVAILABLE`이다.
 
@@ -48,13 +49,29 @@ messageVersion, roomSequence, senderUserId, senderMembershipId 불변식을 검�
 ZIP에는 정확히 다음 네 entry만 있다.
 
 ```text
-manifest.json
+metadata.json
 messages.jsonl
 message_changes.jsonl
 transcript.html
 ```
 
 JSON과 JSONL은 UTF-8, LF, BOM 없음이며 JSON 시각은 UTC `Instant`다.
+
+### metadata.json
+
+연구자가 대화 데이터의 맥락을 해석하기 위한 schema v1 메타데이터다. 최상위 필드는
+`schemaVersion`, `capturedAt`, `room`, `participants`다.
+
+`room`은 `roomId`, `name`, `description`, `categories`, `status`, `createdAt`,
+`closedAt`을 제공한다. `categories`의 각 원소는 `categoryId`, `name`을 제공한다.
+ACTIVE Room의 `closedAt`은 `null`이고 CLOSED Room은 종료 시각을 제공한다.
+
+`participants`는 capture 시점에 해당 Room에 저장된 모든 Membership을 포함하며 각
+원소는 `userId`, `status`, `messageCount`를 제공한다. status는
+`ACTIVE`, `LEFT`, `BANNED` 중 하나다. `messageCount`는 `messages.jsonl`에서 해당
+userId가 작성한 행 수이고 삭제된 메시지도 포함하며, 작성 메시지가 없으면 `0`이다.
+메시지 작성자에 대응하는 Membership snapshot이 없으면 Artifact 생성을 데이터
+불일치로 실패시킨다.
 
 ### messages.jsonl
 
@@ -77,17 +94,15 @@ CREATE, UPDATE, DELETE를 `changeSequence` 오름차순으로 모두 제공한�
 두 sequence는 합치지 않는다. `messageSequence`는 메시지 위치라서 수정·삭제에도
 변하지 않고, `changeSequence`는 모든 변경에 새로 부여된다.
 
-### transcript.html과 manifest.json
+### transcript.html
 
 transcript는 `messages.jsonl`과 같은 순서와 최종 내용을 Asia/Seoul 시각으로
 표시한다. 작성자는 userId만 표시하며 수정됨·삭제됨 상태를 함께 보여준다. Room
 이름, 설명, userId와 content는 HTML escape하고 외부 resource 및 JavaScript를
 CSP로 차단한다.
 
-manifest schema v1은 Room 이름·설명, capture/generation 시각, watermark,
-식별·내용 표현 정책, count와 세 데이터 파일의 byte size/SHA-256을 기록한다.
-카테고리 ID·이름, 요청 연구자 ID나 참여자 목록은 기록하지 않는다. 전체 ZIP
-SHA-256은 응답 헤더로만 제공한다.
+전체 ZIP SHA-256은 응답 헤더로 제공하며 개별 entry의 checksum 파일은 제공하지
+않는다.
 
 ## 생명주기와 자원 제한
 
@@ -104,12 +119,12 @@ SUCCESS_TRANSITION_FAILED다. 모든 경로에서 workspace cleanup과 전역 Ex
 관리자와 연구 Export는 동일한 `chat.export` concurrency guard, temp root,
 deadline, disk reservation과 다음 제한을 공유한다: event 수, distinct message 수,
 replay content bytes, artifact/workspace bytes, generation duration 및 최소 free disk.
-messages, changes, transcript, manifest와 ZIP 생성 중의 실제 byte가 workspace budget을
+metadata, messages, changes, transcript와 ZIP 생성 중의 실제 byte가 workspace budget을
 소비한다.
 
 ## 제외 데이터
 
-기간/cursor/Incremental Export, 사용자별 Export, 가명화, Membership 및 참여 이력,
-Room 가입·퇴장·ban, read cursor/receipt, WebSocket 연결·heartbeat·focus·visibility,
-IP, User-Agent, 기기, 프로필, displayName, 참여자 파일, 영구 Artifact와 재다운로드
-API는 이 기능의 범위가 아니다.
+기간/cursor/Incremental Export, 사용자별 Export, 가명화, Membership 변경 이력과
+가입·퇴장·ban 시각, read cursor/receipt, WebSocket 연결·heartbeat·focus·visibility,
+IP, User-Agent, 기기, 프로필, displayName, 영구 Artifact와 재다운로드 API는 이
+기능의 범위가 아니다.

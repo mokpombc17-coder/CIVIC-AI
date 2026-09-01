@@ -8,7 +8,7 @@ public record ResearchChatExportTempWorkspace(
         Path messagesFile,
         Path changesFile,
         Path transcriptFile,
-        Path manifestFile,
+        Path metadataFile,
         Path artifactPart,
         Path artifactZip
 ) {

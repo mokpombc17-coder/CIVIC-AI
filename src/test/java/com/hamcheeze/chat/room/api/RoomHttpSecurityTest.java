@@ -263,7 +263,7 @@ class RoomHttpSecurityTest extends MongoRuntimeIntegrationTest {
             }
         }
         assertThat(entries).containsExactly(
-                "manifest.json", "messages.jsonl",
+                "metadata.json", "messages.jsonl",
                 "message_changes.jsonl", "transcript.html");
 
         String closedRoomId = "research-export-closed-room";

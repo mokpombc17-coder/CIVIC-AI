@@ -5,6 +5,8 @@ import com.hamcheeze.chat.message.audit.ChatMessageAuditEvent;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditEventType;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditReader;
 import com.hamcheeze.chat.message.audit.ChatMessageAuditSnapshot;
+import com.hamcheeze.chat.room.MembershipStatus;
+import com.hamcheeze.chat.room.RoomStatus;
 import org.springframework.http.HttpStatus;
 import tools.jackson.databind.ObjectMapper;
 
@@ -25,6 +27,7 @@ import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.Comparator;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
@@ -37,7 +40,7 @@ public final class ResearchChatExportArtifactGenerator {
 
     private static final byte[] NEWLINE = {'\n'};
     private static final Set<String> ZIP_ENTRIES = Set.of(
-            "manifest.json",
+            "metadata.json",
             "messages.jsonl",
             "message_changes.jsonl",
             "transcript.html");
@@ -100,38 +103,13 @@ public final class ResearchChatExportArtifactGenerator {
         writeMessages(workspace.messagesFile(), messages, budget, deadline);
         writeTranscript(workspace.transcriptFile(), snapshot.room(), messages,
                 budget, deadline);
+        writeJson(
+                workspace.metadataFile(),
+                metadata(snapshot, messages),
+                budget,
+                deadline);
 
         Instant generatedAt = clock.instant();
-        List<FileDescriptor> descriptors = List.of(
-                descriptor("messages.jsonl", workspace.messagesFile(),
-                        deadline),
-                descriptor("message_changes.jsonl", workspace.changesFile(),
-                        deadline),
-                descriptor("transcript.html", workspace.transcriptFile(),
-                        deadline));
-        Manifest manifest = new Manifest(
-                1,
-                job.exportId(),
-                job.roomId(),
-                snapshot.room().name(),
-                snapshot.room().description(),
-                job.capturedChangeSequence(),
-                snapshot.capturedAt(),
-                generatedAt,
-                "INTERNAL_USER_ID",
-                "FINAL_CONTENT",
-                true,
-                true,
-                "UTC",
-                "Asia/Seoul",
-                new ManifestCounts(
-                        messages.size(),
-                        counts.changes,
-                        counts.created,
-                        counts.updated,
-                        counts.deleted),
-                descriptors);
-        writeJson(workspace.manifestFile(), manifest, budget, deadline);
         createZip(workspace, budget, deadline);
         ensureLimits(workspace, deadline);
         long size = Files.size(workspace.artifactZip());
@@ -293,6 +271,58 @@ public final class ResearchChatExportArtifactGenerator {
         tempManager.secureFile(file);
     }
 
+    private Metadata metadata(
+            ResearchChatExportSnapshot snapshot,
+            List<ReplayMessage> messages
+    ) {
+        Map<String, Long> messageCounts = new HashMap<>();
+        for (ReplayMessage message : messages) {
+            messageCounts.merge(message.senderUserId, 1L, Long::sum);
+        }
+
+        Set<String> participantUserIds = new HashSet<>();
+        List<MetadataParticipant> participants = snapshot.participants()
+                .stream()
+                .map(participant -> {
+                    if (!participantUserIds.add(participant.userId())) {
+                        throw inconsistent(
+                                "Duplicate participant user identity");
+                    }
+                    long messageCount = messageCounts.getOrDefault(
+                            participant.userId(),
+                            0L);
+                    messageCounts.remove(participant.userId());
+                    return new MetadataParticipant(
+                            participant.userId(),
+                            participant.status(),
+                            messageCount);
+                })
+                .toList();
+        if (!messageCounts.isEmpty()) {
+            throw inconsistent(
+                    "Message author membership snapshot is missing");
+        }
+
+        List<MetadataCategory> categories = snapshot.categories().stream()
+                .map(category -> new MetadataCategory(
+                        category.categoryId(),
+                        category.name()))
+                .toList();
+        ChatExportRoomSnapshot room = snapshot.room();
+        return new Metadata(
+                1,
+                snapshot.capturedAt(),
+                new MetadataRoom(
+                        room.roomId(),
+                        room.name(),
+                        room.description(),
+                        categories,
+                        room.status(),
+                        room.createdAt(),
+                        room.closedAt()),
+                participants);
+    }
+
     private void writeTranscript(
             Path file,
             ChatExportRoomSnapshot room,
@@ -366,24 +396,13 @@ public final class ResearchChatExportArtifactGenerator {
         tempManager.secureFile(file);
     }
 
-    private FileDescriptor descriptor(
-            String name,
-            Path file,
-            ChatExportDeadline deadline
-    ) throws IOException {
-        validateEntryName(name);
-        deadline.check();
-        return new FileDescriptor(name, Files.size(file),
-                sha256(file, deadline));
-    }
-
     private void createZip(
             ResearchChatExportTempWorkspace workspace,
             ChatExportWorkspaceBudget budget,
             ChatExportDeadline deadline
     ) throws IOException {
         List<Map.Entry<String, Path>> entries = List.of(
-                Map.entry("manifest.json", workspace.manifestFile()),
+                Map.entry("metadata.json", workspace.metadataFile()),
                 Map.entry("messages.jsonl", workspace.messagesFile()),
                 Map.entry("message_changes.jsonl", workspace.changesFile()),
                 Map.entry("transcript.html", workspace.transcriptFile()));
@@ -539,39 +558,35 @@ public final class ResearchChatExportArtifactGenerator {
     ) {
     }
 
-    private record FileDescriptor(
-            String name,
-            long sizeBytes,
-            String sha256
+    private record MetadataCategory(
+            String categoryId,
+            String name
     ) {
     }
 
-    private record ManifestCounts(
-            long messages,
-            long changes,
-            long created,
-            long updated,
-            long deleted
-    ) {
-    }
-
-    private record Manifest(
-            int schemaVersion,
-            String exportId,
+    private record MetadataRoom(
             String roomId,
-            String roomName,
-            String roomDescription,
-            long capturedChangeSequence,
+            String name,
+            String description,
+            List<MetadataCategory> categories,
+            RoomStatus status,
+            Instant createdAt,
+            Instant closedAt
+    ) {
+    }
+
+    private record MetadataParticipant(
+            String userId,
+            MembershipStatus status,
+            long messageCount
+    ) {
+    }
+
+    private record Metadata(
+            int schemaVersion,
             Instant capturedAt,
-            Instant generatedAt,
-            String identityMode,
-            String messageRepresentation,
-            boolean deletedContentIncluded,
-            boolean changeHistoryIncluded,
-            String jsonTimezone,
-            String htmlTimezone,
-            ManifestCounts counts,
-            List<FileDescriptor> files
+            MetadataRoom room,
+            List<MetadataParticipant> participants
     ) {
     }
 

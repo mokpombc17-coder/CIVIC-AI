@@ -9,6 +9,8 @@ import com.hamcheeze.chat.message.audit.ChatMessageAuditWriter;
 import com.hamcheeze.chat.message.audit.mongo.MongoChatMessageAuditEventDocument;
 import com.hamcheeze.chat.message.audit.mongo.MongoRoomMessageAuditSequenceDocument;
 import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.JoinRoomTransition;
+import com.hamcheeze.chat.room.LeaveRoomTransition;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomCreationResult;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
@@ -134,14 +136,14 @@ class ResearchChatExportApiIntegrationTest
         ZipContents zip = unzip(zipBytes);
         assertThat(zip.entryNames()).hasSize(4)
                 .containsExactlyInAnyOrder(
-                        "manifest.json", "messages.jsonl",
+                        "metadata.json", "messages.jsonl",
                         "message_changes.jsonl", "transcript.html");
         assertThat(zip.entries()).hasSize(4);
 
         verifyMessages(zip.entries().get("messages.jsonl"));
         verifyChanges(zip.entries().get("message_changes.jsonl"),
                 auditEvents);
-        verifyManifest(zip.entries());
+        verifyMetadata(zip.entries().get("metadata.json"));
         verifyTranscript(zip.entries().get("transcript.html"));
         verifySucceededJob(exportId, artifactSha256, zipBytes.length);
     }
@@ -157,8 +159,33 @@ class ResearchChatExportApiIntegrationTest
                 RoomVisibility.LISTED,
                 JoinPolicy.OPEN,
                 Instant.parse("2026-01-01T00:00:00Z"));
-        roomStore.insert(creation.room());
+        JoinRoomTransition firstParticipant =
+                RoomMembershipTransitions.joinRoom(
+                        creation.room(), null,
+                        "membership-user-1", "user-1",
+                        Instant.parse("2026-08-01T00:00:00Z"), 0);
+        JoinRoomTransition secondParticipant =
+                RoomMembershipTransitions.joinRoom(
+                        firstParticipant.room(), null,
+                        "membership-user-2", "user-2",
+                        Instant.parse("2026-08-01T00:01:00Z"), 0);
+        JoinRoomTransition silentParticipant =
+                RoomMembershipTransitions.joinRoom(
+                        secondParticipant.room(), null,
+                        "membership-user-3", "user-3",
+                        Instant.parse("2026-08-01T00:02:00Z"), 0);
+        LeaveRoomTransition leftParticipant =
+                RoomMembershipTransitions.leaveRoom(
+                        silentParticipant.room(),
+                        secondParticipant.membership(),
+                        "user-2",
+                        Instant.parse("2026-08-24T02:28:00Z"));
+
+        roomStore.insert(leftParticipant.room());
         membershipStore.insert(creation.ownerMembership());
+        membershipStore.insert(firstParticipant.membership());
+        membershipStore.insert(leftParticipant.membership());
+        membershipStore.insert(silentParticipant.membership());
     }
 
     private List<ChatMessageAuditEvent> appendAuditEvents() {
@@ -280,46 +307,44 @@ class ResearchChatExportApiIntegrationTest
                 .isEqualTo(auditEvent.occurredAt().toString());
     }
 
-    private void verifyManifest(Map<String, byte[]> entries)
-            throws Exception {
-        JsonNode manifest = JSON.readTree(entries.get("manifest.json"));
-        assertThat(manifest.get("roomId").stringValue()).isEqualTo(ROOM_ID);
-        assertThat(manifest.get("schemaVersion").intValue()).isEqualTo(1);
-        assertThat(manifest.has("roomCategoryIds")).isFalse();
-        assertThat(manifest.has("roomCategories")).isFalse();
-        assertThat(manifest.has("categories")).isFalse();
-        assertThat(manifest.get("capturedChangeSequence").longValue())
-                .isEqualTo(4);
-        assertThat(manifest.get("identityMode").stringValue())
-                .isEqualTo("INTERNAL_USER_ID");
-        assertThat(manifest.get("messageRepresentation").stringValue())
-                .isEqualTo("FINAL_CONTENT");
-        assertThat(manifest.get("deletedContentIncluded").booleanValue())
-                .isTrue();
-        assertThat(manifest.get("changeHistoryIncluded").booleanValue())
-                .isTrue();
+    private void verifyMetadata(byte[] payload) throws Exception {
+        JsonNode metadata = JSON.readTree(payload);
+        assertThat(metadata.propertyNames()).containsExactlyInAnyOrder(
+                "schemaVersion", "capturedAt", "room", "participants");
+        assertThat(metadata.get("schemaVersion").intValue()).isEqualTo(1);
+        assertThat(metadata.get("capturedAt").isNull()).isFalse();
 
-        JsonNode counts = manifest.get("counts");
-        assertThat(counts.get("messages").longValue()).isEqualTo(2);
-        assertThat(counts.get("changes").longValue()).isEqualTo(4);
-        assertThat(counts.get("created").longValue()).isEqualTo(2);
-        assertThat(counts.get("updated").longValue()).isEqualTo(1);
-        assertThat(counts.get("deleted").longValue()).isEqualTo(1);
+        JsonNode room = metadata.get("room");
+        assertThat(room.get("roomId").stringValue()).isEqualTo(ROOM_ID);
+        assertThat(room.get("name").stringValue()).isEqualTo("연구 <Room>");
+        assertThat(room.get("description").stringValue())
+                .isEqualTo("설명 & 검증");
+        assertThat(room.get("status").stringValue()).isEqualTo("ACTIVE");
+        assertThat(room.get("closedAt").isNull()).isTrue();
+        assertThat(room.get("categories").size()).isEqualTo(1);
+        assertThat(room.get("categories").get(0).get("name")
+                .stringValue()).isNotBlank();
 
-        Set<String> described = new LinkedHashSet<>();
-        for (JsonNode descriptor : manifest.get("files")) {
-            String name = descriptor.get("name").stringValue();
-            described.add(name);
-            byte[] payload = entries.get(name);
-            assertThat(payload).isNotNull();
-            assertThat(descriptor.get("sizeBytes").longValue())
-                    .isEqualTo(payload.length);
-            assertThat(descriptor.get("sha256").stringValue())
-                    .isEqualTo(sha256(payload));
-        }
-        assertThat(described).containsExactly(
-                "messages.jsonl", "message_changes.jsonl",
-                "transcript.html");
+        JsonNode participants = metadata.get("participants");
+        assertThat(participants.size()).isEqualTo(4);
+        assertParticipant(participants.get(0), "research-owner", "ACTIVE", 0);
+        assertParticipant(participants.get(1), "user-1", "ACTIVE", 1);
+        assertParticipant(participants.get(2), "user-2", "LEFT", 1);
+        assertParticipant(participants.get(3), "user-3", "ACTIVE", 0);
+    }
+
+    private void assertParticipant(
+            JsonNode participant,
+            String userId,
+            String status,
+            long messageCount
+    ) {
+        assertThat(participant.propertyNames()).containsExactlyInAnyOrder(
+                "userId", "status", "messageCount");
+        assertThat(participant.get("userId").stringValue()).isEqualTo(userId);
+        assertThat(participant.get("status").stringValue()).isEqualTo(status);
+        assertThat(participant.get("messageCount").longValue())
+                .isEqualTo(messageCount);
     }
 
     private void verifyTranscript(byte[] payload) {
