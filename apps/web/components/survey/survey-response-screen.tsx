@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import {
+  getSurveyQuestionLabel,
   sortSurveyGroups,
   sortSurveyOptions,
   sortSurveyQuestions,
@@ -55,15 +56,15 @@ function SurveyResponseContent({ detail }: { detail: SurveyResponseDetail }) {
         <p>{new Date(detail.submittedAt).toLocaleString("ko-KR")} 제출</p>
       </header>
       {sortSurveySections(detail.content.sections).map((section) => (
-        <section className={styles.responseSection} key={section.sectionId}>
+        <section className={styles.responseSection} key={section.sectionKey}>
           <h3>{section.title}</h3>
           {sortSurveyGroups(section.groups).map((group) => (
-            <div className={styles.responseGroup} key={group.groupId}>
+            <div className={styles.responseGroup} key={group.groupKey}>
               <h4>{group.title}</h4>
               <dl>
                 {sortSurveyQuestions(group.questions).map((question) => (
-                  <div key={question.questionId}>
-                    <dt>{group.questions.length > 1 ? question.itemLabel : group.prompt}</dt>
+                  <div key={question.itemKey}>
+                    <dt>{getSurveyQuestionLabel(group, question)}</dt>
                     <dd>{formatStoredAnswer(question, answers.get(question.questionId))}</dd>
                   </div>
                 ))}

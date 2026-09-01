@@ -30,7 +30,6 @@ export const surveyRuleSchema = z.object({
 
 export const surveyOptionSchema = z.object({
   optionId: surveyUuidSchema,
-  optionLineageId: surveyUuidSchema,
   optionLocalKey: z.string().min(1),
   kind: surveyOptionKindSchema,
   label: z.string(),
@@ -39,9 +38,8 @@ export const surveyOptionSchema = z.object({
 
 export const surveyQuestionSchema = z.object({
   questionId: surveyUuidSchema,
-  questionLineageId: surveyUuidSchema,
   itemKey: z.string().min(1),
-  itemLabel: z.string(),
+  itemLabel: z.string().nullable(),
   itemDisplayOrder: z.number().int(),
   type: surveyQuestionTypeSchema,
   prompt: z.string(),
@@ -52,8 +50,6 @@ export const surveyQuestionSchema = z.object({
 });
 
 export const surveyQuestionGroupSchema = z.object({
-  groupId: surveyUuidSchema,
-  groupLineageId: surveyUuidSchema,
   groupKey: z.string().min(1),
   sourceNumber: z.string(),
   displayOrder: z.number().int(),
@@ -64,8 +60,6 @@ export const surveyQuestionGroupSchema = z.object({
 });
 
 export const surveyQuestionSectionSchema = z.object({
-  sectionId: surveyUuidSchema,
-  sectionLineageId: surveyUuidSchema,
   sectionKey: z.string().min(1),
   title: z.string(),
   description: z.string().nullable(),
@@ -235,6 +229,14 @@ export function getSurveyQuestions(content: PublishedSurveyContent): SurveyQuest
   return sortSurveySections(content.sections).flatMap((section) =>
     sortSurveyGroups(section.groups).flatMap((group) => sortSurveyQuestions(group.questions)),
   );
+}
+
+export function getSurveyQuestionLabel(
+  group: SurveyQuestionGroup,
+  question: SurveyQuestion,
+): string {
+  if (group.questions.length === 1) return group.prompt;
+  return question.itemLabel?.trim() || question.prompt;
 }
 
 function sortByDisplayOrder<T extends { displayOrder: number }>(items: readonly T[]): T[] {

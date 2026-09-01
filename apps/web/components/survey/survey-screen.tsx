@@ -31,6 +31,7 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
 
   return (
     <PlatformShell
+      className={styles.shell!}
       contentClassName={styles.content!}
       header={<PlatformHeader leading={null} title="설문 정보 입력" />}
     >

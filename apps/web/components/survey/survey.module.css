@@ -1,32 +1,45 @@
+.shell {
+  --platform-shell-header-height: 64px;
+}
+
 .content {
   background: var(--platform-shell-color-surface);
 }
 
 .screen {
   min-height: 100%;
-  padding: 0 16px 24px;
+  padding: 16px 16px 24px;
   color: var(--platform-shell-color-text);
 }
 
 .flow {
   display: grid;
-  gap: 12px;
+  gap: 16px;
   width: 100%;
 }
 
 .progressBlock {
-  padding: 12px 12px 16px;
-  border-bottom: 1px solid var(--platform-shell-color-border);
+  display: grid;
+  gap: 10px;
+  padding: 12px 0;
+}
+
+.progressBlock::after {
+  width: 100%;
+  height: 1px;
+  background: var(--platform-shell-color-border);
+  content: "";
 }
 
 .progressLabel {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
+  padding: 0 16px;
   margin: 0;
   color: var(--platform-shell-color-text);
   font-size: 13px;
-  line-height: 18px;
+  line-height: 19.5px;
 }
 
 .progressLabel span {
@@ -35,22 +48,29 @@
 }
 
 .progressLabel strong {
+  font-size: 16px;
   font-weight: 700;
+  line-height: 22.4px;
 }
 
 .progressBars {
   display: grid;
   grid-template-columns: repeat(var(--survey-step-count, 8), minmax(0, 1fr));
+  height: 8px;
+  align-items: center;
   gap: 4px;
-  padding: 0;
-  margin: 10px 0 0;
+  padding: 0 16px;
+  margin: 0;
   list-style: none;
 }
 
 .progressBar {
   height: 4px;
-  border-radius: 999px;
   background: #8a949e;
+}
+
+.progressBar[data-state="current"] {
+  height: 8px;
 }
 
 .progressBar[data-state="complete"],
@@ -59,30 +79,32 @@
 }
 
 .stepCard {
-  padding: 12px 12px 20px;
+  display: grid;
+  gap: 12px;
+  padding: 12px 20px 20px;
   border: 1px solid var(--platform-shell-color-border);
   border-radius: 8px;
   background: var(--platform-shell-color-surface);
 }
 
 .stepTitle {
-  padding: 0 2px 10px;
+  padding: 0 0 10px;
   border-bottom: 1px solid var(--platform-shell-color-border);
   margin: 0;
   color: var(--platform-shell-color-text);
   font-size: 18px;
   font-weight: 700;
   letter-spacing: -0.3px;
-  line-height: 25px;
+  line-height: 27px;
 }
 
 .stepContent {
-  padding: 12px 2px 0;
+  padding: 0;
 }
 
 .sectionFields {
   display: grid;
-  gap: 20px;
+  gap: 12px;
 }
 
 .sectionDescription,
@@ -95,14 +117,7 @@
 
 .questionGroup {
   display: grid;
-  gap: 12px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid var(--platform-shell-color-border);
-}
-
-.questionGroup:last-child {
-  padding-bottom: 0;
-  border-bottom: 0;
+  gap: 6px;
 }
 
 .questionGroupHeader {
@@ -119,13 +134,13 @@
   color: var(--platform-shell-color-text);
   font-size: 15px;
   font-weight: 700;
-  line-height: 22px;
+  line-height: 22.5px;
 }
 
 .questionGroupHeader p {
   color: var(--platform-shell-color-muted);
   font-size: 13px;
-  line-height: 20px;
+  line-height: 19.5px;
 }
 
 .questionList {
@@ -135,14 +150,14 @@
 
 .questionField {
   display: grid;
-  gap: 7px;
+  gap: 6px;
 }
 
 .questionLabel {
   color: var(--platform-shell-color-text);
-  font-size: 13px;
-  font-weight: 600;
-  line-height: 20px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
 }
 
 .questionLabel span {
@@ -153,15 +168,40 @@
 .textControl,
 .otherTextControl {
   width: 100%;
-  min-height: 44px;
-  padding: 10px 12px;
-  border: 1px solid var(--platform-shell-color-border);
+  min-height: 48px;
+  padding: 11px;
+  border: 1px solid #59616b;
   border-radius: 6px;
   background: var(--platform-shell-color-surface);
   color: var(--platform-shell-color-text);
   font: inherit;
-  font-size: 14px;
-  line-height: 20px;
+  font-size: 16px;
+  line-height: 24px;
+}
+
+.selectControl,
+input.textControl,
+.otherTextControl {
+  height: 48px;
+}
+
+.selectControl {
+  appearance: none;
+}
+
+.selectControl[data-empty="true"] {
+  color: var(--platform-shell-color-muted);
+}
+
+.textControl::placeholder,
+.otherTextControl::placeholder {
+  color: var(--platform-shell-color-muted);
+  opacity: 1;
+}
+
+.residenceFields {
+  display: grid;
+  gap: 6px;
 }
 
 textarea.textControl {
@@ -342,7 +382,7 @@ textarea.textControl {
 
 .actions {
   display: grid;
-  gap: 6px;
+  gap: 8px;
 }
 
 .action {

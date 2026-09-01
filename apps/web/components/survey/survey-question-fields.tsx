@@ -1,4 +1,5 @@
 import {
+  getSurveyQuestionLabel,
   sortSurveyGroups,
   sortSurveyOptions,
   sortSurveyQuestions,
@@ -12,6 +13,10 @@ import type {
   SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
 import styles from "./survey.module.css";
+
+const BIRTH_YEAR_GROUP_KEY = "demographics.birth-year";
+const RESIDENCE_GROUP_KEY = "demographics.residence";
+const RESIDENCE_HELP_TEXT = "행정구역 · 자치구 · 행정동을 순서대로 선택해 주세요";
 
 export function SurveySectionFields({
   answers,
@@ -33,21 +38,28 @@ export function SurveySectionFields({
       ) : null}
       {groups.map((group) => {
         const questions = sortSurveyQuestions(group.questions);
+        const groupPrompt =
+          questions.length > 1 && group.prompt !== group.title ? group.prompt : null;
+        const helperText =
+          group.groupKey === RESIDENCE_GROUP_KEY ? RESIDENCE_HELP_TEXT : groupPrompt;
         return (
-          <section className={styles.questionGroup} key={group.groupId}>
+          <section className={styles.questionGroup} key={group.groupKey}>
             <div className={styles.questionGroupHeader}>
               <h3>{group.title}</h3>
-              {group.prompt && group.prompt !== group.title ? <p>{group.prompt}</p> : null}
+              {helperText ? <p>{helperText}</p> : null}
               {group.description ? <p>{group.description}</p> : null}
             </div>
             <div className={styles.questionList}>
               {questions.map((question) => (
                 <SurveyQuestionField
                   answer={answers[question.questionId]}
+                  controlId={`survey-question-${section.sectionKey}-${group.groupKey}-${question.itemKey}`}
                   error={errors[question.questionId]}
-                  key={question.questionId}
+                  groupKey={group.groupKey}
+                  key={question.itemKey}
                   onChange={(answer) => onAnswerChange(question.questionId, answer)}
                   question={question}
+                  questionLabel={getSurveyQuestionLabel(group, question)}
                   showItemLabel={questions.length > 1}
                 />
               ))}
@@ -61,18 +73,23 @@ export function SurveySectionFields({
 
 function SurveyQuestionField({
   answer,
+  controlId,
   error,
+  groupKey,
   onChange,
   question,
+  questionLabel,
   showItemLabel,
 }: {
   answer: SurveyAnswerDraft | undefined;
+  controlId: string;
   error: string | undefined;
+  groupKey: string;
   onChange: (answer: SurveyAnswerDraft) => void;
   question: SurveyQuestion;
+  questionLabel: string;
   showItemLabel: boolean;
 }) {
-  const controlId = `survey-question-${question.questionId}`;
   const errorId = `${controlId}-error`;
   const descriptionId = `${controlId}-description`;
   const describedBy = [question.description ? descriptionId : null, error ? errorId : null]
@@ -83,7 +100,7 @@ function SurveyQuestionField({
     <div className={styles.questionField} data-invalid={error ? "true" : undefined}>
       {showItemLabel ? (
         <label className={styles.questionLabel} htmlFor={controlId}>
-          {question.itemLabel}
+          {questionLabel}
           {question.required ? <span aria-label="필수"> *</span> : null}
         </label>
       ) : null}
@@ -96,8 +113,10 @@ function SurveyQuestionField({
         answer={answer}
         controlId={controlId}
         describedBy={describedBy || undefined}
+        groupKey={groupKey}
         onChange={onChange}
         question={question}
+        questionLabel={questionLabel}
       />
       {error ? (
         <p className={styles.questionError} id={errorId} role="alert">
@@ -112,15 +131,31 @@ function SurveyQuestionControl({
   answer,
   controlId,
   describedBy,
+  groupKey,
   onChange,
   question,
+  questionLabel,
 }: {
   answer: SurveyAnswerDraft | undefined;
   controlId: string;
   describedBy: string | undefined;
+  groupKey: string;
   onChange: (answer: SurveyAnswerDraft) => void;
   question: SurveyQuestion;
+  questionLabel: string;
 }) {
+  if (groupKey === RESIDENCE_GROUP_KEY && question.type === "SHORT_TEXT") {
+    return (
+      <ResidenceTextInputs
+        answer={answer}
+        controlId={controlId}
+        describedBy={describedBy}
+        maxLength={question.rule.maxLength}
+        onChange={onChange}
+      />
+    );
+  }
+
   switch (question.type) {
     case "SINGLE_CHOICE": {
       const selection = answer?.type === question.type ? answer.selection : null;
@@ -130,8 +165,9 @@ function SurveyQuestionControl({
         <>
           <select
             aria-describedby={describedBy}
-            aria-label={question.itemLabel}
+            aria-label={questionLabel}
             className={styles.selectControl}
+            data-empty={selection ? undefined : "true"}
             id={controlId}
             onChange={(event) =>
               onChange({
@@ -145,7 +181,7 @@ function SurveyQuestionControl({
           >
             <option value="">선택</option>
             {options.map((option) => (
-              <option key={option.optionId} value={option.optionId}>
+              <option key={option.optionLocalKey} value={option.optionId}>
                 {option.label}
               </option>
             ))}
@@ -166,11 +202,11 @@ function SurveyQuestionControl({
       const selections = answer?.type === question.type ? answer.selections : [];
       return (
         <fieldset aria-describedby={describedBy} className={styles.choiceGroup} id={controlId}>
-          <legend className={styles.visuallyHidden}>{question.itemLabel}</legend>
+          <legend className={styles.visuallyHidden}>{questionLabel}</legend>
           {sortSurveyOptions(question.options).map((option) => {
             const selection = selections.find((item) => item.optionId === option.optionId);
             return (
-              <div className={styles.choiceItem} key={option.optionId}>
+              <div className={styles.choiceItem} key={option.optionLocalKey}>
                 <label>
                   <input
                     checked={Boolean(selection)}
@@ -188,7 +224,7 @@ function SurveyQuestionControl({
                 </label>
                 {option.kind === "OTHER" && selection ? (
                   <OtherTextInput
-                    controlId={`${controlId}-${option.optionId}-other`}
+                    controlId={`${controlId}-${option.optionLocalKey}-other`}
                     onChange={(inputText) =>
                       onChange({
                         type: "MULTIPLE_CHOICE",
@@ -209,7 +245,7 @@ function SurveyQuestionControl({
       const value = answer?.type === question.type ? answer.text : "";
       const commonProps = {
         "aria-describedby": describedBy,
-        "aria-label": question.itemLabel,
+        "aria-label": questionLabel,
         className: styles.textControl,
         id: controlId,
         maxLength: question.rule.maxLength ?? undefined,
@@ -231,8 +267,9 @@ function SurveyQuestionControl({
         return (
           <select
             aria-describedby={describedBy}
-            aria-label={question.itemLabel}
+            aria-label={questionLabel}
             className={styles.selectControl}
+            data-empty={value === null ? "true" : undefined}
             id={controlId}
             onChange={(event) =>
               onChange({
@@ -242,7 +279,7 @@ function SurveyQuestionControl({
             }
             value={value ?? ""}
           >
-            <option value="">선택</option>
+            <option value="">{groupKey === BIRTH_YEAR_GROUP_KEY ? "YYYY" : "선택"}</option>
             {Array.from({ length: maximum - minimum + 1 }, (_, index) => maximum - index).map(
               (number) => (
                 <option key={number} value={number}>
@@ -256,7 +293,7 @@ function SurveyQuestionControl({
       return (
         <input
           aria-describedby={describedBy}
-          aria-label={question.itemLabel}
+          aria-label={questionLabel}
           className={styles.textControl}
           id={controlId}
           inputMode={question.rule.decimalAllowed === false ? "numeric" : "decimal"}
@@ -280,7 +317,7 @@ function SurveyQuestionControl({
       const maximum = question.rule.maximum ?? 10;
       return (
         <fieldset aria-describedby={describedBy} className={styles.scaleField} id={controlId}>
-          <legend className={styles.visuallyHidden}>{question.itemLabel}</legend>
+          <legend className={styles.visuallyHidden}>{questionLabel}</legend>
           <div className={styles.scaleOptions}>
             {Array.from({ length: maximum - minimum + 1 }, (_, index) => minimum + index).map(
               (scale) => (
@@ -304,6 +341,64 @@ function SurveyQuestionControl({
       );
     }
   }
+}
+
+function ResidenceTextInputs({
+  answer,
+  controlId,
+  describedBy,
+  maxLength,
+  onChange,
+}: {
+  answer: SurveyAnswerDraft | undefined;
+  controlId: string;
+  describedBy: string | undefined;
+  maxLength: number | null;
+  onChange: (answer: SurveyAnswerDraft) => void;
+}) {
+  const segments =
+    answer?.type === "SHORT_TEXT" && answer.inputSegments
+      ? [...answer.inputSegments]
+      : ["", "", ""];
+  const fields = [
+    { autoComplete: "address-level1", label: "행정구역", placeholder: "행정구역 (예: 서울특별시)" },
+    { autoComplete: "address-level2", label: "자치구", placeholder: "자치구 (예: 동대문구)" },
+    { autoComplete: "address-line1", label: "행정동", placeholder: "행정동 (예: 장안동)" },
+  ] as const;
+
+  function updateSegment(index: number, value: string) {
+    const nextSegments = fields.map((_, fieldIndex) =>
+      fieldIndex === index ? value : (segments[fieldIndex] ?? ""),
+    );
+    onChange({
+      type: "SHORT_TEXT",
+      inputSegments: nextSegments,
+      text: nextSegments
+        .map((segment) => segment.trim())
+        .filter(Boolean)
+        .join(" "),
+    });
+  }
+
+  return (
+    <div className={styles.residenceFields}>
+      {fields.map((field, index) => (
+        <input
+          aria-describedby={describedBy}
+          aria-label={field.label}
+          autoComplete={field.autoComplete}
+          className={styles.textControl}
+          id={`${controlId}-${index + 1}`}
+          key={field.label}
+          maxLength={maxLength ?? undefined}
+          onChange={(event) => updateSegment(index, event.target.value)}
+          placeholder={field.placeholder}
+          type="text"
+          value={segments[index] ?? ""}
+        />
+      ))}
+    </div>
+  );
 }
 
 function OtherTextInput({

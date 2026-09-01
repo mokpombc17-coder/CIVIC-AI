@@ -18,7 +18,11 @@ export type SurveySelectionDraft = Readonly<{
 export type SurveyAnswerDraft =
   | Readonly<{ type: "SINGLE_CHOICE"; selection: SurveySelectionDraft | null }>
   | Readonly<{ type: "MULTIPLE_CHOICE"; selections: readonly SurveySelectionDraft[] }>
-  | Readonly<{ type: "SHORT_TEXT" | "LONG_TEXT"; text: string }>
+  | Readonly<{
+      type: "SHORT_TEXT" | "LONG_TEXT";
+      text: string;
+      inputSegments?: readonly string[];
+    }>
   | Readonly<{ type: "NUMBER"; number: number | null }>
   | Readonly<{ type: "SCALE"; scale: number | null }>;
 
@@ -136,6 +140,9 @@ function validateSurveyAnswer(
     case "LONG_TEXT": {
       const value = answer.text.trim();
       if (question.required && value.length === 0) return "답변을 입력해 주세요.";
+      if (answer.inputSegments?.some((segment) => segment.trim().length === 0)) {
+        return "항목을 모두 입력해 주세요.";
+      }
       if (
         question.rule.maxLength !== null &&
         Array.from(answer.text).length > question.rule.maxLength

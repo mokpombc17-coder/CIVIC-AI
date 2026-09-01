@@ -69,4 +69,21 @@ describe("survey answer state", () => {
       ],
     ).toBe("기타 내용을 입력해 주세요.");
   });
+
+  it("분할 텍스트 입력은 모든 항목을 작성해야 한다", () => {
+    const answers = {
+      ...createSurveyAnswerState(currentSurveyFixture.content),
+      [surveyQuestionFixtures.shortText.questionId]: {
+        type: "SHORT_TEXT" as const,
+        text: "서울특별시",
+        inputSegments: ["서울특별시", "", ""],
+      },
+    };
+
+    expect(
+      validateSurvey(currentSurveyFixture.content, answers)[
+        surveyQuestionFixtures.shortText.questionId
+      ],
+    ).toBe("항목을 모두 입력해 주세요.");
+  });
 });

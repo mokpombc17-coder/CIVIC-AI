@@ -6,7 +6,6 @@ import {
 
 export const SURVEY_ROUND_ID = testUuid(1);
 export const SURVEY_CONTENT_ID = testUuid(2);
-export const SURVEY_SECTION_ID = testUuid(3);
 
 export const surveyQuestionFixtures = {
   single: createQuestion(10, "SINGLE_CHOICE", {
@@ -41,15 +40,11 @@ export const currentSurveyFixture: CurrentSurveyResponse = currentSurveyResponse
     description: null,
     sections: [
       {
-        sectionId: SURVEY_SECTION_ID,
-        sectionLineageId: testUuid(4),
         sectionKey: "test-section",
         title: "테스트 Section",
         description: null,
         displayOrder: 1,
         groups: Object.values(surveyQuestionFixtures).map((question, index) => ({
-          groupId: testUuid(300 + index),
-          groupLineageId: testUuid(400 + index),
           groupKey: `group-${index + 1}`,
           sourceNumber: String(index + 1),
           displayOrder: index + 1,
@@ -83,7 +78,6 @@ function createQuestion(
 ): SurveyQuestion {
   return {
     questionId: testUuid(seed),
-    questionLineageId: testUuid(seed + 1),
     itemKey: `item-${seed}`,
     itemLabel: `문항 ${seed}`,
     itemDisplayOrder: 1,
@@ -110,7 +104,6 @@ function createQuestion(
 function createOption(seed: number, label: string, kind: "STANDARD" | "OTHER" = "STANDARD") {
   return {
     optionId: testUuid(seed),
-    optionLineageId: testUuid(seed + 1_000),
     optionLocalKey: `option-${seed}`,
     kind,
     label,
