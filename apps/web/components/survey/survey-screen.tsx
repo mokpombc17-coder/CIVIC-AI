@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
-import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
+import type { SurveySection } from "@/lib/survey/survey-contracts";
 import {
   buildSubmitSurveyRequest,
   createSurveyAnswerState,
@@ -125,7 +125,6 @@ function SurveyForm({
   );
   const [errors, setErrors] = useState<SurveyValidationErrors>({});
   const [isRequiredConfirmationChecked, setIsRequiredConfirmationChecked] = useState(false);
-  const [submissionResult, setSubmissionResult] = useState<SubmissionResponse | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [validationScrollRequest, setValidationScrollRequest] = useState(0);
   const flowViewportRef = useRef<HTMLDivElement>(null);
@@ -154,7 +153,7 @@ function SurveyForm({
 
   useEffect(() => {
     onHeaderProgressChange(null);
-  }, [currentStep, onHeaderProgressChange, submissionResult]);
+  }, [currentStep, onHeaderProgressChange]);
 
   useEffect(
     () => () => {
@@ -162,10 +161,6 @@ function SurveyForm({
     },
     [onHeaderProgressChange],
   );
-
-  if (submissionResult) {
-    return <SurveySubmitted cancelHref={cancelHref} preview={!submissionResult.persisted} />;
-  }
 
   if (sections.length === 0) {
     return (
@@ -235,11 +230,10 @@ function SurveyForm({
     setSubmissionError(null);
 
     try {
-      const result = await submitMutation.mutateAsync({
+      await submitMutation.mutateAsync({
         command: prepared.payload,
         idempotencyKey: prepared.idempotencyKey,
       });
-      setSubmissionResult(result);
       router.replace("/home");
     } catch (error) {
       const apiErrors = getSurveySubmissionErrors(error);
@@ -341,13 +335,7 @@ function SurveyConfirmation({
   );
 }
 
-function SurveySubmitted({
-  cancelHref,
-  preview = false,
-}: {
-  cancelHref: string;
-  preview?: boolean;
-}) {
+function SurveySubmitted({ cancelHref }: { cancelHref: string }) {
   return (
     <SurveyStatus
       actions={
@@ -356,8 +344,7 @@ function SurveySubmitted({
         </a>
       }
       icon={<span aria-hidden="true" className={styles.submittedIcon} />}
-      title={preview ? "설문 검증을 완료했습니다." : "설문 제출을 완료했습니다."}
-      {...(preview ? { description: "이 응답은 서버에 저장되지 않습니다." } : {})}
+      title="설문 제출을 완료했습니다."
     />
   );
 }
