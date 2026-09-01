@@ -25,6 +25,8 @@ import { SurveySectionFields } from "./survey-question-fields";
 import styles from "./survey.module.css";
 
 const CONFIRMATION_STEP_TITLE = "필수 동의·확인";
+const CONFIRMATION_CARD_TITLE = "필수 동의 항목";
+const HOUSEHOLD_SECTION_KEY = "household-information";
 
 export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
   const currentSurveyQuery = useCurrentSurveyQuery();
@@ -97,6 +99,9 @@ function SurveyForm({ cancelHref, survey }: { cancelHref: string; survey: Curren
   const stepTitle = isConfirmationStep
     ? CONFIRMATION_STEP_TITLE
     : (currentSection?.title ?? sections[0]!.title);
+  const progressTitle =
+    currentSection?.sectionKey === HOUSEHOLD_SECTION_KEY ? "가구정보" : stepTitle;
+  const stepCardTitle = isConfirmationStep ? CONFIRMATION_CARD_TITLE : stepTitle;
 
   function updateAnswer(questionId: string, answer: SurveyAnswerDraft) {
     setAnswers((current) => ({ ...current, [questionId]: answer }));
@@ -153,13 +158,34 @@ function SurveyForm({ cancelHref, survey }: { cancelHref: string; survey: Curren
     );
   }
 
+  const actions = (
+    <SurveyStepActions
+      cancelHref={cancelHref}
+      currentStep={currentStep}
+      isSubmitting={submitMutation.isPending}
+      onNext={goToNextStep}
+      onPrevious={() => {
+        submitMutation.reset();
+        setCurrentStep((step) => Math.max(step - 1, 1));
+      }}
+      onSubmit={submitSurvey}
+      submitDisabled={!isRequiredConfirmationChecked}
+      totalSteps={totalSteps}
+    />
+  );
+
   return (
     <div data-survey-step={currentStep}>
       <SurveyFlowLayout>
-        <SurveyProgress currentStep={currentStep} stepTitle={stepTitle} totalSteps={totalSteps} />
-        <SurveyStepCard title={stepTitle}>
+        <SurveyProgress
+          currentStep={currentStep}
+          stepTitle={progressTitle}
+          totalSteps={totalSteps}
+        />
+        <SurveyStepCard title={stepCardTitle}>
           {isConfirmationStep ? (
             <SurveyConfirmation
+              actions={actions}
               checked={isRequiredConfirmationChecked}
               onChange={setIsRequiredConfirmationChecked}
             />
@@ -173,44 +199,36 @@ function SurveyForm({ cancelHref, survey }: { cancelHref: string; survey: Curren
           ) : null}
         </SurveyStepCard>
         {submitMutation.isError ? <SurveySubmitError error={submitMutation.error} /> : null}
-        <SurveyStepActions
-          cancelHref={cancelHref}
-          currentStep={currentStep}
-          isSubmitting={submitMutation.isPending}
-          onNext={goToNextStep}
-          onPrevious={() => {
-            submitMutation.reset();
-            setCurrentStep((step) => Math.max(step - 1, 1));
-          }}
-          onSubmit={submitSurvey}
-          submitDisabled={!isRequiredConfirmationChecked}
-          totalSteps={totalSteps}
-        />
+        {isConfirmationStep ? null : actions}
       </SurveyFlowLayout>
     </div>
   );
 }
 
 function SurveyConfirmation({
+  actions,
   checked,
   onChange,
 }: {
+  actions: ReactNode;
   checked: boolean;
   onChange: (checked: boolean) => void;
 }) {
   return (
     <section className={styles.confirmation}>
-      <h3>필수 동의 항목</h3>
       <label className={styles.confirmationCheck}>
         <input
           checked={checked}
           onChange={(event) => onChange(event.target.checked)}
           type="checkbox"
         />
-        <span>민감정보 수집·이용에 동의합니다</span>
-        <strong>필수</strong>
+        <span className={styles.confirmationLabel}>
+          <span>민감정보 수집·이용에 동의합니다</span>
+          <strong>필수</strong>
+        </span>
       </label>
       <p>동의를 거부할 수 있으나, 동의하지 않으면 가입할 수 없습니다.</p>
+      {actions}
     </section>
   );
 }

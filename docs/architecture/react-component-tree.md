@@ -75,7 +75,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `SurveyScreen`은 현재 설문을 조회하고 API의 7개 Section을 동적으로 조립한 뒤, 프론트 전용
 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 그 안의 Question을 검증하고 최종 제출 시
 42개 Question 답변만 멱등 payload로 전송한다. 답변과 필수 확인 상태는 화면 수명 동안만 유지하며
-browser storage에는 저장하지 않는다. 필수 절차에서는 bottom navigation을 조립하지 않는다.
+browser storage에는 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
+마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
+절차에서는 bottom navigation을 조립하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -91,8 +93,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                     │           └── SurveyFlowLayout [Client graph] [View]
                     │               ├── SurveyProgress [Client graph] [View]
                     │               ├── SurveyStepCard [Client graph] [View]
-                    │               │   └── SurveySectionFields [Client graph] [Feature] [API-driven]
-                    │               └── SurveyStepActions [Client graph] [Feature]
+                    │               │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
+                    │               │   └── SurveyConfirmation [Client graph] [Feature] [frontend-only: step 8]
+                    │               │       └── SurveyStepActions [Client graph] [Feature] [inside card]
+                    │               └── SurveyStepActions [Client graph] [Feature] [step 1~7]
                     └── route /survey/responses/latest, /survey/responses/[responseId]
                         └── SurveyResponseScreen [Client] [Screen] [read-only]
                             └── PlatformShell [Server-compatible] [View] [bottom navigation: omitted]
