@@ -322,8 +322,6 @@ final class SurveyApiModels {
     }
 
     record QuestionSectionResponse(
-            UUID sectionId,
-            UUID sectionLineageId,
             String sectionKey,
             String title,
             String description,
@@ -335,8 +333,6 @@ final class SurveyApiModels {
                 List<QuestionGroupResponse> groups
         ) {
             return new QuestionSectionResponse(
-                    section.id().value(),
-                    section.lineageKey().value(),
                     section.sectionKey(),
                     section.title(),
                     section.description(),
@@ -346,8 +342,6 @@ final class SurveyApiModels {
     }
 
     record QuestionGroupResponse(
-            UUID groupId,
-            UUID groupLineageId,
             String groupKey,
             String sourceNumber,
             int displayOrder,
@@ -361,8 +355,6 @@ final class SurveyApiModels {
                 List<SurveyQuestion> questions
         ) {
             return new QuestionGroupResponse(
-                    group.id().value(),
-                    group.lineageKey().value(),
                     group.groupKey(),
                     group.sourceNumber(),
                     group.displayOrder(),
@@ -379,7 +371,6 @@ final class SurveyApiModels {
 
     record PublishedQuestionResponse(
             UUID questionId,
-            UUID questionLineageId,
             String itemKey,
             String itemLabel,
             int itemDisplayOrder,
@@ -393,7 +384,6 @@ final class SurveyApiModels {
         static PublishedQuestionResponse from(SurveyQuestion value) {
             return new PublishedQuestionResponse(
                     value.id().value(),
-                    value.lineageKey().value(),
                     value.itemKey(),
                     value.itemLabel(),
                     value.itemDisplayOrder(),
@@ -410,7 +400,6 @@ final class SurveyApiModels {
 
     record PublishedOptionResponse(
             UUID optionId,
-            UUID optionLineageId,
             String optionLocalKey,
             SurveyOptionKind kind,
             String label,
@@ -419,7 +408,6 @@ final class SurveyApiModels {
         static PublishedOptionResponse from(SurveyOption value) {
             return new PublishedOptionResponse(
                     value.id().value(),
-                    value.lineageKey().value(),
                     value.localKey(),
                     value.kind(),
                     value.label(),

@@ -2,6 +2,7 @@ package com.hamcheeze.vote.survey.application.query;
 
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
+import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityContext;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
@@ -22,6 +23,7 @@ public class SurveyEligibilityQueryService {
 
     private final SurveyRoundRepository rounds;
     private final SurveyResponseRepository responses;
+    private final SurveyPreviewMode previewMode;
     private final ServiceEligibilityPolicy policy =
             new ServiceEligibilityPolicy();
     private final Clock clock;
@@ -29,9 +31,10 @@ public class SurveyEligibilityQueryService {
     @Autowired
     public SurveyEligibilityQueryService(
             SurveyRoundRepository rounds,
-            SurveyResponseRepository responses
+            SurveyResponseRepository responses,
+            SurveyPreviewMode previewMode
     ) {
-        this(rounds, responses, Clock.systemUTC());
+        this(rounds, responses, previewMode, Clock.systemUTC());
     }
 
     SurveyEligibilityQueryService(
@@ -39,8 +42,19 @@ public class SurveyEligibilityQueryService {
             SurveyResponseRepository responses,
             Clock clock
     ) {
+        this(rounds, responses, SurveyPreviewMode.disabled(), clock);
+    }
+
+    SurveyEligibilityQueryService(
+            SurveyRoundRepository rounds,
+            SurveyResponseRepository responses,
+            SurveyPreviewMode previewMode,
+            Clock clock
+    ) {
         this.rounds = Objects.requireNonNull(rounds, "rounds");
         this.responses = Objects.requireNonNull(responses, "responses");
+        this.previewMode = Objects.requireNonNull(
+                previewMode, "previewMode");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -66,10 +80,13 @@ public class SurveyEligibilityQueryService {
             List<SurveyRound> activeCandidates
     ) {
         Objects.requireNonNull(userId, "userId");
-        boolean currentResponse = activeCandidates.size() == 1
+        boolean preview = previewMode.enabledFor(userId);
+        boolean currentResponse = !preview
+                && activeCandidates.size() == 1
                 && responses.existsByUserIdAndRoundId(
                         userId, activeCandidates.getFirst().id());
-        boolean priorResponse = responses.existsByUserId(userId)
+        boolean priorResponse = !preview
+                && responses.existsByUserId(userId)
                 && !currentResponse;
         return policy.evaluate(new ServiceEligibilityContext(
                 userId,

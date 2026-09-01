@@ -22,14 +22,15 @@
 
 현재 Survey 응답은 `round`, `content`, `submitted`, `eligibility`로 구성한다.
 `content.sections[].groups[].questions[]`는 7개 Section, 29개 화면 Group과
-42개 저장 Question을 반환한다. Section은 `sectionId`, `sectionLineageId`,
-`sectionKey`, `title`, `description`, `displayOrder`를 포함한다. Group은
-`groupId`, `groupLineageId`, `groupKey`, `sourceNumber`, `displayOrder`, 문구를
-포함하고, Question은 `questionId`, `questionLineageId`, `itemKey`, `itemLabel`,
-`itemDisplayOrder`, 유형·문구·규칙·선택지를 포함한다.
-선택지는 Question 종속 `optionLocalKey=A|B|C...`를 가지며 제출에는
-`optionId`만 사용한다. 모든 Question의 `required`는 `true`다. 사용자용
-`content`에는 관리자 actor와 내부 변경 audit 정보가 포함되지 않는다.
+42개 저장 Question을 반환한다. Section은 `sectionKey`, `title`, `description`,
+`displayOrder`를 포함한다. Group은 `groupKey`, `sourceNumber`, `displayOrder`,
+문구를 포함하고, Question은 제출 식별자인 `questionId`와 `itemKey`,
+`itemLabel`, `itemDisplayOrder`, 유형·문구·규칙·선택지를 포함한다. 선택지는
+제출 식별자인 `optionId`와 Question 종속 `optionLocalKey=A|B|C...`를 가진다.
+사용자 API에는 `sectionId`, `groupId`와 모든 lineage ID를 노출하지 않는다.
+해당 값은 버전 추적을 위해 DB와 서버 도메인 내부에서만 유지한다. 모든
+Question의 `required`는 `true`다. 사용자용 `content`에는 관리자 actor와
+내부 변경 audit 정보가 포함되지 않는다.
 Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 포함하지
 않으며 운영 서버 협의 범위로 둔다.
 
@@ -71,6 +72,20 @@ Figma의 필수 동의·확인 페이지는 Survey Section과 제출 payload에 
 | `SCALE` | `scale` |
 
 성공은 `201 SURVEY_RESPONSE_SUBMITTED`이며 `replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을 반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와 `replayed=true`를 반환한다.
+
+### 로컬 preview 사용자
+
+`local` 프로필은 `vote.survey.preview.user-ids`에 설정된 사용자에 한해 사용자
+HTTP API를 반복 확인 모드로 제공한다. 기본 대상은 `local-user-1`이며 환경 변수
+`VOTE_SURVEY_PREVIEW_USER_IDS`로 쉼표 구분 목록을 재정의할 수 있다.
+
+- 현재 설문 조회와 Eligibility는 해당 사용자의 기존 응답을 무시하고 미제출로 평가한다.
+- 제출 payload는 일반 제출과 같은 규칙으로 검증한다.
+- 검증 성공은 기존 성공 body와 `code=SURVEY_RESPONSE_SUBMITTED`를 유지하면서 `200`을 반환한다.
+- `responseId`에는 요청 `Idempotency-Key` UUID를 사용한다.
+- 응답, 답변, 멱등성 receipt와 Outbox event는 저장하지 않는다.
+- 반환된 임시 `responseId`의 상세 조회는 지원하지 않고 preview 제출은 최신·이력 조회에 나타나지 않는다.
+- 내부 local Task/Persona bootstrap과 비로컬 프로필은 이 예외를 적용하지 않는다.
 
 최신·과거 응답 상세에는 `answers[]`와 함께 그 응답이 참조한 불변 `content`를 반환한다. 따라서 현재 회차가 바뀐 뒤에도 당시 질문 문구와 선택지를 기준으로 원문을 표시할 수 있다.
 사용자 응답은 JWT `sub`에서 해석한 사용자 식별자로만 저장·조회하며, 이메일은

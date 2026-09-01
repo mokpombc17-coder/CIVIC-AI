@@ -3,11 +3,15 @@ package com.hamcheeze.vote.survey.application.query;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
+import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
+import com.hamcheeze.vote.survey.domain.eligibility.SurveyRequirement;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
+import com.hamcheeze.vote.survey.domain.round.SurveyRoundEnforcementMode;
+import com.hamcheeze.vote.survey.domain.round.SurveyRoundStatus;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -90,6 +94,46 @@ class CurrentSurveyQueryServiceTest {
                 org.mockito.ArgumentMatchers.any());
     }
 
+    @Test
+    void previewUserAlwaysSeesCurrentSurveyAsNotSubmitted() {
+        SurveyUserId previewUser = new SurveyUserId("local-user-1");
+        SurveyPreviewMode previewMode =
+                new SurveyPreviewMode("local-user-1");
+        SurveyEligibilityQueryService previewEligibility =
+                new SurveyEligibilityQueryService(
+                        rounds,
+                        responses,
+                        previewMode,
+                        Clock.fixed(
+                                Instant.parse("2026-08-20T00:00:00Z"),
+                                ZoneOffset.UTC));
+        CurrentSurveyQueryService previewCurrent =
+                new CurrentSurveyQueryService(
+                        rounds,
+                        contents,
+                        responses,
+                        previewEligibility,
+                        previewMode);
+        SurveyRoundId roundId = new SurveyRoundId(UUID.randomUUID());
+        SurveyContentVersionId contentId =
+                new SurveyContentVersionId(UUID.randomUUID());
+        SurveyRound round = round(roundId, contentId);
+        SurveyContentVersion content = mock(SurveyContentVersion.class);
+        when(rounds.findActive()).thenReturn(Optional.of(round));
+        when(contents.findById(contentId)).thenReturn(Optional.of(content));
+
+        CurrentSurveyQueryService.CurrentSurveyResult result =
+                previewCurrent.findCurrent(previewUser);
+
+        assertThat(result.current()).get().satisfies(current ->
+                assertThat(current.submitted()).isFalse());
+        assertThat(result.eligibility().surveyRequirement())
+                .isEqualTo(SurveyRequirement.REQUIRED);
+        verify(responses, never()).existsByUserIdAndRoundId(
+                previewUser, roundId);
+        verify(responses, never()).existsByUserId(previewUser);
+    }
+
     private static SurveyRound round(
             SurveyRoundId roundId,
             SurveyContentVersionId contentId
@@ -97,6 +141,9 @@ class CurrentSurveyQueryServiceTest {
         SurveyRound round = mock(SurveyRound.class);
         when(round.id()).thenReturn(roundId);
         when(round.contentVersionId()).thenReturn(contentId);
+        when(round.status()).thenReturn(SurveyRoundStatus.ACTIVE);
+        when(round.enforcementMode()).thenReturn(
+                Optional.of(SurveyRoundEnforcementMode.REQUIRED));
         return round;
     }
 }

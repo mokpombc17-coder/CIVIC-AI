@@ -8,6 +8,9 @@ import org.junit.jupiter.api.Test;
 
 import java.util.List;
 
+import tools.jackson.databind.JsonNode;
+import tools.jackson.databind.ObjectMapper;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -65,6 +68,36 @@ class SurveyApiModelsTest {
                 .extracting(
                         SurveyApiModels.PublishedOptionResponse::optionLocalKey)
                 .containsExactly("A", "B", "C", "D");
+    }
+
+    @Test
+    void exposesOnlyFrontendRequiredContentIdentifiers() {
+        SurveyApiModels.PublishedContentResponse response =
+                SurveyApiModels.PublishedContentResponse.from(
+                        LocalSurveyFixture.publishedContent());
+
+        JsonNode content = new ObjectMapper().valueToTree(response);
+        JsonNode section = content.path("sections").get(0);
+        JsonNode group = section.path("groups").get(0);
+        JsonNode question = group.path("questions").get(0);
+        JsonNode option = content.path("sections").get(1)
+                .path("groups").get(0)
+                .path("questions").get(0)
+                .path("options").get(0);
+
+        assertThat(section.has("sectionId")).isFalse();
+        assertThat(section.has("sectionLineageId")).isFalse();
+        assertThat(group.has("groupId")).isFalse();
+        assertThat(group.has("groupLineageId")).isFalse();
+        assertThat(question.has("questionLineageId")).isFalse();
+        assertThat(option.has("optionLineageId")).isFalse();
+
+        assertThat(section.path("sectionKey").asText()).isNotBlank();
+        assertThat(group.path("groupKey").asText()).isNotBlank();
+        assertThat(question.path("questionId").asText()).isNotBlank();
+        assertThat(question.path("itemKey").asText()).isNotBlank();
+        assertThat(option.path("optionId").asText()).isNotBlank();
+        assertThat(option.path("optionLocalKey").asText()).isNotBlank();
     }
 
     private SurveyApiModels.QuestionWriteRequest questionRequest(

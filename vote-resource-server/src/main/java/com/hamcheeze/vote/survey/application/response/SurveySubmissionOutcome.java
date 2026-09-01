@@ -56,6 +56,19 @@ public record SurveySubmissionOutcome(
                 List.of());
     }
 
+    public static SurveySubmissionOutcome previewAccepted(
+            SurveyResponseSubmitted event
+    ) {
+        return new SurveySubmissionOutcome(
+                200,
+                "SURVEY_RESPONSE_SUBMITTED",
+                event.responseId(),
+                event.roundId(),
+                event.contentVersionId(),
+                event.submittedAt(),
+                List.of());
+    }
+
     public static SurveySubmissionOutcome rejected(
             int httpStatus,
             String code,

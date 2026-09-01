@@ -3,6 +3,7 @@ package com.hamcheeze.vote.survey.application.query;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
+import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
@@ -10,6 +11,7 @@ import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.Objects;
 import java.util.Optional;
@@ -21,18 +23,33 @@ public class CurrentSurveyQueryService {
     private final SurveyContentVersionRepository contents;
     private final SurveyResponseRepository responses;
     private final SurveyEligibilityQueryService eligibility;
+    private final SurveyPreviewMode previewMode;
 
+    @Autowired
     public CurrentSurveyQueryService(
             SurveyRoundRepository rounds,
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
-            SurveyEligibilityQueryService eligibility
+            SurveyEligibilityQueryService eligibility,
+            SurveyPreviewMode previewMode
     ) {
         this.rounds = Objects.requireNonNull(rounds, "rounds");
         this.contents = Objects.requireNonNull(contents, "contents");
         this.responses = Objects.requireNonNull(responses, "responses");
         this.eligibility = Objects.requireNonNull(
                 eligibility, "eligibility");
+        this.previewMode = Objects.requireNonNull(
+                previewMode, "previewMode");
+    }
+
+    CurrentSurveyQueryService(
+            SurveyRoundRepository rounds,
+            SurveyContentVersionRepository contents,
+            SurveyResponseRepository responses,
+            SurveyEligibilityQueryService eligibility
+    ) {
+        this(rounds, contents, responses, eligibility,
+                SurveyPreviewMode.disabled());
     }
 
     @Transactional(readOnly = true)
@@ -51,7 +68,9 @@ public class CurrentSurveyQueryService {
             return new CurrentSurvey(
                     round,
                     content,
-                    responses.existsByUserIdAndRoundId(userId, round.id()));
+                    !previewMode.enabledFor(userId)
+                            && responses.existsByUserIdAndRoundId(
+                                    userId, round.id()));
         });
         return new CurrentSurveyResult(current, decision);
     }

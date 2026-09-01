@@ -93,11 +93,13 @@ public class SurveyResponseSubmissionService {
     ) {
         Objects.requireNonNull(authenticatedUserId, "authenticatedUserId");
         Objects.requireNonNull(command, "command");
+        SurveyIdempotencyKey parsedKey =
+                SurveyIdempotencyKey.parse(idempotencyKey);
         SurveyIdempotencyCommand receiptCommand =
                 new SurveyIdempotencyCommand(
                         authenticatedUserId,
                         SurveyIdempotencyOperation.SUBMIT_SURVEY_RESPONSE,
-                        SurveyIdempotencyKey.parse(idempotencyKey),
+                        parsedKey,
                         requestHashFactory.hash(
                                 command.roundId(), command.answers()),
                         SurveySubmissionOutcomeCodec.SCHEMA_VERSION);
@@ -109,6 +111,84 @@ public class SurveyResponseSubmissionService {
                                 authenticatedUserId, command));
         return new SubmissionExecution(
                 execution.result(), execution.replayed());
+    }
+
+    public SubmissionExecution submitPreview(
+            SurveyUserId userId,
+            String idempotencyKey,
+            SubmitSurveyResponseCommand command
+    ) {
+        Objects.requireNonNull(userId, "userId");
+        Objects.requireNonNull(command, "command");
+        SurveyIdempotencyKey parsedKey =
+                SurveyIdempotencyKey.parse(idempotencyKey);
+        SurveySubmissionOutcome outcome = submitPreviewValidated(
+                userId, parsedKey, command);
+        return new SubmissionExecution(outcome, false);
+    }
+
+    private SurveySubmissionOutcome submitPreviewValidated(
+            SurveyUserId userId,
+            SurveyIdempotencyKey idempotencyKey,
+            SubmitSurveyResponseCommand command
+    ) {
+        SurveyRound activeRound = rounds.findActive()
+                .filter(round -> round.id().equals(command.roundId()))
+                .orElse(null);
+        if (activeRound == null) {
+            return rejection(
+                    409,
+                    "SURVEY_SUBMISSION_ROUND_CHANGED",
+                    command.roundId(),
+                    SurveyViolation.of(
+                            "SURVEY_SUBMISSION_ROUND_CHANGED",
+                            "roundId",
+                            "requested round is no longer active"));
+        }
+        SurveyContentVersion content = contents
+                .findById(activeRound.contentVersionId())
+                .orElse(null);
+        if (content == null) {
+            return rejection(
+                    409,
+                    "SURVEY_SUBMISSION_CONTENT_UNAVAILABLE",
+                    command.roundId(),
+                    SurveyViolation.of(
+                            "SURVEY_SUBMISSION_CONTENT_UNAVAILABLE",
+                            "contentVersionId",
+                            "round content version is unavailable"));
+        }
+        try {
+            SurveySubmissionResult result =
+                    submissionPolicy.submitFinalResponse(
+                            new SurveyResponseId(idempotencyKey.value()),
+                            userId,
+                            command.roundId(),
+                            activeRound,
+                            content,
+                            false,
+                            command.answers(),
+                            persistenceSafeInstant(clock.instant()));
+            return SurveySubmissionOutcome.previewAccepted(result.event());
+        } catch (SurveyValidationException exception) {
+            return SurveySubmissionOutcome.rejected(
+                    422,
+                    "SURVEY_RESPONSE_VALIDATION_FAILED",
+                    command.roundId(),
+                    exception.violations());
+        } catch (SurveyDomainException exception) {
+            SurveyViolation violation = exception.violation();
+            String code = publicCode(violation.code());
+            return rejection(
+                    conflictStatus(code),
+                    code,
+                    command.roundId(),
+                    new SurveyViolation(
+                            code,
+                            violation.path(),
+                            violation.message(),
+                            violation.details()));
+        }
     }
 
     private SurveySubmissionOutcome submitInReceiptTransaction(

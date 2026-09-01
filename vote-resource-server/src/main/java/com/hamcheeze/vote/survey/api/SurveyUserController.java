@@ -5,6 +5,7 @@ import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
+import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
@@ -41,6 +42,7 @@ final class SurveyUserController {
     private final MySurveyResponseQueryService responses;
     private final SurveyEligibilityQueryService eligibility;
     private final SurveyContentVersionService contents;
+    private final SurveyPreviewMode previewMode;
 
     SurveyUserController(
             AuthenticatedUserIdResolver userIds,
@@ -48,7 +50,8 @@ final class SurveyUserController {
             SurveyResponseSubmissionService submissions,
             MySurveyResponseQueryService responses,
             SurveyEligibilityQueryService eligibility,
-            SurveyContentVersionService contents
+            SurveyContentVersionService contents,
+            SurveyPreviewMode previewMode
     ) {
         this.userIds = userIds;
         this.currentSurveys = currentSurveys;
@@ -56,6 +59,7 @@ final class SurveyUserController {
         this.responses = responses;
         this.eligibility = eligibility;
         this.contents = contents;
+        this.previewMode = previewMode;
     }
 
     @GetMapping("/surveys/current")
@@ -82,14 +86,19 @@ final class SurveyUserController {
             @Valid @RequestBody SurveyApiModels.SubmitResponseRequest request,
             HttpServletRequest httpRequest
     ) {
+        SurveyUserId userId = userId(authentication);
+        SurveyResponseSubmissionService.SubmitSurveyResponseCommand command =
+                new SurveyResponseSubmissionService
+                        .SubmitSurveyResponseCommand(
+                        new SurveyRoundId(request.roundId()),
+                        request.toAnswers());
         SurveyResponseSubmissionService.SubmissionExecution execution =
-                submissions.submit(
-                        userId(authentication),
+                previewMode.enabledFor(userId)
+                ? submissions.submitPreview(
+                        userId,
                         idempotencyKey,
-                        new SurveyResponseSubmissionService
-                                .SubmitSurveyResponseCommand(
-                                new SurveyRoundId(request.roundId()),
-                                request.toAnswers()));
+                        command)
+                : submissions.submit(userId, idempotencyKey, command);
         SurveySubmissionOutcome outcome = execution.outcome();
         if (!outcome.succeeded()) {
             HttpStatus status = HttpStatus.valueOf(outcome.httpStatus());

@@ -1,4 +1,7 @@
-# 1회차 사용자 특성 설문 Frontend API Handoff
+# 1회차 사용자 특성 설문 Frontend API Handoff v2
+
+> 적용 계약: 사용자 API는 Section·Group ID와 모든 lineage ID를 반환하지 않는다.
+> 기존 응답의 해당 ID를 사용하던 프론트 코드는 이 v2 계약에 맞춰 패치해야 한다.
 
 ## 1. 구현 범위
 
@@ -24,6 +27,8 @@
 - 서버 임시 저장 API는 없다. 임시 저장이 필요하면 브라우저 로컬 상태로만 처리한다.
 - 문항·선택지는 API 응답을 기준으로 렌더링한다. 프론트 코드에 문항 UUID나 옵션 UUID를 고정하지 않는다.
 - `questionId`와 `optionId`는 현재 조회 응답에서 받은 값을 그대로 제출한다.
+- 사용자 API는 프론트 동작에 필요한 ID만 노출한다. Section·Group ID와 모든 lineage ID는 서버 내부 추적용이며 반환하지 않는다.
+- Section·Group·Question·Option의 화면 상태와 테스트 식별에는 각각 `sectionKey`, `groupKey`, `itemKey`, `optionLocalKey`를 사용한다.
 
 ## 3. 접속 및 인증
 
@@ -60,6 +65,20 @@ Content-Type: application/json
 ```
 
 응답은 `204 No Content`이고 `civic_ai_access_token` HttpOnly 쿠키가 설정된다. 이메일 claim은 필요하지 않다.
+
+#### `local-user-1` 반복 확인 모드
+
+로컬 프로필의 `local-user-1`은 프론트 설문 화면을 반복 검증하기 위한 preview 사용자다.
+
+- `GET /me/surveys/current`는 기존 저장 응답과 관계없이 항상 `submitted=false`를 반환한다.
+- Eligibility도 현재 응답이 없는 사용자로 평가하므로 설문 진입 상태를 계속 유지한다.
+- 유효한 최종 제출은 실제 답변·멱등성 receipt·Outbox event를 저장하지 않고 `200 OK`를 반환한다.
+- 성공 body의 형식과 `code=SURVEY_RESPONSE_SUBMITTED`는 일반 제출과 동일하다.
+- 반환되는 `responseId`는 요청의 `Idempotency-Key`를 사용한 임시 식별자이며 상세 조회에 사용할 수 없다.
+- preview 제출은 최신 응답과 제출 이력에 나타나지 않는다.
+- 스테이징·운영 사용자와 로컬의 다른 사용자는 기존 `201 Created`, 1인 1제출, 영구 저장 규칙을 그대로 따른다.
+
+대상 사용자는 로컬 환경 변수 `VOTE_SURVEY_PREVIEW_USER_IDS`의 쉼표 구분 목록으로 재정의할 수 있으며 기본값은 `local-user-1`이다.
 
 ## 4. Endpoint 요약
 
@@ -103,7 +122,6 @@ type Rule = {
 
 type SurveyOption = {
   optionId: UUID;
-  optionLineageId: UUID;
   optionLocalKey: string;
   kind: OptionKind;
   label: string;
@@ -112,7 +130,6 @@ type SurveyOption = {
 
 type SurveyQuestion = {
   questionId: UUID;
-  questionLineageId: UUID;
   itemKey: string;
   itemLabel: string;
   itemDisplayOrder: number;
@@ -125,8 +142,6 @@ type SurveyQuestion = {
 };
 
 type SurveyQuestionGroup = {
-  groupId: UUID;
-  groupLineageId: UUID;
   groupKey: string;
   sourceNumber: string;
   displayOrder: number;
@@ -137,8 +152,6 @@ type SurveyQuestionGroup = {
 };
 
 type SurveyQuestionSection = {
-  sectionId: UUID;
-  sectionLineageId: UUID;
   sectionKey: string;
   title: string;
   description: string | null;
@@ -179,7 +192,24 @@ type Eligibility = {
 };
 ```
 
-`sectionKey`, `lineageId`, `groupKey`, `itemKey`, `optionLocalKey`는 추적·디버깅과 안정적인 프론트 key에 사용할 수 있지만, 제출 식별자는 반드시 `questionId`, `optionId`를 사용한다. Section과 Group 식별자는 제출 payload에 포함하지 않는다.
+### 프론트 식별자 사용 계약
+
+| 값 | 응답에 포함 | 제출에 포함 | 프론트 용도 |
+|---|---:|---:|---|
+| `round.id` | O | O | 제출 대상 회차 |
+| `content.id` | O | X | 조회·응답 상세의 설문 버전 확인 |
+| `sectionKey` | O | X | Section 렌더링과 화면 key |
+| `groupKey` | O | X | Group 렌더링과 화면 key |
+| `questionId` | O | O | 답변을 실제 Question에 연결 |
+| `itemKey` | O | X | 문항 화면 상태와 테스트 key |
+| `optionId` | O | 선택형만 O | 선택 답변을 실제 Option에 연결 |
+| `optionLocalKey` | O | X | 옵션 화면 상태와 테스트 key |
+| `responseId` | 제출 성공·조회 응답에 O | X | 제출 후 상세 조회 |
+| `contentVersionId` | 회차·제출·조회 응답에 O | X | 버전 확인용 메타데이터 |
+
+사용자 API는 `sectionId`, `groupId`와 `sectionLineageId`, `groupLineageId`, `questionLineageId`, `optionLineageId`를 반환하지 않는다. 해당 값은 DB와 서버 도메인 내부에서만 유지한다.
+
+최종 제출에서 식별자로 사용하는 값은 HTTP `Idempotency-Key`, body의 `roundId`, 각 답변의 `questionId`, 선택형 답변의 `optionId`뿐이다. `sectionKey`, `groupKey`, `itemKey`, `optionLocalKey`는 제출하지 않는다.
 
 ## 6. 현재 설문 조회
 
@@ -224,16 +254,12 @@ type CurrentSurveyResponse = {
     "description": "...",
     "sections": [
       {
-        "sectionId": "33333333-3333-3333-3333-333333333333",
-        "sectionLineageId": "44444444-4444-4444-4444-444444444444",
         "sectionKey": "personal-information",
         "title": "일반 개인정보",
         "description": null,
         "displayOrder": 1,
         "groups": [
           {
-            "groupId": "55555555-5555-5555-5555-555555555555",
-            "groupLineageId": "66666666-6666-6666-6666-666666666666",
             "groupKey": "birth-year",
             "sourceNumber": "1",
             "displayOrder": 1,
@@ -243,7 +269,6 @@ type CurrentSurveyResponse = {
             "questions": [
               {
                 "questionId": "77777777-7777-7777-7777-777777777777",
-                "questionLineageId": "88888888-8888-8888-8888-888888888888",
                 "itemKey": "value",
                 "itemLabel": "출생연도",
                 "itemDisplayOrder": 1,
@@ -418,6 +443,8 @@ type SubmitSurveyRequest = {
 
 실제 1회차 제출에는 현재 설문의 모든 42개 Question에 대한 답변이 정확히 한 개씩 포함되어야 한다. Group 하나가 제출 답변 하나를 의미하지 않는다.
 
+프론트는 조회 응답의 `questionId`를 form state의 답변 key로 사용한다. 선택형 문항은 조회 응답의 `optionId`를 값으로 보관한다. Question·Option ID를 `itemKey`나 `optionLocalKey`로 재구성하거나 코드에 고정하지 않는다.
+
 ### 프론트 호출 예시
 
 ```ts
@@ -441,6 +468,8 @@ const result = await voteFetch<SubmissionResponse>(
 ### 성공 응답
 
 HTTP `201 Created`
+
+단, 로컬 preview 사용자인 `local-user-1`은 같은 성공 body를 `200 OK`로 받으며 응답은 저장되지 않는다.
 
 ```ts
 type SubmissionResponse = {
@@ -594,6 +623,7 @@ type SurveyProblem = {
 - API 응답 기준 7개 Section, 29개 Group과 총 42개 Question이 누락 없이 렌더링된다.
 - 모든 Question type이 공통 모델로 처리된다.
 - 제출에는 조회에서 받은 `round.id`, `questionId`, `optionId`만 사용한다.
+- Section·Group·Question·Option의 lineage ID나 Section·Group ID에 의존하지 않는다.
 - 제출 중 중복 클릭을 막고 네트워크 재시도 시 idempotency key를 보존한다.
 - 제출 완료 후 수정 UI를 제공하지 않는다.
 - 최신·특정 응답 상세가 제출 당시 content와 결합되어 읽기 전용으로 표시된다.

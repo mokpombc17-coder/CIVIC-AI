@@ -784,6 +784,8 @@ type: SINGLE_CHOICE
 ## 7. 조회 계약
 
 현재 Survey 조회는 7개 Section 아래에 29개 Group을 순서대로 반환한다.
+사용자 API는 제출에 필요한 `questionId`, `optionId`만 엔티티 ID로 노출한다.
+Section·Group ID와 모든 lineage ID는 내부 추적용이므로 반환하지 않는다.
 
 ```json
 {
@@ -796,16 +798,12 @@ type: SINGLE_CHOICE
     "versionNumber": 1,
     "sections": [
       {
-        "sectionId": "section-uuid",
-        "sectionLineageId": "section-lineage-uuid",
         "sectionKey": "household-information",
         "displayOrder": 2,
         "title": "가구 정보",
         "description": null,
         "groups": [
           {
-            "groupId": "group-uuid",
-            "groupLineageId": "group-lineage-uuid",
             "groupKey": "household.age-group-presence",
             "sourceNumber": "5",
             "displayOrder": 5,
@@ -815,7 +813,6 @@ type: SINGLE_CHOICE
             "questions": [
               {
                 "questionId": "question-uuid",
-                "questionLineageId": "question-lineage-uuid",
                 "itemKey": "infant",
                 "itemLabel": "영아",
                 "itemDisplayOrder": 1,
@@ -825,14 +822,12 @@ type: SINGLE_CHOICE
                 "options": [
                   {
                     "optionId": "family-infant-option-a-uuid",
-                    "optionLineageId": "family-infant-option-a-lineage-uuid",
                     "optionLocalKey": "A",
                     "displayOrder": 1,
                     "label": "있음"
                   },
                   {
                     "optionId": "family-infant-option-b-uuid",
-                    "optionLineageId": "family-infant-option-b-lineage-uuid",
                     "optionLocalKey": "B",
                     "displayOrder": 2,
                     "label": "없음"

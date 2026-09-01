@@ -5,11 +5,13 @@ import com.hamcheeze.vote.survey.application.query.CurrentSurveyQueryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
 import com.hamcheeze.vote.survey.application.query.SurveyEligibilityQueryService;
+import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
+import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -26,6 +28,7 @@ import java.util.UUID;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -49,6 +52,8 @@ class SurveyUserControllerTest {
     private final Authentication authentication = mock(Authentication.class);
     private final SurveyContentVersionService contents =
             mock(SurveyContentVersionService.class);
+    private final SurveyPreviewMode previewMode =
+            mock(SurveyPreviewMode.class);
 
     private MockMvc mockMvc;
 
@@ -61,7 +66,8 @@ class SurveyUserControllerTest {
                         submissions,
                         responses,
                         eligibility,
-                        contents))
+                        contents,
+                        previewMode))
                 .setControllerAdvice(new SurveyApiExceptionHandler())
                 .build();
     }
@@ -131,5 +137,43 @@ class SurveyUserControllerTest {
                 .andExpect(jsonPath("$.replayed").value(true))
                 .andExpect(jsonPath("$.responseId")
                         .value(responseId.toString()));
+    }
+
+    @Test
+    void localPreviewSubmissionUsesNonPersistentPathAndReturnsOk()
+            throws Exception {
+        SurveyUserId userId = new SurveyUserId("user-a");
+        UUID idempotencyKey = UUID.randomUUID();
+        UUID roundId = UUID.randomUUID();
+        UUID contentId = UUID.randomUUID();
+        SurveySubmissionOutcome outcome = new SurveySubmissionOutcome(
+                200,
+                "SURVEY_RESPONSE_SUBMITTED",
+                new SurveyResponseId(idempotencyKey),
+                new SurveyRoundId(roundId),
+                new SurveyContentVersionId(contentId),
+                Instant.parse("2026-09-01T00:00:00Z"),
+                List.of());
+        when(previewMode.enabledFor(userId)).thenReturn(true);
+        when(submissions.submitPreview(
+                eq(userId), eq(idempotencyKey.toString()), any()))
+                .thenReturn(new SurveyResponseSubmissionService
+                        .SubmissionExecution(outcome, false));
+
+        mockMvc.perform(post("/api/v1/me/survey-responses")
+                        .principal(authentication)
+                        .header("Idempotency-Key", idempotencyKey)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"roundId":"%s","answers":[]}
+                                """.formatted(roundId)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code")
+                        .value("SURVEY_RESPONSE_SUBMITTED"))
+                .andExpect(jsonPath("$.replayed").value(false))
+                .andExpect(jsonPath("$.responseId")
+                        .value(idempotencyKey.toString()));
+
+        verify(submissions, never()).submit(any(), any(), any());
     }
 }
