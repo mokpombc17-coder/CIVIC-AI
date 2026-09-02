@@ -4,6 +4,8 @@ import { createSurveyApi } from "./survey-api";
 const ROUND_ID = "11111111-1111-4111-8111-111111111111";
 const CONTENT_ID = "22222222-2222-4222-8222-222222222222";
 const KEY = "33333333-3333-4333-8333-333333333333";
+const QUESTION_ID = "44444444-4444-4444-8444-444444444444";
+const OPTION_ID = "55555555-5555-4555-8555-555555555555";
 
 describe("survey api", () => {
   it("현재 설문 endpoint를 조회하고 v4 응답을 검증한다", async () => {
@@ -11,7 +13,23 @@ describe("survey api", () => {
       status: "PENDING",
       roundId: ROUND_ID,
       contentVersionId: CONTENT_ID,
-      sections: [],
+      sections: [
+        {
+          sectionKey: "profile",
+          title: "사용자 특성",
+          questions: [
+            {
+              questionId: QUESTION_ID,
+              questionKey: "profile.choice",
+              title: "선택 문항",
+              prompt: "하나를 선택해 주세요.",
+              required: true,
+              type: "SINGLE_CHOICE",
+              options: [{ optionId: OPTION_ID, label: "선택지" }],
+            },
+          ],
+        },
+      ],
     });
     await expect(createSurveyApi(request).getCurrent()).resolves.toMatchObject({
       status: "PENDING",

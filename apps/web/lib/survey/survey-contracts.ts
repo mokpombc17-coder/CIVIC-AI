@@ -2,38 +2,39 @@ import { z } from "zod";
 
 const uuidSchema = z.string().uuid();
 const iso8601Schema = z.string().min(1);
+const MAX_SCALE_OPTION_COUNT = 101;
 
 export const surveyOptionSchema = z.object({
   optionId: uuidSchema,
-  label: z.string(),
+  label: z.string().min(1),
 });
 
 export const surveyQuestionItemSchema = z.object({
   itemId: uuidSchema,
   itemKey: z.string().min(1),
-  itemLabel: z.string(),
+  itemLabel: z.string().min(1),
 });
 
 const questionBaseShape = {
   questionId: uuidSchema,
   questionKey: z.string().min(1),
-  title: z.string(),
-  prompt: z.string(),
-  required: z.boolean(),
+  title: z.string().min(1),
+  prompt: z.string().min(1),
+  required: z.literal(true),
 };
 
-export const surveyQuestionSchema = z.discriminatedUnion("type", [
+const surveyQuestionVariantSchema = z.discriminatedUnion("type", [
   z.object({
     ...questionBaseShape,
     type: z.literal("SINGLE_CHOICE"),
-    options: z.array(surveyOptionSchema),
+    options: z.array(surveyOptionSchema).min(1),
   }),
   z.object({
     ...questionBaseShape,
     type: z.literal("MULTIPLE_CHOICE"),
-    minimumSelections: z.number().int().min(0),
+    minimumSelections: z.number().int().min(1),
     maximumSelections: z.number().int().min(0).nullable(),
-    options: z.array(surveyOptionSchema),
+    options: z.array(surveyOptionSchema).min(1),
   }),
   z.object({
     ...questionBaseShape,
@@ -58,13 +59,13 @@ export const surveyQuestionSchema = z.discriminatedUnion("type", [
   z.object({
     ...questionBaseShape,
     type: z.literal("MATRIX_SINGLE_CHOICE"),
-    items: z.array(surveyQuestionItemSchema),
-    options: z.array(surveyOptionSchema),
+    items: z.array(surveyQuestionItemSchema).min(1),
+    options: z.array(surveyOptionSchema).min(1),
   }),
   z.object({
     ...questionBaseShape,
     type: z.literal("MATRIX_SCALE"),
-    items: z.array(surveyQuestionItemSchema),
+    items: z.array(surveyQuestionItemSchema).min(1),
     minimum: z.number().int(),
     maximum: z.number().int(),
     minimumLabel: z.string().nullable(),
@@ -72,17 +73,112 @@ export const surveyQuestionSchema = z.discriminatedUnion("type", [
   }),
 ]);
 
+export const surveyQuestionSchema = surveyQuestionVariantSchema.superRefine((question, context) => {
+  if ("options" in question) {
+    addDuplicateIssues(
+      question.options.map((option) => option.optionId),
+      "optionId",
+      "선택지 ID",
+      context,
+      ["options"],
+    );
+  }
+  if ("items" in question) {
+    addDuplicateIssues(
+      question.items.map((item) => item.itemId),
+      "itemId",
+      "행렬 Item ID",
+      context,
+      ["items"],
+    );
+    addDuplicateIssues(
+      question.items.map((item) => item.itemKey),
+      "itemKey",
+      "행렬 Item key",
+      context,
+      ["items"],
+    );
+  }
+
+  switch (question.type) {
+    case "MULTIPLE_CHOICE": {
+      if (question.minimumSelections > question.options.length) {
+        addCustomIssue(context, ["minimumSelections"], "최소 선택 개수가 선택지 수보다 큽니다.");
+      }
+      if (
+        question.maximumSelections !== null &&
+        question.maximumSelections < question.minimumSelections
+      ) {
+        addCustomIssue(
+          context,
+          ["maximumSelections"],
+          "최대 선택 개수가 최소 선택 개수보다 작습니다.",
+        );
+      }
+      if (
+        question.maximumSelections !== null &&
+        question.maximumSelections > question.options.length
+      ) {
+        addCustomIssue(context, ["maximumSelections"], "최대 선택 개수가 선택지 수보다 큽니다.");
+      }
+      break;
+    }
+    case "NUMBER":
+      if (
+        question.minimum !== null &&
+        question.maximum !== null &&
+        question.minimum > question.maximum
+      ) {
+        addCustomIssue(context, ["maximum"], "최댓값이 최솟값보다 작습니다.");
+      }
+      break;
+    case "SCALE":
+    case "MATRIX_SCALE":
+      if (question.minimum > question.maximum) {
+        addCustomIssue(context, ["maximum"], "척도 최댓값이 최솟값보다 작습니다.");
+      } else if (question.maximum - question.minimum + 1 > MAX_SCALE_OPTION_COUNT) {
+        addCustomIssue(context, ["maximum"], "척도 선택지 범위가 너무 큽니다.");
+      }
+      break;
+  }
+});
+
 export const surveySectionSchema = z.object({
   sectionKey: z.string().min(1),
-  title: z.string(),
-  questions: z.array(surveyQuestionSchema),
+  title: z.string().min(1),
+  questions: z.array(surveyQuestionSchema).min(1),
 });
+
+const surveySectionsSchema = z
+  .array(surveySectionSchema)
+  .min(1)
+  .superRefine((sections, context) => {
+    addDuplicateIssues(
+      sections.map((section) => section.sectionKey),
+      "sectionKey",
+      "Section key",
+      context,
+    );
+
+    const questionIds: string[] = [];
+    const questionKeys: string[] = [];
+    const questionPaths: Array<readonly (string | number)[]> = [];
+    sections.forEach((section, sectionIndex) => {
+      section.questions.forEach((question, questionIndex) => {
+        questionIds.push(question.questionId);
+        questionKeys.push(question.questionKey);
+        questionPaths.push([sectionIndex, "questions", questionIndex]);
+      });
+    });
+    addDuplicateIssues(questionIds, "questionId", "Question ID", context, [], questionPaths);
+    addDuplicateIssues(questionKeys, "questionKey", "Question key", context, [], questionPaths);
+  });
 
 const pendingSurveyResponseSchema = z.object({
   status: z.literal("PENDING"),
   roundId: uuidSchema,
   contentVersionId: uuidSchema,
-  sections: z.array(surveySectionSchema),
+  sections: surveySectionsSchema,
 });
 
 const submittedSurveyResponseSchema = z.object({
@@ -163,7 +259,7 @@ export const surveyResponseDetailSchema = z.object({
   roundId: uuidSchema,
   contentVersionId: uuidSchema,
   submittedAt: iso8601Schema,
-  sections: z.array(surveySectionSchema),
+  sections: surveySectionsSchema,
   answers: z.array(surveyAnswerSchema),
 });
 
@@ -182,3 +278,33 @@ export type SubmitSurveyRequest = z.infer<typeof submitSurveyRequestSchema>;
 export type SubmissionResponse = z.infer<typeof submissionResponseSchema>;
 export type SurveyResponseSummary = z.infer<typeof surveyResponseSummarySchema>;
 export type SurveyResponseDetail = z.infer<typeof surveyResponseDetailSchema>;
+
+function addDuplicateIssues(
+  values: readonly string[],
+  field: string,
+  label: string,
+  context: z.RefinementCtx,
+  prefix: readonly (string | number)[] = [],
+  itemPaths?: readonly (readonly (string | number)[])[],
+): void {
+  const seen = new Set<string>();
+  values.forEach((value, index) => {
+    if (!seen.has(value)) {
+      seen.add(value);
+      return;
+    }
+    addCustomIssue(
+      context,
+      [...(itemPaths?.[index] ?? [...prefix, index]), field],
+      `${label}가 중복되었습니다.`,
+    );
+  });
+}
+
+function addCustomIssue(
+  context: z.RefinementCtx,
+  path: readonly (string | number)[],
+  message: string,
+): void {
+  context.addIssue({ code: "custom", path: [...path], message });
+}
