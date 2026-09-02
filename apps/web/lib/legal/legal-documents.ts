@@ -3,21 +3,20 @@ export type LegalDocumentId = "TERMS" | "ACCOUNT_RAG_PRIVACY";
 export type LegalDocument = Readonly<{
   id: LegalDocumentId;
   slug: string;
-  version: "1";
+  version: string;
   title: string;
   effectiveDate: string;
   body: string;
   bodySha256: string;
 }>;
 
-export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentId, LegalDocument>> = {
-  TERMS: {
-    id: "TERMS",
-    slug: "terms",
-    version: "1",
-    title: "CIVIC AI 서비스 이용약관",
-    effectiveDate: "2026-08-12",
-    body: `제1조 목적
+const TERMS_V1: LegalDocument = {
+  id: "TERMS",
+  slug: "terms",
+  version: "1",
+  title: "CIVIC AI 서비스 이용약관",
+  effectiveDate: "2026-08-12",
+  body: `제1조 목적
 이 약관은 CIVIC AI가 제공하는 계정, 인증 및 검색 증강 생성(RAG) 서비스의 이용 조건과 사용자 및 운영자의 권리·의무를 정합니다.
 
 제2조 제공 서비스
@@ -40,15 +39,16 @@ RAG 답변은 AI가 생성한 참고 정보이며 오류가 있을 수 있습니
 
 제8조 문의
 서비스 이용과 개인정보 권리행사 연락처는 운영 공개 전에 별도 개인정보 처리방침과 운영 문서에서 확정하여 고지합니다.`,
-    bodySha256: "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
-  },
-  ACCOUNT_RAG_PRIVACY: {
-    id: "ACCOUNT_RAG_PRIVACY",
-    slug: "account-rag-privacy",
-    version: "1",
-    title: "개인정보 수집·이용 동의 — 계정·RAG",
-    effectiveDate: "2026-08-12",
-    body: `1. 처리 목적
+  bodySha256: "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
+};
+
+const ACCOUNT_RAG_PRIVACY_V1: LegalDocument = {
+  id: "ACCOUNT_RAG_PRIVACY",
+  slug: "account-rag-privacy",
+  version: "1",
+  title: "개인정보 수집·이용 동의 — 계정·RAG",
+  effectiveDate: "2026-08-12",
+  body: `1. 처리 목적
 CIVIC AI는 계정 생성·인증·보안·재활성화, 필수 비민감 선호 설문 처리, 관리자가 등록한 문서에 근거한 RAG 질문·답변과 출처 제공을 위해 개인정보를 처리합니다.
 
 2. 수집·이용 항목
@@ -65,12 +65,87 @@ RAG 질문에는 민감정보를 입력하지 않는 것이 안전합니다. 실
 
 6. 동의 증빙
 CIVIC AI는 사용자 ID, 문서 종류, 이 고정 문서의 버전과 본문 SHA-256, 동의 시각 및 동의 경로를 보관합니다. 설문 또는 질문 원문은 동의 로그에 복제하지 않습니다.`,
-    bodySha256: "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a",
-  },
+  bodySha256: "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a",
 };
 
+const TERMS_V2: LegalDocument = {
+  id: "TERMS",
+  slug: "terms",
+  version: "2",
+  title: "CIVIC AI 서비스 이용약관",
+  effectiveDate: "2026-09-03",
+  body: `제1조 목적
+이 약관은 CIVIC AI가 제공하는 계정·인증, 검색 증강 생성(RAG), 채팅·토론, 설문·투표, 개인 AI 페르소나, Decision 및 Simulation 서비스의 이용 조건과 사용자 및 운영자의 권리·의무를 정합니다.
+
+제2조 제공 서비스
+CIVIC AI는 계정 생성·인증·보안 관리, 권한이 확인된 문서에 근거한 AI 답변과 출처 열람, 채팅과 토론, 설문과 투표, 구조화된 참여자 프로필에 기반한 개인 AI 페르소나 및 집계·시뮬레이션 결과를 제공합니다. 서비스별 이용 가능 여부와 세부 기능은 사용자 권한, 진행 중인 과업 및 운영 상태에 따라 달라질 수 있습니다.
+
+제3조 가입과 서비스 이용 조건
+사용자는 만 14세 이상임을 확인하고 필수 계정정보를 제공하며 이 약관에 동의한 뒤 이메일 인증을 완료해야 계정을 생성할 수 있습니다. 정치적 견해 등 민감정보가 필요한 참여자 프로필, 개인 AI 페르소나, 투표 및 시뮬레이션 기능은 별도의 민감정보 처리 동의를 완료한 사용자에게만 제공됩니다. 사용자는 정확한 정보를 제공하고 자신의 인증정보를 안전하게 관리해야 합니다.
+
+제4조 계정·RAG 필수정보의 처리
+CIVIC AI는 계정 생성·인증·보안·재활성화 및 사용자가 요청한 RAG 기능을 제공하기 위해 필요한 개인정보를 서비스 계약의 체결·이행에 필요한 범위에서 처리합니다. 계정정보는 가입 과정에서, 서비스 설정은 사용자가 선택하거나 변경할 때, RAG 질문·답변·출처 및 처리 기록은 사용자가 RAG 기능을 이용할 때 각각 처리합니다. 이 처리에는 별도의 계정·RAG 수집·이용 동의 체크를 요구하지 않으며, 구체적인 목적·항목·보유기간은 필수정보 처리 안내와 개인정보 처리방침에서 확인할 수 있습니다.
+
+제5조 민감정보 처리
+CIVIC AI의 핵심 참여 서비스에 필요한 정치적 견해 등 민감정보는 일반 개인정보와 구분하여 고지하고 별도의 필수 동의를 받은 뒤 처리합니다. 민감정보 처리 동의를 거부하거나 철회하면 해당 정보를 전제로 하는 참여자 프로필, 개인 AI 페르소나, 투표 및 시뮬레이션 기능을 제공할 수 없습니다. 구체적인 항목·목적·보유기간과 거부 또는 철회의 영향은 별도 민감정보 동의문에서 확인할 수 있습니다.
+
+제6조 금지 행위
+사용자는 타인의 계정을 사용하거나, 서비스·보안을 방해하거나, 권리 없는 문서를 등록하거나, 법령 또는 타인의 권리를 침해하는 방식으로 서비스를 이용해서는 안 됩니다.
+
+제7조 계정 비활성화와 재활성화
+사용자는 계정을 비활성화할 수 있습니다. 비활성화 즉시 모든 세션이 종료되고 보호된 서비스 이용이 차단됩니다. 재활성화에는 기존 비밀번호와 등록 이메일 인증이 필요합니다. 개인정보의 보유·파기와 삭제 요구 절차는 개인정보 처리방침에 따릅니다.
+
+제8조 서비스 변경과 중단
+보안, 장애 대응 또는 법적 의무 이행을 위해 서비스 일부를 제한하거나 중단할 수 있습니다. 중요한 변경은 서비스 화면 또는 등록 이메일 등 합리적인 방법으로 알립니다.
+
+제9조 AI 결과
+RAG 답변, 개인 AI 페르소나의 예상 응답 및 시뮬레이션 결과는 AI가 생성한 참고 정보이며 오류가 있을 수 있습니다. 사용자는 연결된 근거와 서비스가 표시하는 한계를 확인하고 중요한 판단에 AI 결과만을 단독 근거로 사용하지 않아야 합니다.
+
+제10조 문의
+서비스 이용과 개인정보 권리행사 방법 및 연락처는 서비스 화면과 개인정보 처리방침에서 안내합니다.`,
+  bodySha256: "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef",
+};
+
+const REQUIRED_SERVICE_INFORMATION_V2: LegalDocument = {
+  id: "ACCOUNT_RAG_PRIVACY",
+  slug: "required-service-information",
+  version: "2",
+  title: "개인정보 필수정보 처리 안내 — 계정·RAG",
+  effectiveDate: "2026-09-03",
+  body: `1. 처리의 성격과 근거
+CIVIC AI는 계정 생성과 사용자가 요청한 RAG 서비스의 제공에 객관적으로 필요한 개인정보를 서비스 계약의 체결·이행을 위해 처리합니다. 이 문서는 별도의 개인정보 수집·이용 동의문이 아니라 필수정보의 처리 내용을 알리는 문서입니다.
+
+2. 처리 목적과 항목
+계정 생성·인증·보안·재활성화를 위해 이메일, 비밀번호 해시, 내부 사용자 ID, 만 14세 이상 확인, 계정·보안 기록 및 이용약관 동의 증빙을 처리합니다. 사용자가 선택하거나 변경하는 서비스 설정으로 preferred_language와 rag_answer_detail을 처리합니다. 사용자가 RAG 기능을 이용할 때에는 제출한 질문, 생성된 답변, 연결된 출처 및 실제 저장되는 처리 기록을 처리합니다.
+
+3. 처리 시점과 필수 범위
+계정정보는 가입 및 계정 관리 시점에 처리합니다. 서비스 설정은 사용자가 설정을 선택하거나 변경할 때 처리하며, RAG 질문·답변·출처 및 처리 기록은 사용자가 RAG 기능을 요청한 경우에만 처리합니다. RAG 이용정보를 회원가입 시 미리 수집하거나 RAG 이용을 전체 계정 생성의 조건으로 삼지 않습니다.
+
+4. 민감정보의 분리
+정치적 견해, 정당 관련 정보, 민감한 설문 응답 및 그로부터 생성되는 개인 AI 페르소나 속성은 이 안내에 따른 계정·RAG 필수정보에 포함하지 않습니다. 해당 정보는 구체적인 목적·항목·보유기간과 거부 또는 철회의 영향을 별도로 고지하고 민감정보 처리 동의를 받은 경우에만 처리합니다.
+
+5. 보유·파기
+계정정보와 서비스 설정은 계정 이용기간 동안 보유합니다. 계정 비활성화 후에는 재활성화와 보안 목적의 접근 제한 상태로 보관하며, 확인된 삭제 요구가 완료되면 법령상 보존 의무가 있는 정보를 제외하고 식별 가능한 정보를 삭제하거나 복원 불가능하게 처리합니다. RAG 이용정보의 구체적인 보유기간, 백업 파기주기 및 법정 보존 예외는 운영 공개 전에 개인정보 처리방침에서 확정하여 고지합니다.
+
+6. 외부 처리
+개인정보가 포함된 RAG 질문 또는 문서를 외부 LLM 공급자가 처리하는 기능은 처리위탁 계약, 처리 범위, 국외 처리위탁 공개 및 안전성 검토가 완료된 경우에만 활성화합니다. 실제 공급자·처리 국가·목적·항목·보유기간과 권리행사 방법은 개인정보 처리방침에서 확인할 수 있도록 공개합니다.`,
+  bodySha256: "7cdf0bb556745596bd327fab0e891d3224185aff192431d33920b071eae816e3",
+};
+
+export const LEGAL_DOCUMENTS: Readonly<Record<LegalDocumentId, LegalDocument>> = {
+  TERMS: TERMS_V2,
+  ACCOUNT_RAG_PRIVACY: REQUIRED_SERVICE_INFORMATION_V2,
+};
+
+export const LEGAL_DOCUMENT_HISTORY: readonly LegalDocument[] = [
+  TERMS_V1,
+  ACCOUNT_RAG_PRIVACY_V1,
+  TERMS_V2,
+  REQUIRED_SERVICE_INFORMATION_V2,
+];
+
 export function findLegalDocument(slug: string, version: string): LegalDocument | undefined {
-  return Object.values(LEGAL_DOCUMENTS).find(
+  return LEGAL_DOCUMENT_HISTORY.find(
     (document) => document.slug === slug && document.version === version,
   );
 }

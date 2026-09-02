@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import { findLegalDocument, LEGAL_DOCUMENTS } from "@/lib/legal/legal-documents";
+import { findLegalDocument, LEGAL_DOCUMENT_HISTORY } from "@/lib/legal/legal-documents";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 
 type LegalDocumentPageProps = Readonly<{
@@ -7,7 +7,7 @@ type LegalDocumentPageProps = Readonly<{
 }>;
 
 export function generateStaticParams() {
-  return Object.values(LEGAL_DOCUMENTS).map((document) => ({
+  return LEGAL_DOCUMENT_HISTORY.map((document) => ({
     documentId: document.slug,
     version: document.version,
   }));
