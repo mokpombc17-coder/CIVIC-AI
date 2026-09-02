@@ -203,7 +203,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void completionPersistsServerTimeInsteadOfClientSuppliedConsentTime() {
+    void completionSeparatesClientCheckedTimeFromAuthoritativeServerAcceptanceTime() {
         var flow = service.startSignup("server-consent-time@example.com");
         verify(flow);
         var valid = validRequest("server-consent-time@example.com", "Valid123!");
@@ -219,16 +219,16 @@ class SignupInvariantTest extends PostgresIntegrationTest {
 
         service.completeSignup(flow.flowId(), request);
 
-        var accepted = jdbc.queryForList("""
-                select accepted_at from consent_evidence
+        var evidence = jdbc.queryForMap("""
+                select client_checked_at, accepted_at from consent_evidence
                 where user_id = (select id from users where normalized_email = ?)
-                order by document_code
-                """, java.sql.Timestamp.class, "server-consent-time@example.com");
+                """, "server-consent-time@example.com");
         var after = Instant.now().plusSeconds(1);
-        assertThat(accepted).hasSize(1).allSatisfy(timestamp -> {
-            assertThat(timestamp.toInstant()).isBetween(before, after);
-            assertThat(timestamp.toInstant()).isNotEqualTo(clientFuture);
-        });
+        assertThat(((java.sql.Timestamp) evidence.get("client_checked_at")).toInstant())
+                .isEqualTo(clientFuture);
+        assertThat(((java.sql.Timestamp) evidence.get("accepted_at")).toInstant())
+                .isBetween(before, after)
+                .isNotEqualTo(clientFuture);
     }
 
     @Test

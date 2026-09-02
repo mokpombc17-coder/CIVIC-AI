@@ -214,7 +214,7 @@ public class SignupFlowService {
         insertAnswer(userId, flow.schemaId(), "preferred_language", request.preferredLanguage());
         insertAnswer(userId, flow.schemaId(), "rag_answer_detail", request.ragAnswerDetail());
         var acceptedAt = clock.instant();
-        consent.record(userId, serverAcceptedEvidence(request.termsEvidence(), acceptedAt));
+        consent.record(userId, request.termsEvidence(), acceptedAt);
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)
                 select id, account_state_version, 'ACTIVE',
@@ -398,7 +398,8 @@ public class SignupFlowService {
     }
 
     private void validateEvidence(FlowRow flow, Evidence evidence, String expectedId) {
-        if (evidence == null || evidence.acceptedAt() == null || !expectedId.equals(evidence.documentId())) {
+        if (evidence == null || evidence.clientCheckedAt() == null
+                || !expectedId.equals(evidence.documentId())) {
             invalid("Required acceptance evidence is missing");
         }
         var pinned = flow.documentVersions().get(expectedId);
@@ -412,12 +413,6 @@ public class SignupFlowService {
                 || !evidence.bodySha256().matches("^[0-9a-f]{64}$")) {
             invalid("Acceptance evidence does not match the pinned document");
         }
-    }
-
-    private Evidence serverAcceptedEvidence(Evidence evidence, Instant acceptedAt) {
-        return new Evidence(
-                evidence.documentId(), evidence.documentVersion(), evidence.bodySha256(),
-                acceptedAt, evidence.path());
     }
 
     private void insertAnswer(UUID userId, UUID schemaId, String question, String value) {
@@ -526,7 +521,27 @@ public class SignupFlowService {
     }
 
     public record Evidence(
-            String documentId, String documentVersion, String bodySha256, Instant acceptedAt, String path) {}
+            String documentId,
+            String documentVersion,
+            String bodySha256,
+            Instant acceptedAt,
+            String path,
+            Instant checkedAt) {
+
+        public Evidence(
+                String documentId,
+                String documentVersion,
+                String bodySha256,
+                Instant acceptedAt,
+                String path
+        ) {
+            this(documentId, documentVersion, bodySha256, acceptedAt, path, null);
+        }
+
+        public Instant clientCheckedAt() {
+            return checkedAt != null ? checkedAt : acceptedAt;
+        }
+    }
 
     public record CompletionRequest(
             String email,

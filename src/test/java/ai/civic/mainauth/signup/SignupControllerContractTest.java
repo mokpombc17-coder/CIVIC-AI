@@ -197,7 +197,7 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                   "preferred_language":"ko",
                   "rag_answer_detail":"balanced",
                   "age_14_confirmed":true,
-                  "terms_evidence":{"document_id":"TERMS","document_version":"2","body_sha256":"%s","accepted_at":"2026-09-03T12:00:00Z","path":"/legal/terms/2"}
+                  "terms_evidence":{"document_id":"TERMS","document_version":"2","body_sha256":"%s","checked_at":"2026-09-03T12:00:00Z","path":"/legal/terms/2"}
                 }
                 """.formatted(
                 email,
