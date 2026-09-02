@@ -772,6 +772,8 @@ describe("25 functional Main/Auth screens", () => {
     );
     expect(activeHtml).toContain("이미 가입된 이메일");
     expect(activeHtml).toContain('class="civic-form-alert civic-signup-duplicate"');
+    expect(activeHtml).toContain("사용 중인 계정으로 로그인해 주세요.");
+    expect(activeHtml).not.toContain("대소문자를 무시한 동일 이메일이 있습니다.");
     expect(activeHtml).toContain('href="/login"');
     expect(activeHtml).toContain("로그인으로 이동");
     expect(activeHtml).not.toContain("계정 재활성화");
@@ -914,6 +916,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(signupHtml).toContain('aria-label="회원가입 단계"');
     expect(signupHtml).toContain("1/3");
     expect(signupHtml).toContain("계정 정보");
+    expect(signupHtml).toContain("로그인 시 사용할 이메일 주소 입니다.");
+    expect(signupHtml).not.toContain("로그인에 사용할 이메일");
     expect(signupHtml).not.toContain("필수 동의 항목");
     expect(signupHtml).not.toContain("이용약관에 동의합니다");
     expect(signupHtml).toContain("인증 코드 받기");

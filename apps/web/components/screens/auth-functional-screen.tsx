@@ -467,7 +467,7 @@ function renderFields(
       <>
         <Field
           autoComplete="email"
-          help="로그인에 사용할 이메일"
+          help="로그인 시 사용할 이메일 주소 입니다."
           label="이메일"
           name="email"
           placeholder="name@example.com"
@@ -729,7 +729,7 @@ export function SignupDuplicateEmailNotice({
         </>
       ) : (
         <>
-          <p>대소문자를 무시한 동일 이메일이 있습니다. 사용 중인 계정으로 로그인해 주세요.</p>
+          <p>사용 중인 계정으로 로그인해 주세요.</p>
           <Link
             className="wf-button wf-button-secondary"
             data-wireflow-slot="signup-login"
