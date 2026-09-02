@@ -21,31 +21,21 @@ export function createRoomCreationRequestStatusPresentation(
     case "PENDING":
       return statusPresentation(
         "승인 대기",
-        "채팅방 생성을 검토하고 있습니다.",
-        "관리자 승인 후 채팅방이 생성됩니다. 실시간 알림은 제공되지 않으므로 이 화면에서 상태를 다시 확인해 주세요.",
+        "토론방 생성 요청",
+        "관리자가 요청을 검토하고 있습니다.",
         "info",
       );
     case "APPROVED":
       return statusPresentation(
         "생성 완료",
-        "채팅방이 생성되었습니다.",
-        "승인이 완료되어 채팅방에 입장할 수 있습니다.",
+        "토론방 생성 요청",
+        "토론방이 생성되었습니다.",
         "success",
       );
     case "REJECTED":
-      return statusPresentation(
-        "반려",
-        "채팅방 생성 신청이 반려되었습니다.",
-        request.rejectionReason,
-        "danger",
-      );
+      return statusPresentation("반려", "토론방 생성 요청", request.rejectionReason, "danger");
     case "CANCELED":
-      return statusPresentation(
-        "신청 취소",
-        "채팅방 생성 신청이 취소되었습니다.",
-        "취소된 신청은 다시 열 수 없습니다. 필요한 경우 새로운 신청을 작성해 주세요.",
-        "neutral",
-      );
+      return statusPresentation("신청 취소", "토론방 생성 요청", "취소된 요청입니다.", "neutral");
   }
 }
 

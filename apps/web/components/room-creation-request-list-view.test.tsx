@@ -2,17 +2,30 @@ import { renderToStaticMarkup } from "react-dom/server";
 import type { ComponentProps } from "react";
 import { describe, expect, it, vi } from "vitest";
 import type { RoomCreationRequestResponse } from "@/lib/chat/chat-room-contracts";
-import { RoomCreationRequestListView } from "./room-creation-request-list-view";
+import { RoomCreationRequestListContent } from "./room-creation-request-list-view";
 
-describe("RoomCreationRequestListView", () => {
-  it("서버가 제공한 신청 순서대로 상태와 상세 링크를 표시한다", () => {
+describe("RoomCreationRequestListContent", () => {
+  it("서버가 제공한 신청 순서대로 상태를 표시하고 반려 건에는 사유만 제공한다", () => {
     const markup = renderView({ requests: [PENDING_REQUEST, REJECTED_REQUEST] });
 
-    expect(markup.indexOf("request-old")).toBeLessThan(markup.indexOf("request-new"));
-    expect(markup).toContain('data-room-creation-request-status="PENDING"');
-    expect(markup).toContain('data-room-creation-request-status="REJECTED"');
-    expect(markup).toContain('href="/chat/creation-requests/request-old"');
+    expect(markup.indexOf('data-room-creation-request-status="PENDING"')).toBeLessThan(
+      markup.indexOf('data-room-creation-request-status="REJECTED"'),
+    );
     expect(markup).toContain("운영 정책과 맞지 않습니다.");
+    expect(markup).not.toContain("이동하기");
+    expect(markup).not.toContain("신청 ID");
+    expect(markup).not.toContain("/chat/creation-requests/");
+    expect(markup).not.toContain("실시간 알림");
+    expect(markup).toContain("min-h-[120px]");
+    expect(markup).toContain("rounded-[var(--chat-publishing-radius-card)]");
+  });
+
+  it("승인된 요청에만 생성된 토론방 이동 action을 표시한다", () => {
+    const markup = renderView({ requests: [APPROVED_REQUEST] });
+
+    expect(markup).toContain('data-room-creation-request-status="APPROVED"');
+    expect(markup).toContain('href="/chat/room-01"');
+    expect(markup).toContain(">이동하기</a>");
   });
 
   it("다음 cursor가 있을 때만 더 보기 동작을 표시한다", () => {
@@ -24,16 +37,17 @@ describe("RoomCreationRequestListView", () => {
   it("신청이 없을 때 빈 목록 안내를 표시한다", () => {
     const markup = renderView();
 
-    expect(markup).toContain("아직 생성 신청이 없습니다.");
+    expect(markup).toContain("아직 요청 내역이 없어요.");
+    expect(markup).toContain("새로운 토론방이 필요하다면 신청해 주세요.");
     expect(markup).not.toContain("이전 신청 더 보기");
   });
 });
 
 function renderView(
-  overrides: Partial<ComponentProps<typeof RoomCreationRequestListView>> = {},
+  overrides: Partial<ComponentProps<typeof RoomCreationRequestListContent>> = {},
 ): string {
   return renderToStaticMarkup(
-    <RoomCreationRequestListView
+    <RoomCreationRequestListContent
       errorMessage={null}
       hasNextPage={false}
       isError={false}
@@ -77,4 +91,17 @@ const REJECTED_REQUEST = {
   roomVersion: null,
   ownerMembershipVersion: null,
   rejectionReason: "운영 정책과 맞지 않습니다.",
+} satisfies RoomCreationRequestResponse;
+
+const APPROVED_REQUEST = {
+  ...RESPONSE_BASE,
+  creationRequestId: "request-approved",
+  code: "ROOM_CREATED",
+  status: "APPROVED",
+  resolvedAt: "2026-08-25T08:00:00Z",
+  roomId: "room-01",
+  ownerMembershipId: "membership-01",
+  roomVersion: 1,
+  ownerMembershipVersion: 1,
+  rejectionReason: null,
 } satisfies RoomCreationRequestResponse;

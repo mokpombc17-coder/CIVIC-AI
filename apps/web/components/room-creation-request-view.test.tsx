@@ -9,7 +9,7 @@ describe("RoomCreationRequestView", () => {
 
     expect(markup).toContain('data-room-creation-request-status="APPROVED"');
     expect(markup).toContain('href="/chat/room-01"');
-    expect(markup).toContain('href="/chat/creation-requests"');
+    expect(markup).toContain('href="/chat"');
     expect(markup).toContain("생성된 채팅방으로 이동");
     expect(markup).toContain("최신 상태 확인");
   });

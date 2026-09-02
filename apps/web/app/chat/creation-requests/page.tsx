@@ -1,10 +1,5 @@
-import type { Metadata } from "next";
-import { RoomCreationRequestListScreen } from "@/components/room-creation-request-list-screen";
+import { redirect } from "next/navigation";
 
-export const metadata: Metadata = {
-  title: "채팅방 생성 신청 내역",
-};
-
-export default function RoomCreationRequestsPage() {
-  return <RoomCreationRequestListScreen />;
+export default function LegacyRoomCreationRequestsPage() {
+  redirect("/chat");
 }

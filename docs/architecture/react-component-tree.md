@@ -180,14 +180,13 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │       │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
                         │   │       │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
                         │   │       │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
+                        │   │       │               │   └── RoomCreationRequestListContent [Client] [View] [request history view] (apps/web/components/room-creation-request-list-view.tsx)
                         │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
                         │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                         │   │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                         │   │       │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │       │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                        │   │       ├── route /chat/creation-requests: RoomCreationRequestsPage [Server] [Route] (apps/web/app/chat/creation-requests/page.tsx)
-                        │   │       │   └── RoomCreationRequestListScreen [Client] [Container] (apps/web/components/room-creation-request-list-screen.tsx)
-                        │   │       │       └── RoomCreationRequestListView [Client] [View] (apps/web/components/room-creation-request-list-view.tsx)
+                        │   │       ├── route /chat/creation-requests: LegacyRoomCreationRequestsPage [Server] [Redirect → /chat] (apps/web/app/chat/creation-requests/page.tsx)
                         │   │       ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
                         │   │       │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
                         │   │       │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
@@ -265,8 +264,8 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 
 `ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
 전체·안읽음 로컬 필터, 생성 요청 sheet disclosure와 Room 상세 selection·trigger focus 복원을 담당하는
-hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 생성 요청과 Room 상세 중 하나를
-`PlatformShell`의 overlay slot에 전달하고 overlay가 열린 동안 기존 surface를 inert 처리한다.
+hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 본문의 생성 요청 action을 제공하고,
+생성 요청 sheet와 Room 상세 중 하나를 `PlatformShell`의 overlay slot에 전달하여 overlay가 열린 동안 기존 surface를 inert 처리한다.
 목록 surface는 참여 Room 필터·생성 action, 참여 Room 목록, 공개 Room 검색, 참여 가능한 Room 목록
 순서로 조립하여 검색의 적용 범위가 공개 Room 목록임을 구조로 드러낸다.
 `PublicRoomSearchForm`은 검색어 draft를 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query
@@ -274,25 +273,27 @@ hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 생성 요청�
 `ChatRoomListDetailDialog`는 PlatformShell 내부의 ARIA dialog로 목록 snapshot을 Figma 기반 bottom
 sheet로 표현하고, 참여 중인 Room의 입장 링크 또는 참여 가능한 Room의 `JoinChatRoomControl`을 조립한다.
 브라우저 top layer를 사용하지 않아 backdrop과 sheet가 PlatformShell 경계를 벗어나지 않는다. `CreateChatRoomForm`은 Figma
-기반 생성 요청·접수 완료 bottom sheet를 표현하고 `useCreateChatRoomForm`의 validation, mutation,
+기반 생성 요청·접수 완료와 요청·목록 전환 control을 가진 bottom sheet를 표현하고 `useCreateChatRoomForm`의 validation, mutation,
 멱등성 key 재시도와 라우팅을 연결한다. `PENDING`은 접수 완료 sheet로 전환하고 `APPROVED`는 생성된
 Room으로 이동한다. 주제 입력은 노출하지 않고 category는 관리자 승인 과정에서 부여하므로 생성
 요청에도 포함하지 않는다. form model은 `LISTED`, `OPEN`을 요청 기본값으로 보완한다. 참여 control의 validation,
 mutation, 멱등성 key 재시도와 라우팅 구현도 JSX 밖에 둔다. 방 card, unread badge, avatar, notice와
 pagination button은 이 책임 경계를 바꾸지 않는 순수 표현 요소라 생략한다.
+`CreateChatRoomForm`의 요청 이력 view는 내 요청 목록 Query와 `RoomCreationRequestListContent`를 조립해
+동일한 PlatformShell bottom sheet 안에서 신청 이력을 표시한다. 기존 목록 URL은 `/chat`으로 redirect하고,
+개별 상세 route는 기존 deep link 호환을 위해 유지한다.
 
-`RoomCreationRequestListScreen`은 사용자의 신청 이력 infinite Query와 opaque cursor
-pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationRequestListView`는
-서버의 `requestedAt ASC`, `creationRequestId ASC` 순서를 변경하지 않고 상태별 신청
-card와 상세 진입, 다음 page 적재를 표현한다.
+요청 이력 view의 목록 hook은 사용자의 신청 이력 infinite Query와 opaque cursor
+pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationRequestListContent`는 서버의
+`requestedAt ASC`, `creationRequestId ASC` 순서를 변경하지 않고 상태별 신청 card, 승인된 Room 이동과
+다음 page 적재를 표현한다.
 
 `RoomCreationRequestScreen`은 `creationRequestId`별 상세 Query, 상태·오류 presentation,
 명시적 새로고침과 `PENDING` 신청 취소를 조립해 `RoomCreationRequestView`에
 전달한다. 취소와 관리자 결정이 경합하면 동일 취소를 재시도하지 않고 상세를
 재조회해 서버 최신 상태로 수렴한다. View는 신청의
 `PENDING`·`APPROVED`·`REJECTED`·`CANCELED` 상태, 시각, 반려 사유와 승인된 Room
-이동을 표현한다. 실시간 알림을 가정하지 않고, 사용자가 상세 화면에서 최신 상태를
-직접 재조회할 수 있게 한다.
+이동 및 사용자의 명시적인 최신 상태 확인을 표현한다.
 
 `ChatRoomScreen`은 화면에 필요한 controller와 ViewModel을 조립하는 container다.
 `useChatRoomRealtimeExperience`는 Room session, Message History와 Read Receipt snapshot,
@@ -490,10 +491,9 @@ flowchart TD
     ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
     PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
     CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/create-chat-room-form.tsx"]
+    RoomCreationRequestListContent["RoomCreationRequestListContent [Client] [View]<br/>apps/web/components/room-creation-request-list-view.tsx"]
     JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
-    RoomCreationRequestsPage["RoomCreationRequestsPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/page.tsx"]
-    RoomCreationRequestListScreen["RoomCreationRequestListScreen [Client] [Container]<br/>apps/web/components/room-creation-request-list-screen.tsx"]
-    RoomCreationRequestListView["RoomCreationRequestListView [Client] [View]<br/>apps/web/components/room-creation-request-list-view.tsx"]
+    LegacyRoomCreationRequestsPage["LegacyRoomCreationRequestsPage [Server] [Redirect → /chat]<br/>apps/web/app/chat/creation-requests/page.tsx"]
     RoomCreationRequestPage["RoomCreationRequestPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx"]
     RoomCreationRequestScreen["RoomCreationRequestScreen [Client] [Container]<br/>apps/web/components/room-creation-request-screen.tsx"]
     RoomCreationRequestView["RoomCreationRequestView [Client] [View]<br/>apps/web/components/room-creation-request-view.tsx"]
@@ -570,7 +570,7 @@ flowchart TD
     ChatRealtimeProvider -->|"development only"| ChatRealtimeDiagnosticsPanel
     ChatRoomInboxRuntime -->|"conditional toast"| ChatRoomInboxToastList
     ChatChildrenSlot -. "route /chat" .-> ChatPage
-    ChatChildrenSlot -. "route /chat/creation-requests" .-> RoomCreationRequestsPage
+    ChatChildrenSlot -. "legacy redirect" .-> LegacyRoomCreationRequestsPage
     ChatChildrenSlot -. "route /chat/creation-requests/[creationRequestId]" .-> RoomCreationRequestPage
     ChatChildrenSlot -. "route /chat/[roomId]" .-> ChatRoomPage
     ChatPage --> ChatRoomListScreen
@@ -579,13 +579,12 @@ flowchart TD
     ChatListPlatformShell --> PlatformHeader
     ChatListPlatformShell --> PublicRoomSearchForm
     ChatListPlatformShell -->|"conditional overlay; surface inert"| CreateChatRoomForm
+    CreateChatRoomForm -->|"request history view"| RoomCreationRequestListContent
     ChatListPlatformShell -->|"conditional overlay; surface inert"| ChatRoomListDetailDialog
     ChatListPlatformShell --> PlatformNavigationClient
     PlatformNavigationClient --> PlatformNavigation
     PlatformNavigation --> PlatformBottomNavigation
     ChatRoomListDetailDialog -->|"available room action"| JoinChatRoomControl
-    RoomCreationRequestsPage --> RoomCreationRequestListScreen
-    RoomCreationRequestListScreen --> RoomCreationRequestListView
     RoomCreationRequestPage --> RoomCreationRequestScreen
     RoomCreationRequestScreen --> RoomCreationRequestView
     ChatRoomPage --> ChatRoomScreen
@@ -651,8 +650,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatPage,RoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,JoinChatRoomControl,RoomCreationRequestListScreen,RoomCreationRequestListView,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,AppInstallBanner,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```
