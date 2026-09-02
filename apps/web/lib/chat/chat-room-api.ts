@@ -114,7 +114,7 @@ export type ChatRoomApi = Readonly<{
     params?: PublicRoomListParams,
     signal?: AbortSignal,
   ): Promise<PublicRoomListResponse>;
-  getRoom(roomId: string): Promise<RoomDetails>;
+  getRoom(roomId: string, signal?: AbortSignal): Promise<RoomDetails>;
   getMyMembership(roomId: string): Promise<RoomMembership>;
   listMyRooms(params?: CursorPaginationParams): Promise<MyRoomListResponse>;
   listMyRoomCreationRequests(
@@ -126,7 +126,7 @@ export type ChatRoomApi = Readonly<{
     signal?: AbortSignal,
   ): Promise<RoomCreationRequestResponse>;
   cancelMyRoomCreationRequest(creationRequestId: string): Promise<RoomCreationRequestResponse>;
-  listRoomInbox(params?: RoomInboxListParams): Promise<RoomInboxListResponse>;
+  listRoomInbox(params?: RoomInboxListParams, signal?: AbortSignal): Promise<RoomInboxListResponse>;
   updateRoomReadState(
     roomId: string,
     request: UpdateRoomReadStateRequest,
@@ -139,7 +139,11 @@ export type ChatRoomApi = Readonly<{
     roomId: string,
     params?: RoomMembershipListParams,
   ): Promise<RoomMembershipListResponse>;
-  getRoomMessages(roomId: string, request?: MessageHistoryRequest): Promise<MessageHistoryResponse>;
+  getRoomMessages(
+    roomId: string,
+    request?: MessageHistoryRequest,
+    signal?: AbortSignal,
+  ): Promise<MessageHistoryResponse>;
   searchRoomMessages(
     roomId: string,
     request: RoomMessageSearchRequest,
@@ -278,8 +282,14 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
       );
     },
 
-    async getRoom(roomId) {
-      return requestAndParse(request, "방 상세 응답", roomDetailsSchema, createRoomPath(roomId));
+    async getRoom(roomId, signal) {
+      return requestAndParse(
+        request,
+        "방 상세 응답",
+        roomDetailsSchema,
+        createRoomPath(roomId),
+        signal ? { signal } : undefined,
+      );
     },
 
     async getMyMembership(roomId) {
@@ -330,12 +340,13 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
       );
     },
 
-    async listRoomInbox(params = {}) {
+    async listRoomInbox(params = {}, signal) {
       return requestAndParse(
         request,
         "Room inbox 목록 응답",
         roomInboxListResponseSchema,
         createListPath("/me/room-inbox", roomInboxListParamsSchema.parse(params)),
+        signal ? { signal } : undefined,
       );
     },
 
@@ -378,7 +389,7 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
       );
     },
 
-    async getRoomMessages(roomId, historyRequest = { mode: "latest" }) {
+    async getRoomMessages(roomId, historyRequest = { mode: "latest" }, signal) {
       const parsedRoomId = roomIdSchema.parse(roomId);
       const parsedRequest = messageHistoryRequestSchema.parse(historyRequest);
 
@@ -387,6 +398,7 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         `${parsedRequest.mode} 메시지 이력 응답`,
         createMessageHistoryResponseSchema(parsedRequest, parsedRoomId),
         createMessageHistoryPath(parsedRoomId, parsedRequest),
+        signal ? { signal } : undefined,
       );
     },
 

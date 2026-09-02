@@ -40,6 +40,8 @@ describe("chatRoomApi queries", () => {
     const api = createChatRoomApi(request);
     const publicRoomsAbortController = new AbortController();
     const creationRequestsAbortController = new AbortController();
+    const roomInboxAbortController = new AbortController();
+    const roomDetailsAbortController = new AbortController();
 
     const publicRooms = await api.listPublicRooms(
       {
@@ -64,11 +66,14 @@ describe("chatRoomApi queries", () => {
       creationRequestsAbortController.signal,
     );
     await api.cancelMyRoomCreationRequest("creation/request 01");
-    const roomInbox = await api.listRoomInbox({
-      cursor: "inbox cursor",
-      limit: 20,
-    });
-    const roomDetails = await api.getRoom("room-01");
+    const roomInbox = await api.listRoomInbox(
+      {
+        cursor: "inbox cursor",
+        limit: 20,
+      },
+      roomInboxAbortController.signal,
+    );
+    const roomDetails = await api.getRoom("room-01", roomDetailsAbortController.signal);
     await api.getMyMembership("room-01");
     await api.listRoomMemberships("room-01", {
       status: "BANNED",
@@ -91,6 +96,8 @@ describe("chatRoomApi queries", () => {
     expect(calls[2]?.init?.signal).toBe(creationRequestsAbortController.signal);
     expect(calls[3]?.init?.signal).toBe(creationRequestsAbortController.signal);
     expect(calls[4]?.init).toEqual({ method: "POST" });
+    expect(calls[5]?.init?.signal).toBe(roomInboxAbortController.signal);
+    expect(calls[6]?.init?.signal).toBe(roomDetailsAbortController.signal);
     expect(publicRooms.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
     expect(roomInbox.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
     expect(roomDetails.categorySummaries).toEqual(CATEGORY_SUMMARIES);
@@ -194,24 +201,34 @@ describe("chatRoomApi message history", () => {
       },
     );
     const api = createChatRoomApi(request);
+    const abortController = new AbortController();
 
-    await api.getRoomMessages("room-01");
-    await api.getRoomMessages("room-01", {
-      mode: "before",
-      beforeSequence: 119,
-      limit: 25,
-    });
-    await api.getRoomMessages("room-01", {
-      mode: "after",
-      afterSequence: 0,
-      limit: 100,
-    });
+    await api.getRoomMessages("room-01", undefined, abortController.signal);
+    await api.getRoomMessages(
+      "room-01",
+      {
+        mode: "before",
+        beforeSequence: 119,
+        limit: 25,
+      },
+      abortController.signal,
+    );
+    await api.getRoomMessages(
+      "room-01",
+      {
+        mode: "after",
+        afterSequence: 0,
+        limit: 100,
+      },
+      abortController.signal,
+    );
 
     expect(calls.map(({ path }) => path)).toEqual([
       "/rooms/room-01/messages?limit=50",
       "/rooms/room-01/messages?beforeSequence=119&limit=25",
       "/rooms/room-01/messages?afterSequence=0&limit=100",
     ]);
+    expect(calls.every(({ init }) => init?.signal === abortController.signal)).toBe(true);
   });
 
   it("조회 방향과 다른 cursor 또는 다른 roomId 응답을 거절한다", async () => {

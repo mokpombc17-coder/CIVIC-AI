@@ -269,11 +269,14 @@ export function roomInboxInfiniteQueryOptions(
   return infiniteQueryOptions({
     queryKey: chatRoomQueryKeys.roomInbox(limit),
     initialPageParam: null as string | null,
-    queryFn: ({ pageParam }) =>
-      api.listRoomInbox({
-        limit,
-        ...(pageParam === null ? {} : { cursor: pageParam }),
-      }),
+    queryFn: ({ pageParam, signal }) =>
+      api.listRoomInbox(
+        {
+          limit,
+          ...(pageParam === null ? {} : { cursor: pageParam }),
+        },
+        signal,
+      ),
     getNextPageParam: getNextRoomInboxPageParam,
     retry: shouldRetryRoomInboxRequest,
     retryDelay: (attemptIndex) => getRoomInboxRetryDelay(attemptIndex),
@@ -286,7 +289,7 @@ export function roomDetailsQueryOptions(
 ) {
   return queryOptions({
     queryKey: chatRoomQueryKeys.detail(roomId),
-    queryFn: () => api.getRoom(roomId),
+    queryFn: ({ signal }) => api.getRoom(roomId, signal),
   });
 }
 
@@ -349,7 +352,7 @@ export function roomMessageHistoryInfiniteQueryOptions(
     queryKey: chatRoomQueryKeys.messageHistory(roomId, limit),
     enabled,
     initialPageParam: null as number | null,
-    queryFn: ({ pageParam }) =>
+    queryFn: ({ pageParam, signal }) =>
       api.getRoomMessages(
         roomId,
         pageParam === null
@@ -362,6 +365,7 @@ export function roomMessageHistoryInfiniteQueryOptions(
               beforeSequence: pageParam,
               limit,
             },
+        signal,
       ),
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.nextBeforeSequence : null),
     staleTime: Number.POSITIVE_INFINITY,

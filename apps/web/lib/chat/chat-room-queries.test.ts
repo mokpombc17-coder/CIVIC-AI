@@ -1,4 +1,4 @@
-import { InfiniteQueryObserver, QueryClient } from "@tanstack/react-query";
+import { InfiniteQueryObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ChatApiError } from "./chat-fetch";
 import { ChatMessageMergeConflictError } from "./chat-message-merge";
@@ -345,7 +345,7 @@ describe("chat room query options", () => {
     await createQueryClient().fetchInfiniteQuery(options);
 
     expect(options.queryKey).toEqual(chatRoomQueryKeys.roomInbox(20));
-    expect(listRoomInbox).toHaveBeenCalledWith({ limit: 20 });
+    expect(listRoomInbox).toHaveBeenCalledWith({ limit: 20 }, expect.any(AbortSignal));
     expect(options.queryKey).not.toEqual(chatRoomQueryKeys.myList(20));
   });
 
@@ -408,7 +408,7 @@ describe("chat room query options", () => {
       }),
     );
 
-    expect(getRoom).toHaveBeenCalledWith("room-01");
+    expect(getRoom).toHaveBeenCalledWith("room-01", expect.any(AbortSignal));
     expect(getMyMembership).toHaveBeenCalledWith("room-01");
     expect(chatRoomQueryKeys.detail("room-01")).not.toEqual(
       chatRoomQueryKeys.myMembership("room-01"),
@@ -517,22 +517,84 @@ describe("chat room query options", () => {
     );
     const queryFn = options.queryFn as (context: {
       pageParam: number | null;
+      signal: AbortSignal;
     }) => Promise<MessageHistoryResponse>;
+    const abortController = new AbortController();
 
-    const latestPage = await queryFn({ pageParam: null });
+    const latestPage = await queryFn({
+      pageParam: null,
+      signal: abortController.signal,
+    });
     const nextPageParam = options.getNextPageParam?.(latestPage, [], null, []);
 
-    await queryFn({ pageParam: nextPageParam ?? null });
+    await queryFn({
+      pageParam: nextPageParam ?? null,
+      signal: abortController.signal,
+    });
 
-    expect(getRoomMessages).toHaveBeenNthCalledWith(1, "room-01", {
-      mode: "latest",
-      limit: 25,
-    });
-    expect(getRoomMessages).toHaveBeenNthCalledWith(2, "room-01", {
-      mode: "before",
-      beforeSequence: 119,
-      limit: 25,
-    });
+    expect(getRoomMessages).toHaveBeenNthCalledWith(
+      1,
+      "room-01",
+      {
+        mode: "latest",
+        limit: 25,
+      },
+      abortController.signal,
+    );
+    expect(getRoomMessages).toHaveBeenNthCalledWith(
+      2,
+      "room-01",
+      {
+        mode: "before",
+        beforeSequence: 119,
+        limit: 25,
+      },
+      abortController.signal,
+    );
+  });
+
+  it("화면 observer가 해제되면 Room inbox·상세·메시지 이력 요청을 취소한다", async () => {
+    const queryClient = createQueryClient();
+    const signals: AbortSignal[] = [];
+    const waitForAbort = (signal: AbortSignal | undefined): Promise<never> => {
+      if (!signal) {
+        throw new Error("query AbortSignal이 API에 전달되어야 합니다.");
+      }
+
+      signals.push(signal);
+      return new Promise((_, reject) => {
+        signal.addEventListener("abort", () => reject(signal.reason), { once: true });
+      });
+    };
+    const roomInboxObserver = new InfiniteQueryObserver(
+      queryClient,
+      roomInboxInfiniteQueryOptions(
+        {},
+        { listRoomInbox: (_params, signal) => waitForAbort(signal) },
+      ),
+    );
+    const roomDetailsObserver = new QueryObserver(
+      queryClient,
+      roomDetailsQueryOptions("room-01", { getRoom: (_roomId, signal) => waitForAbort(signal) }),
+    );
+    const messageHistoryObserver = new InfiniteQueryObserver(
+      queryClient,
+      roomMessageHistoryInfiniteQueryOptions(
+        "room-01",
+        { enabled: true },
+        { getRoomMessages: (_roomId, _request, signal) => waitForAbort(signal) },
+      ),
+    );
+    const unsubscribes = [
+      roomInboxObserver.subscribe(() => {}),
+      roomDetailsObserver.subscribe(() => {}),
+      messageHistoryObserver.subscribe(() => {}),
+    ];
+
+    await vi.waitFor(() => expect(signals).toHaveLength(3));
+    unsubscribes.forEach((unsubscribe) => unsubscribe());
+
+    await vi.waitFor(() => expect(signals.every((signal) => signal.aborted)).toBe(true));
   });
 
   it("최신 page부터 저장된 이력을 화면에서는 전체 sequence 오름차순으로 펼친다", () => {
