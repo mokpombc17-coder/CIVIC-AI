@@ -265,6 +265,35 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
+    void taskOutcomeIntegrationRequiresDedicatedReadScope()
+            throws Exception {
+        String path = "/api/v1/integrations/persona/tasks/"
+                + "00000000-0000-0000-0000-000000000999/outcomes";
+
+        mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "persona-runtime",
+                                        VoteScopes.TASKS_READ)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "persona-runtime",
+                                        VoteScopes.TASK_OUTCOMES_READ)))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
+    }
+
+    @Test
     void rejectsMissingOrWrongUserScopeWithProblemDetail()
             throws Exception {
         mockMvc.perform(get("/api/v1/me/tasks/completed"))

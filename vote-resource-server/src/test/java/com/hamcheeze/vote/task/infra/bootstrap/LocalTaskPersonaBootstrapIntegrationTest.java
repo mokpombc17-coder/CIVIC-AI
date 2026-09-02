@@ -10,10 +10,12 @@ import com.hamcheeze.vote.task.application.bootstrap.LocalTaskParticipationFixtu
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
+import com.hamcheeze.vote.task.application.query.TaskOutcomeQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
+import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -87,6 +89,9 @@ class LocalTaskPersonaBootstrapIntegrationTest {
 
     @Autowired
     private MyTaskResultQueryService taskResults;
+
+    @Autowired
+    private TaskOutcomeQueryService taskOutcomes;
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
@@ -180,6 +185,23 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 firstTask.questions().getFirst().options().getFirst().id());
         assertThat(submissions.findByUserAndTask(
                 userId, secondTask.id())).isEmpty();
+
+        String externalPersonaId = persona.personaId().orElseThrow().value();
+        var outcomePage = taskOutcomes.findByTask(
+                firstTask.id(), null, 100).orElseThrow();
+        assertThat(outcomePage.items()).hasSize(1);
+        assertThat(outcomePage.hasMore()).isFalse();
+        assertThat(outcomePage.nextCursor()).isNotBlank();
+        assertThat(outcomePage.items().getFirst().outcomeId())
+                .isEqualTo(submission.id());
+        assertThat(outcomePage.items().getFirst().personaId().value())
+                .isEqualTo(externalPersonaId);
+        assertThat(outcomePage.items().getFirst().finalReason())
+                .isEqualTo(submission.finalReason());
+        assertThat(taskOutcomes.findByTaskAndPersona(
+                firstTask.id(), new TaskPersonaId(externalPersonaId)))
+                .contains(outcomePage.items().getFirst());
+
         assertThat(LocalCompletedTaskFixture.matchesClosed(completedTask))
                 .isTrue();
 
