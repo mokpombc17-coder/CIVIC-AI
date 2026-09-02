@@ -323,6 +323,7 @@ export function formatAdminProblem(problem: AdminProblem): string {
     ROOM_CATEGORY_ASSIGNMENT_VERSION_CONFLICT:
       "다른 관리자가 토론방을 변경했습니다. 최신 설정에서 다시 시도해 주세요.",
     USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 토론방 수를 초과했습니다.",
+    SIMULATION_NOT_COMPLETED: "아직 결과가 없습니다.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
   };
@@ -333,7 +334,9 @@ export function formatAdminProblem(problem: AdminProblem): string {
       : problem.status === 429
         ? `요청이 많습니다.${problem.retryAfter ? ` ${problem.retryAfter}초 후 다시 시도하세요.` : " 잠시 후 다시 시도하세요."}`
         : (problem.detail ?? "요청을 처리하지 못했습니다."));
-  return problem.traceId ? `${base} 문의 코드: ${problem.traceId}` : base;
+  return problem.code === "SIMULATION_NOT_COMPLETED" || !problem.traceId
+    ? base
+    : `${base} 문의 코드: ${problem.traceId}`;
 }
 
 export function adminFieldError(
