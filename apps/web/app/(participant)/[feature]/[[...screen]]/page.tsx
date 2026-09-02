@@ -51,6 +51,7 @@ export default async function ParticipantPlaceholderPage({
         <ParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
+          enforceServiceEligibility
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
@@ -63,6 +64,7 @@ export default async function ParticipantPlaceholderPage({
         <ParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
+          enforceServiceEligibility
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
@@ -85,6 +87,7 @@ export default async function ParticipantPlaceholderPage({
       <ParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
+        enforceServiceEligibility
         {...(definition.id === "U-RAG-001"
           ? { headerActions: <RagNewQuestionHeaderAction /> }
           : {})}
@@ -100,7 +103,11 @@ export default async function ParticipantPlaceholderPage({
   await requireParticipantAccess(pathname);
 
   return (
-    <ParticipantShell activeRoute={pathname} title={participantPlaceholderTitle(pathname)}>
+    <ParticipantShell
+      activeRoute={pathname}
+      enforceServiceEligibility
+      title={participantPlaceholderTitle(pathname)}
+    >
       <ComingSoonScreen screen={definition} />
     </ParticipantShell>
   );

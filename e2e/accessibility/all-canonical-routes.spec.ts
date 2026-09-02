@@ -50,6 +50,17 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/me/surveys/current") {
       return json(response, voteSurveyCurrentFixture);
     }
+    if (url.pathname === "/api/v1/me/service-eligibility") {
+      return json(response, {
+        activeRoundId: voteSurveyCurrentFixture.round.id,
+        capabilities: ["VIEW_CURRENT_SURVEY", "VIEW_OWN_SURVEY_RESPONSES"],
+        eligible: true,
+        evaluatedAt: "2026-09-02T00:00:00Z",
+        nextAction: null,
+        reason: null,
+        surveyRequirement: "SATISFIED",
+      });
+    }
     if (url.pathname === "/api/v1/me/survey-responses/latest") {
       return json(response, voteSurveyLatestFixture);
     }
@@ -105,6 +116,10 @@ test("70개 canonical route가 Wire Flow 화면, 접근성, 비활성 네트워�
     const deferredProbe = screen.status === "PLACEHOLDER" ? collectDeferredRequests(page) : null;
 
     await page.goto(screen.route);
+    if (screen.id === "U-ACCOUNT-003") {
+      await expect(page).toHaveURL(/\/survey$/u);
+      continue;
+    }
     const recoveredSignupStep = screen.id === "AUTH-003" || screen.id === "AUTH-004";
     if (recoveredSignupStep) await expect(page).toHaveURL(/\/signup\/account$/u);
     await expect(

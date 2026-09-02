@@ -29,6 +29,10 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 선택한다.
 
 ```text
+RootLayout [Server]
+└── AppQueryProvider [Client, 전역 TanStack Query cache]
+    └── AppShell
+
 IndexPage / [Server Route] [redirect: /home]
 
 PwaStartPage /pwa/start [Server Route, manifest start_url]
@@ -42,6 +46,9 @@ PwaStartPage /pwa/start [Server Route, manifest start_url]
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 └── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
+    ├── ParticipantEligibilityGuard [Client, 로그인 사용자만 활성화]
+    │   ├── GET /api/v1/me/service-eligibility [전역 cache 공유]
+    │   └── 필수 미제출: /survey?returnTo=/home hard navigation
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
             └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
@@ -57,16 +64,15 @@ ParticipantCatchAllPage [Server Route]
 │   ├── requireParticipantAccess
 │   └── ParticipantShell 또는 AdminShell
 │       ├── ParticipantShell
+│       │   ├── ParticipantEligibilityGuard [Client]
+│       │   │   ├── /survey·인증 경로 제외
+│       │   │   └── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
 │       │   └── PlatformPageShell
 │       │       └── 기존 frontend2 PlatformShell [정확히 1개]
 │       │           └── MainFunctionalScreen
 │       │               └── AccountFunctionalScreen [conditional]
 │       │                   ├── AccountHubSurface [/mypage, 로그아웃]
 │       │                   ├── AccountManagementSurface [/mypage/profile, 보안 포함]
-│       │                   ├── VoteSurveySurface [/mypage/survey]
-│       │                   │   ├── Vote 현재 회차·Eligibility 조회
-│       │                   │   ├── 6개 질문 유형 동적 렌더링·최종 제출
-│       │                   │   └── 제출 당시 불변 질문·응답 읽기 전용 표시
 │       │                   └── DeactivationDialog [/mypage/deactivate]
 │       └── AdminShell
 │           └── MainFunctionalScreen
@@ -162,7 +168,9 @@ adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/ho
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
 
 계정 본문은 Figma `U-ACCOUNT-001..004`에 맞춰 `/mypage`, `/mypage/profile`,
-`/mypage/survey`, `/mypage/deactivate`로 나뉜다. 기존 강제 비밀번호 변경 복귀 주소인
+`/mypage/deactivate`로 나뉜다. 설문 정식 경로 `/survey`는 같은 공개 origin의 3001 Next.js
+애플리케이션이 소유하며, 이관 전 `/account/survey`와 `/mypage/survey`는 `/survey`로 리다이렉트한다.
+기존 강제 비밀번호 변경 복귀 주소인
 `/account/security`는 `/account/profile`의 호환 별칭으로 유지하며, 공통 header와 하단
 navigation은 `ParticipantShell`이 계속 소유한다.
 
@@ -243,7 +251,7 @@ Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/
     ├── same-origin 검사
     └── Chat 또는 Vote upstream에 동일 Cookie + Bearer 전달
 
-Browser /api/v1/me/surveys/current | /api/v1/me/survey-responses
+Browser /api/v1/me/service-eligibility | /api/v1/me/surveys/current | /api/v1/me/survey-responses
         | /api/v1/me/survey-responses/latest
 ├── A1: nginx direct ingress
 │   └── Vote Resource Server :8082
@@ -254,9 +262,13 @@ Browser /api/v1/me/surveys/current | /api/v1/me/survey-responses
 ```
 
 회원가입의 `AUTH-003`은 Main/Auth가 저장하는 선호 언어·AI 답변 상세도만 다룬다. 실제 설문은 계정
-생성·이메일 인증·로그인 이후 Vote의 JWT `sub`를 기준으로 `/mypage/survey`에서 진행한다. 로그인 시
-Vote가 현재 회차를 `REQUIRED`로 판단하고 아직 제출하지 않은 참여자만 설문 화면으로 먼저 이동한다.
-Vote 조회 장애는 인증 성공 자체를 되돌리지 않고 기본 참여자 홈으로 폴백한다.
+생성·이메일 인증·로그인 이후 Vote의 JWT `sub`를 기준으로 3001의 `/survey`에서 진행한다. 로그인
+callback은 역할 홈 또는 검증된 `returnTo`까지만 결정하고, 로그인된 참여자 화면의 공통
+`ParticipantEligibilityGuard`가 `GET /api/v1/me/service-eligibility`를 전역 cache로 조회한다.
+`eligible=false`이고 `nextAction=COMPLETE_CURRENT_SURVEY`이면 현재 경로를 `returnTo`로 보존해
+`/survey`로 hard navigation한다. 3001은 제출 성공 후 같은 eligibility를 invalidate·재조회하여
+`eligible=true`를 확인한 뒤 `returnTo` 또는 `/home`으로 돌아와야 한다. Vote 조회 장애는 인증 성공
+자체를 되돌리지 않고 현재 참여자 화면을 표시한다.
 
 실행 요청은 먼저 `/api/v1/admin/simulations/preview`에 `taskId`를 포함해 예상 원화 비용·20% 보류액·
 예상 시간·가격 정책 fingerprint를 받는다. 관리자가 화면에서 이를 확인한 다음 동일 fingerprint를

@@ -2,7 +2,9 @@
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
+import { getAppQueryClient } from "@/components/providers/app-query-provider";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { safeReturnTarget } from "@/lib/auth/return-target";
 import {
   buildVoteSurveySubmission,
   orderedSurveyOptions,
@@ -15,6 +17,8 @@ import {
   type VoteSurveyRule,
   type VoteSurveySubmissionAttempt,
 } from "@/lib/vote/participant-survey";
+import { loadServiceEligibility, serviceEligibilityQueryKey } from "@/lib/vote/service-eligibility";
+import type { QueryClient } from "@tanstack/react-query";
 
 const voteSurveyRequestTimeoutMs = 15_000;
 
@@ -81,7 +85,20 @@ export function VoteSurveySurface() {
   }, [reloadVersion]);
 
   useEffect(() => {
-    if (survey?.submitted) location.replace("/account");
+    if (!survey?.submitted) return;
+    let active = true;
+    completedSurveyDestination(location.search)
+      .then((destination) => {
+        if (!active) return;
+        if (destination) location.replace(destination);
+        else setMessage("설문 제출 상태를 확인하고 있습니다. 잠시 후 다시 시도해 주세요.");
+      })
+      .catch((error: unknown) => {
+        if (active) setMessage(errorMessage(error, "설문 제출 상태를 확인하지 못했습니다."));
+      });
+    return () => {
+      active = false;
+    };
   }, [survey?.submitted]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -95,7 +112,13 @@ export function VoteSurveySurface() {
       submissionAttempt.current = attempt;
       await submitVoteSurvey(submission, attempt.key);
       submissionAttempt.current = null;
-      location.assign("/account");
+      const destination = await completedSurveyDestination(location.search);
+      if (!destination) {
+        setSurvey({ ...survey, submitted: true });
+        setMessage("설문 제출 상태를 확인하고 있습니다. 잠시 후 다시 시도해 주세요.");
+        return;
+      }
+      location.assign(destination);
     } catch (error) {
       setMessage(errorMessage(error, "설문을 제출하지 못했습니다."));
     } finally {
@@ -117,7 +140,9 @@ export function VoteSurveySurface() {
     );
   }
   if (survey.submitted) {
-    return <SurveyStatus message="계정 화면으로 이동하고 있습니다…" tone="loading" />;
+    return (
+      <SurveyStatus message={message || "설문 제출 상태를 확인하고 있습니다…"} tone="loading" />
+    );
   }
 
   const sections = groupSurveyQuestions(survey.content.questions);
@@ -362,6 +387,22 @@ export async function loadVoteSurvey(
     throw new Error(await responseProblem(currentResponse, "현재 설문을 불러오지 못했습니다."));
   }
   return (await currentResponse.json()) as VoteCurrentSurvey;
+}
+
+export async function completedSurveyDestination(
+  search: string,
+  queryClient: QueryClient = getAppQueryClient(),
+  request: typeof fetch = authenticatedFetch,
+): Promise<string | null> {
+  await queryClient.invalidateQueries({ queryKey: serviceEligibilityQueryKey });
+  const eligibility = await queryClient.fetchQuery({
+    queryFn: () => loadServiceEligibility(request),
+    queryKey: serviceEligibilityQueryKey,
+    staleTime: 0,
+  });
+  if (!eligibility.eligible) return null;
+  const returnTo = new URLSearchParams(search).get("returnTo") ?? "/home";
+  return safeReturnTarget(returnTo);
 }
 
 async function submitVoteSurvey(

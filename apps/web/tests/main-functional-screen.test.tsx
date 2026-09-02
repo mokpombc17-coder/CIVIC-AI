@@ -2,7 +2,12 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
-import { groupSurveyQuestions, loadVoteSurvey } from "@/components/account/vote-survey-surface";
+import {
+  completedSurveyDestination,
+  groupSurveyQuestions,
+  loadVoteSurvey,
+} from "@/components/account/vote-survey-surface";
+import { QueryClient } from "@tanstack/react-query";
 import {
   AUDIT_GRID_COLUMNS,
   auditRowFromEvent,
@@ -47,7 +52,6 @@ import {
   authStepAfterPopState,
   authCompletionDestination,
   authenticatedDestination,
-  authenticatedPostLoginDestination,
   duplicateEmailAccountState,
   isDeactivatedAccountError,
   isPasswordResetEmail,
@@ -676,60 +680,6 @@ describe("25 functional Main/Auth screens", () => {
     );
   });
 
-  it("로그인한 참여자의 Vote 설문이 필수 미제출이면 설문 화면을 우선한다", async () => {
-    const requiredSurvey = vi.fn<typeof fetch>(async () =>
-      Response.json({
-        submitted: false,
-        eligibility: { surveyRequirement: "REQUIRED" },
-      }),
-    );
-    const completedSurvey = vi.fn<typeof fetch>(async () =>
-      Response.json({
-        submitted: true,
-        eligibility: { surveyRequirement: "SATISFIED" },
-      }),
-    );
-
-    await expect(
-      authenticatedPostLoginDestination(
-        { role: "PARTICIPANT", must_change_password: false },
-        "/rag",
-        requiredSurvey,
-      ),
-    ).resolves.toBe("/mypage/survey");
-    await expect(
-      authenticatedPostLoginDestination(
-        { role: "PARTICIPANT", must_change_password: false },
-        null,
-        completedSurvey,
-      ),
-    ).resolves.toBe("/home");
-    await expect(
-      authenticatedPostLoginDestination(
-        { role: "PARTICIPANT", must_change_password: false },
-        "/rag",
-        completedSurvey,
-      ),
-    ).resolves.toBe("/rag");
-    expect(requiredSurvey).toHaveBeenCalledWith(
-      "/api/v1/me/surveys/current",
-      expect.objectContaining({ cache: "no-store", signal: expect.any(AbortSignal) }),
-    );
-  });
-
-  it("Vote 조회 장애는 로그인 완료를 막지 않고 기본 역할 홈으로 폴백한다", async () => {
-    const unavailableVote = vi.fn<typeof fetch>(async () =>
-      Response.json({ code: "SERVICE_UNAVAILABLE" }, { status: 503 }),
-    );
-    await expect(
-      authenticatedPostLoginDestination(
-        { role: "PARTICIPANT", must_change_password: false },
-        null,
-        unavailableVote,
-      ),
-    ).resolves.toBe("/home");
-  });
-
   it("Vote 설문 화면 조회가 지연되면 제한시간 오류로 재시도할 수 있다", async () => {
     const hangingVote = vi.fn<typeof fetch>(
       async (_input, init) =>
@@ -742,6 +692,26 @@ describe("25 functional Main/Auth screens", () => {
     await expect(loadVoteSurvey(hangingVote, 1)).rejects.toThrow(
       "설문 응답 시간이 초과되었습니다. 다시 시도해 주세요.",
     );
+  });
+
+  it("설문 제출 뒤 eligibility를 다시 확인하고 원래 목적지 또는 홈으로 이동한다", async () => {
+    const queryClient = new QueryClient();
+    const eligible = vi.fn<typeof fetch>(async () =>
+      Response.json({ eligible: true, nextAction: null }),
+    );
+    const stillRequired = vi.fn<typeof fetch>(async () =>
+      Response.json({ eligible: false, nextAction: "COMPLETE_CURRENT_SURVEY" }),
+    );
+
+    await expect(
+      completedSurveyDestination("?returnTo=%2Frag%3FfolderId%3Dwelfare", queryClient, eligible),
+    ).resolves.toBe("/rag?folderId=welfare");
+    await expect(completedSurveyDestination("", queryClient, eligible)).resolves.toBe("/home");
+    await expect(completedSurveyDestination("", queryClient, stillRequired)).resolves.toBeNull();
+    expect(eligible).toHaveBeenCalledWith("/api/v1/me/service-eligibility", {
+      cache: "no-store",
+      method: "GET",
+    });
   });
 
   it("설문 문항을 입력 섹션 순서로 묶고 알 수 없는 문항도 보존한다", () => {
@@ -763,25 +733,6 @@ describe("25 functional Main/Auth screens", () => {
     expect(groupSurveyQuestions(questions).flatMap((section) => section.questions)).toHaveLength(
       questions.length,
     );
-  });
-
-  it("Vote 조회가 응답하지 않아도 제한시간 후 로그인 기본 홈으로 이동한다", async () => {
-    const hangingVote = vi.fn<typeof fetch>(
-      async (_input, init) =>
-        await new Promise<Response>((_resolve, reject) => {
-          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")), {
-            once: true,
-          });
-        }),
-    );
-    await expect(
-      authenticatedPostLoginDestination(
-        { role: "PARTICIPANT", must_change_password: false },
-        null,
-        hangingVote,
-        1,
-      ),
-    ).resolves.toBe("/home");
   });
 
   it("등록된 인증 경로를 새로 열어도 2FA 흐름을 복구한다", () => {

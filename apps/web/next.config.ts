@@ -89,6 +89,8 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       { source: "/", destination: "/home", permanent: false },
+      { source: "/account/survey", destination: "/survey", permanent: false },
+      { source: "/mypage/survey", destination: "/survey", permanent: false },
       { source: "/votes/:path*", destination: "/vote/:path*", permanent: true },
     ];
   },

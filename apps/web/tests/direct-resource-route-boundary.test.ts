@@ -23,6 +23,21 @@ afterEach(() => {
 });
 
 describe("direct resource route boundary", () => {
+  it("이관 전 설문 주소를 3001이 소유한 정식 /survey 경로로 보낸다", async () => {
+    const redirects = await nextConfig.redirects?.();
+
+    expect(redirects).toContainEqual({
+      source: "/account/survey",
+      destination: "/survey",
+      permanent: false,
+    });
+    expect(redirects).toContainEqual({
+      source: "/mypage/survey",
+      destination: "/survey",
+      permanent: false,
+    });
+  });
+
   it("운영 정적 청크를 3001과 겹치지 않는 Front2 전용 prefix로 분리한다", () => {
     expect(MAIN_ASSET_PREFIX).toBe("/main-assets");
     expect(assetPrefixForEnvironment("production")).toBe(MAIN_ASSET_PREFIX);

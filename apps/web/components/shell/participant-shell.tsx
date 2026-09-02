@@ -1,5 +1,6 @@
 import type { Route } from "next";
 import type { ReactNode } from "react";
+import { ParticipantEligibilityGuard } from "@/components/auth/participant-eligibility-guard";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import { PlatformNavigation } from "@/components/platform-shell";
 
@@ -7,6 +8,7 @@ type ParticipantShellProps = Readonly<{
   activeRoute: string;
   backHref?: Route;
   children: ReactNode;
+  enforceServiceEligibility?: boolean;
   headerActions?: ReactNode;
   headerTitle?: ReactNode;
   requiresLoginForProtectedLinks?: boolean;
@@ -17,6 +19,7 @@ export function ParticipantShell({
   activeRoute,
   backHref,
   children,
+  enforceServiceEligibility = false,
   headerActions,
   headerTitle,
   requiresLoginForProtectedLinks = false,
@@ -29,7 +32,7 @@ export function ParticipantShell({
     : section.backDisabled
       ? { ariaLabel: "이전 화면으로 돌아가기", disabled: true as const }
       : undefined;
-  return (
+  const shell = (
     <PlatformPageShell
       {...(backAction ? { backAction } : {})}
       bottomNavigation={
@@ -53,6 +56,11 @@ export function ParticipantShell({
         {children}
       </div>
     </PlatformPageShell>
+  );
+  return enforceServiceEligibility ? (
+    <ParticipantEligibilityGuard activeRoute={activeRoute}>{shell}</ParticipantEligibilityGuard>
+  ) : (
+    shell
   );
 }
 

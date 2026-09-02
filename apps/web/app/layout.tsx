@@ -4,6 +4,7 @@ import "./globals.css";
 import "./wireflow.css";
 import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
+import { AppQueryProvider } from "@/components/providers/app-query-provider";
 import { resolveSiteUrl } from "@/lib/site-url";
 
 const siteUrl = resolveSiteUrl(process.env.SITE_URL);
@@ -52,7 +53,9 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         />
       </head>
       <body>
-        <AppShell>{children}</AppShell>
+        <AppQueryProvider>
+          <AppShell>{children}</AppShell>
+        </AppQueryProvider>
       </body>
     </html>
   );

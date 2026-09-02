@@ -6,6 +6,11 @@ export type ParticipantVoteRoute = Readonly<{
 type RouteFailure = Readonly<{ allowedMethods: readonly string[]; status: 404 | 405 }>;
 
 const participantVoteRoutes = Object.freeze({
+  "service-eligibility": {
+    methods: ["GET"],
+    path: "/api/v1/me/service-eligibility",
+    scope: "vote:surveys:read",
+  },
   "surveys/current": {
     methods: ["GET"],
     path: "/api/v1/me/surveys/current",
