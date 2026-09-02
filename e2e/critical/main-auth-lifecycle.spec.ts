@@ -71,7 +71,7 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/signup/flows/signup-flow-1/complete") {
       lastSignupCompletion = body;
-      return json(response, { next: "VERIFY_EMAIL" }, 202);
+      return json(response, { next: "LOGIN" }, 201);
     }
     if (url.pathname === "/api/v1/signup/verification/verify") {
       response.writeHead(204).end();
@@ -145,22 +145,31 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => close(server));
 
-test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 완료하고 이메일을 인증한다", async ({
-  page,
-}) => {
+test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 완료한다", async ({ page }) => {
   await page.goto("/signup/account");
   await page.getByLabel("이메일").fill("new-user@example.com");
   await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
   await page.getByLabel("비밀번호 확인").fill("Civic!234");
   await page.getByLabel("만 14세 이상입니다").check();
-  await page.getByRole("button", { name: "다음으로" }).click();
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "1/3계정 정보",
+  );
+  await expect(page.getByLabel("선호 언어")).toHaveCount(0);
+  await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "서비스 이용약관 전문 보기" })).toHaveCount(0);
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
 
-  await expect(page.getByRole("heading", { name: "응답 설정" })).toBeVisible();
-  await page.getByLabel("선호 언어").selectOption("ko");
-  await page.getByLabel("AI 답변 상세도").selectOption("detailed");
-  await page.getByRole("button", { name: "다음으로" }).click();
+  await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "2/3이메일 인증",
+  );
+  expect(lastSignupCompletion).toBeNull();
+  await page.getByRole("textbox", { name: "인증 코드" }).fill("123456");
+  await page.getByRole("button", { name: "인증하기" }).click();
 
-  await expect(page.getByRole("heading", { name: "필수 동의 항목" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "3/3필수 동의·확인",
+  );
   await expect(page.getByRole("link", { name: "서비스 이용약관 전문 보기" })).toHaveAttribute(
     "href",
     "/legal/terms/1",
@@ -192,11 +201,12 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
   await privacyPopup.close();
   await page.getByLabel("이용약관에 동의합니다").check();
   await page.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다").check();
-  await page.getByRole("button", { name: "가입하기" }).click();
-
-  await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
+  await page.getByRole("button", { name: "동의하고 가입하기" }).click();
+  await expect(page).toHaveURL(/\/login$/u);
 
   expect(lastSignupCompletion).toMatchObject({
+    preferred_language: "ko",
+    rag_answer_detail: "balanced",
     terms_evidence: {
       document_id: "TERMS",
       document_version: "1",
@@ -210,12 +220,6 @@ test("회원가입은 계정 생성 전 2문항·연령·두 필수 동의를 �
       path: "/legal/account-rag-privacy/1",
     },
   });
-
-  await page.getByRole("button", { name: "가입 이메일 인증" }).click();
-  await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
-  await page.getByRole("textbox", { name: "인증 코드" }).fill("123456");
-  await page.getByRole("button", { name: "인증하기" }).click();
-  await expect(page).toHaveURL(/\/login$/u);
 });
 
 test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재활성화로 안내한다", async ({ page }) => {
@@ -224,7 +228,7 @@ test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재
   await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
   await page.getByLabel("비밀번호 확인").fill("Civic!234");
   await page.getByLabel("만 14세 이상입니다").check();
-  await page.getByRole("button", { name: "다음으로" }).click();
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
 
   await expect(page.getByText("이미 가입된 이메일")).toBeVisible();
   await expect(page.getByRole("link", { name: "로그인으로 이동" })).toHaveAttribute(
@@ -235,7 +239,7 @@ test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재
   await page.getByLabel("이메일").fill("registered-dormant@example.com");
   await expect(page.getByText("이미 가입된 이메일")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "다음으로" }).click();
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
   await expect(page.getByText("이미 가입된 이메일")).toBeVisible();
   await expect(page.getByRole("link", { name: "계정 재활성화" })).toHaveAttribute(
     "href",

@@ -69,6 +69,21 @@ Content-Type: application/json
 Next.js 3000 포트는 외부에 공개하지 않고 Nginx만 접근하게 한다. 이 경계가 지켜져야 외부 요청자가
 `X-Real-IP`를 위조해 로그인·가입 rate limit을 우회할 수 없다.
 
+## 가입 순서와 이메일 인증
+
+가입은 계정 정보, 이메일 인증, 필수 동의·가입 완료의 순서로 진행한다.
+
+1. `POST /api/v1/signup/flows`는 이메일에 묶인 임시 flow와 인증 challenge를 만들고 인증 메일을
+   발송한다. 이 시점에는 `users`나 `credentials`를 만들지 않는다.
+2. `POST /api/v1/signup/verification/verify`는 flow의 이메일 인증만 확정하고
+   `__Host-civic-auth-flow`를 유지한다. 사용자는 인증 후 3단계 필수 동의로 이동한다.
+3. `POST /api/v1/signup/flows/{flowId}/complete`는 같은 flow 쿠키, 완료된 이메일 인증, 계정 정보,
+   두 필수 동의 증빙을 모두 확인한 뒤 `ACTIVE` 계정을 생성하고 flow 쿠키를 만료한다.
+
+인증 코드나 flow가 만료돼도 미완성 사용자 계정은 남지 않으므로 사용자는 1단계부터 다시 시작할 수
+있다. 기존 `preferred_language`와 `rag_answer_detail` 계약에는 화면 설문 대신 각각 `ko`와
+`balanced` 기본값을 보낸다.
+
 ## 가입 이메일 중복
 
 `POST /api/v1/signup/flows`는 대소문자를 무시한 동일 이메일이 이미 있으면 `409`와

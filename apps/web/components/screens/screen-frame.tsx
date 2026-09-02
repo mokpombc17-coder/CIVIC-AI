@@ -9,6 +9,7 @@ export function ScreenFrame({
   backHref,
   headingAction,
   platformHeading = "HIDDEN",
+  signupStep,
   title,
 }: Readonly<{
   screen: ScreenDefinition;
@@ -16,9 +17,10 @@ export function ScreenFrame({
   backHref?: Route;
   headingAction?: ReactNode;
   platformHeading?: "HIDDEN" | "SECONDARY";
+  signupStep?: 1 | 2 | 3 | null;
   title?: string;
 }>) {
-  const signupStep = getSignupStep(screen.id);
+  const resolvedSignupStep = signupStep === undefined ? getSignupStep(screen.id) : signupStep;
   const heading = screenFrameHeading(screen);
   const resolvedBackHref = backHref ?? heading.backHref;
   return (
@@ -34,7 +36,7 @@ export function ScreenFrame({
         secondary={platformHeading === "SECONDARY"}
         title={title ?? heading.title}
       />
-      {signupStep ? <SignupStepIndicator current={signupStep} /> : null}
+      {resolvedSignupStep ? <SignupStepIndicator current={resolvedSignupStep} /> : null}
       {children}
     </section>
   );
@@ -56,7 +58,7 @@ const authHeadings: Readonly<
   "AUTH-002": { backHref: "/login" as Route, title: "회원가입" },
   "AUTH-003": { title: "회원가입" },
   "AUTH-004": { title: "회원가입" },
-  "AUTH-005": { backHref: "/signup/pending" as Route, title: "이메일 인증" },
+  "AUTH-005": { backHref: "/signup/account" as Route, title: "이메일 인증" },
   "AUTH-006": {
     backHref: "/signup/account" as Route,
     subtitle: "등록 이메일로 코드를 보냈습니다.",
@@ -122,8 +124,8 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
     "A-SIM-007": { title: "시뮬레이션 실행" },
   });
 
-function SignupStepIndicator({ current }: Readonly<{ current: number }>) {
-  const steps = ["계정 정보", "서비스 설정", "필수 동의·확인"];
+function SignupStepIndicator({ current }: Readonly<{ current: 1 | 2 | 3 }>) {
+  const steps = ["계정 정보", "이메일 인증", "필수 동의·확인"];
   return (
     <nav aria-label="회원가입 단계" className="civic-step-indicator">
       <p>
@@ -148,9 +150,7 @@ function SignupStepIndicator({ current }: Readonly<{ current: number }>) {
   );
 }
 
-function getSignupStep(id: string): number | null {
+function getSignupStep(id: string): 1 | null {
   if (id === "AUTH-002") return 1;
-  if (id === "AUTH-003") return 2;
-  if (id === "AUTH-004") return 3;
   return null;
 }

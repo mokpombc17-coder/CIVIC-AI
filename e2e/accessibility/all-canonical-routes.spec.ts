@@ -122,9 +122,11 @@ test("70개 canonical route가 Wire Flow 화면, 접근성, 비활성 네트워�
     }
     const recoveredSignupStep = screen.id === "AUTH-003" || screen.id === "AUTH-004";
     if (recoveredSignupStep) await expect(page).toHaveURL(/\/signup\/account$/u);
-    await expect(
-      page.locator(`[data-wireflow-screen="${recoveredSignupStep ? "AUTH-002" : screen.id}"]`),
-    ).toBeVisible();
+    const screenSurface = page.locator(
+      `[data-wireflow-screen="${recoveredSignupStep ? "AUTH-002" : screen.id}"]`,
+    );
+    await expect(screenSurface).toHaveCount(1);
+    await expect(screenSurface).toBeVisible();
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     await expectNoHorizontalOverflow(page, screen.id);

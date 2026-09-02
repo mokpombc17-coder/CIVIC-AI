@@ -94,7 +94,7 @@ describe("latest Wire Flow shared product UI", () => {
       </ScreenFrame>,
     );
 
-    expect(signupHtml).toContain('href="/signup/pending"');
+    expect(signupHtml).toContain('href="/signup/account"');
     expect(loginHtml).toContain('href="/login"');
   });
 

@@ -61,6 +61,7 @@ import {
   SignupDuplicateEmailNotice,
   signupRecovery,
   signupCompletionPath,
+  signupStepForScreen,
   signupStepFromHistory,
   verificationKindFromSearch,
 } from "@/components/screens/auth-functional-screen";
@@ -748,11 +749,10 @@ describe("25 functional Main/Auth screens", () => {
     expect(passwordResetCodeFromSearch("?code=12345x")).toBeNull();
   });
 
-  it("가입 인증과 비밀번호 재설정·재활성화 완료 뒤 로그인 화면으로 이동한다", () => {
-    expect(authCompletionDestination("AUTH-005", "SIGNUP")).toBe("/login");
-    expect(authCompletionDestination("AUTH-008", "SIGNUP")).toBe("/login");
-    expect(authCompletionDestination("AUTH-010", "SIGNUP")).toBe("/login");
-    expect(authCompletionDestination("AUTH-005", "TWO_FACTOR")).toBeNull();
+  it("가입 인증은 동의 단계로 이어지고 비밀번호 재설정·재활성화만 로그인으로 이동한다", () => {
+    expect(authCompletionDestination("AUTH-005")).toBeNull();
+    expect(authCompletionDestination("AUTH-008")).toBe("/login");
+    expect(authCompletionDestination("AUTH-010")).toBe("/login");
   });
 
   it("가입 흐름 409 응답만 이메일 중복으로 분류하고 계정 상태를 읽는다", () => {
@@ -825,11 +825,20 @@ describe("25 functional Main/Auth screens", () => {
 
   it("브라우저 뒤로가기 상태에서 가입 단계를 복원한다", () => {
     expect(signupStepFromHistory({ civicSignupStep: "AUTH-002" })).toBe("AUTH-002");
-    expect(signupStepFromHistory({ civicSignupStep: "AUTH-003" })).toBe("AUTH-003");
+    expect(signupStepFromHistory({ civicSignupStep: "AUTH-003" })).toBeNull();
     expect(signupStepFromHistory({ civicSignupStep: "AUTH-004" })).toBe("AUTH-004");
     expect(signupStepFromHistory({ civicSignupStep: "AUTH-001" })).toBeNull();
     expect(signupStepFromHistory({ civicSignupStep: "../../admin" })).toBeNull();
     expect(authStepAfterPopState(null, "AUTH-001")).toBe("AUTH-001");
+  });
+
+  it("가입 진행 표시는 계정 정보, 이메일 인증, 필수 동의 세 단계만 사용한다", () => {
+    expect(signupStepForScreen("AUTH-002")).toBe(1);
+    expect(signupStepForScreen("AUTH-005")).toBe(2);
+    expect(signupStepForScreen("AUTH-006")).toBe(2);
+    expect(signupStepForScreen("AUTH-004")).toBe(3);
+    expect(signupStepForScreen("AUTH-003")).toBeNull();
+    expect(signupStepForScreen("AUTH-007")).toBeNull();
   });
 
   it("registry와 구현 action map이 정확히 25개 화면을 공유한다", () => {
@@ -842,9 +851,9 @@ describe("25 functional Main/Auth screens", () => {
   it("현재 화면의 대표 행동 문구를 사용한다", () => {
     expect(mainScreenPrimaryActions).toEqual({
       "AUTH-001": "로그인",
-      "AUTH-002": "다음으로",
+      "AUTH-002": "인증 코드 받기",
       "AUTH-003": "다음으로",
-      "AUTH-004": "가입하기",
+      "AUTH-004": "동의하고 가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
       "AUTH-007": "인증하기",
@@ -883,19 +892,39 @@ describe("25 functional Main/Auth screens", () => {
 
   it("Wire Flow의 모바일 인증 단계와 보조 행동 구조를 유지한다", () => {
     const signup = mainScreens.find((screen) => screen.id === "AUTH-002");
+    const verification = mainScreens.find((screen) => screen.id === "AUTH-005");
+    const consent = mainScreens.find((screen) => screen.id === "AUTH-004");
     const login = mainScreens.find((screen) => screen.id === "AUTH-001");
-    if (!signup || !login) throw new Error("AUTH wire flow screens missing");
+    if (!signup || !verification || !consent || !login) {
+      throw new Error("AUTH wire flow screens missing");
+    }
 
     const signupHtml = renderToStaticMarkup(
       createElement(MainFunctionalScreen, { screen: signup }),
+    );
+    const verificationHtml = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: verification }),
+    );
+    const consentHtml = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: consent }),
     );
     const loginHtml = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: login }));
 
     expect(signupHtml).toContain('data-wireflow-screen="AUTH-002"');
     expect(signupHtml).toContain('aria-label="회원가입 단계"');
     expect(signupHtml).toContain("1/3");
+    expect(signupHtml).toContain("계정 정보");
+    expect(signupHtml).not.toContain("필수 동의 항목");
+    expect(signupHtml).not.toContain("이용약관에 동의합니다");
+    expect(signupHtml).toContain("인증 코드 받기");
+    expect(signupHtml).not.toContain("선호 언어");
+    expect(signupHtml).not.toContain("AI 답변 상세도");
     expect(signupHtml.match(/autocomplete="new-password"/gi)).toHaveLength(2);
     expect(signupHtml).not.toMatch(/autocomplete="current-password"/i);
+    expect(verificationHtml).toContain("2/3");
+    expect(verificationHtml).toContain("이메일 인증");
+    expect(consentHtml).toContain("3/3");
+    expect(consentHtml).toContain("필수 동의·확인");
     expect(loginHtml).toContain("회원가입");
     expect(loginHtml).toContain("비밀번호 재설정");
   });

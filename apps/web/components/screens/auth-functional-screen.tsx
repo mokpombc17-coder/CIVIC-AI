@@ -14,8 +14,6 @@ type SignupDraft = {
   password: string;
   passwordConfirmation: string;
   ageConfirmed: boolean;
-  preferredLanguage: "ko" | "en";
-  answerDetail: "concise" | "balanced" | "detailed";
   terms: boolean;
   privacy: boolean;
   flowId?: string;
@@ -35,14 +33,16 @@ const initialDraft: SignupDraft = {
   password: "",
   passwordConfirmation: "",
   ageConfirmed: false,
-  preferredLanguage: "ko",
-  answerDetail: "balanced",
   terms: false,
   privacy: false,
   documents: {},
 };
 
-const signupHistorySteps = new Set(["AUTH-002", "AUTH-003", "AUTH-004", "AUTH-005", "AUTH-006"]);
+const signupHistorySteps = new Set(["AUTH-002", "AUTH-004", "AUTH-005", "AUTH-006"]);
+const defaultSignupPreferences = Object.freeze({
+  preferred_language: "ko",
+  rag_answer_detail: "balanced",
+});
 const passwordResetEmailKey = "civic:password-reset:email";
 const passwordResetCodeKey = "civic:password-reset:code";
 
@@ -54,6 +54,13 @@ export function signupStepFromHistory(value: unknown): string | null {
 
 export function authStepAfterPopState(value: unknown, entryScreenId: string): string {
   return signupStepFromHistory(value) ?? entryScreenId;
+}
+
+export function signupStepForScreen(screenId: string): 1 | 2 | 3 | null {
+  if (screenId === "AUTH-002") return 1;
+  if (screenId === "AUTH-005" || screenId === "AUTH-006") return 2;
+  if (screenId === "AUTH-004") return 3;
+  return null;
 }
 
 export function AuthFunctionalScreen({
@@ -153,28 +160,28 @@ export function AuthFunctionalScreen({
         if (!draft.ageConfirmed) throw new Error("만 14세 이상 여부를 확인해 주세요.");
         const response = await api("/api/v1/signup/flows", { email: draft.email });
         const body = (await response.json()) as { flow_id?: unknown; documents?: unknown };
-        if (typeof body.flow_id !== "string")
+        if (typeof body.flow_id !== "string") {
           throw new Error("가입 흐름 응답이 올바르지 않습니다.");
-        const flowId = body.flow_id;
+        }
         const documents = readSignupDocuments(body.documents);
+        const flowId = body.flow_id;
         setDraft((current) => ({ ...current, flowId, documents }));
-        changeSignupStep("AUTH-003", "/signup/profile");
+        changeSignupStep("AUTH-005", "/signup/verify");
       } else if (activeId === "AUTH-003") {
-        changeSignupStep("AUTH-004", "/signup/consent");
+        location.replace("/signup/account");
       } else if (activeId === "AUTH-004") {
         if (!draft.flowId || !draft.terms || !draft.privacy) {
-          throw new Error("가입 흐름과 두 필수 동의를 모두 확인해 주세요.");
+          throw new Error("이메일 인증과 두 필수 동의를 모두 확인해 주세요.");
         }
         await api(signupCompletionPath(draft.flowId), {
           email: draft.email,
           password: draft.password,
-          preferred_language: draft.preferredLanguage,
-          rag_answer_detail: draft.answerDetail,
+          ...defaultSignupPreferences,
           age_14_confirmed: true,
           terms_evidence: evidence(requiredDocument(draft.documents, "TERMS")),
           privacy_evidence: evidence(requiredDocument(draft.documents, "ACCOUNT_RAG_PRIVACY")),
         });
-        changeSignupStep("AUTH-006", "/signup/pending");
+        location.assign("/login");
       } else if (activeId === "AUTH-005") {
         const data = new FormData(event.currentTarget);
         await api(
@@ -186,7 +193,7 @@ export function AuthFunctionalScreen({
         if (verificationKind === "TWO_FACTOR") {
           await redirectToRoleHome(postLoginReturnTo ?? safeReturnTarget(location.search));
         } else {
-          location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
+          changeSignupStep("AUTH-004", "/signup/consent");
         }
       } else if (activeId === "AUTH-006") {
         changeSignupStep("AUTH-005", "/signup/verify");
@@ -214,11 +221,11 @@ export function AuthFunctionalScreen({
         });
         sessionStorage.removeItem(passwordResetEmailKey);
         sessionStorage.removeItem(passwordResetCodeKey);
-        location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
+        location.assign(authCompletionDestination(activeId) ?? "/login");
       } else if (activeId === "AUTH-010") {
         const data = new FormData(event.currentTarget);
         await api("/api/v1/auth/reactivation/complete", { code: data.get("code") });
-        location.assign(authCompletionDestination(activeId, verificationKind) ?? "/login");
+        location.assign(authCompletionDestination(activeId) ?? "/login");
       }
     } catch (error) {
       const duplicateState = activeId === "AUTH-002" ? duplicateEmailAccountState(error) : null;
@@ -328,6 +335,7 @@ export function AuthFunctionalScreen({
         : {})}
       platformHeading="HIDDEN"
       screen={{ ...screen, id: activeId, canonical_title: authTitle(activeId) }}
+      signupStep={verificationKind === "SIGNUP" ? signupStepForScreen(activeId) : null}
     >
       <div
         className="civic-auth-grid"
@@ -335,6 +343,7 @@ export function AuthFunctionalScreen({
       >
         {activeId === "AUTH-009" || activeId === "AUTH-010" ? <ReactivationNotes /> : null}
         <AuthFormCard
+          key={activeId}
           onSubmit={submit}
           subtitle={authCardSubtitle(activeId, activeId === "AUTH-007" ? resetEmail : draft.email)}
           title={authCardTitle(activeId)}
@@ -358,7 +367,7 @@ export function AuthFunctionalScreen({
               </p>
             )
           ) : null}
-          {activeId === "AUTH-003" || activeId === "AUTH-004" ? (
+          {activeId === "AUTH-004" ? (
             <WireflowButton
               disabled={busy}
               onClick={() => history.back()}
@@ -466,7 +475,15 @@ function renderFields(
           value={draft.email}
           onChange={(value) => {
             onEmailEdit?.();
-            setDraft((v) => ({ ...v, email: value }));
+            setDraft((v) => ({
+              email: value,
+              password: v.password,
+              passwordConfirmation: v.passwordConfirmation,
+              ageConfirmed: v.ageConfirmed,
+              terms: false,
+              privacy: false,
+              documents: {},
+            }));
           }}
         />
         <Field
@@ -491,36 +508,6 @@ function renderFields(
           checked={draft.ageConfirmed}
           onChange={(checked) => setDraft((v) => ({ ...v, ageConfirmed: checked }))}
         />
-      </>
-    );
-  }
-  if (id === "AUTH-003") {
-    return (
-      <>
-        <SelectField
-          label="선호 언어"
-          value={draft.preferredLanguage}
-          options={[
-            { label: "한국어", value: "ko" },
-            { label: "English", value: "en" },
-          ]}
-          onChange={(value) => setDraft((v) => ({ ...v, preferredLanguage: value as "ko" | "en" }))}
-        />
-        <SelectField
-          label="AI 답변 상세도"
-          value={draft.answerDetail}
-          options={[
-            { label: "간결하게", value: "concise" },
-            { label: "균형 있게", value: "balanced" },
-            { label: "상세하게", value: "detailed" },
-          ]}
-          onChange={(value) =>
-            setDraft((v) => ({ ...v, answerDetail: value as SignupDraft["answerDetail"] }))
-          }
-        />
-        <p className="civic-help">
-          계정 생성 시 저장되는 서비스 설정입니다. 실제 설문은 로그인 후 별도로 진행합니다.
-        </p>
       </>
     );
   }
@@ -808,7 +795,7 @@ function authTitle(id: string): string {
     {
       "AUTH-001": "로그인",
       "AUTH-002": "계정 정보",
-      "AUTH-003": "서비스 설정",
+      "AUTH-003": "계정 정보",
       "AUTH-004": "필수 동의 및 가입 확인",
       "AUTH-005": "이메일 인증",
       "AUTH-006": "이메일 인증",
@@ -823,7 +810,7 @@ function authTitle(id: string): string {
 function authCardTitle(id: string): string {
   if (id === "AUTH-001") return "계정 정보";
   if (id === "AUTH-002") return "필수 입력";
-  if (id === "AUTH-003") return "AI 응답 설정";
+  if (id === "AUTH-003") return "계정 정보 안내";
   if (id === "AUTH-004") return "필수 동의 항목";
   if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
@@ -921,31 +908,6 @@ function readPasswordResetCode(): string {
 
 function emptyPasswordResetValue(): string {
   return "";
-}
-
-function SelectField({
-  label,
-  value,
-  options,
-  onChange,
-}: {
-  label: string;
-  value: string;
-  options: readonly { label: string; value: string }[];
-  onChange: (value: string) => void;
-}) {
-  return (
-    <label className="civic-field">
-      <span>{label}</span>
-      <select onChange={(event) => onChange(event.target.value)} value={value}>
-        {options.map((option) => (
-          <option key={option.value} value={option.value}>
-            {option.label}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
 }
 
 function Check({
@@ -1102,11 +1064,7 @@ export function verificationKindFromSearch(search: string): "SIGNUP" | "TWO_FACT
   return new URLSearchParams(search).get("kind") === "two-factor" ? "TWO_FACTOR" : "SIGNUP";
 }
 
-export function authCompletionDestination(
-  screenId: string,
-  verificationKind: "SIGNUP" | "TWO_FACTOR",
-): "/login" | null {
-  if (screenId === "AUTH-005" && verificationKind === "SIGNUP") return "/login";
+export function authCompletionDestination(screenId: string): "/login" | null {
   if (screenId === "AUTH-008" || screenId === "AUTH-010") return "/login";
   return null;
 }
