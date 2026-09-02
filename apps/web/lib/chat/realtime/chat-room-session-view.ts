@@ -71,7 +71,10 @@ export function getChatRoomSessionView(
     };
   }
 
-  if (snapshot.connectionStatus === "disconnected" || snapshot.connectionStatus === "error") {
+  if (
+    snapshot.connectionStatus === "error" ||
+    (snapshot.connectionStatus === "disconnected" && snapshot.connectionError != null)
+  ) {
     return {
       kind: "error",
       title: "실시간 채팅 연결을 사용할 수 없습니다.",

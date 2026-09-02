@@ -216,7 +216,7 @@ describe("getChatRoomSessionView", () => {
     });
   });
 
-  it("연결이 끊기면 헤더에서 다시 연결할 수 있는 오류 상태를 반환한다", () => {
+  it("오류 없이 연결이 종료되면 복구 안내를 노출하지 않는다", () => {
     const view = getChatRoomSessionView(
       {
         status: "active",
@@ -233,7 +233,36 @@ describe("getChatRoomSessionView", () => {
     );
 
     expect(view).toMatchObject({
+      kind: "pending",
+      canDraft: false,
+      canReconnect: false,
+      indicatorLabel: "준비 중",
+      showNotice: false,
+    });
+  });
+
+  it("오류와 함께 연결이 끊기면 다시 연결할 수 있는 오류 상태를 반환한다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "active",
+        roomId: "room-01",
+        generation: 3,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: 100,
+        watermarkSequence: 120,
+        error: null,
+        connectionStatus: "disconnected",
+        connectionError: {
+          source: "websocket",
+          message: "실시간 연결이 예기치 않게 종료되었습니다.",
+        },
+      },
+      "room-01",
+    );
+
+    expect(view).toMatchObject({
       kind: "error",
+      description: "실시간 연결이 예기치 않게 종료되었습니다.",
       canDraft: false,
       canReconnect: true,
       indicatorLabel: "채팅 불가",
