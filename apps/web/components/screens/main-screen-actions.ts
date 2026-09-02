@@ -1,8 +1,8 @@
 export const mainScreenPrimaryActions: Readonly<Record<string, string>> = Object.freeze({
   "AUTH-001": "로그인",
-  "AUTH-002": "다음으로",
+  "AUTH-002": "인증 코드 받기",
   "AUTH-003": "다음으로",
-  "AUTH-004": "가입하기",
+  "AUTH-004": "동의하고 가입하기",
   "AUTH-005": "인증하기",
   "AUTH-006": "가입 이메일 인증",
   "AUTH-007": "인증하기",

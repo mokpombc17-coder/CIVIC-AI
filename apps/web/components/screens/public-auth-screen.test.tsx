@@ -8,7 +8,7 @@ describe("publicAuthHeaderState", () => {
       title: "회원가입",
     });
     expect(publicAuthHeaderState("AUTH-003", "SIGNUP")).toEqual({
-      back: "HISTORY",
+      back: "/signup/account",
       title: "회원가입",
     });
     expect(publicAuthHeaderState("AUTH-004", "SIGNUP")).toEqual({
@@ -19,7 +19,7 @@ describe("publicAuthHeaderState", () => {
 
   it("같은 인증 화면도 가입과 2단계 인증의 제목·복귀 경로를 구분한다", () => {
     expect(publicAuthHeaderState("AUTH-005", "SIGNUP")).toEqual({
-      back: "/signup/pending",
+      back: "/signup/account",
       title: "이메일 인증",
     });
     expect(publicAuthHeaderState("AUTH-005", "TWO_FACTOR")).toEqual({

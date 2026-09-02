@@ -263,9 +263,12 @@ Browser /api/v1/me/service-eligibility | /api/v1/me/surveys/current | /api/v1/me
     └── Vote upstream에 동일 Cookie + Bearer 및 Idempotency-Key 전달
 ```
 
-회원가입의 `AUTH-003`은 Main/Auth가 저장하는 선호 언어·AI 답변 상세도만 다룬다. 실제 설문은 계정
-생성·이메일 인증·로그인 이후 Vote의 JWT `sub`를 기준으로 3001의 `/survey`에서 진행한다. 로그인
-callback은 역할 홈 또는 검증된 `returnTo`까지만 결정하고, 로그인된 참여자 화면의 공통
+회원가입은 `AUTH-002` 계정 정보, `AUTH-005` 이메일 인증, `AUTH-004` 필수 동의·가입 완료의 3단계
+흐름이다. 기존 `AUTH-003` 서비스 설정 화면은 가입 흐름에서 제거하고, Main/Auth 계약이 아직 요구하는
+선호 언어·AI 답변 상세도에는 각각 `ko`·`balanced` 기본값을 전송한다. 1단계에서 가입 flow와 인증
+메일을 만들되 사용자 계정은 만들지 않고, 2단계 이메일 인증을 통과한 flow만 3단계 동의와 계정 생성을
+완료할 수 있다. 실제 설문은 계정 생성·로그인 이후 Vote의 JWT `sub`를 기준으로 3001의 `/survey`에서
+진행한다. 로그인 callback은 역할 홈 또는 검증된 `returnTo`까지만 결정하고, 로그인된 참여자 화면의 공통
 `ParticipantEligibilityGuard`가 `GET /api/v1/me/service-eligibility`를 전역 cache로 조회한다.
 자격 확인 중에는 `ParticipantShell`의 header와 navigation을 유지한 채 본문만 차단하고, 200ms 안에
 응답하면 indicator를 노출하지 않는다. indicator가 표시된 경우에는 최소 200ms 동안 유지한다.

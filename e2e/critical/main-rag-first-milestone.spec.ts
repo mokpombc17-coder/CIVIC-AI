@@ -72,12 +72,33 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
         response.request().method() === "POST" &&
         new URL(response.url()).pathname === "/api/v1/signup/flows",
     );
-    await participant.getByRole("button", { name: "개인정보·설문 입력" }).click();
+    await participant.getByRole("button", { name: "인증 코드 받기" }).click();
     const signupFlowBody = (await signupFlowResponsePromise).json() as Promise<{ flow_id: string }>;
     const signupFlowId = (await signupFlowBody).flow_id;
-    await participant.getByLabel("선호 언어").selectOption("ko");
-    await participant.getByLabel("RAG 답변 상세도").selectOption("detailed");
-    await participant.getByRole("button", { name: "필수 동의 단계로" }).click();
+    await expect(participant.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+      "2/3이메일 인증",
+    );
+    await expect(participant.getByLabel("선호 언어")).toHaveCount(0);
+    await expect(participant.getByLabel("AI 답변 상세도")).toHaveCount(0);
+    const code = await verificationCodeFromMailpit(participantEmail);
+    expect(
+      await participant.evaluate(
+        async (marker) =>
+          (
+            await fetch("/api/v1/signup/verification/verify", {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({ code: marker }),
+            })
+          ).status,
+        canaries.code,
+      ),
+    ).toBe(400);
+    await participant.getByRole("textbox", { name: "인증 코드" }).fill(code);
+    await participant.getByRole("button", { name: "인증하기" }).click();
+    await expect(participant.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+      "3/3필수 동의·확인",
+    );
     await verifyLegalDocument(
       participant,
       "서비스 이용약관 전문 보기",
@@ -106,25 +127,8 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
       ),
     ).toBe(400);
     await participant.getByLabel("이용약관에 동의합니다").check();
-    await participant.getByLabel("계정·RAG 개인정보 처리에 동의합니다").check();
-    await participant.getByRole("button", { name: "필수 동의 후 가입" }).click();
-    const code = await verificationCodeFromMailpit(participantEmail);
-    await participant.getByRole("button", { name: "가입 이메일 인증" }).click();
-    expect(
-      await participant.evaluate(
-        async (marker) =>
-          (
-            await fetch("/api/v1/signup/verification/verify", {
-              method: "POST",
-              headers: { "content-type": "application/json" },
-              body: JSON.stringify({ code: marker }),
-            })
-          ).status,
-        canaries.code,
-      ),
-    ).toBe(400);
-    await participant.getByRole("textbox", { name: "인증 코드" }).fill(code);
-    await participant.getByRole("button", { name: "인증 완료" }).click();
+    await participant.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다").check();
+    await participant.getByRole("button", { name: "동의하고 가입하기" }).click();
     await expect(participant).toHaveURL(/\/login$/u);
     await expectCookieAbsent(participant, "__Host-civic-auth-flow");
     await login(participant, participantEmail, participantPassword);

@@ -69,6 +69,16 @@ test.beforeAll(async () => {
         },
       });
     }
+    if (
+      url.pathname === "/api/v1/signup/flows/wireflow-signup-flow/complete" &&
+      request.method === "POST"
+    ) {
+      return json(response, { next: "LOGIN" }, 201);
+    }
+    if (url.pathname === "/api/v1/signup/verification/verify" && request.method === "POST") {
+      response.writeHead(204).end();
+      return;
+    }
     if (url.pathname === "/api/v1/auth/password-reset/request" && request.method === "POST") {
       response.writeHead(202).end();
       return;
@@ -321,15 +331,17 @@ test("AUTH-002 헤더는 모바일 공통 높이로 본문과 분리된다", asy
   await expectBox(title, { x: [71, 73], y: [18, 20], height: [26, 28] });
 });
 
-test("AUTH-002·003·004는 Figma 가입 요소와 유동 모바일 폭을 유지한다", async ({ page }) => {
+test("가입은 계정 정보·이메일 인증·필수 동의 3단계와 유동 모바일 폭을 유지한다", async ({
+  page,
+}) => {
   await page.setViewportSize({ width: 393, height: 852 });
   await page.goto("/signup/account");
 
   const step = page.getByRole("navigation", { name: "회원가입 단계" });
-  const form = page.locator('[data-wireflow-layout="auth-flow"] .wf-auth-form');
+  const form = page.locator('[data-wireflow-layout="auth-flow"] form.wf-auth-form');
   const count = step.locator(":scope > p > strong");
   const stepTitle = step.locator(":scope > p > span");
-  const submit = form.getByRole("button", { name: "다음으로" });
+  const submit = form.getByRole("button", { name: "인증 코드 받기" });
 
   await expectBox(step, {
     x: [15.5, 16.5],
@@ -359,11 +371,13 @@ test("AUTH-002·003·004는 Figma 가입 요소와 유동 모바일 폭을 유�
       x: [15.5, 16.5],
       width: [width - 32.5, width - 31.5],
     });
-    await expectBox(page.locator('[data-wireflow-layout="auth-flow"] .wf-auth-form'), {
+    const responsiveForm = page.locator('[data-wireflow-layout="auth-flow"] form.wf-auth-form');
+    await expect(responsiveForm).toBeVisible();
+    await expectBox(responsiveForm, {
       x: [15.5, 16.5],
       width: [width - 32.5, width - 31.5],
     });
-    await expectBox(page.getByRole("button", { name: "다음으로" }), {
+    await expectBox(page.getByRole("button", { name: "인증 코드 받기" }), {
       x: [36.5, 37.5],
       width: [width - 74.5, width - 73.5],
     });
@@ -376,18 +390,24 @@ test("AUTH-002·003·004는 Figma 가입 요소와 유동 모바일 폭을 유�
   await page.getByLabel("비밀번호", { exact: true }).fill("Wireflow1!");
   await page.getByLabel("비밀번호 확인").fill("Wireflow1!");
   await page.getByRole("checkbox", { name: "만 14세 이상입니다" }).check();
-  await page.getByRole("button", { name: "다음으로" }).click();
-  await expect(page.locator('[data-wireflow-screen="AUTH-003"]')).toBeVisible();
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
+  await expect(page.locator('[data-wireflow-screen="AUTH-005"]')).toBeVisible();
   await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
-    "2/3개인정보·설문",
+    "2/3이메일 인증",
   );
+  await expect(page.getByLabel("선호 언어")).toHaveCount(0);
+  await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
   await expect(page.locator('.civic-step-indicator li[aria-current="step"]')).toHaveCSS(
     "height",
     "8px",
   );
 
-  await page.getByRole("button", { name: "다음으로" }).click();
+  await page.getByRole("textbox", { name: "인증 코드" }).fill("123456");
+  await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page.locator('[data-wireflow-screen="AUTH-004"]')).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "3/3필수 동의·확인",
+  );
   const termsLabel = page.locator(".civic-consent-item .civic-check > span").first();
   await expect(termsLabel).toContainText("이용약관에 동의합니다");
   await expect(termsLabel).toHaveCSS("font-size", "15px");

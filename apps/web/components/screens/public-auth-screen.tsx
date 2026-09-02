@@ -60,12 +60,11 @@ export function publicAuthHeaderState(
 ): PublicAuthHeaderState {
   if (activeId === "AUTH-001") return { back: null, title: "로그인" };
   if (activeId === "AUTH-002") return { back: "/login", title: "회원가입" };
-  if (activeId === "AUTH-003" || activeId === "AUTH-004") {
-    return { back: "HISTORY", title: "회원가입" };
-  }
+  if (activeId === "AUTH-003") return { back: "/signup/account", title: "회원가입" };
+  if (activeId === "AUTH-004") return { back: "HISTORY", title: "회원가입" };
   if (activeId === "AUTH-005") {
     return {
-      back: verificationKind === "TWO_FACTOR" ? "/login" : "/signup/pending",
+      back: verificationKind === "TWO_FACTOR" ? "/login" : "/signup/account",
       title: verificationKind === "TWO_FACTOR" ? "2단계 인증" : "이메일 인증",
     };
   }
