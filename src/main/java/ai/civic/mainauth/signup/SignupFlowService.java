@@ -92,7 +92,8 @@ public class SignupFlowService {
                 """);
         var documents = jdbc.query(
                 """
-                select document_id, document_version, body_sha256, path from legal_documents
+                select document_id, document_version, body_sha256, path, requires_acceptance
+                from legal_documents
                 where active_for_new_signup order by document_id
                 """,
                 rs -> {
@@ -100,7 +101,8 @@ public class SignupFlowService {
                     while (rs.next()) {
                         var document = new SignupDocumentView(
                                 rs.getString("document_id"), rs.getString("document_version"),
-                                rs.getString("body_sha256"), rs.getString("path"));
+                                rs.getString("body_sha256"), rs.getString("path"),
+                                rs.getBoolean("requires_acceptance"));
                         result.put(document.documentId(), document);
                     }
                     return result;
@@ -121,8 +123,8 @@ public class SignupFlowService {
         createSignupVerification(id, normalized);
         return new SignupFlowView(
                 id, expiry, schema.get("version").toString(), documentVersions, documents,
-                List.of("TERMS"),
-                Map.of("TERMS", false));
+                acceptanceControls(documents),
+                initialAcceptanceValues(documents));
     }
 
     @Transactional(readOnly = true)
@@ -188,7 +190,7 @@ public class SignupFlowService {
         var flowPreview = loadFlow(flowId, false);
         var pendingUserId = lockPendingRegistration(flowPreview.normalizedEmail());
         var flow = loadFlow(flowId, true);
-        validateCompletion(flow, request);
+        var acceptanceControls = validateCompletion(flow, request);
         var normalizedEmail = normalizeAndValidateEmail(request.email());
 
         UUID userId;
@@ -215,6 +217,9 @@ public class SignupFlowService {
         insertAnswer(userId, flow.schemaId(), "rag_answer_detail", request.ragAnswerDetail());
         var acceptedAt = clock.instant();
         consent.record(userId, request.termsEvidence(), acceptedAt);
+        if (acceptanceControls.contains("ACCOUNT_RAG_PRIVACY")) {
+            consent.record(userId, request.privacyEvidence(), acceptedAt);
+        }
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)
                 select id, account_state_version, 'ACTIVE',
@@ -378,7 +383,7 @@ public class SignupFlowService {
                 """, challengeId.toString());
     }
 
-    private void validateCompletion(FlowRow flow, CompletionRequest request) {
+    private List<String> validateCompletion(FlowRow flow, CompletionRequest request) {
         if (flow.completedAt() != null || !flow.expiresAt().isAfter(clock.instant())) {
             throw new SignupConflictException("Signup flow is no longer active");
         }
@@ -395,6 +400,11 @@ public class SignupFlowService {
         requireChoice(definition, "preferred_language", request.preferredLanguage());
         requireChoice(definition, "rag_answer_detail", request.ragAnswerDetail());
         validateEvidence(flow, request.termsEvidence(), "TERMS");
+        var controls = acceptanceControls(documentViews(flow.documentVersions()));
+        if (controls.contains("ACCOUNT_RAG_PRIVACY")) {
+            validateEvidence(flow, request.privacyEvidence(), "ACCOUNT_RAG_PRIVACY");
+        }
+        return controls;
     }
 
     private void validateEvidence(FlowRow flow, Evidence evidence, String expectedId) {
@@ -447,28 +457,44 @@ public class SignupFlowService {
     }
 
     private SignupFlowView toView(FlowRow row) {
+        var documents = documentViews(row.documentVersions());
         return new SignupFlowView(
                 row.id(), row.expiresAt(), Integer.toString(row.schemaVersion()), row.documentVersions(),
-                documentViews(row.documentVersions()),
-                List.of("TERMS"),
-                Map.of("TERMS", false));
+                documents,
+                acceptanceControls(documents),
+                initialAcceptanceValues(documents));
     }
 
     private Map<String, SignupDocumentView> documentViews(Map<String, String> versions) {
         var documents = new java.util.LinkedHashMap<String, SignupDocumentView>();
         versions.forEach((id, version) -> {
             var document = jdbc.queryForObject("""
-                    select document_id, document_version, body_sha256, path
+                    select document_id, document_version, body_sha256, path, requires_acceptance
                     from legal_documents where document_id = ? and document_version = ?
                     """, (rs, rowNum) -> new SignupDocumentView(
                     rs.getString("document_id"), rs.getString("document_version"),
-                    rs.getString("body_sha256"), rs.getString("path")), id, version);
+                    rs.getString("body_sha256"), rs.getString("path"),
+                    rs.getBoolean("requires_acceptance")), id, version);
             if (document == null) {
                 throw new IllegalStateException("Pinned legal document is unavailable");
             }
             documents.put(id, document);
         });
         return documents;
+    }
+
+    private static List<String> acceptanceControls(
+            Map<String, SignupDocumentView> documents) {
+        return List.of("TERMS", "ACCOUNT_RAG_PRIVACY").stream()
+                .filter(id -> documents.get(id).requiresAcceptance())
+                .toList();
+    }
+
+    private static Map<String, Boolean> initialAcceptanceValues(
+            Map<String, SignupDocumentView> documents) {
+        return acceptanceControls(documents).stream()
+                .collect(java.util.stream.Collectors.toUnmodifiableMap(
+                        id -> id, id -> false));
     }
 
     private String normalizeAndValidateEmail(String email) {
@@ -550,7 +576,7 @@ public class SignupFlowService {
             String ragAnswerDetail,
             @JsonProperty("age_14_confirmed") boolean age14Confirmed,
             Evidence termsEvidence,
-            @JsonProperty("privacy_evidence") Evidence legacyPrivacyEvidence) {}
+            @JsonProperty("privacy_evidence") Evidence privacyEvidence) {}
 
     public record SignupFlowView(
             UUID flowId,
@@ -562,7 +588,11 @@ public class SignupFlowService {
             Map<String, Boolean> initialAcceptanceValues) {}
 
     public record SignupDocumentView(
-            String documentId, String documentVersion, String bodySha256, String path) {}
+            String documentId,
+            String documentVersion,
+            String bodySha256,
+            String path,
+            boolean requiresAcceptance) {}
 
     public record CompletionResult(String next) {}
 

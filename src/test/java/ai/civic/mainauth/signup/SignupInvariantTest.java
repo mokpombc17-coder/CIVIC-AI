@@ -72,14 +72,16 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         var flow = service.startSignup("  Person@Example.COM  ");
 
         assertThat(flow.flowId()).isNotNull();
-        assertThat(flow.acceptanceControls()).containsExactly("TERMS");
-        assertThat(flow.documents().get("TERMS").documentVersion()).isEqualTo("2");
+        assertThat(flow.acceptanceControls()).containsExactly("TERMS", "ACCOUNT_RAG_PRIVACY");
+        assertThat(flow.documents().get("TERMS").documentVersion()).isEqualTo("3");
         assertThat(flow.documents().get("TERMS").bodySha256())
-                .isEqualTo("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
+                .isEqualTo("bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c");
         assertThat(flow.documents().get("ACCOUNT_RAG_PRIVACY").path())
-                .isEqualTo("/legal/required-service-information/2");
-        assertThat(flow.initialAcceptanceValues()).containsExactlyEntriesOf(
-                java.util.Map.of("TERMS", false));
+                .isEqualTo("/legal/privacy-consent/3");
+        assertThat(flow.initialAcceptanceValues())
+                .hasSize(2)
+                .containsEntry("TERMS", false)
+                .containsEntry("ACCOUNT_RAG_PRIVACY", false);
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("credentials", "true")).isOne(); // bootstrap credential only
         assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION' and user_id is null"))
@@ -187,6 +189,46 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void completionRequiresTheSeparatePrivacyConsentForTheActiveDocuments() {
+        var flow = service.startSignup("missing-privacy@example.com");
+        verify(flow);
+        var valid = validRequest("missing-privacy@example.com", "Valid123!");
+        var missingPrivacy = new SignupFlowService.CompletionRequest(
+                valid.email(), valid.password(), valid.preferredLanguage(), valid.ragAnswerDetail(),
+                valid.age14Confirmed(), valid.termsEvidence(), null);
+
+        assertThatThrownBy(() -> service.completeSignup(flow.flowId(), missingPrivacy))
+                .isInstanceOf(SignupValidationException.class)
+                .hasMessageContaining("Required acceptance evidence is missing");
+        assertThat(count("users", "normalized_email = 'missing-privacy@example.com'")).isZero();
+    }
+
+    @Test
+    void transitionalInformationOnlyVersionDoesNotRequirePrivacyConsent() {
+        var flow = service.startSignup("information-only@example.com");
+        jdbc.update("""
+                update signup_flows
+                set document_versions = '{"TERMS":"2","ACCOUNT_RAG_PRIVACY":"2"}'::jsonb
+                where id = ?
+                """, flow.flowId());
+        verify(flow);
+        var now = Instant.now();
+        var transitional = new SignupFlowService.CompletionRequest(
+                "information-only@example.com", "Valid123!", "ko", "balanced", true,
+                new SignupFlowService.Evidence(
+                        "TERMS", "2",
+                        "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef",
+                        now, "/legal/terms/2"),
+                null);
+
+        service.completeSignup(flow.flowId(), transitional);
+
+        assertThat(count("users", "normalized_email = 'information-only@example.com' and state = 'ACTIVE'"))
+                .isOne();
+        assertThat(count("consent_evidence", "document_code = 'TERMS' and accepted")).isOne();
+    }
+
+    @Test
     void completionCreatesAnActiveVerifiedAccountWithoutSendingASecondMail() {
         var flow = service.startSignup("person+alias@example.com");
         verify(flow);
@@ -196,7 +238,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("users", "origin = 'SIGNUP' and state = 'ACTIVE' and email_verified_at is not null"))
                 .isOne();
         assertThat(count("questionnaire_responses", "active")).isEqualTo(2);
-        assertThat(count("consent_evidence", "accepted")).isOne();
+        assertThat(count("consent_evidence", "accepted")).isEqualTo(2);
         assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
                 .isOne();
         assertThat(count("refresh_tokens", "true")).isZero();
@@ -214,7 +256,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 new SignupFlowService.Evidence(
                         valid.termsEvidence().documentId(), valid.termsEvidence().documentVersion(),
                         valid.termsEvidence().bodySha256(), clientFuture, valid.termsEvidence().path()),
-                null);
+                valid.privacyEvidence());
         var before = Instant.now().minusSeconds(1);
 
         service.completeSignup(flow.flowId(), request);
@@ -222,6 +264,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         var evidence = jdbc.queryForMap("""
                 select client_checked_at, accepted_at from consent_evidence
                 where user_id = (select id from users where normalized_email = ?)
+                  and document_code = 'TERMS'
                 """, "server-consent-time@example.com");
         var after = Instant.now().plusSeconds(1);
         assertThat(((java.sql.Timestamp) evidence.get("client_checked_at")).toInstant())
@@ -443,10 +486,13 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         return new SignupFlowService.CompletionRequest(
                 email, password, "ko", "balanced", true,
                 new SignupFlowService.Evidence(
-                        "TERMS", "2",
-                        "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef",
-                        now, "/legal/terms/2"),
-                null);
+                        "TERMS", "3",
+                        "bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c",
+                        now, "/legal/terms/3"),
+                new SignupFlowService.Evidence(
+                        "ACCOUNT_RAG_PRIVACY", "3",
+                        "d0d9da07e02f57509838735b4caa37743282feb7489188c5f6bcf9dc3d380dee",
+                        now, "/legal/privacy-consent/3"));
     }
 
     private int count(String table, String predicate) {

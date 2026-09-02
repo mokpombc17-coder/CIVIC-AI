@@ -129,20 +129,22 @@ class MigrationTest {
             }
 
             try (var legalDocuments = connection.prepareStatement("""
-                    select document_id, body_sha256, path
+                    select document_id, body_sha256, path, requires_acceptance
                     from legal_documents where active_for_new_signup order by document_id
                     """)) {
                 try (var rows = legalDocuments.executeQuery()) {
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getString("document_id")).isEqualTo("ACCOUNT_RAG_PRIVACY");
                     assertThat(rows.getString("body_sha256"))
-                            .isEqualTo("7cdf0bb556745596bd327fab0e891d3224185aff192431d33920b071eae816e3");
-                    assertThat(rows.getString("path")).isEqualTo("/legal/required-service-information/2");
+                            .isEqualTo("d0d9da07e02f57509838735b4caa37743282feb7489188c5f6bcf9dc3d380dee");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/privacy-consent/3");
+                    assertThat(rows.getBoolean("requires_acceptance")).isTrue();
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getString("document_id")).isEqualTo("TERMS");
                     assertThat(rows.getString("body_sha256"))
-                            .isEqualTo("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
-                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/2");
+                            .isEqualTo("bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/3");
+                    assertThat(rows.getBoolean("requires_acceptance")).isTrue();
                     assertThat(rows.next()).isFalse();
                 }
             }

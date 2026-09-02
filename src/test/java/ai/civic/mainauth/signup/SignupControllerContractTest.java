@@ -62,15 +62,16 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.expires_at").isString())
                 .andExpect(jsonPath("$.questionnaire_version").value("1"))
                 .andExpect(jsonPath("$.documents.TERMS.document_id").value("TERMS"))
-                .andExpect(jsonPath("$.documents.TERMS.document_version").value("2"))
+                .andExpect(jsonPath("$.documents.TERMS.document_version").value("3"))
                 .andExpect(jsonPath("$.documents.TERMS.body_sha256")
-                        .value("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef"))
-                .andExpect(jsonPath("$.documents.TERMS.path").value("/legal/terms/2"))
-                .andExpect(jsonPath("$.documents.ACCOUNT_RAG_PRIVACY.document_version").value("2"))
+                        .value("bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c"))
+                .andExpect(jsonPath("$.documents.TERMS.path").value("/legal/terms/3"))
+                .andExpect(jsonPath("$.documents.ACCOUNT_RAG_PRIVACY.document_version").value("3"))
                 .andExpect(jsonPath("$.documents.ACCOUNT_RAG_PRIVACY.path")
-                        .value("/legal/required-service-information/2"))
-                .andExpect(jsonPath("$.acceptance_controls.length()").value(1))
+                        .value("/legal/privacy-consent/3"))
+                .andExpect(jsonPath("$.acceptance_controls.length()").value(2))
                 .andExpect(jsonPath("$.acceptance_controls[0]").value("TERMS"))
+                .andExpect(jsonPath("$.acceptance_controls[1]").value("ACCOUNT_RAG_PRIVACY"))
                 .andExpect(jsonPath("$.initial_acceptance_values").doesNotExist())
                 .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
                 .andExpect(cookie().secure("__Host-civic-auth-flow", true))
@@ -197,10 +198,12 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                   "preferred_language":"ko",
                   "rag_answer_detail":"balanced",
                   "age_14_confirmed":true,
-                  "terms_evidence":{"document_id":"TERMS","document_version":"2","body_sha256":"%s","checked_at":"2026-09-03T12:00:00Z","path":"/legal/terms/2"}
+                  "terms_evidence":{"document_id":"TERMS","document_version":"3","body_sha256":"%s","checked_at":"2026-09-03T12:00:00Z","path":"/legal/terms/3"},
+                  "privacy_evidence":{"document_id":"ACCOUNT_RAG_PRIVACY","document_version":"3","body_sha256":"%s","checked_at":"2026-09-03T12:00:01Z","path":"/legal/privacy-consent/3"}
                 }
                 """.formatted(
                 email,
-                "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
+                "bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c",
+                "d0d9da07e02f57509838735b4caa37743282feb7489188c5f6bcf9dc3d380dee");
     }
 }
