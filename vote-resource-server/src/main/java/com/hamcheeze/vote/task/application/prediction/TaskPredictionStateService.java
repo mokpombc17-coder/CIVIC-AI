@@ -138,6 +138,7 @@ public class TaskPredictionStateService {
                 policy.processingLeaseDuration(), now);
         PredictionCreationCommand command = new PredictionCreationCommand(
                 prediction.requestId(),
+                prediction.userId(),
                 prediction.personaId(),
                 task,
                 prediction.candidatePolicyVersion(),

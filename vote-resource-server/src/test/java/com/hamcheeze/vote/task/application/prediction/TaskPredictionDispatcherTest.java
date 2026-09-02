@@ -275,6 +275,8 @@ class TaskPredictionDispatcherTest {
                 UUID.randomUUID());
         PredictionCreationCommand command = new PredictionCreationCommand(
                 predictionId,
+                new com.hamcheeze.vote.task.domain.common.TaskUserId(
+                        "test-user"),
                 new TaskPersonaId("persona-" + UUID.randomUUID()),
                 openTask(),
                 policy.candidatePolicyVersion(),

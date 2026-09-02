@@ -79,6 +79,8 @@ class TaskPredictionHttpModelsTest {
     private static PredictionCreationCommand command() {
         return new PredictionCreationCommand(
                 new TaskPredictionId(REQUEST_ID),
+                new com.hamcheeze.vote.task.domain.common.TaskUserId(
+                        "test-user"),
                 new TaskPersonaId("persona-a"),
                 task(),
                 "policy-v1",

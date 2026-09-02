@@ -97,7 +97,8 @@ public class LocalTaskPredictionFakeCreationAdapter
                 command.requestId(),
                 option.id(),
                 order,
-                option.content() + " 선택 예상 이유 " + order);
+                LocalTaskPredictionReasonFactory.reason(
+                        command.userId(), command.task(), option, order));
     }
 
     private static TaskPredictedReasonId candidateId(

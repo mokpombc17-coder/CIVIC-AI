@@ -295,7 +295,10 @@ class TaskPredictionHttpCreationAdapterTest {
                         "\"schemaVersion\":" + requestSchemaVersion);
             }
             return new PredictionCreationCommand(
-                    predictionId, personaId, task, "policy-v1",
+                    predictionId,
+                    new com.hamcheeze.vote.task.domain.common.TaskUserId(
+                            "test-user"),
+                    personaId, task, "policy-v1",
                     requestSchemaVersion,
                     payload,
                     TaskPredictionInputSnapshot.fingerprint(payload),

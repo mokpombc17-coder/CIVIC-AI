@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.prediction;
 
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.task.Task;
 
 import java.time.Duration;
@@ -9,6 +10,7 @@ import java.util.Objects;
 
 public record PredictionCreationCommand(
         TaskPredictionId requestId,
+        TaskUserId userId,
         TaskPersonaId personaId,
         Task task,
         String candidatePolicyVersion,
@@ -19,6 +21,7 @@ public record PredictionCreationCommand(
 ) {
     public PredictionCreationCommand {
         Objects.requireNonNull(requestId, "requestId");
+        Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(personaId, "personaId");
         Objects.requireNonNull(task, "task");
         if (candidatePolicyVersion == null
