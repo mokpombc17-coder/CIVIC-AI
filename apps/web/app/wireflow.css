@@ -5097,12 +5097,28 @@ body {
   height: 14px;
 }
 
+.civic-eligibility-loading,
 .civic-account-loading {
   display: grid;
   min-height: clamp(18rem, 55dvh, 36rem);
   place-items: center;
 }
 
+.civic-eligibility-loading-status {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  color: #526475;
+  font-size: 14px;
+  line-height: 1.5;
+  text-align: center;
+}
+
+.civic-eligibility-loading-status p {
+  margin: 0;
+}
+
+.civic-eligibility-loading-spinner,
 .civic-account-loading-spinner {
   width: 32px;
   height: 32px;
@@ -5113,6 +5129,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .civic-eligibility-loading-spinner,
   .civic-account-loading-spinner {
     animation: none;
   }

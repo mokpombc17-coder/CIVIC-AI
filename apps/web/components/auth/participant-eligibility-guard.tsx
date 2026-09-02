@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   isServiceEligibilityGuardExemptPath,
@@ -11,6 +11,9 @@ import {
   serviceEligibilityStaleTimeMs,
   surveyLocation,
 } from "@/lib/vote/service-eligibility";
+
+const eligibilityLoadingDelayMs = 200;
+const eligibilityLoadingMinimumVisibleMs = 200;
 
 export function ParticipantEligibilityGuard({
   activeRoute,
@@ -31,6 +34,11 @@ export function ParticipantEligibilityGuard({
     staleTime: serviceEligibilityStaleTimeMs,
   });
   const surveyRequired = eligibility.data ? requiresCurrentSurvey(eligibility.data) : false;
+  const bypassGuard =
+    exempt || currentUser.isError || (currentUser.isSuccess && !participant) || eligibility.isError;
+  const eligibilityPending =
+    !bypassGuard && (currentUser.isPending || eligibility.isPending || surveyRequired);
+  const loading = useDelayedEligibilityLoading(eligibilityPending);
 
   useEffect(() => {
     if (!surveyRequired) return;
@@ -38,19 +46,62 @@ export function ParticipantEligibilityGuard({
     window.location.replace(surveyLocation(returnTo));
   }, [surveyRequired]);
 
-  if (exempt || currentUser.isError || (currentUser.isSuccess && !participant)) return children;
-  if (currentUser.isPending || eligibility.isPending || surveyRequired) {
+  if (bypassGuard) return children;
+  if (loading.blockContent) {
     return (
-      <main aria-busy="true" aria-live="polite" className="civic-route-loading">
-        <p>
-          {surveyRequired
-            ? "필수 설문 화면으로 이동하고 있습니다…"
-            : "이용 자격을 확인하고 있습니다…"}
-        </p>
-      </main>
+      <div aria-busy="true" className="civic-eligibility-loading" data-eligibility-loading="true">
+        {loading.showIndicator ? (
+          <div
+            aria-live="polite"
+            className="civic-eligibility-loading-status"
+            data-eligibility-loading-indicator="true"
+            role="status"
+          >
+            <span aria-hidden="true" className="civic-eligibility-loading-spinner" />
+            <p>{surveyRequired ? "필수 설문 화면으로 이동하고 있습니다…" : "이용 자격 확인 중…"}</p>
+          </div>
+        ) : null}
+      </div>
     );
   }
   return children;
+}
+
+function useDelayedEligibilityLoading(isBlocking: boolean): Readonly<{
+  blockContent: boolean;
+  showIndicator: boolean;
+}> {
+  const [indicatorVisible, setIndicatorVisible] = useState(false);
+  const [minimumVisibleElapsed, setMinimumVisibleElapsed] = useState(false);
+
+  useEffect(() => {
+    if (!isBlocking || indicatorVisible) return;
+    const delay = window.setTimeout(() => {
+      setIndicatorVisible(true);
+    }, eligibilityLoadingDelayMs);
+    return () => window.clearTimeout(delay);
+  }, [indicatorVisible, isBlocking]);
+
+  useEffect(() => {
+    if (!indicatorVisible) return;
+    const minimumVisible = window.setTimeout(() => {
+      setMinimumVisibleElapsed(true);
+    }, eligibilityLoadingMinimumVisibleMs);
+    return () => window.clearTimeout(minimumVisible);
+  }, [indicatorVisible]);
+
+  const blockContent = isBlocking || (indicatorVisible && !minimumVisibleElapsed);
+
+  useEffect(() => {
+    if (blockContent || !indicatorVisible) return;
+    const reset = window.setTimeout(() => {
+      setIndicatorVisible(false);
+      setMinimumVisibleElapsed(false);
+    }, 0);
+    return () => window.clearTimeout(reset);
+  }, [blockContent, indicatorVisible]);
+
+  return { blockContent, showIndicator: indicatorVisible };
 }
 
 async function loadCurrentUserRole(): Promise<string | null> {
