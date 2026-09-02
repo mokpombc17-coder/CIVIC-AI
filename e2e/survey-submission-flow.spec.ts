@@ -17,6 +17,9 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
   await page.route("**/api/v1/auth/me", async (route) => {
     await route.fulfill({ json: { subject: "survey-e2e-user" } });
   });
+  await page.route("https://t1.kakaocdn.net/**", async (route) => {
+    await route.abort("failed");
+  });
   await page.route("**/api/v1/me/**", async (route) => {
     const request = route.request();
     const requestUrl = new URL(request.url());
@@ -124,6 +127,9 @@ test("제출 401이면 토큰 갱신 후 같은 payload와 멱등성 키로 한 
   await page.route("**/api/v1/auth/me", async (route) => {
     await route.fulfill({ json: { subject: "survey-refresh-e2e-user" } });
   });
+  await page.route("https://t1.kakaocdn.net/**", async (route) => {
+    await route.abort("failed");
+  });
   await page.route("**/api/v1/auth/refresh", async (route) => {
     const corsHeaders = createCorsHeaders(page);
     if (route.request().method() === "OPTIONS") {
@@ -221,6 +227,16 @@ async function answerCurrentSection(page: Page): Promise<void> {
   for (const input of await form.locator('input[type="text"]').all()) {
     await input.fill("테스트 답변");
   }
+  const residenceLookup = form.getByRole("button", { name: "주소지 시/도 검색" });
+  if ((await residenceLookup.count()) > 0) {
+    await residenceLookup.click();
+    await page.getByRole("button", { name: "직접 입력하기" }).click();
+    const values = ["경기도", "성남시 분당구", "백현동"];
+    const inputs = await form.locator('input[data-residence-manual="true"]').all();
+    for (const [index, input] of inputs.entries()) {
+      await input.fill(values[index]!);
+    }
+  }
   for (const input of await form.locator('input[type="number"]').all()) {
     await input.fill("10");
   }
@@ -306,7 +322,7 @@ function createSection(
 function createGeneralQuestion(index: number): SurveyQuestion {
   const base = {
     questionId: uuid(100 + index),
-    questionKey: `e2e.question-${index}`,
+    questionKey: index === 2 ? "demographics.residence" : `e2e.question-${index}`,
     title: `문항 ${index}`,
     prompt: `문항 ${index} 답변`,
     required: true,

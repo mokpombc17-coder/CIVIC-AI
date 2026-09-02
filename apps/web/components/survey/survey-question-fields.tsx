@@ -11,6 +11,7 @@ import {
   getSurveyMatrixOptionLabel,
   getSurveyQuestionPresentation,
 } from "./survey-presentation";
+import { ResidenceAddressField } from "./residence-address-field";
 import { SurveyMultiSelect } from "./survey-multi-select";
 import { SurveySelect } from "./survey-select";
 import styles from "./survey.module.css";
@@ -298,7 +299,7 @@ function SurveyQuestionControl({
 }) {
   if (question.questionKey === RESIDENCE_KEY && question.type === "SHORT_TEXT") {
     return (
-      <ResidenceTextInputs
+      <ResidenceAddressField
         answer={answer}
         controlId={controlId}
         describedBy={describedBy}
@@ -432,55 +433,6 @@ function SurveyQuestionControl({
       );
     }
   }
-}
-
-function ResidenceTextInputs({
-  answer,
-  controlId,
-  describedBy,
-  maxLength,
-  onChange,
-}: {
-  answer: SurveyAnswerDraft | undefined;
-  controlId: string;
-  describedBy: string | undefined;
-  maxLength: number | null;
-  onChange: (answer: SurveyAnswerDraft) => void;
-}) {
-  const values =
-    answer?.type === "SHORT_TEXT" && answer.inputSegments
-      ? [...answer.inputSegments]
-      : ["", "", ""];
-  const placeholders = ["시/도", "시/군/구", "읍/면/동"];
-  return (
-    <div className={styles.residenceFields}>
-      {placeholders.map((placeholder, index) => (
-        <input
-          aria-describedby={describedBy}
-          aria-label={`주소지 ${placeholder}`}
-          className={styles.textControl}
-          id={index === 0 ? controlId : undefined}
-          key={placeholder}
-          maxLength={maxLength ?? undefined}
-          onChange={(event) => {
-            const next = [...values];
-            next[index] = event.target.value;
-            onChange({
-              type: "SHORT_TEXT",
-              inputSegments: next,
-              text: next
-                .map((value) => value.trim())
-                .filter(Boolean)
-                .join(" "),
-            });
-          }}
-          placeholder={placeholder}
-          type="text"
-          value={values[index] ?? ""}
-        />
-      ))}
-    </div>
-  );
 }
 
 function canRenderNumberSelect(question: Extract<SurveyQuestion, { type: "NUMBER" }>): boolean {

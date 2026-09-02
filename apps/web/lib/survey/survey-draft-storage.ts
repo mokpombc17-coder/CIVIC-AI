@@ -195,9 +195,14 @@ function restoreSurveyAnswer(
       const inputSegments = Array.isArray(value.inputSegments)
         ? value.inputSegments.filter((segment): segment is string => typeof segment === "string")
         : undefined;
+      const inputMethod =
+        value.inputMethod === "MANUAL" || value.inputMethod === "POSTCODE"
+          ? value.inputMethod
+          : undefined;
       return {
         type: question.type,
         text: value.text,
+        ...(inputMethod ? { inputMethod } : {}),
         ...(inputSegments ? { inputSegments } : {}),
       };
     }

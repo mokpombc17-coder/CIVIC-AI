@@ -50,7 +50,7 @@ import {
   subscribeNotificationLinks,
 } from "../notifications/native-notifications";
 import { normalizeDeepLink } from "./deep-link";
-import { isMainDocumentHttpError } from "./load-policy";
+import { isMainDocumentHttpError, shouldAllowWebViewNavigation } from "./load-policy";
 import {
   getNetworkAvailability,
   shouldAutoRetryAfterNetworkRecovery,
@@ -451,20 +451,17 @@ export function WebAppView() {
         }}
         onShouldStartLoadWithRequest={(request) => {
           const { url } = request;
-
-          if (url === "about:blank" || url.startsWith(`blob:${WEB_APP_ORIGIN}`)) {
+          if (
+            shouldAllowWebViewNavigation({
+              isTopFrame: request.isTopFrame,
+              url,
+              webAppOrigin: WEB_APP_ORIGIN,
+            })
+          ) {
             return true;
           }
 
-          try {
-            if (new URL(url).origin === WEB_APP_ORIGIN) {
-              return true;
-            }
-          } catch {
-            // Non-HTTP schemes are delegated to the operating system below.
-          }
-
-          void openExternalUrl(url);
+          if (request.isTopFrame) void openExternalUrl(url);
           return false;
         }}
         originWhitelist={["http://*", "https://*"]}

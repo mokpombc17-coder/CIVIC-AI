@@ -16,7 +16,7 @@ const SURVEY_MATRIX_CHOICE_LAYOUTS: Readonly<Record<string, SurveyMatrixChoiceLa
 
 export const SURVEY_QUESTION_PRESENTATION = {
   "demographics.residence": {
-    helperText: "행정구역 · 자치구 · 행정동을 순서대로 선택해 주세요",
+    helperText: "행정구역 · 자치구 · 행정동을 순서대로 기재해 주세요",
   },
   "household.age-group-presence": {
     helperText: "가구원 중 해당 연령대가 있는지 선택해 주세요",

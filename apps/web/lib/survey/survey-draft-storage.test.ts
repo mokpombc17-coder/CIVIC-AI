@@ -17,6 +17,7 @@ const MATRIX_ID = "44444444-4444-4444-8444-444444444444";
 const ITEM_ID = "55555555-5555-4555-8555-555555555555";
 const OPTION_YES = "66666666-6666-4666-8666-666666666666";
 const OPTION_NO = "77777777-7777-4777-8777-777777777777";
+const RESIDENCE_ID = "88888888-8888-4888-8888-888888888888";
 
 const sections: readonly SurveySection[] = [
   {
@@ -109,6 +110,55 @@ describe("survey draft storage", () => {
         [MATRIX_ID]: { type: "MATRIX_SCALE", itemAnswers: { [ITEM_ID]: null } },
       },
       currentStep: 2,
+    });
+  });
+
+  it("주소 입력 방식과 세부 지역 값을 함께 복원한다", () => {
+    const storage = new MemoryStorage();
+    const residenceSections: readonly SurveySection[] = [
+      {
+        sectionKey: "personal-information",
+        title: "일반 개인정보",
+        questions: [
+          {
+            questionId: RESIDENCE_ID,
+            questionKey: "demographics.residence",
+            title: "주소지",
+            prompt: "주소지를 선택해 주세요",
+            required: true,
+            type: "SHORT_TEXT",
+            maxLength: 200,
+          },
+        ],
+      },
+    ];
+    saveSurveyDraft(
+      storage,
+      scope,
+      {
+        answers: {
+          [RESIDENCE_ID]: {
+            type: "SHORT_TEXT",
+            inputMethod: "POSTCODE",
+            inputSegments: ["세종특별자치시", "", "나성동"],
+            text: "세종특별자치시 나성동",
+          },
+        },
+        currentStep: 1,
+      },
+      1_000,
+    );
+
+    expect(loadSurveyDraft(storage, scope, residenceSections, 1_001)).toEqual({
+      answers: {
+        [RESIDENCE_ID]: {
+          type: "SHORT_TEXT",
+          inputMethod: "POSTCODE",
+          inputSegments: ["세종특별자치시", "", "나성동"],
+          text: "세종특별자치시 나성동",
+        },
+      },
+      currentStep: 1,
     });
   });
 

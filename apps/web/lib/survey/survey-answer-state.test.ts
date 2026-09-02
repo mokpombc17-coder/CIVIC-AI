@@ -13,6 +13,7 @@ const ITEM_A = "44444444-4444-4444-8444-444444444444";
 const ITEM_B = "55555555-5555-4555-8555-555555555555";
 const OPTION_YES = "66666666-6666-4666-8666-666666666666";
 const OPTION_NO = "77777777-7777-4777-8777-777777777777";
+const RESIDENCE_ID = "88888888-8888-4888-8888-888888888888";
 
 const sections: SurveySection[] = [
   {
@@ -81,5 +82,67 @@ describe("survey answer state", () => {
       ],
     });
     expect(JSON.stringify(payload)).not.toMatch(/kind|inputText/);
+  });
+
+  it("우편번호 검색 주소는 시군구 단계가 없는 경우에도 유효하게 처리한다", () => {
+    const residenceSections: SurveySection[] = [
+      {
+        sectionKey: "personal-information",
+        title: "일반 개인정보",
+        questions: [
+          {
+            questionId: RESIDENCE_ID,
+            questionKey: "demographics.residence",
+            title: "주소지",
+            prompt: "주소지를 선택해 주세요",
+            required: true,
+            type: "SHORT_TEXT",
+            maxLength: 200,
+          },
+        ],
+      },
+    ];
+
+    expect(
+      validateSurvey(residenceSections, {
+        [RESIDENCE_ID]: {
+          type: "SHORT_TEXT",
+          inputMethod: "POSTCODE",
+          inputSegments: ["세종특별자치시", "", "나성동"],
+          text: "세종특별자치시 나성동",
+        },
+      }),
+    ).toEqual({});
+  });
+
+  it("직접 입력 주소는 세 항목이 모두 입력되어야 한다", () => {
+    const residenceSections: SurveySection[] = [
+      {
+        sectionKey: "personal-information",
+        title: "일반 개인정보",
+        questions: [
+          {
+            questionId: RESIDENCE_ID,
+            questionKey: "demographics.residence",
+            title: "주소지",
+            prompt: "주소지를 입력해 주세요",
+            required: true,
+            type: "SHORT_TEXT",
+            maxLength: 200,
+          },
+        ],
+      },
+    ];
+
+    expect(
+      validateSurvey(residenceSections, {
+        [RESIDENCE_ID]: {
+          type: "SHORT_TEXT",
+          inputMethod: "MANUAL",
+          inputSegments: ["경기도", "", "백현동"],
+          text: "경기도 백현동",
+        },
+      }),
+    ).toEqual({ [RESIDENCE_ID]: "항목을 모두 입력해 주세요." });
   });
 });

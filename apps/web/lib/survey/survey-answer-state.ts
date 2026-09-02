@@ -13,6 +13,7 @@ export type SurveyAnswerDraft =
   | Readonly<{
       type: "SHORT_TEXT" | "LONG_TEXT";
       text: string;
+      inputMethod?: "MANUAL" | "POSTCODE";
       inputSegments?: readonly string[];
     }>
   | Readonly<{ type: "NUMBER"; number: number | null }>
@@ -146,7 +147,10 @@ function validateSurveyAnswer(
       if (question.required && textAnswer.text.trim().length === 0) {
         return [[key, "답변을 입력해 주세요."]];
       }
-      if (textAnswer.inputSegments?.some((segment) => segment.trim().length === 0)) {
+      if (
+        textAnswer.inputMethod !== "POSTCODE" &&
+        textAnswer.inputSegments?.some((segment) => segment.trim().length === 0)
+      ) {
         return [[key, "항목을 모두 입력해 주세요."]];
       }
       if (question.maxLength !== null && Array.from(textAnswer.text).length > question.maxLength) {

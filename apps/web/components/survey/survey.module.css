@@ -829,6 +829,234 @@ input.textControl,
   gap: 6px;
 }
 
+.residenceLookupControl {
+  display: flex;
+  height: 48px;
+  box-sizing: border-box;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  text-align: left;
+}
+
+.residenceLookupControl[data-empty="true"] {
+  color: var(--platform-shell-color-muted);
+}
+
+.residencePostcodeButton {
+  width: fit-content;
+  padding: 4px 0;
+  border: 0;
+  margin-top: 6px;
+  background: transparent;
+  color: var(--platform-shell-color-primary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 13px;
+  line-height: 20px;
+}
+
+.residencePostcodeButton:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid color-mix(in srgb, var(--platform-shell-color-primary) 35%, transparent);
+  outline-offset: 2px;
+}
+
+.postcodeBackdrop {
+  position: absolute;
+  z-index: var(--platform-z-overlay);
+  inset: 0;
+  display: grid;
+  align-items: center;
+  justify-items: center;
+  padding: 16px;
+  background: rgb(13 23 43 / 48%);
+}
+
+.postcodeDialog {
+  display: flex;
+  width: min(560px, 100%);
+  height: min(680px, calc(100dvh - 32px));
+  min-height: min(520px, calc(100dvh - 32px));
+  flex-direction: column;
+  overflow: hidden;
+  border-radius: 16px;
+  background: var(--platform-shell-color-surface);
+  box-shadow: 0 24px 64px rgb(13 23 43 / 30%);
+}
+
+.postcodeDialogHeader {
+  display: flex;
+  min-height: 56px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px 10px 18px;
+  border-bottom: 1px solid #e5e9f0;
+}
+
+.postcodeDialogHeader h2 {
+  margin: 0;
+  color: var(--platform-shell-color-text);
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.postcodeCloseButton {
+  display: inline-grid;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--platform-shell-color-text);
+  cursor: pointer;
+  font: inherit;
+  font-size: 28px;
+  font-weight: 300;
+  line-height: 1;
+  place-items: center;
+}
+
+.postcodeCloseButton:hover {
+  background: #f3f5f8;
+}
+
+.postcodeCloseButton:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: 1px;
+}
+
+.postcodeDialogBody {
+  position: relative;
+  min-height: 0;
+  flex: 1 1 auto;
+  background: #fff;
+}
+
+.postcodeEmbed {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.postcodeEmbed[data-visible="true"] {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.postcodeStatus {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  align-content: center;
+  justify-items: center;
+  gap: 10px;
+  padding: 28px;
+  background: var(--platform-shell-color-surface);
+  text-align: center;
+}
+
+.postcodeStatus p {
+  margin: 0;
+}
+
+.postcodeSpinner {
+  width: 30px;
+  height: 30px;
+  box-sizing: border-box;
+  border: 3px solid #dfe4eb;
+  border-top-color: var(--platform-shell-color-primary);
+  border-radius: 50%;
+  animation: survey-spinner-rotate 760ms linear infinite;
+}
+
+.postcodeErrorTitle {
+  color: var(--platform-shell-color-text);
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 24px;
+}
+
+.postcodeErrorDetail {
+  max-width: 320px;
+  color: var(--platform-shell-color-muted);
+  font-size: 14px;
+  line-height: 21px;
+}
+
+.postcodeErrorActions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.postcodeRetryButton,
+.postcodeManualButton {
+  min-height: 42px;
+  padding: 9px 16px;
+  border-radius: 9px;
+  cursor: pointer;
+  font: inherit;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.postcodeRetryButton {
+  border: 1px solid var(--platform-shell-color-primary);
+  background: var(--platform-shell-color-primary);
+  color: #fff;
+}
+
+.postcodeManualButton {
+  border: 1px solid #c9d1dc;
+  background: var(--platform-shell-color-surface);
+  color: var(--platform-shell-color-text);
+}
+
+.postcodeDialogFooter {
+  display: flex;
+  min-height: 48px;
+  box-sizing: border-box;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 10px 16px;
+  border-top: 1px solid #e5e9f0;
+  color: var(--platform-shell-color-muted);
+  font-size: 12px;
+  line-height: 18px;
+}
+
+.postcodeDialogFooter button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--platform-shell-color-primary);
+  cursor: pointer;
+  font: inherit;
+  font-weight: 600;
+}
+
+@media (max-width: 600px) {
+  .postcodeBackdrop {
+    padding: 0;
+  }
+
+  .postcodeDialog {
+    width: 100%;
+    height: 100dvh;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
 textarea.textControl {
   min-height: 104px;
   resize: vertical;
@@ -1289,11 +1517,13 @@ textarea.textControl {
   .selectScrollHint,
   .multiSelectOption,
   .multiSelectOption input,
-  .multiSelectOption input::after {
+  .multiSelectOption input::after,
+  .postcodeEmbed {
     transition: none;
   }
 
-  .loadingSpinner {
+  .loadingSpinner,
+  .postcodeSpinner {
     animation: none;
   }
 }
