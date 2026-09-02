@@ -75,8 +75,10 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`의 7개 Section과 29개 Question을
 조립한 뒤 프론트 전용 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 일반 Question과 행렬
 Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API mutation에 전달한다. 저장 제출과
-로컬 preview 제출 모두 성공하면 `/home`으로 replace 이동한다. 답변과 필수 확인 상태는 browser
-storage에 저장하지 않는다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
+로컬 preview 제출 모두 성공하면 `/home`으로 replace 이동한다. 답변과 현재 단계는 현재 인증
+subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
+Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며 제출 성공 또는
+`SUBMITTED` 재진입 시 임시 답변을 삭제한다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
 action만 제공하고 입력 폼을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
@@ -118,7 +120,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `survey-api.ts`와 `survey-queries.ts`는 transport·runtime parsing·query cache를 담당한다.
 `survey-answer-state.ts`는 Question type별 draft, 행렬 Item 상태, 화면 이동용 검증과 29개 answer 제출
 payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?from=...` URL 생성과 내부 복귀 경로 검증을
-소유한다. `SurveyResponseScreen`은 latest/specific query가 반환한 제출 당시 content와 answer를 ID로
+소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,
+현재 설문 계약에 맞춘 안전한 복원과 저장소 장애 시 graceful degradation을 담당한다.
+`SurveyResponseScreen`은 latest/specific query가 반환한 제출 당시 content와 answer를 ID로
 결합해 읽기 전용으로 표시한다.
 `survey-presentation.ts`는 `questionKey`별 Figma 전용 제목·안내 문구와 Matrix 화면 layout을 소유하고
 API `prompt`를 화면 문구의 fallback으로 사용하지 않는다. Matrix 선택지 중 Figma 표기가 다른 값은

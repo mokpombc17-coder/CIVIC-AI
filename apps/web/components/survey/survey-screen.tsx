@@ -19,6 +19,13 @@ import {
   prepareSurveySubmission,
   type PendingSurveySubmission,
 } from "@/lib/survey/survey-submission";
+import {
+  loadSurveyDraft,
+  removeSurveyDraft,
+  resolveSurveyDraftOwnerKey,
+  saveSurveyDraft,
+  type SurveyDraftScope,
+} from "@/lib/survey/survey-draft-storage";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import {
   SurveyFlowLayout,
@@ -46,6 +53,25 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
   const updateHeaderProgress = useCallback((progress: SurveyHeaderProgressState | null) => {
     setHeaderProgress(progress);
   }, []);
+
+  useEffect(() => {
+    const survey = surveyQuery.data;
+    if (survey?.status !== "SUBMITTED") return;
+
+    let active = true;
+    void resolveSurveyDraftOwnerKey().then((ownerKey) => {
+      if (!active || !ownerKey) return;
+      removeSurveyDraft(sessionStorage, {
+        contentVersionId: survey.contentVersionId,
+        ownerKey,
+        roundId: survey.roundId,
+      });
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [surveyQuery.data]);
 
   return (
     <PlatformShell
@@ -92,7 +118,8 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
         {surveyQuery.data?.status === "PENDING" ? (
           <SurveyForm
             cancelHref={cancelHref}
-            key={surveyQuery.data.contentVersionId}
+            contentVersionId={surveyQuery.data.contentVersionId}
+            key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
             onHeaderProgressChange={updateHeaderProgress}
             onRefresh={() => void surveyQuery.refetch()}
             roundId={surveyQuery.data.roundId}
@@ -106,12 +133,14 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
 
 function SurveyForm({
   cancelHref,
+  contentVersionId,
   onHeaderProgressChange,
   onRefresh,
   roundId,
   sections,
 }: {
   cancelHref: string;
+  contentVersionId: string;
   onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
   roundId: string;
@@ -127,10 +156,42 @@ function SurveyForm({
   const [isRequiredConfirmationChecked, setIsRequiredConfirmationChecked] = useState(false);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [validationScrollRequest, setValidationScrollRequest] = useState(0);
+  const [draftReady, setDraftReady] = useState(false);
+  const [draftScope, setDraftScope] = useState<SurveyDraftScope | null>(null);
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
   const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
+  const initialSections = useRef(sections);
   const submitMutation = useSubmitSurveyMutation();
+
+  useEffect(() => {
+    let active = true;
+    void resolveSurveyDraftOwnerKey().then((ownerKey) => {
+      if (!active) return;
+      if (ownerKey) {
+        const scope = { contentVersionId, ownerKey, roundId };
+        const draft = loadSurveyDraft(sessionStorage, scope, initialSections.current);
+        if (draft) {
+          setAnswers(draft.answers);
+          setCurrentStep(draft.currentStep);
+        }
+        setDraftScope(scope);
+      }
+      setDraftReady(true);
+    });
+
+    return () => {
+      active = false;
+    };
+  }, [contentVersionId, roundId]);
+
+  useEffect(() => {
+    if (!draftReady || !draftScope) return;
+    const timeout = window.setTimeout(() => {
+      saveSurveyDraft(sessionStorage, draftScope, { answers, currentStep });
+    }, 200);
+    return () => window.clearTimeout(timeout);
+  }, [answers, currentStep, draftReady, draftScope]);
 
   useEffect(() => {
     if (validationScrollRequest === 0) return;
@@ -169,6 +230,10 @@ function SurveyForm({
         title="표시할 설문 문항을 준비하지 못했습니다."
       />
     );
+  }
+
+  if (!draftReady) {
+    return <SurveyStatus loading title="임시 저장된 답변을 확인하는 중입니다." />;
   }
 
   const currentSection = sections[currentStep - 1];
@@ -234,6 +299,7 @@ function SurveyForm({
         command: prepared.payload,
         idempotencyKey: prepared.idempotencyKey,
       });
+      if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
       router.replace("/home");
     } catch (error) {
       const apiErrors = getSurveySubmissionErrors(error);
