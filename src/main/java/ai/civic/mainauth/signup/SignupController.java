@@ -69,8 +69,8 @@ public class SignupController {
         requireMatchingFlow(flowId, cookieFlow);
         rateLimit(request, cookieFlow);
         var result = signup.completeSignup(flowId, body);
-        return ResponseEntity.accepted()
-                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flowId.toString()).toString())
+        return ResponseEntity.status(201)
+                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
                 .body(result);
     }
 
@@ -83,7 +83,7 @@ public class SignupController {
         rateLimit(request, cookieFlow);
         signup.verifyEmail(UUID.fromString(cookieFlow), body.code());
         return ResponseEntity.noContent()
-                .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(cookieFlow).toString()).build();
     }
 
     @PostMapping("/verification/resend")

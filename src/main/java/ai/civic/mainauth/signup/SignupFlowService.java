@@ -78,6 +78,14 @@ public class SignupFlowService {
         featureGates.requireEnabled("PUBLIC_SIGNUP_ENABLED");
         var normalized = normalizeAndValidateEmail(email);
         identityLocks.lock(normalized);
+        removePendingRegistration(normalized, lockPendingRegistration(normalized));
+        var existingStates = jdbc.query("""
+                select state from users
+                where normalized_email = ?
+                """, (rs, rowNum) -> rs.getString("state"), normalized);
+        if (!existingStates.isEmpty()) {
+            throw new SignupConflictException("An account already exists for this email");
+        }
         var schema = jdbc.queryForMap("""
                 select id, version from questionnaire_schemas
                 where active_for_new_signup order by version desc limit 1
@@ -110,6 +118,7 @@ public class SignupFlowService {
                 ) values (?, ?, ?, ?, ?::jsonb, ?)
                 """,
                 id, normalized, normalized, schema.get("id"), writeJson(documentVersions), Timestamp.from(expiry));
+        createSignupVerification(id, normalized);
         return new SignupFlowView(
                 id, expiry, schema.get("version").toString(), documentVersions, documents,
                 List.of("TERMS", "ACCOUNT_RAG_PRIVACY"),
@@ -147,14 +156,29 @@ public class SignupFlowService {
         for (var pending : pendingRegistrations) {
             removeExpiredPendingRegistration(pending.normalizedEmail(), pending.userId());
         }
-        var expiredFlows = jdbc.update("""
-                with expired as (
-                    select id from signup_flows where expires_at < now()
-                    order by expires_at for update skip locked limit 100
-                )
-                delete from signup_flows f using expired e where f.id = e.id
-                """);
-        return !pendingRegistrations.isEmpty() || expiredFlows > 0;
+        var expiredFlowIds = jdbc.query("""
+                select id from signup_flows where expires_at < now()
+                order by expires_at for update skip locked limit 100
+                """, (rs, rowNum) -> rs.getObject("id", UUID.class));
+        for (var flowId : expiredFlowIds) {
+            var challengeIds = jdbc.query("""
+                    select id from auth_challenges
+                    where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                    """, (rs, rowNum) -> rs.getObject("id", UUID.class), sha256(flowId.toString()));
+            for (var challengeId : challengeIds) {
+                jdbc.update("""
+                        delete from notification_outbox
+                        where event_type = 'SIGNUP_EMAIL_VERIFICATION'
+                          and payload ->> 'challenge_id' = ?
+                        """, challengeId.toString());
+            }
+            jdbc.update("""
+                    delete from auth_challenges
+                    where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                    """, sha256(flowId.toString()));
+            jdbc.update("delete from signup_flows where id = ?", flowId);
+        }
+        return !pendingRegistrations.isEmpty() || !expiredFlowIds.isEmpty();
     }
 
     @Transactional
@@ -171,9 +195,10 @@ public class SignupFlowService {
         try {
             removeExpiredPendingRegistration(normalizedEmail, pendingUserId);
             userId = jdbc.queryForObject("""
-                    insert into users(email, normalized_email, origin, state)
-                    values (?, ?, 'SIGNUP', 'PENDING_EMAIL_VERIFICATION') returning id
-                    """, UUID.class, normalizedEmail, normalizedEmail);
+                    insert into users(email, normalized_email, origin, state, email_verified_at)
+                    values (?, ?, 'SIGNUP', 'ACTIVE', ?) returning id
+                    """, UUID.class, normalizedEmail, normalizedEmail,
+                    Timestamp.from(flow.emailVerifiedAt()));
         } catch (DataIntegrityViolationException duplicate) {
             throw new SignupConflictException("An account already exists for this email");
         }
@@ -191,16 +216,28 @@ public class SignupFlowService {
         var acceptedAt = clock.instant();
         consent.record(userId, serverAcceptedEvidence(request.termsEvidence(), acceptedAt));
         consent.record(userId, serverAcceptedEvidence(request.privacyEvidence(), acceptedAt));
+        jdbc.update("""
+                insert into account_state_outbox(user_id, account_state_version, state, event_payload)
+                select id, account_state_version, 'ACTIVE',
+                    jsonb_build_object('subject_id', id, 'version', account_state_version,
+                                       'state', 'ACTIVE', 'reason', 'SIGNUP_VERIFIED', 'at', now())
+                from users where id = ? and state = 'ACTIVE'
+                on conflict (user_id, account_state_version) do nothing
+                """, userId);
+        jdbc.update("update signup_flows set completed_at = now() where id = ?", flowId);
+        return new CompletionResult("LOGIN");
+    }
 
+    private void createSignupVerification(UUID flowId, String normalizedEmail) {
         var code = "%06d".formatted(RANDOM.nextInt(1_000_000));
         var challengeId = UUID.randomUUID();
         jdbc.update("""
                 insert into auth_challenges(
                     id, flow_hash, user_id, purpose, target_identity, code_hash, expires_at,
                     payload, last_sent_at, resend_window_started_at
-                ) values (?, ?, ?, 'SIGNUP_EMAIL_VERIFICATION', ?, ?, ?, '{}'::jsonb, now(), now())
+                ) values (?, ?, null, 'SIGNUP_EMAIL_VERIFICATION', ?, ?, ?, '{}'::jsonb, now(), now())
                 """,
-                challengeId, sha256(flowId.toString()), userId, normalizedEmail,
+                challengeId, sha256(flowId.toString()), normalizedEmail,
                 codeProtector.verifier(code),
                 Timestamp.from(clock.instant().plus(10, ChronoUnit.MINUTES)));
         var notification = Map.of(
@@ -211,8 +248,6 @@ public class SignupFlowService {
                 insert into notification_outbox(event_type, recipient, payload)
                 values ('SIGNUP_EMAIL_VERIFICATION', ?, ?::jsonb)
                 """, normalizedEmail, writeJson(notification));
-        jdbc.update("update signup_flows set completed_at = now() where id = ?", flowId);
-        return new CompletionResult("EMAIL_VERIFICATION");
     }
 
     private UUID lockPendingRegistration(String normalizedEmail) {
@@ -232,27 +267,45 @@ public class SignupFlowService {
                   and consumed_at is null and expires_at > ?
                 """, Integer.class, userId, Timestamp.from(clock.instant()));
         if (activeChallenges != null && activeChallenges > 0) return;
+        removePendingRegistration(normalizedEmail, userId);
+    }
+
+    private void removePendingRegistration(String normalizedEmail, UUID userId) {
+        if (userId == null) return;
         jdbc.update("delete from auth_challenges where user_id = ?", userId);
         jdbc.update("delete from consent_evidence where user_id = ?", userId);
         jdbc.update("delete from questionnaire_responses where user_id = ?", userId);
         jdbc.update("delete from user_permissions where user_id = ?", userId);
         jdbc.update("delete from user_roles where user_id = ?", userId);
         jdbc.update("delete from credentials where user_id = ?", userId);
-        jdbc.update("delete from notification_outbox where lower(btrim(recipient)) = ?", normalizedEmail);
+        jdbc.update("""
+                delete from notification_outbox
+                where event_type = 'SIGNUP_EMAIL_VERIFICATION'
+                  and lower(btrim(recipient)) = ?
+                """, normalizedEmail);
         jdbc.update("delete from users where id = ? and state = 'PENDING_EMAIL_VERIFICATION'", userId);
     }
 
     @Transactional(noRollbackFor = SignupValidationException.class)
     public void verifyEmail(UUID flowId, String code) {
-        var userId = lockSignupVerificationUser(flowId);
+        FlowRow flow;
+        try {
+            flow = loadFlow(flowId, true);
+        } catch (SignupValidationException exception) {
+            throw new SignupValidationException("Verification flow is invalid");
+        }
+        if (flow.emailVerifiedAt() != null) return;
+        if (flow.completedAt() != null || !flow.expiresAt().isAfter(clock.instant())) {
+            throw new SignupConflictException("Verification challenge is no longer active");
+        }
         Map<String, Object> challenge;
         try {
             challenge = jdbc.queryForMap("""
-                    select id, user_id, code_hash, attempt_count, expires_at, consumed_at
+                    select id, code_hash, attempt_count, expires_at, consumed_at
                     from auth_challenges
-                    where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION' and user_id = ?
+                    where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
                     for update
-                    """, sha256(flowId.toString()), userId);
+                    """, sha256(flowId.toString()));
         } catch (EmptyResultDataAccessException exception) {
             throw new SignupValidationException("Verification flow is invalid");
         }
@@ -268,33 +321,9 @@ public class SignupFlowService {
         }
         jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.get("id"));
         jdbc.update("""
-                update users set state = 'ACTIVE', email_verified_at = now(), updated_at = now()
-                where id = ? and state = 'PENDING_EMAIL_VERIFICATION'
-                """, challenge.get("user_id"));
-        jdbc.update("""
-                insert into account_state_outbox(user_id, account_state_version, state, event_payload)
-                select id, account_state_version, 'ACTIVE',
-                    jsonb_build_object('subject_id', id, 'version', account_state_version,
-                                       'state', 'ACTIVE', 'reason', 'SIGNUP_VERIFIED', 'at', now())
-                from users where id = ? and state = 'ACTIVE'
-                on conflict (user_id, account_state_version) do nothing
-                """, challenge.get("user_id"));
-    }
-
-    private UUID lockSignupVerificationUser(UUID flowId) {
-        var userIds = jdbc.query("""
-                select user_id from auth_challenges
-                where flow_hash = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), sha256(flowId.toString()));
-        if (userIds.size() != 1) throw new SignupValidationException("Verification flow is invalid");
-        var userId = userIds.getFirst();
-        var locked = jdbc.query("""
-                select id from users
-                where id = ? and state = 'PENDING_EMAIL_VERIFICATION' and deleted_at is null
-                for update
-                """, (rs, rowNum) -> rs.getObject("id", UUID.class), userId);
-        if (locked.size() != 1) throw new SignupValidationException("Verification flow is invalid");
-        return userId;
+                update signup_flows set email_verified_at = now()
+                where id = ? and email_verified_at is null and completed_at is null
+                """, flowId);
     }
 
     @Transactional
@@ -354,6 +383,9 @@ public class SignupFlowService {
         if (flow.completedAt() != null || !flow.expiresAt().isAfter(clock.instant())) {
             throw new SignupConflictException("Signup flow is no longer active");
         }
+        if (flow.emailVerifiedAt() == null) {
+            invalid("Email verification is required before signup completion");
+        }
         var normalized = normalizeAndValidateEmail(request.email());
         if (!normalized.equals(flow.normalizedEmail())) invalid("Email does not match signup flow");
         if (request.password() == null || !PASSWORD.matcher(request.password()).matches()) {
@@ -400,7 +432,7 @@ public class SignupFlowService {
 
     private FlowRow loadFlow(UUID id, boolean forUpdate) {
         var sql = """
-                select f.id, f.normalized_email, f.expires_at, f.completed_at,
+                select f.id, f.normalized_email, f.expires_at, f.email_verified_at, f.completed_at,
                        f.questionnaire_schema_id, q.version, q.definition::text,
                        f.document_versions::text
                 from signup_flows f join questionnaire_schemas q on q.id = f.questionnaire_schema_id
@@ -410,6 +442,8 @@ public class SignupFlowService {
                 rs.getObject("id", UUID.class),
                 rs.getString("normalized_email"),
                 rs.getTimestamp("expires_at").toInstant(),
+                rs.getTimestamp("email_verified_at") == null
+                        ? null : rs.getTimestamp("email_verified_at").toInstant(),
                 rs.getTimestamp("completed_at") == null ? null : rs.getTimestamp("completed_at").toInstant(),
                 rs.getObject("questionnaire_schema_id", UUID.class),
                 rs.getInt("version"),
@@ -523,6 +557,7 @@ public class SignupFlowService {
             UUID id,
             String normalizedEmail,
             Instant expiresAt,
+            Instant emailVerifiedAt,
             Instant completedAt,
             UUID schemaId,
             int schemaVersion,

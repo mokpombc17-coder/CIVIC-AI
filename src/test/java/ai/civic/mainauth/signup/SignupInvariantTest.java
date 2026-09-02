@@ -9,6 +9,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.time.Instant;
+import java.util.UUID;
 import java.util.stream.Stream;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -67,7 +68,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void startingAFlowPinsVersionsAndCreatesNoAccount() {
+    void startingAFlowPinsVersionsAndSendsVerificationBeforeCreatingAnAccount() {
         var flow = service.startSignup("  Person@Example.COM  ");
 
         assertThat(flow.flowId()).isNotNull();
@@ -81,6 +82,10 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 .containsEntry("ACCOUNT_RAG_PRIVACY", false);
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("credentials", "true")).isOne(); // bootstrap credential only
+        assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION' and user_id is null"))
+                .isOne();
+        assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
+                .isOne();
         assertThat(count("refresh_tokens", "true")).isZero();
     }
 
@@ -120,15 +125,17 @@ class SignupInvariantTest extends PostgresIntegrationTest {
 
         assertThat(count("signup_flows", "normalized_email = 'expired-flow@example.com'")).isZero();
         assertThat(count("signup_flows", "normalized_email = 'fresh-flow@example.com'")).isOne();
+        assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION'"))
+                .isOne();
+        assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
+                .isOne();
         assertThat(service.purgeExpiredSignupFlows()).isFalse();
         assertThat(fresh.flowId()).isNotNull();
     }
 
     @Test
-    void workerRetentionPurgesAnAbandonedPendingRegistrationAfterChallengeExpiry() {
+    void workerRetentionPurgesAnAbandonedPreAccountVerificationFlow() {
         var flow = service.startSignup("abandoned@example.com");
-        service.completeSignup(
-                flow.flowId(), validRequest("abandoned@example.com", "Valid123!"));
         jdbc.update("""
                 update auth_challenges set expires_at = now() - interval '1 hour'
                 where purpose = 'SIGNUP_EMAIL_VERIFICATION'
@@ -150,23 +157,43 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     @MethodSource("invalidPasswords")
     void invalidCompletionIsAtomic(String password) {
         var flow = service.startSignup("person@example.com");
+        verify(flow);
         var request = validRequest("person@example.com", password);
 
         assertThatThrownBy(() -> service.completeSignup(flow.flowId(), request))
                 .isInstanceOf(SignupValidationException.class);
 
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
-        assertThat(count("notification_outbox", "true")).isZero();
+        assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
+                .isOne();
         assertThat(count("refresh_tokens", "true")).isZero();
     }
 
     @Test
-    void completionCreatesPendingAccountCredentialEvidenceAnswersAndOneMailAtomically() {
+    void completionRequiresEmailVerificationAndVerificationCreatesNoAccount() {
+        var flow = service.startSignup("verify-first@example.com");
+
+        assertThatThrownBy(() -> service.completeSignup(
+                flow.flowId(), validRequest("verify-first@example.com", "Valid123!")))
+                .isInstanceOf(SignupValidationException.class)
+                .hasMessageContaining("Email verification is required");
+        assertThat(count("users", "normalized_email = 'verify-first@example.com'")).isZero();
+
+        verify(flow);
+
+        assertThat(count("users", "normalized_email = 'verify-first@example.com'")).isZero();
+        assertThat(count("signup_flows", "normalized_email = 'verify-first@example.com'"
+                + " and email_verified_at is not null and completed_at is null")).isOne();
+    }
+
+    @Test
+    void completionCreatesAnActiveVerifiedAccountWithoutSendingASecondMail() {
         var flow = service.startSignup("person+alias@example.com");
+        verify(flow);
 
         service.completeSignup(flow.flowId(), validRequest(" PERSON+ALIAS@EXAMPLE.COM ", "Valid123!"));
 
-        assertThat(count("users", "origin = 'SIGNUP' and state = 'PENDING_EMAIL_VERIFICATION'"))
+        assertThat(count("users", "origin = 'SIGNUP' and state = 'ACTIVE' and email_verified_at is not null"))
                 .isOne();
         assertThat(count("questionnaire_responses", "active")).isEqualTo(2);
         assertThat(count("consent_evidence", "accepted")).isEqualTo(2);
@@ -178,6 +205,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     @Test
     void completionPersistsServerTimeInsteadOfClientSuppliedConsentTime() {
         var flow = service.startSignup("server-consent-time@example.com");
+        verify(flow);
         var valid = validRequest("server-consent-time@example.com", "Valid123!");
         var clientFuture = Instant.parse("2099-01-01T00:00:00Z");
         var request = new SignupFlowService.CompletionRequest(
@@ -206,16 +234,10 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void verifiedSignupPublishesInitialActiveAccountState() throws Exception {
+    void completedVerifiedSignupPublishesInitialActiveAccountState() {
         var flow = service.startSignup("verified@example.com");
+        verify(flow);
         service.completeSignup(flow.flowId(), validRequest("verified@example.com", "Valid123!"));
-        var digest = codeProtector.verifier("123456");
-        jdbc.update("""
-                update auth_challenges set code_hash = ?
-                where flow_hash is not null and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """, digest);
-
-        service.verifyEmail(flow.flowId(), "123456");
 
         assertThat(count("users", "origin = 'SIGNUP' and state = 'ACTIVE'")).isOne();
         assertThat(count("account_state_outbox", "state = 'ACTIVE' and account_state_version = 0"
@@ -224,24 +246,19 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void signupVerificationLocksTheUserBeforeConsumingItsChallenge() throws Exception {
+    void signupVerificationLocksTheFlowBeforeConsumingItsChallenge() throws Exception {
         var flow = service.startSignup("verify-lock-order@example.com");
-        service.completeSignup(
-                flow.flowId(), validRequest("verify-lock-order@example.com", "Valid123!"));
-        var userId = jdbc.queryForObject(
-                "select id from users where normalized_email = 'verify-lock-order@example.com'",
-                java.util.UUID.class);
         jdbc.update("""
                 update auth_challenges set code_hash = ?
-                where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """, codeProtector.verifier("123456"), userId);
+                where flow_hash = digest(?, 'sha256') and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, codeProtector.verifier("123456"), flow.flowId().toString());
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
             connection.createStatement().execute("set local lock_timeout = '500ms'");
-            try (var lock = connection.prepareStatement("select id from users where id = ? for update")) {
-                lock.setObject(1, userId);
+            try (var lock = connection.prepareStatement("select id from signup_flows where id = ? for update")) {
+                lock.setObject(1, flow.flowId());
                 lock.executeQuery();
             }
             var verification = executor.submit(() -> service.verifyEmail(flow.flowId(), "123456"));
@@ -250,9 +267,9 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                     .isInstanceOf(TimeoutException.class);
             try (var delete = connection.prepareStatement("""
                         delete from auth_challenges
-                        where user_id = ? and purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                    """)) {
-                delete.setObject(1, userId);
+                        where flow_hash = digest(?, 'sha256') and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                        """)) {
+                delete.setString(1, flow.flowId().toString());
                 assertThat(delete.executeUpdate()).isOne();
             }
             connection.commit();
@@ -265,7 +282,6 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     @Test
     void invalidSignupVerificationAttemptRemainsCommitted() {
         var flow = service.startSignup("invalid-code@example.com");
-        service.completeSignup(flow.flowId(), validRequest("invalid-code@example.com", "Valid123!"));
 
         assertThatThrownBy(() -> service.verifyEmail(flow.flowId(), "wrong-code"))
                 .isInstanceOf(SignupValidationException.class);
@@ -279,8 +295,6 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     @Test
     void resendingSignupVerificationRetiresTheObsoleteRetry() {
         var flow = service.startSignup("resend-mail@example.com");
-        service.completeSignup(
-                flow.flowId(), validRequest("resend-mail@example.com", "Valid123!"));
         jdbc.update("""
                 update auth_challenges set last_sent_at = now() - interval '2 minutes'
                 where purpose = 'SIGNUP_EMAIL_VERIFICATION'
@@ -307,33 +321,39 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     @Test
     void aliasAddressIsDistinctButCaseAndOuterWhitespaceAreNot() {
         var first = service.startSignup("person@example.com");
+        verify(first);
         service.completeSignup(first.flowId(), validRequest("person@example.com", "Valid123!"));
 
-        assertThatThrownBy(() -> {
-            var duplicate = service.startSignup(" PERSON@EXAMPLE.COM ");
-            service.completeSignup(duplicate.flowId(), validRequest("person@example.com", "Valid123!"));
-        }).isInstanceOf(SignupConflictException.class);
+        assertThatThrownBy(() -> service.startSignup(" PERSON@EXAMPLE.COM "))
+                .isInstanceOf(SignupConflictException.class);
+        assertThat(count("notification_outbox", "recipient = 'person@example.com'"))
+                .isOne();
 
         var alias = service.startSignup("person+alias@example.com");
+        verify(alias);
         service.completeSignup(alias.flowId(), validRequest("person+alias@example.com", "Valid123!"));
         assertThat(count("users", "origin = 'SIGNUP'")).isEqualTo(2);
     }
 
     @Test
-    void expiredPendingEmailRegistrationCanRestartWithANewFlow() {
+    void expiredVerifiedFlowCanRestartWithoutLeavingAnUnusableAccount() {
         var first = service.startSignup("restart@example.com");
-        service.completeSignup(first.flowId(), validRequest("restart@example.com", "Valid123!"));
+        verify(first);
         jdbc.update("""
-                update auth_challenges set expires_at = now() - interval '1 minute'
-                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """);
+                update signup_flows set expires_at = now() - interval '1 minute'
+                where id = ?
+                """, first.flowId());
+        service.purgeExpiredSignupFlows();
+
+        assertThat(count("users", "normalized_email = 'restart@example.com'"))
+                .isZero();
 
         var replacement = service.startSignup("restart@example.com");
+        verify(replacement);
         service.completeSignup(
                 replacement.flowId(), validRequest("restart@example.com", "Replacement123!"));
 
-        assertThat(count("users", "normalized_email = 'restart@example.com'"
-                + " and state = 'PENDING_EMAIL_VERIFICATION'"))
+        assertThat(count("users", "normalized_email = 'restart@example.com' and state = 'ACTIVE'"))
                 .isOne();
         assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION'"))
                 .isOne();
@@ -342,39 +362,66 @@ class SignupInvariantTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void replacementSignupLocksThePendingUserBeforeItsFlow() throws Exception {
-        var first = service.startSignup("lock-order@example.com");
-        service.completeSignup(first.flowId(), validRequest("lock-order@example.com", "Valid123!"));
+    void legacyPendingAccountDoesNotBlockNewVerifiedFlow() {
+        var staleUserId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state)
+                values ('legacy-pending@example.com', 'legacy-pending@example.com',
+                        'SIGNUP', 'PENDING_EMAIL_VERIFICATION')
+                returning id
+                """, UUID.class);
         jdbc.update("""
-                update auth_challenges set expires_at = now() - interval '1 minute'
-                where purpose = 'SIGNUP_EMAIL_VERIFICATION'
-                """);
-        var pendingUserId = jdbc.queryForObject(
-                "select id from users where normalized_email = 'lock-order@example.com'",
-                java.util.UUID.class);
-        var replacement = service.startSignup("lock-order@example.com");
+                insert into credentials(user_id, password_hash)
+                values (?, 'stale-password-hash')
+                """, staleUserId);
+        jdbc.update("""
+                insert into auth_challenges(
+                    flow_hash, user_id, purpose, target_identity, expires_at
+                ) values (
+                    digest(gen_random_uuid()::text, 'sha256'), ?,
+                    'SIGNUP_EMAIL_VERIFICATION', 'legacy-pending@example.com',
+                    now() + interval '9 minutes'
+                )
+                """, staleUserId);
+
+        var replacement = service.startSignup("legacy-pending@example.com");
+        verify(replacement);
+        service.completeSignup(
+                replacement.flowId(),
+                validRequest("legacy-pending@example.com", "Replacement123!"));
+
+        assertThat(count("users",
+                "normalized_email = 'legacy-pending@example.com' and state = 'ACTIVE'"))
+                .isOne();
+        assertThat(jdbc.queryForObject(
+                "select count(*) from users where id = ?", Integer.class, staleUserId))
+                .isZero();
+    }
+
+    @Test
+    void completionLocksTheVerifiedFlowBeforeCreatingTheAccount() throws Exception {
+        var flow = service.startSignup("lock-order@example.com");
+        verify(flow);
 
         try (var connection = jdbc.getDataSource().getConnection();
                 var executor = Executors.newSingleThreadExecutor()) {
             connection.setAutoCommit(false);
-            try (var userLock = connection.prepareStatement("select id from users where id = ? for update")) {
-                userLock.setObject(1, pendingUserId);
-                userLock.executeQuery();
+            try (var flowLock = connection.prepareStatement(
+                    "select id from signup_flows where id = ? for update")) {
+                flowLock.setObject(1, flow.flowId());
+                flowLock.executeQuery();
             }
             var completion = executor.submit(() -> service.completeSignup(
-                    replacement.flowId(),
-                    validRequest("lock-order@example.com", "Replacement123!")));
+                    flow.flowId(), validRequest("lock-order@example.com", "Valid123!")));
 
             assertThatThrownBy(() -> completion.get(250, TimeUnit.MILLISECONDS))
                     .isInstanceOf(TimeoutException.class);
-            try (var flowLock = connection.prepareStatement(
-                    "select id from signup_flows where id = ? for update nowait")) {
-                flowLock.setObject(1, replacement.flowId());
-                assertThat(flowLock.executeQuery().next()).isTrue();
-            }
+            assertThat(count("users", "normalized_email = 'lock-order@example.com'"))
+                    .isZero();
             connection.commit();
 
-            assertThat(completion.get(10, TimeUnit.SECONDS).next()).isEqualTo("EMAIL_VERIFICATION");
+            assertThat(completion.get(10, TimeUnit.SECONDS).next()).isEqualTo("LOGIN");
+            assertThat(count("users", "normalized_email = 'lock-order@example.com' and state = 'ACTIVE'"))
+                    .isOne();
         }
     }
 
@@ -382,6 +429,15 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         return Stream.of(
                 "Short1!", "onlyletters!", "NoSymbol123", "Whitespace 1!",
                 "Invalid123?", "한글Pass123!");
+    }
+
+    private void verify(SignupFlowService.SignupFlowView flow) {
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash = digest(?, 'sha256')
+                  and purpose = 'SIGNUP_EMAIL_VERIFICATION'
+                """, codeProtector.verifier("123456"), flow.flowId().toString());
+        service.verifyEmail(flow.flowId(), "123456");
     }
 
     private SignupFlowService.CompletionRequest validRequest(String email, String password) {

@@ -84,28 +84,10 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
         var flowId = json.readTree(started.getResponse().getContentAsString()).path("flow_id").asText();
         var flowCookie = started.getResponse().getCookie("__Host-civic-auth-flow");
 
-        mvc.perform(post("/api/v1/signup/flows/{flowId}/complete", flowId)
-                        .header("Origin", "https://localhost")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .cookie(flowCookie)
-                        .contentType(MediaType.APPLICATION_JSON)
-                .content("""
-                                {
-                                  "email":"resend@example.com",
-                                  "password":"Valid123!",
-                                  "preferred_language":"ko",
-                                  "rag_answer_detail":"balanced",
-                                  "age_14_confirmed":true,
-                                  "terms_evidence":{"document_id":"TERMS","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/terms/1"},
-                                  "privacy_evidence":{"document_id":"ACCOUNT_RAG_PRIVACY","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/account-rag-privacy/1"}
-                                }
-                                """.formatted(
-                                "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
-                                "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a")))
-                .andExpect(status().isAccepted())
-                .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
-                .andExpect(cookie().secure("__Host-civic-auth-flow", true))
-                .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
+        org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject("""
+                select count(*) from auth_challenges
+                where flow_hash = digest(?, 'sha256') and user_id is null
+                """, Integer.class, flowId)).isOne();
 
         jdbc.update("""
                 update auth_challenges set expires_at = now() - interval '1 hour',
@@ -149,6 +131,17 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                         .content(json.writeValueAsString(Map.of(
                                 "code", codeProtector.reveal(protectedCode)))))
                 .andExpect(status().isNoContent())
+                .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
+                .andExpect(cookie().secure("__Host-civic-auth-flow", true))
+                .andExpect(cookie().maxAge("__Host-civic-auth-flow", 600));
+
+        mvc.perform(post("/api/v1/signup/flows/{flowId}/complete", flowId)
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .cookie(flowCookie)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(completionBody("resend@example.com")))
+                .andExpect(status().isCreated())
                 .andExpect(cookie().maxAge("__Host-civic-auth-flow", 0));
     }
 
@@ -190,5 +183,22 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
         org.assertj.core.api.Assertions.assertThat(jdbc.queryForObject(
                 "select count(*) from signup_flows where normalized_email = 'cross-site@example.com'",
                 Integer.class)).isZero();
+    }
+
+    private String completionBody(String email) {
+        return """
+                {
+                  "email":"%s",
+                  "password":"Valid123!",
+                  "preferred_language":"ko",
+                  "rag_answer_detail":"balanced",
+                  "age_14_confirmed":true,
+                  "terms_evidence":{"document_id":"TERMS","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/terms/1"},
+                  "privacy_evidence":{"document_id":"ACCOUNT_RAG_PRIVACY","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/account-rag-privacy/1"}
+                }
+                """.formatted(
+                email,
+                "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
+                "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a");
     }
 }
