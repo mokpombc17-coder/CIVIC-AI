@@ -321,7 +321,8 @@ public class SignupFlowService {
         if (attempts >= 5
                 || !codeProtector.matches(code, (byte[]) challenge.get("code_hash"))) {
             jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?", challenge.get("id"));
-            throw new SignupValidationException("Verification code is invalid");
+            throw new SignupValidationException(
+                    "입력한 인증번호가 일치하지 않습니다. 인증번호를 다시 확인해 주세요.");
         }
         jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.get("id"));
         jdbc.update("""

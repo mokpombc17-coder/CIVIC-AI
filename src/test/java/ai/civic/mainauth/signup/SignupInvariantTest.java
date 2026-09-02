@@ -325,7 +325,8 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         var flow = service.startSignup("invalid-code@example.com");
 
         assertThatThrownBy(() -> service.verifyEmail(flow.flowId(), "wrong-code"))
-                .isInstanceOf(SignupValidationException.class);
+                .isInstanceOf(SignupValidationException.class)
+                .hasMessage("입력한 인증번호가 일치하지 않습니다. 인증번호를 다시 확인해 주세요.");
 
         assertThat(jdbc.queryForObject("""
                 select attempt_count from auth_challenges

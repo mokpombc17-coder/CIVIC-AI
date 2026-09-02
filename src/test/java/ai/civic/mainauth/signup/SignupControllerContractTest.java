@@ -178,6 +178,27 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void verificationReturnsAKoreanMessageForAnIncorrectCode() throws Exception {
+        var started = mvc.perform(post("/api/v1/signup/flows")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"invalid-code-message@example.com\"}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+
+        mvc.perform(post("/api/v1/signup/verification/verify")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .cookie(started.getResponse().getCookie("__Host-civic-auth-flow"))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"wrong-code\"}"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.detail").value(
+                        "입력한 인증번호가 일치하지 않습니다. 인증번호를 다시 확인해 주세요."));
+    }
+
+    @Test
     void crossSiteSignupMutationIsRejectedBeforeCreatingAFlow() throws Exception {
         mvc.perform(post("/api/v1/signup/flows")
                         .header("Origin", "https://evil.example")
