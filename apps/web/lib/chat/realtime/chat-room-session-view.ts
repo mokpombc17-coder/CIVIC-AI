@@ -4,6 +4,7 @@ import type {
   ChatRoomSessionError,
   ChatRoomSessionSnapshot,
 } from "./chat-realtime-transport";
+import type { RoomStatus } from "../chat-room-contracts";
 
 type ChatRoomSessionViewInput = ChatRoomSessionSnapshot & {
   connectionError?: ChatRealtimeError | null;
@@ -23,7 +24,7 @@ export type ChatRoomSessionView =
       showNotice: false;
     }
   | {
-      kind: "authentication-required" | "pending" | "replaced" | "error";
+      kind: "authentication-required" | "pending" | "replaced" | "closed" | "error";
       title: string;
       description: string;
       canDraft: false;
@@ -38,7 +39,23 @@ export function getChatRoomSessionView(
   snapshot: ChatRoomSessionViewInput,
   roomId: string,
   realtimeReady = true,
+  roomStatus?: RoomStatus,
 ): ChatRoomSessionView {
+  if (roomStatus === "CLOSED") {
+    return {
+      kind: "closed",
+      title: "종료된 채팅방입니다.",
+      description:
+        "지난 대화 내역은 확인할 수 있지만 새 메시지를 보내거나 실시간으로 참여할 수 없습니다.",
+      canDraft: false,
+      canReactivate: false,
+      canReconnect: false,
+      indicatorLabel: "종료됨",
+      indicatorTone: "pending",
+      showNotice: true,
+    };
+  }
+
   if (snapshot.connectionStatus === "replaced") {
     return {
       kind: "error",

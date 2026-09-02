@@ -28,6 +28,18 @@ describe("ChatRoomSessionNotice", () => {
     expect(html).not.toContain("border-red-200");
   });
 
+  it("종료된 방을 오류가 아닌 정보성 읽기 전용 안내로 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={CLOSED_VIEW} />,
+    );
+
+    expect(html).toContain('data-chat-session-notice="closed"');
+    expect(html).toContain("종료된 채팅방입니다.");
+    expect(html).toContain("지난 대화 내역은 확인할 수 있지만");
+    expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(html).not.toContain(">다시 연결</button>");
+  });
+
   it("안내가 필요 없는 활성 상태에서는 렌더링하지 않는다", () => {
     const html = renderToStaticMarkup(
       <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={ACTIVE_VIEW} />,
@@ -59,6 +71,18 @@ const ERROR_VIEW = {
   kind: "error",
   showNotice: true,
   title: "실시간 채팅 연결을 사용할 수 없습니다.",
+} satisfies ChatRoomSessionView;
+
+const CLOSED_VIEW = {
+  canDraft: false,
+  canReactivate: false,
+  canReconnect: false,
+  description: "지난 대화 내역은 확인할 수 있지만 새 메시지는 보낼 수 없습니다.",
+  indicatorLabel: "종료됨",
+  indicatorTone: "pending",
+  kind: "closed",
+  showNotice: true,
+  title: "종료된 채팅방입니다.",
 } satisfies ChatRoomSessionView;
 
 const ACTIVE_VIEW = {

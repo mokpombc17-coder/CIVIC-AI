@@ -295,15 +295,19 @@ pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationReque
 `PENDING`·`APPROVED`·`REJECTED`·`CANCELED` 상태, 시각, 반려 사유와 승인된 Room
 이동 및 사용자의 명시적인 최신 상태 확인을 표현한다.
 
-`ChatRoomScreen`은 화면에 필요한 controller와 ViewModel을 조립하는 container다.
-`useChatRoomRealtimeExperience`는 Room session, Message History와 Read Receipt snapshot,
+`ChatRoomScreen`은 Room detail을 먼저 조회해 화면에 필요한 controller와 ViewModel을 조립하는
+container다. ACTIVE Room은 실시간 session을 시작하고, CLOSED Room은 구독을 시도하지 않은 채
+Message History만 읽기 전용으로 조회한다.
+`useChatRoomRealtimeExperience`는 Room status에 따라 Room session과 Message History의 활성 범위를
+분리하고, Read Receipt snapshot,
 실시간 Query coordinator 및 Room system activity journal을 한 생명주기로 묶는다. Message History
 snapshot과 두 sequence 경계가 모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session
 view로 변환한다. Membership topology event는 수신 시점의 마지막 확정 message sequence를 표시
 anchor로 기록하되 Message History, 읽음 수와 검색 cache에는 합치지 않는다. Receipt 오류는 기존
 coordinator 경계에서 core message realtime과 분리한다.
-`useChatRoomContentExperience`는 Room detail과 ACTIVE participant profile을 조회하고, realtime
-snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Header, viewport ViewModel, history feedback과
+`useChatRoomContentExperience`는 Screen이 공유한 Room detail query와 participant profile을 받아 realtime
+snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. CLOSED Room에서는 mutation과 read-state 보고를
+비활성화한 채 확정된 Message History를 표시한다. Header, viewport ViewModel, history feedback과
 Room 오류 복구 동작까지 UI가 바로 소비할 수 있는 content model로 반환한다.
 Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
 현재 결과 위치와 순차 이동은 `useChatRoomMessageSearchExperience`가 조립한다. 이 controller hook은

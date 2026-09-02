@@ -23,13 +23,17 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
         ? "채팅 준비가 끝나면 입력할 수 있습니다."
         : view.kind === "replaced"
           ? "이 탭에서 계속하기를 선택하면 입력할 수 있습니다."
-          : "채팅을 사용할 수 없습니다.";
+          : view.kind === "closed"
+            ? "종료된 채팅방에는 메시지를 보낼 수 없습니다."
+            : "채팅을 사용할 수 없습니다.";
 
   return (
     <ChatMessageComposer
       canSend={composer.canSend}
       disabled={!canDraft}
-      disabledMessage={!canDraft && view.kind === "pending" ? placeholder : null}
+      disabledMessage={
+        !canDraft && (view.kind === "pending" || view.kind === "closed") ? placeholder : null
+      }
       draft={composer.draft}
       inputId={`chat-message-${roomId}`}
       onDraftChange={composer.setDraft}

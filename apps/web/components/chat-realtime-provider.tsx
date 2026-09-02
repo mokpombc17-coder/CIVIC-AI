@@ -103,7 +103,10 @@ export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
   };
 }
 
-export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
+export function useChatRealtimeRoom(
+  roomId: string,
+  { enabled = true }: Readonly<{ enabled?: boolean }> = {},
+): ChatRealtimeRoomState {
   const transport = useChatRealtimeTransport();
   const connectionSnapshot = useSyncExternalStore(
     transport.observe,
@@ -116,16 +119,25 @@ export function useChatRealtimeRoom(roomId: string): ChatRealtimeRoomState {
     transport.getRoomSnapshot,
   );
   const reactivate = useCallback(() => {
-    transport.claimRoom(roomId);
-  }, [roomId, transport]);
+    if (enabled) {
+      transport.claimRoom(roomId);
+    }
+  }, [enabled, roomId, transport]);
 
-  useEffect(() => attachChatRealtimeRoomLifecycle(transport, roomId, window), [roomId, transport]);
+  useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
+    return attachChatRealtimeRoomLifecycle(transport, roomId, window);
+  }, [enabled, roomId, transport]);
 
   return {
     ...roomSnapshot,
     connectionError: connectionSnapshot.error,
     connectionStatus: connectionSnapshot.status,
     isActive:
+      enabled &&
       connectionSnapshot.status === "connected" &&
       roomSnapshot.status === "active" &&
       roomSnapshot.roomId === roomId,

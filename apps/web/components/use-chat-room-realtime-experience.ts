@@ -11,14 +11,20 @@ import {
   useRoomReadReceiptStateQuery,
   useRoomSystemActivityJournalQuery,
 } from "@/lib/chat/chat-room-queries";
+import type { RoomStatus } from "@/lib/chat/chat-room-contracts";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
-export function useChatRoomRealtimeExperience(roomId: string) {
+export function useChatRoomRealtimeExperience(
+  roomId: string,
+  { roomStatus }: Readonly<{ roomStatus?: RoomStatus | undefined }> = {},
+) {
   const { reconnect } = useChatRealtimeConnection();
-  const session = useChatRealtimeRoom(roomId);
+  const realtimeEnabled = isChatRoomRealtimeEnabled(roomStatus);
+  const session = useChatRealtimeRoom(roomId, { enabled: realtimeEnabled });
+  const messageHistoryEnabled = isChatRoomMessageHistoryEnabled(roomStatus, session.isActive);
   const messageHistory = useChatRoomMessageHistoryData(roomId, {
-    enabled: session.isActive,
+    enabled: messageHistoryEnabled,
   });
   const receiptStateQuery = useRoomReadReceiptStateQuery(roomId, {
     enabled: session.isActive,
@@ -51,16 +57,28 @@ export function useChatRoomRealtimeExperience(roomId: string) {
     coordinator,
     coordinatorEnabled,
     messageHistory,
+    messageHistoryEnabled,
     receiptStateQuery,
     reconnect,
     realtimeReady,
     session,
-    sessionView: getChatRoomSessionView(session, roomId, realtimeReady),
+    sessionView: getChatRoomSessionView(session, roomId, realtimeReady, roomStatus),
     systemActivities: systemActivityJournalQuery.data?.activities ?? [],
   };
 }
 
 export type ChatRoomRealtimeExperience = ReturnType<typeof useChatRoomRealtimeExperience>;
+
+export function isChatRoomRealtimeEnabled(roomStatus?: RoomStatus): boolean {
+  return roomStatus === "ACTIVE";
+}
+
+export function isChatRoomMessageHistoryEnabled(
+  roomStatus: RoomStatus | undefined,
+  isRoomActive: boolean,
+): boolean {
+  return isRoomActive || roomStatus === "CLOSED";
+}
 
 export function isChatRoomRealtimeCoordinatorEnabled({
   hasMessageHistory,

@@ -3,15 +3,15 @@ import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpe
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
-const ROOM_SESSION_FAILED_LABEL = "채팅방 실시간 연결을 활성화하지 못했습니다.";
-const ROOM_CLOSED_MESSAGE = "채팅방이 종료되어 실시간 연결이 해제되었습니다.";
+const CLOSED_ROOM_LABEL = "종료된 채팅방입니다.";
 
-test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 활성화할 수 없다", async ({
+test("종료된 방은 실시간 구독 없이 지난 대화를 읽기 전용으로 표시한다", async ({
   browser,
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
   const roomName = `e2e-room-closed-${uniqueId}`;
+  const historicalMessage = `종료 후에도 남아야 하는 메시지 ${uniqueId}`;
   const ownerSubject = `e2e-close-owner-${uniqueId}`;
   const ownerContext = await browser.newContext({ baseURL });
   const commandPage = await ownerContext.newPage();
@@ -31,6 +31,9 @@ test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 
         await nextActivePage.goto(commandPage.url());
         await expect(nextActivePage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
         await expect(commandPage.getByText(REPLACED_ROOM_LABEL, { exact: true })).toBeVisible();
+        await nextActivePage.getByRole("textbox", { name: "메시지" }).fill(historicalMessage);
+        await nextActivePage.getByRole("button", { name: "전송", exact: true }).click();
+        await expect(nextActivePage.getByText(historicalMessage, { exact: true })).toBeVisible();
 
         return {
           activePage: nextActivePage,
@@ -46,10 +49,12 @@ test("방 종료를 전달받은 활성 탭은 4003 이후 해당 방을 다시 
       await expect(commandPage).toHaveURL(/\/chat$/);
     });
 
-    await test.step("활성 탭은 4003 이후 새 연결에서 종료된 방의 실패 상태를 확인한다", async () => {
-      await expect(activePage.getByText("채팅 불가", { exact: true })).toBeVisible();
-      await expect(activePage.getByText(ROOM_SESSION_FAILED_LABEL, { exact: true })).toBeVisible();
-      await expect(activePage.getByText(ROOM_CLOSED_MESSAGE, { exact: true })).toBeVisible();
+    await test.step("종료된 방을 다시 열어 지난 대화와 읽기 전용 상태를 확인한다", async () => {
+      await activePage.reload();
+      await expect(activePage.getByText("종료됨", { exact: true })).toBeVisible();
+      await expect(activePage.getByText(CLOSED_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(activePage.getByText(historicalMessage, { exact: true })).toBeVisible();
+      await expect(activePage.getByText(/구독을 연결할 수 없습니다/)).toHaveCount(0);
       await expect(activePage.getByRole("textbox", { name: "메시지" })).toBeDisabled();
       await expect(activePage.getByRole("button", { name: "전송", exact: true })).toBeDisabled();
       await expect(

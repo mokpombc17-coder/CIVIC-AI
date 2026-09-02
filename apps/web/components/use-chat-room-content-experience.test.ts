@@ -10,7 +10,7 @@ describe("ChatRoom content experience", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,
-        isActive: false,
+        isHistoryEnabled: false,
         isError: false,
         isPending: true,
         messageCount: 0,
@@ -22,7 +22,7 @@ describe("ChatRoom content experience", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,
-        isActive: true,
+        isHistoryEnabled: true,
         isError: false,
         isPending: true,
         messageCount: 0,
@@ -37,7 +37,7 @@ describe("ChatRoom content experience", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: new Error("history failed"),
-        isActive: true,
+        isHistoryEnabled: true,
         isError: true,
         isPending: false,
         messageCount: 0,
@@ -50,7 +50,7 @@ describe("ChatRoom content experience", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,
-        isActive: true,
+        isHistoryEnabled: true,
         isError: false,
         isPending: false,
         messageCount: 0,
@@ -62,7 +62,7 @@ describe("ChatRoom content experience", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,
-        isActive: true,
+        isHistoryEnabled: true,
         isError: false,
         isPending: false,
         messageCount: 1,

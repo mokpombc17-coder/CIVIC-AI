@@ -47,7 +47,7 @@ export function ChatRoomSessionNotice({
     return null;
   }
 
-  const isInformational = view.kind === "replaced";
+  const isInformational = view.kind === "replaced" || view.kind === "closed";
 
   return (
     <div

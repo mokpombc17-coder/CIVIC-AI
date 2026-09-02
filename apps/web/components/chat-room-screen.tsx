@@ -16,16 +16,20 @@ import { useChatRoomContentExperience } from "@/components/use-chat-room-content
 import { useChatRoomOverlayExperience } from "@/components/use-chat-room-overlay-experience";
 import { useChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 import { useRoomMessageNavigation } from "@/components/use-room-message-context";
+import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
-  const realtime = useChatRoomRealtimeExperience(roomId);
+  const roomQuery = useRoomDetailsQuery(roomId);
+  const realtime = useChatRoomRealtimeExperience(roomId, {
+    roomStatus: roomQuery.data?.status,
+  });
   const { coordinator, coordinatorEnabled, session } = realtime;
   const messageNavigation = useRoomMessageNavigation(roomId, {
     enabled: session.isActive,
     generation: session.generation,
     liveMessages: realtime.messageHistory.messages,
   });
-  const content = useChatRoomContentExperience(roomId, realtime, messageNavigation);
+  const content = useChatRoomContentExperience(roomId, roomQuery, realtime, messageNavigation);
   const overlays = useChatRoomOverlayExperience(roomId, {
     generation: session.generation,
     hasMessageActions: content.messageActions.sheet !== null,

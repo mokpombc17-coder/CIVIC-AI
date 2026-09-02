@@ -2,6 +2,37 @@ import { describe, expect, it } from "vitest";
 import { getChatRoomSessionView } from "./chat-room-session-view";
 
 describe("getChatRoomSessionView", () => {
+  it("종료된 방은 구독 오류 대신 읽기 전용 안내를 표시한다", () => {
+    const view = getChatRoomSessionView(
+      {
+        status: "error",
+        roomId: "room-01",
+        generation: 3,
+        replacedByRoomId: null,
+        messageVisibleAfterSequence: null,
+        watermarkSequence: null,
+        error: {
+          code: "ROOM_CLOSED",
+          message: "채팅방이 종료되었습니다.",
+        },
+      },
+      "room-01",
+      false,
+      "CLOSED",
+    );
+
+    expect(view).toMatchObject({
+      kind: "closed",
+      title: "종료된 채팅방입니다.",
+      canDraft: false,
+      canReactivate: false,
+      canReconnect: false,
+      indicatorLabel: "종료됨",
+      indicatorTone: "pending",
+      showNotice: true,
+    });
+  });
+
   it("현재 방이 활성화되면 초안 입력을 허용한다", () => {
     const view = getChatRoomSessionView(
       {

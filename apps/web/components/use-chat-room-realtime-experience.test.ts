@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
+  isChatRoomMessageHistoryEnabled,
   isChatRoomRealtimeCoordinatorEnabled,
+  isChatRoomRealtimeEnabled,
   isChatRoomRealtimeReady,
 } from "./use-chat-room-realtime-experience";
 
@@ -13,6 +15,19 @@ describe("ChatRoom realtime experience", () => {
     messageVisibleAfterSequence: 0,
     watermarkSequence: 12,
   };
+
+  it("활성 방에만 실시간 구독을 연결한다", () => {
+    expect(isChatRoomRealtimeEnabled("ACTIVE")).toBe(true);
+    expect(isChatRoomRealtimeEnabled("CLOSED")).toBe(false);
+    expect(isChatRoomRealtimeEnabled(undefined)).toBe(false);
+  });
+
+  it("종료된 방은 실시간 구독 없이도 메시지 내역을 조회한다", () => {
+    expect(isChatRoomMessageHistoryEnabled("CLOSED", false)).toBe(true);
+    expect(isChatRoomMessageHistoryEnabled("ACTIVE", true)).toBe(true);
+    expect(isChatRoomMessageHistoryEnabled("ACTIVE", false)).toBe(false);
+    expect(isChatRoomMessageHistoryEnabled(undefined, false)).toBe(false);
+  });
 
   it("활성 Room의 sequence와 message snapshot이 모두 준비되면 coordinator를 연다", () => {
     expect(isChatRoomRealtimeCoordinatorEnabled(readySnapshot)).toBe(true);

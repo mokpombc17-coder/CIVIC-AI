@@ -16,13 +16,13 @@ import { createRoomMessageContextErrorPresentation } from "@/lib/chat/chat-room-
 
 export function useChatRoomContentExperience(
   roomId: string,
+  roomQuery: ReturnType<typeof useRoomDetailsQuery>,
   realtime: ChatRoomRealtimeExperience,
   messageNavigation: RoomMessageContextController,
 ) {
   const { coordinator, messageHistory, receiptStateQuery, session } = realtime;
-  const roomQuery = useRoomDetailsQuery(roomId);
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
-    enabled: session.isActive,
+    enabled: realtime.messageHistoryEnabled,
   });
   const messageNavigationActive = messageNavigation.mode !== null;
   const contextNavigationActive = messageNavigation.mode === "context";
@@ -68,7 +68,7 @@ export function useChatRoomContentExperience(
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
-    selfMembershipId: room?.myMembership?.membershipId ?? null,
+    selfMembershipId: session.isActive ? (room?.myMembership?.membershipId ?? null) : null,
     systemActivities: messageNavigationActive ? [] : realtime.systemActivities,
   });
   const loadOlder = useCallback(async () => {
@@ -100,7 +100,7 @@ export function useChatRoomContentExperience(
         ? createChatRoomMessageNavigationFeedback(messageNavigation)
         : createChatRoomMessageHistoryFeedback({
             error: messageHistory.error,
-            isActive: session.isActive,
+            isHistoryEnabled: realtime.messageHistoryEnabled,
             isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
             isPending: messageHistory.isPending,
             hasSystemActivities: message.viewportItems.some(
@@ -176,7 +176,7 @@ export function createChatRoomMessageNavigationFeedback(
 
 export function createChatRoomMessageHistoryFeedback({
   error,
-  isActive,
+  isHistoryEnabled,
   isError,
   isPending,
   hasSystemActivities = false,
@@ -184,14 +184,14 @@ export function createChatRoomMessageHistoryFeedback({
 }: Readonly<{
   error: unknown;
   hasSystemActivities?: boolean;
-  isActive: boolean;
+  isHistoryEnabled: boolean;
   isError: boolean;
   isPending: boolean;
   messageCount: number;
 }>): ChatMessageHistoryFeedback | null {
   const hasMessages = messageCount > 0 || hasSystemActivities;
 
-  if (!isActive && !hasMessages) {
+  if (!isHistoryEnabled && !hasMessages) {
     return {
       kind: "notice",
       message: "실시간 방 구독이 준비되면 최근 메시지를 불러옵니다.",
