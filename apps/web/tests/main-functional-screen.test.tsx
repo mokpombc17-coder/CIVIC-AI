@@ -834,7 +834,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(authStepAfterPopState(null, "AUTH-001")).toBe("AUTH-001");
   });
 
-  it("가입 진행 표시는 계정 정보, 이메일 인증, 필수 동의 세 단계만 사용한다", () => {
+  it("가입 진행 표시는 계정 정보, 이메일 인증, 약관 동의 세 단계만 사용한다", () => {
     expect(signupStepForScreen("AUTH-002")).toBe(1);
     expect(signupStepForScreen("AUTH-005")).toBe(2);
     expect(signupStepForScreen("AUTH-006")).toBe(2);
@@ -855,7 +855,7 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-001": "로그인",
       "AUTH-002": "인증 코드 받기",
       "AUTH-003": "다음으로",
-      "AUTH-004": "동의하고 가입하기",
+      "AUTH-004": "약관에 동의하고 가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
       "AUTH-007": "인증하기",
@@ -928,7 +928,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(verificationHtml).toContain("2/3");
     expect(verificationHtml).toContain("이메일 인증");
     expect(consentHtml).toContain("3/3");
-    expect(consentHtml).toContain("필수 동의·확인");
+    expect(consentHtml).toContain("약관 동의·필수정보");
     expect(loginHtml).toContain("회원가입");
     expect(loginHtml).toContain("비밀번호 재설정");
   });
@@ -1017,7 +1017,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(outage).toContain('href="/home"');
   });
 
-  it("가입 단계는 Vote 설문을 계정 설정으로 오인하지 않고 두 필수 동의만 설명한다", () => {
+  it("가입 단계는 Vote 민감정보 동의와 계정·RAG 필수정보 안내를 구분한다", () => {
     for (const id of ["AUTH-003", "AUTH-004", "U-ACCOUNT-002"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -1025,6 +1025,13 @@ describe("25 functional Main/Auth screens", () => {
       expect(html).not.toContain("민감정보");
       expect(html).not.toContain("개인 AI 페르소나");
     }
+    const consent = mainScreens.find((item) => item.id === "AUTH-004");
+    if (!consent) throw new Error("AUTH-004 missing");
+    const consentHtml = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: consent }),
+    );
+    expect(consentHtml).toContain("계정·RAG 필수정보 처리 안내");
+    expect(consentHtml).not.toContain("계정·RAG 개인정보 수집·이용에 동의합니다");
   });
 
   it("frontend2 Platform Shell 참여자 메뉴와 실제 UI 관리자 메뉴를 유지한다", () => {

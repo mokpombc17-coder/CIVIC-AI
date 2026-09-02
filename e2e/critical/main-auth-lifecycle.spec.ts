@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { LEGAL_DOCUMENTS } from "../../apps/web/lib/legal/legal-documents";
 
 const MOCK_API_HOST = "127.0.0.1";
-const MOCK_API_PORT = 4791;
+const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE = "civic_ai_access_token";
 const REFRESH_COOKIE = "civic_ai_refresh_token";
 const FLOW_COOKIE = "__Host-civic-auth-flow";
@@ -48,22 +48,22 @@ test.beforeAll(async () => {
           flow_id: "signup-flow-1",
           expires_at: "2026-08-12T08:00:00Z",
           questionnaire_version: "1",
-          document_versions: { TERMS: "1", ACCOUNT_RAG_PRIVACY: "1" },
+          document_versions: { TERMS: "2", ACCOUNT_RAG_PRIVACY: "2" },
           documents: {
             TERMS: {
               document_id: "TERMS",
               document_version: LEGAL_DOCUMENTS.TERMS.version,
               body_sha256: LEGAL_DOCUMENTS.TERMS.bodySha256,
-              path: "/legal/terms/1",
+              path: "/legal/terms/2",
             },
             ACCOUNT_RAG_PRIVACY: {
               document_id: "ACCOUNT_RAG_PRIVACY",
               document_version: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.version,
               body_sha256: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.bodySha256,
-              path: "/legal/account-rag-privacy/1",
+              path: "/legal/required-service-information/2",
             },
           },
-          acceptance_controls: ["TERMS", "ACCOUNT_RAG_PRIVACY"],
+          acceptance_controls: ["TERMS"],
         },
         201,
         authFlowCookie("signup-flow-1"),
@@ -145,7 +145,9 @@ test.beforeAll(async () => {
 
 test.afterAll(async () => close(server));
 
-test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 완료한다", async ({ page }) => {
+test("회원가입은 계정 정보, 이메일 인증, 약관 동의와 필수정보 확인 순서로 완료한다", async ({
+  page,
+}) => {
   await page.goto("/signup/account");
   await page.getByLabel("이메일").fill("new-user@example.com");
   await page.getByLabel("비밀번호", { exact: true }).fill("Civic!234");
@@ -168,15 +170,15 @@ test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 �
   await page.getByRole("button", { name: "인증하기" }).click();
 
   await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
-    "3/3필수 동의·확인",
+    "3/3약관 동의·필수정보",
   );
   await expect(page.getByRole("link", { name: "서비스 이용약관 전문 보기" })).toHaveAttribute(
     "href",
-    "/legal/terms/1",
+    "/legal/terms/2",
   );
   await expect(
-    page.getByRole("link", { name: "계정·RAG 개인정보 수집·이용 전문 보기" }),
-  ).toHaveAttribute("href", "/legal/account-rag-privacy/1");
+    page.getByRole("link", { name: "개인정보 필수정보 처리 안내 전문 보기" }),
+  ).toHaveAttribute("href", "/legal/required-service-information/2");
   const termsPopupPromise = page.waitForEvent("popup");
   await page.getByRole("link", { name: "서비스 이용약관 전문 보기" }).click();
   const termsPopup = await termsPopupPromise;
@@ -189,7 +191,7 @@ test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 �
   );
   await termsPopup.close();
   const privacyPopupPromise = page.waitForEvent("popup");
-  await page.getByRole("link", { name: "계정·RAG 개인정보 수집·이용 전문 보기" }).click();
+  await page.getByRole("link", { name: "개인정보 필수정보 처리 안내 전문 보기" }).click();
   const privacyPopup = await privacyPopupPromise;
   await expect(
     privacyPopup.getByRole("heading", { name: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.title }),
@@ -200,8 +202,8 @@ test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 �
   );
   await privacyPopup.close();
   await page.getByLabel("이용약관에 동의합니다").check();
-  await page.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다").check();
-  await page.getByRole("button", { name: "동의하고 가입하기" }).click();
+  await expect(page.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다")).toHaveCount(0);
+  await page.getByRole("button", { name: "약관에 동의하고 가입하기" }).click();
   await expect(page).toHaveURL(/\/login$/u);
 
   expect(lastSignupCompletion).toMatchObject({
@@ -209,17 +211,12 @@ test("회원가입은 계정 정보, 이메일 인증, 필수 동의 순서로 �
     rag_answer_detail: "balanced",
     terms_evidence: {
       document_id: "TERMS",
-      document_version: "1",
+      document_version: "2",
       body_sha256: LEGAL_DOCUMENTS.TERMS.bodySha256,
-      path: "/legal/terms/1",
-    },
-    privacy_evidence: {
-      document_id: "ACCOUNT_RAG_PRIVACY",
-      document_version: "1",
-      body_sha256: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.bodySha256,
-      path: "/legal/account-rag-privacy/1",
+      path: "/legal/terms/2",
     },
   });
+  expect(lastSignupCompletion).not.toHaveProperty("privacy_evidence");
 });
 
 test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재활성화로 안내한다", async ({ page }) => {

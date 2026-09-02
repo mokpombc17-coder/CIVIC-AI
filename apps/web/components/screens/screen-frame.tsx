@@ -125,7 +125,7 @@ const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title:
   });
 
 function SignupStepIndicator({ current }: Readonly<{ current: 1 | 2 | 3 }>) {
-  const steps = ["계정 정보", "이메일 인증", "필수 동의·확인"];
+  const steps = ["계정 정보", "이메일 인증", "약관 동의·필수정보"];
   return (
     <nav aria-label="회원가입 단계" className="civic-step-indicator">
       <p>

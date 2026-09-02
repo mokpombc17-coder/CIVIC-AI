@@ -56,15 +56,15 @@ test.beforeAll(async () => {
         documents: {
           TERMS: {
             document_id: "TERMS",
-            document_version: "1",
+            document_version: "2",
             body_sha256: "0".repeat(64),
-            path: "/legal/terms/1",
+            path: "/legal/terms/2",
           },
           ACCOUNT_RAG_PRIVACY: {
             document_id: "ACCOUNT_RAG_PRIVACY",
-            document_version: "1",
+            document_version: "2",
             body_sha256: "1".repeat(64),
-            path: "/legal/account-rag-privacy/1",
+            path: "/legal/required-service-information/2",
           },
         },
       });
@@ -331,7 +331,7 @@ test("AUTH-002 헤더는 모바일 공통 높이로 본문과 분리된다", asy
   await expectBox(title, { x: [71, 73], y: [18, 20], height: [26, 28] });
 });
 
-test("가입은 계정 정보·이메일 인증·필수 동의 3단계와 유동 모바일 폭을 유지한다", async ({
+test("가입은 계정 정보·이메일 인증·약관 동의 3단계와 유동 모바일 폭을 유지한다", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
@@ -406,7 +406,7 @@ test("가입은 계정 정보·이메일 인증·필수 동의 3단계와 유동
   await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page.locator('[data-wireflow-screen="AUTH-004"]')).toBeVisible();
   await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
-    "3/3필수 동의·확인",
+    "3/3약관 동의·필수정보",
   );
   const termsLabel = page.locator(".civic-consent-item .civic-check > span").first();
   await expect(termsLabel).toContainText("이용약관에 동의합니다");

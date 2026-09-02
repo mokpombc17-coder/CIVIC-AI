@@ -15,7 +15,6 @@ type SignupDraft = {
   passwordConfirmation: string;
   ageConfirmed: boolean;
   terms: boolean;
-  privacy: boolean;
   flowId?: string;
   documents: Partial<Record<SignupDocumentId, SignupDocument>>;
 };
@@ -34,7 +33,6 @@ const initialDraft: SignupDraft = {
   passwordConfirmation: "",
   ageConfirmed: false,
   terms: false,
-  privacy: false,
   documents: {},
 };
 
@@ -170,8 +168,8 @@ export function AuthFunctionalScreen({
       } else if (activeId === "AUTH-003") {
         location.replace("/signup/account");
       } else if (activeId === "AUTH-004") {
-        if (!draft.flowId || !draft.terms || !draft.privacy) {
-          throw new Error("이메일 인증과 두 필수 동의를 모두 확인해 주세요.");
+        if (!draft.flowId || !draft.terms) {
+          throw new Error("이메일 인증과 이용약관 동의를 모두 확인해 주세요.");
         }
         await api(signupCompletionPath(draft.flowId), {
           email: draft.email,
@@ -179,7 +177,6 @@ export function AuthFunctionalScreen({
           ...defaultSignupPreferences,
           age_14_confirmed: true,
           terms_evidence: evidence(requiredDocument(draft.documents, "TERMS")),
-          privacy_evidence: evidence(requiredDocument(draft.documents, "ACCOUNT_RAG_PRIVACY")),
         });
         location.assign("/login");
       } else if (activeId === "AUTH-005") {
@@ -379,7 +376,7 @@ export function AuthFunctionalScreen({
           ) : null}
           <WireflowButton
             className={activeId === "AUTH-001" ? "civic-auth-submit" : undefined}
-            disabled={busy || (activeId === "AUTH-004" && !(draft.terms && draft.privacy))}
+            disabled={busy || (activeId === "AUTH-004" && !draft.terms)}
             type="submit"
           >
             {busy ? "처리 중…" : action}
@@ -481,7 +478,6 @@ function renderFields(
               passwordConfirmation: v.passwordConfirmation,
               ageConfirmed: v.ageConfirmed,
               terms: false,
-              privacy: false,
               documents: {},
             }));
           }}
@@ -513,10 +509,10 @@ function renderFields(
   }
   if (id === "AUTH-004") {
     const terms = draft.documents.TERMS;
-    const privacy = draft.documents.ACCOUNT_RAG_PRIVACY;
+    const requiredInformation = draft.documents.ACCOUNT_RAG_PRIVACY;
     return (
       <fieldset className="civic-consent-fieldset">
-        <legend className="sr-only">필수 동의 항목</legend>
+        <legend className="sr-only">이용약관 동의 및 필수정보 안내</legend>
         <div className="civic-consent-item">
           <Check
             label="이용약관에 동의합니다"
@@ -524,23 +520,20 @@ function renderFields(
             checked={draft.terms}
             onChange={(checked) => setDraft((v) => ({ ...v, terms: checked }))}
           />
-          <ConsentDocumentLink
+          <LegalDocumentLink
             document={terms}
             hint="전문을 확인한 뒤 동의해 주세요."
             label="서비스 이용약관"
           />
         </div>
         <div className="civic-consent-item">
-          <Check
-            label="계정·RAG 개인정보 수집·이용에 동의합니다"
-            required
-            checked={draft.privacy}
-            onChange={(checked) => setDraft((v) => ({ ...v, privacy: checked }))}
-          />
-          <ConsentDocumentLink
-            document={privacy}
-            hint="수집 목적과 항목을 확인해 주세요."
-            label="계정·RAG 개인정보 수집·이용"
+          <p>
+            <strong>계정·RAG 필수정보 처리 안내</strong>
+          </p>
+          <LegalDocumentLink
+            document={requiredInformation}
+            hint="별도 동의가 아닌 서비스 제공에 필요한 개인정보 처리 안내입니다."
+            label="개인정보 필수정보 처리 안내"
           />
         </div>
       </fieldset>
@@ -796,7 +789,7 @@ function authTitle(id: string): string {
       "AUTH-001": "로그인",
       "AUTH-002": "계정 정보",
       "AUTH-003": "계정 정보",
-      "AUTH-004": "필수 동의 및 가입 확인",
+      "AUTH-004": "약관 동의 및 가입 확인",
       "AUTH-005": "이메일 인증",
       "AUTH-006": "이메일 인증",
       "AUTH-007": "비밀번호 재설정",
@@ -811,7 +804,7 @@ function authCardTitle(id: string): string {
   if (id === "AUTH-001") return "계정 정보";
   if (id === "AUTH-002") return "필수 입력";
   if (id === "AUTH-003") return "계정 정보 안내";
-  if (id === "AUTH-004") return "필수 동의 항목";
+  if (id === "AUTH-004") return "약관 동의·필수정보 확인";
   if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
   if (id === "AUTH-007") return "인증 코드 입력";
@@ -946,7 +939,7 @@ function evidence(document: SignupDocument) {
   };
 }
 
-function ConsentDocumentLink({
+function LegalDocumentLink({
   document,
   hint,
   label,
@@ -970,13 +963,13 @@ function ConsentDocumentLink({
 
 function readSignupDocuments(value: unknown): SignupDraft["documents"] {
   if (!value || typeof value !== "object") {
-    throw new Error("필수 동의 문서를 불러오지 못했습니다.");
+    throw new Error("가입 문서를 불러오지 못했습니다.");
   }
   const result: SignupDraft["documents"] = {};
   for (const id of ["TERMS", "ACCOUNT_RAG_PRIVACY"] as const) {
     const candidate = (value as Record<string, unknown>)[id];
     if (!candidate || typeof candidate !== "object") {
-      throw new Error("필수 동의 문서를 불러오지 못했습니다.");
+      throw new Error("가입 문서를 불러오지 못했습니다.");
     }
     const document = candidate as Record<string, unknown>;
     if (
@@ -987,7 +980,7 @@ function readSignupDocuments(value: unknown): SignupDraft["documents"] {
       typeof document.path !== "string" ||
       !document.path.startsWith("/")
     ) {
-      throw new Error("필수 동의 문서 응답이 올바르지 않습니다.");
+      throw new Error("가입 문서 응답이 올바르지 않습니다.");
     }
     result[id] = document as unknown as SignupDocument;
   }
@@ -999,7 +992,7 @@ function requiredDocument(
   id: SignupDocumentId,
 ): SignupDocument {
   const document = documents[id];
-  if (!document) throw new Error("필수 동의 문서를 다시 확인해 주세요.");
+  if (!document) throw new Error("가입 문서를 다시 확인해 주세요.");
   return document;
 }
 

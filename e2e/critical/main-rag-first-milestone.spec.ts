@@ -97,7 +97,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await participant.getByRole("textbox", { name: "인증 코드" }).fill(code);
     await participant.getByRole("button", { name: "인증하기" }).click();
     await expect(participant.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
-      "3/3필수 동의·확인",
+      "3/3약관 동의·필수정보",
     );
     await verifyLegalDocument(
       participant,
@@ -108,7 +108,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     );
     await verifyLegalDocument(
       participant,
-      "계정·RAG 개인정보 수집·이용 전문 보기",
+      "개인정보 필수정보 처리 안내 전문 보기",
       LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.id,
       LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.title,
       LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.bodySha256,
@@ -127,8 +127,8 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
       ),
     ).toBe(400);
     await participant.getByLabel("이용약관에 동의합니다").check();
-    await participant.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다").check();
-    await participant.getByRole("button", { name: "동의하고 가입하기" }).click();
+    await expect(participant.getByLabel("계정·RAG 개인정보 수집·이용에 동의합니다")).toHaveCount(0);
+    await participant.getByRole("button", { name: "약관에 동의하고 가입하기" }).click();
     await expect(participant).toHaveURL(/\/login$/u);
     await expectCookieAbsent(participant, "__Host-civic-auth-flow");
     await login(participant, participantEmail, participantPassword);
