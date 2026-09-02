@@ -78,14 +78,17 @@ Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API 
 로컬 preview 제출 모두 성공하면 `/home`으로 replace 이동한다. 답변과 현재 단계는 현재 인증
 subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
 Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며 제출 성공 또는
-`SUBMITTED` 재진입 시 임시 답변을 삭제한다. 1~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
+`SUBMITTED` 재진입 시 임시 답변을 삭제한다. 1~~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
 action만 제공하고 입력 폼을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
 `SurveyProgress`와 현재 단계의 카드·action을 같은 내부 viewport에서 스크롤한다. Progress가 viewport
 위로 사라져도 `PlatformHeader` 제목은 유지한다. `SurveyScreen`은 header 오른쪽의
 `SurveyHeaderProgress`에 현재/전체 단계만 표시한다. 이 compact 단계 표시는 본문의 Progress가
-viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다시 보이면 숨는다.
+viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다시 보이면 숨는다. 작은 스크롤 경계
+여유를 두어 표시 상태가 빠르게 뒤집히지 않게 한다. `SurveyForm`은 현재 단계의 header back action을
+`SurveyScreen`으로 올려 1단계에서는 비활성 제어를 유지하고, 2~~8단계에서는 이전 설문 단계로
+이동하게 한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -97,7 +100,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 ├── route /survey: SurveyPage [Server] [Route] (apps/web/app/survey/page.tsx)
                 │   └── SurveyScreen [Client] [Screen] (apps/web/components/survey/survey-screen.tsx)
                 │       └── PlatformShell [Server-compatible] [View] [scroll: child] [bottom navigation: omitted]
-                │           ├── PlatformHeader [Server-compatible] [View] [leading: omitted]
+                │           ├── PlatformHeader [Server-compatible] [View] [leading: step-aware back control]
                 │           │   └── SurveyHeaderProgress [Client graph] [View] [header actions]
                 │           └── SurveyFlowLayout [Client graph] [View]
                 │               └── SurveyFlowViewport [Client graph] [View] [scroll]

@@ -17,6 +17,7 @@ describe("SurveyPage", () => {
     expect(html).toContain("설문을 불러오는 중입니다.");
     expect(html).toContain('aria-busy="true"');
     expect(html).not.toContain('aria-label="참여자 주요 메뉴"');
-    expect(html).not.toContain('data-state="disabled"');
+    expect(html).toContain('aria-label="뒤로 가기"');
+    expect(html).toContain('data-state="disabled"');
   });
 });

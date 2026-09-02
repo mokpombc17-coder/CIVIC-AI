@@ -56,6 +56,7 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
   });
 
   await page.goto("/survey");
+  await expect(page.getByRole("button", { name: "뒤로 가기" })).toBeDisabled();
   const form = page.locator("[data-survey-step]");
   await expect(form).toHaveAttribute("data-survey-step", "1");
 
@@ -67,6 +68,13 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
     await expect(form).toHaveAttribute("data-survey-step", String(step));
     await answerCurrentSection(page);
     await page.getByRole("button", { name: "다음으로", exact: true }).click();
+    if (step === 1) {
+      await expect(form).toHaveAttribute("data-survey-step", "2");
+      await page.getByRole("button", { name: "이전 설문 단계로" }).click();
+      await expect(form).toHaveAttribute("data-survey-step", "1");
+      await expect(page.getByRole("button", { name: "뒤로 가기" })).toBeDisabled();
+      await page.getByRole("button", { name: "다음으로", exact: true }).click();
+    }
   }
 
   await expect(form).toHaveAttribute("data-survey-step", "8");

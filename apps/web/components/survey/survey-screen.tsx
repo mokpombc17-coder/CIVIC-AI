@@ -2,7 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
-import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
+import {
+  PlatformHeader,
+  PlatformShell,
+  type PlatformHeaderBackAction,
+} from "@/components/platform-shell";
 import type { SurveySection } from "@/lib/survey/survey-contracts";
 import {
   buildSubmitSurveyRequest,
@@ -49,7 +53,11 @@ type SurveyHeaderProgressState = Readonly<{
 
 export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
   const surveyQuery = useCurrentSurveyQuery();
+  const [headerBackAction, setHeaderBackAction] = useState<PlatformHeaderBackAction | null>(null);
   const [headerProgress, setHeaderProgress] = useState<SurveyHeaderProgressState | null>(null);
+  const updateHeaderBackAction = useCallback((action: PlatformHeaderBackAction | null) => {
+    setHeaderBackAction(action);
+  }, []);
   const updateHeaderProgress = useCallback((progress: SurveyHeaderProgressState | null) => {
     setHeaderProgress(progress);
   }, []);
@@ -88,8 +96,8 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
             ) : null
           }
           className={styles.surveyHeader!}
-          leading={null}
           title="설문 정보 입력"
+          {...(headerBackAction ? { backAction: headerBackAction } : {})}
         />
       }
       scroll="child"
@@ -120,6 +128,7 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
             cancelHref={cancelHref}
             contentVersionId={surveyQuery.data.contentVersionId}
             key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
+            onHeaderBackActionChange={updateHeaderBackAction}
             onHeaderProgressChange={updateHeaderProgress}
             onRefresh={() => void surveyQuery.refetch()}
             roundId={surveyQuery.data.roundId}
@@ -134,6 +143,7 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
 function SurveyForm({
   cancelHref,
   contentVersionId,
+  onHeaderBackActionChange,
   onHeaderProgressChange,
   onRefresh,
   roundId,
@@ -141,6 +151,7 @@ function SurveyForm({
 }: {
   cancelHref: string;
   contentVersionId: string;
+  onHeaderBackActionChange: (action: PlatformHeaderBackAction | null) => void;
   onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
   roundId: string;
@@ -160,10 +171,14 @@ function SurveyForm({
   const [draftScope, setDraftScope] = useState<SurveyDraftScope | null>(null);
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
+  const headerProgressVisibleRef = useRef(false);
   const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
   const draftSaveTimeoutRef = useRef<number | null>(null);
   const initialSections = useRef(sections);
   const submitMutation = useSubmitSurveyMutation();
+  const goToPreviousStep = useCallback(() => {
+    setCurrentStep((step) => Math.max(step - 1, 1));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -219,14 +234,19 @@ function SurveyForm({
   }, [currentStep, validationScrollRequest]);
 
   useEffect(() => {
+    onHeaderBackActionChange(
+      currentStep === 1 ? null : { ariaLabel: "이전 설문 단계로", onClick: goToPreviousStep },
+    );
+    headerProgressVisibleRef.current = false;
     onHeaderProgressChange(null);
-  }, [currentStep, onHeaderProgressChange]);
+  }, [currentStep, goToPreviousStep, onHeaderBackActionChange, onHeaderProgressChange, totalSteps]);
 
   useEffect(
     () => () => {
+      onHeaderBackActionChange(null);
       onHeaderProgressChange(null);
     },
-    [onHeaderProgressChange],
+    [onHeaderBackActionChange, onHeaderProgressChange],
   );
 
   if (sections.length === 0) {
@@ -256,9 +276,12 @@ function SurveyForm({
     if (!progress) return;
     const viewportTop = event.currentTarget.getBoundingClientRect().top;
     const showHeaderProgress = shouldShowSurveyHeaderProgress({
+      currentlyVisible: headerProgressVisibleRef.current,
       progressBottom: progress.getBoundingClientRect().bottom,
       viewportTop,
     });
+    if (showHeaderProgress === headerProgressVisibleRef.current) return;
+    headerProgressVisibleRef.current = showHeaderProgress;
     onHeaderProgressChange(showHeaderProgress ? { currentStep, totalSteps } : null);
   }
 
@@ -330,7 +353,7 @@ function SurveyForm({
       currentStep={currentStep}
       isSubmitting={submitMutation.isPending}
       onNext={goToNextStep}
-      onPrevious={() => setCurrentStep((step) => Math.max(step - 1, 1))}
+      onPrevious={goToPreviousStep}
       onSubmit={() => void submitSurvey()}
       submitDisabled={!isRequiredConfirmationChecked}
       totalSteps={totalSteps}

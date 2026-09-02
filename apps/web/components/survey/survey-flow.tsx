@@ -69,13 +69,18 @@ export function SurveyHeaderProgress({
 }
 
 export function shouldShowSurveyHeaderProgress({
+  currentlyVisible = false,
   progressBottom,
   viewportTop,
 }: {
+  currentlyVisible?: boolean;
   progressBottom: number;
   viewportTop: number;
 }): boolean {
-  return progressBottom <= viewportTop + 1;
+  const hysteresis = 6;
+  const visibilityBoundary = currentlyVisible ? viewportTop + hysteresis : viewportTop - hysteresis;
+
+  return progressBottom <= visibilityBoundary;
 }
 
 export function SurveyStepCard({ children, title }: { children: ReactNode; title: string }) {

@@ -29,9 +29,27 @@ describe("SurveyProgress", () => {
     expect(html).not.toContain("survey-header-progress");
   });
 
-  it("본문 진행 표시가 viewport 위로 완전히 사라졌을 때만 헤더 단계를 표시한다", () => {
+  it("본문 진행 표시가 경계를 충분히 벗어났을 때 헤더 단계를 표시한다", () => {
     expect(shouldShowSurveyHeaderProgress({ progressBottom: 80, viewportTop: 100 })).toBe(true);
     expect(shouldShowSurveyHeaderProgress({ progressBottom: 140, viewportTop: 100 })).toBe(false);
+    expect(shouldShowSurveyHeaderProgress({ progressBottom: 96, viewportTop: 100 })).toBe(false);
+  });
+
+  it("표시 경계에 여유를 두어 스크롤 진동으로 인한 깜빡임을 막는다", () => {
+    expect(
+      shouldShowSurveyHeaderProgress({
+        currentlyVisible: true,
+        progressBottom: 104,
+        viewportTop: 100,
+      }),
+    ).toBe(true);
+    expect(
+      shouldShowSurveyHeaderProgress({
+        currentlyVisible: true,
+        progressBottom: 108,
+        viewportTop: 100,
+      }),
+    ).toBe(false);
   });
 });
 
