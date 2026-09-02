@@ -246,7 +246,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             .filter(Boolean)
             .join(" ")}
           leading={step === 4 ? null : undefined}
-          title={isViewingSubmittedResponse ? "응답 보기" : "투표 참여하기"}
+          title={isViewingSubmittedResponse ? "제출 완료" : "투표 참여하기"}
         />
       }
       overlay={cancelOpen ? <CancelSheet onClose={() => setCancelOpen(false)} /> : null}
@@ -259,12 +259,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onRetry={() => void taskQuery.refetch()}
           />
         ) : null}
-        {taskDetail ? (
-          <VoteProgress
-            label={isViewingSubmittedResponse ? "응답 확인" : undefined}
-            step={isViewingSubmittedResponse ? 4 : step}
-          />
-        ) : null}
+        {taskDetail && !isViewingSubmittedResponse ? <VoteProgress step={step} /> : null}
         {taskDetail && isViewingSubmittedResponse && showSubmissionLoading ? (
           <TaskFeedback loading message="제출한 응답을 불러오는 중입니다." />
         ) : null}
@@ -511,7 +506,7 @@ function getPredictionPreparationMessage({
   return null;
 }
 
-function VoteProgress({ step, label }: { step: VoteStep; label?: string | undefined }) {
+function VoteProgress({ step }: { step: VoteStep }) {
   const labels: Record<VoteStep, string> = {
     1: "투표 확인",
     2: "응답 작성",
@@ -522,7 +517,7 @@ function VoteProgress({ step, label }: { step: VoteStep; label?: string | undefi
     <div className={styles.progressBlock}>
       <p className={styles.progressLabel}>
         <span>{step}/4</span>
-        <strong>{label ?? labels[step]}</strong>
+        <strong>{labels[step]}</strong>
       </p>
       <div aria-label={`진행 단계 ${step}/4`} className={styles.progressBars}>
         {[1, 2, 3, 4].map((segment) => {
@@ -691,13 +686,13 @@ function SubmittedTaskResponse({
         </dl>
       </section>
       <section className={styles.flowSection}>
-        <h2 className={styles.sectionTitle}>내 응답</h2>
+        <h2 className={styles.sectionTitle}>내 제출</h2>
         <dl className={styles.infoCard}>
           <InfoRow
-            label="내가 선택한 선택지"
+            label="선택지"
             value={selectedOption?.content ?? "선택한 응답을 확인할 수 없습니다."}
           />
-          <InfoRow label="내가 제출한 이유" value={submission.finalReason} />
+          <InfoRow label="이유" value={submission.finalReason} />
           <InfoRow label="제출 시각" value={formatVoteDateTime(submission.submittedAt)} />
         </dl>
       </section>

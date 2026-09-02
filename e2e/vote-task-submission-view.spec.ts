@@ -25,6 +25,11 @@ test("현재 Task 제출 조회 계약으로 기존 응답을 표시한다", asy
   expect(submission).not.toHaveProperty("personaVersionId");
   expect(typeof submission.finalReason).toBe("string");
 
+  await expect(page.getByText("제출 완료", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "내 제출", exact: true })).toBeVisible();
+  await expect(page.getByText("선택지", { exact: true })).toBeVisible();
+  await expect(page.getByText("이유", { exact: true })).toBeVisible();
+  await expect(page.getByText("4/4", { exact: true })).toHaveCount(0);
   await expect(page.getByText(String(submission.finalReason), { exact: true })).toBeVisible();
   await expect(
     page.getByText("제출한 응답을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요."),
