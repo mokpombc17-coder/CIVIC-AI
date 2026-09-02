@@ -106,6 +106,107 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
   ).toEqual([]);
 });
 
+test("제출 401이면 토큰 갱신 후 같은 payload와 멱등성 키로 한 번만 재시도한다", async ({
+  page,
+}) => {
+  const attempts: Array<Readonly<{ command: SubmitSurveyRequest; idempotencyKey: string | null }>> =
+    [];
+  let refreshCount = 0;
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    await route.fulfill({ json: { subject: "survey-refresh-e2e-user" } });
+  });
+  await page.route("**/api/v1/auth/refresh", async (route) => {
+    const corsHeaders = createCorsHeaders(page);
+    if (route.request().method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+    refreshCount += 1;
+    await route.fulfill({ status: 204, headers: corsHeaders });
+  });
+  await page.route("**/api/v1/me/**", async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const corsHeaders = createCorsHeaders(page);
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/surveys/current" && request.method() === "GET") {
+      await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
+      attempts.push({
+        command: request.postDataJSON() as SubmitSurveyRequest,
+        idempotencyKey: request.headers()["idempotency-key"] ?? null,
+      });
+      if (attempts.length === 1) {
+        await route.fulfill({
+          status: 401,
+          headers: corsHeaders,
+          json: {
+            type: "urn:civic-ai:problem:unauthenticated",
+            title: "Authentication required",
+            status: 401,
+            detail: "The access token has expired.",
+            instance: requestUrl.pathname,
+            code: "UNAUTHENTICATED",
+            retryable: false,
+          },
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        json: {
+          status: "PREVIEW_VALIDATED",
+          persisted: false,
+          roundId: ROUND_ID,
+          contentVersionId: CONTENT_VERSION_ID,
+          validatedAt: "2026-09-02T00:00:00Z",
+        },
+      });
+      return;
+    }
+
+    await route.abort("failed");
+  });
+
+  await advanceAnsweredSurveyToConfirmation(page);
+  await page.getByText("민감정보 수집·이용에 동의합니다", { exact: true }).click();
+  await page.getByRole("button", { name: "제출하기", exact: true }).click();
+  await expect(page).toHaveURL(/\/home$/);
+
+  expect(refreshCount).toBe(1);
+  expect(attempts).toHaveLength(2);
+  expect(attempts[1]!.idempotencyKey).toBe(attempts[0]!.idempotencyKey);
+  expect(attempts[1]!.command).toEqual(attempts[0]!.command);
+});
+
+async function advanceAnsweredSurveyToConfirmation(page: Page): Promise<void> {
+  await page.goto("/survey");
+  const form = page.locator("[data-survey-step]");
+  for (let step = 1; step <= 7; step += 1) {
+    await expect(form).toHaveAttribute("data-survey-step", String(step));
+    await answerCurrentSection(page);
+    await page.getByRole("button", { name: "다음으로", exact: true }).click();
+  }
+  await expect(form).toHaveAttribute("data-survey-step", "8");
+}
+
+function createCorsHeaders(page: Page): Record<string, string> {
+  return {
+    "access-control-allow-credentials": "true",
+    "access-control-allow-headers": "accept, content-type, idempotency-key",
+    "access-control-allow-methods": "GET, POST, OPTIONS",
+    "access-control-allow-origin": new URL(page.url() || "http://localhost:3000").origin,
+  };
+}
+
 async function answerCurrentSection(page: Page): Promise<void> {
   const form = page.locator("[data-survey-step]");
 
