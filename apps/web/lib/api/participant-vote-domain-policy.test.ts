@@ -2,7 +2,11 @@ import { describe, expect, it } from "vitest";
 import { matchParticipantVoteRoute } from "./participant-vote-domain-policy";
 
 describe("participant Vote route allowlist", () => {
-  it("routes only the current survey and own response endpoints", () => {
+  it("routes only service eligibility, the current survey, and own response endpoints", () => {
+    expect(matchParticipantVoteRoute("GET", ["service-eligibility"])).toEqual({
+      path: "/api/v1/me/service-eligibility",
+      scope: "vote:surveys:read",
+    });
     expect(matchParticipantVoteRoute("GET", ["surveys", "current"])).toEqual({
       path: "/api/v1/me/surveys/current",
       scope: "vote:surveys:read",

@@ -20,6 +20,7 @@ export default async function HomePage() {
   return (
     <ParticipantShell
       activeRoute="/home"
+      enforceServiceEligibility={!requiresLoginForProtectedLinks}
       headerActions={
         requiresLoginForProtectedLinks ? (
           <Link

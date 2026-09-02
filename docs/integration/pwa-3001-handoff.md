@@ -102,7 +102,27 @@ https://civic-ai.co.kr/icons/apple-touch-icon.png
 /icons/*              → 3000
 /sw.js                → 3000
 /pwa/start            → 3000
+/survey               → 3001
 ```
+
+## 설문 eligibility handoff
+
+3000 애플리케이션의 로그인된 참여자 공통 Guard는
+`GET /api/v1/me/service-eligibility`를 조회한다. 응답이 `eligible=false`이고
+`nextAction=COMPLETE_CURRENT_SURVEY`이면 전체 문서 이동으로 다음 주소를 연다.
+
+```text
+/survey?returnTo=<URL-encoded same-origin path, query, fragment>
+```
+
+`/survey`는 3001 애플리케이션이 소유하며 eligibility Guard의 리다이렉트 대상에서 제외한다. 3001은
+`returnTo`를 외부 origin, protocol-relative URL, 인증 재귀 경로가 될 수 없도록 검증하고, 값이 없거나
+유효하지 않으면 `/home`을 사용한다. 설문 제출 성공 후 공유 서버 상태의 원본인
+`GET /api/v1/me/service-eligibility`를 invalidate·재조회하여 `eligible=true`를 확인한 뒤에만 검증된
+`returnTo` 또는 `/home`으로 전체 문서 이동한다. 3000과 3001은 서로 다른 Next.js runtime이므로
+메모리 Query cache 자체를 공유하지 않으며, 3000으로 돌아오면 새 runtime이 eligibility를 다시 조회한다.
+
+이관 전 `/account/survey`와 `/mypage/survey` 요청은 3000에서 `/survey`로 임시 리다이렉트한다.
 
 Nginx 설정 변경은 3001 애플리케이션 작업과 분리해서 확인한다. 3001 담당자가 Nginx를 소유하지 않는다면 인프라 담당자에게 위 라우팅을 검증해 달라고 요청한다.
 
