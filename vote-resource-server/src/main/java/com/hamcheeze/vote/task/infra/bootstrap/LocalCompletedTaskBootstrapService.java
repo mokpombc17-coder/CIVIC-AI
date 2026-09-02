@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -80,15 +81,16 @@ public class LocalCompletedTaskBootstrapService {
         tasks.save(task);
         tasks.appendLifecycleHistory(List.of(opened));
 
-        var persona = currentPersonas.findCurrentUsable(userId)
-                .orElseThrow(() -> failure(
-                        "a ready local Persona does not exist"));
+        currentPersonas.findCurrentUsable(userId).orElseThrow(() -> failure(
+                "a ready local Persona does not exist"));
+        var answer = LocalCompletedTaskFixture.answer(task);
         var execution = submissionService.submit(
                 userId,
                 LocalCompletedTaskFixture.SUBMISSION_IDEMPOTENCY_KEY,
                 new TaskSubmissionService.SubmitTaskCommand(
-                        task.id(), persona.generationId(), null,
-                        LocalCompletedTaskFixture.answer(task)));
+                        task.id(), answer.selectedOptionId(),
+                        TaskReasonSource.USER_WRITTEN,
+                        null, answer.reason()));
         if (!execution.outcome().succeeded()) {
             throw failure("Task submission failed with "
                     + execution.outcome().code());

@@ -343,10 +343,10 @@ class TaskPredictionApplicationIntegrationTest {
                 UUID.randomUUID().toString(),
                 new TaskSubmissionService.SubmitTaskCommand(
                         openTask.id(),
-                        succeeded.id(),
-                        new AcceptTaskPredictedReason(
-                                question.id(), adopted.optionId(),
-                                adopted.id())));
+                        adopted.optionId(),
+                        TaskReasonSource.AI_ACCEPTED,
+                        adopted.id(),
+                        null));
 
         assertThat(execution.replayed()).isFalse();
         assertThat(execution.outcome().code())

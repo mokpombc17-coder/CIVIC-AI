@@ -14,15 +14,18 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
+import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskValidationException;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionAvailability;
@@ -117,9 +120,10 @@ public class TaskSubmissionService {
                         TaskIdempotencyKey.parse(idempotencyKey),
                         requestHashFactory.hash(
                                 command.taskId(),
-                                command.personaGenerationId(),
-                                command.predictionId(),
-                                command.answer()),
+                                command.selectedOptionId(),
+                                command.reasonSource(),
+                                command.predictedReasonId(),
+                                command.reason()),
                         TaskSubmissionOutcomeCodec.SCHEMA_VERSION);
         TaskIdempotencyExecution<TaskSubmissionOutcome> execution =
                 idempotency.execute(
@@ -179,19 +183,6 @@ public class TaskSubmissionService {
                             "a current usable persona is required"));
         }
 
-        if (command.personaGenerationId() != null
-                && !command.personaGenerationId().equals(
-                        currentPersona.generationId())) {
-            return rejection(
-                    409,
-                    "TASK_SUBMISSION_PERSONA_MISMATCH",
-                    task.id(),
-                    TaskViolation.of(
-                            "TASK_SUBMISSION_PERSONA_MISMATCH",
-                            "personaGenerationId",
-                            "requested persona is not the current usable persona"));
-        }
-
         if (submissions.findByUserAndTask(userId, task.id()).isPresent()) {
             return rejection(
                     409,
@@ -203,7 +194,7 @@ public class TaskSubmissionService {
                             "user already submitted this task"));
         }
 
-        if (command.answer() instanceof AcceptTaskPredictedReason
+        if (command.reasonSource() == TaskReasonSource.AI_ACCEPTED
                 && !predictionAvailability.enabled()) {
             return rejection(
                     409,
@@ -215,34 +206,43 @@ public class TaskSubmissionService {
                             "AI_ACCEPTED is unavailable while prediction is disabled"));
         }
 
-        TaskPrediction prediction = command.predictionId() == null
-                ? null
-                : predictions.findById(command.predictionId()).orElse(null);
-        if (command.predictionId() != null && prediction == null) {
+        TaskPrediction currentPrediction = predictions.findByIdentity(
+                userId, task.id(), currentPersona.generationId()).orElse(null);
+        if (command.reasonSource() == TaskReasonSource.AI_ACCEPTED
+                && currentPrediction == null) {
             return rejection(
                     409,
                     "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
                     task.id(),
                     TaskViolation.of(
                             "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
-                            "predictionId",
-                            "prediction is unavailable for submission"));
+                            "predictedReasonId",
+                            "current prediction is unavailable for submission"));
         }
 
+        TaskPrediction submissionPrediction =
+                command.reasonSource() == TaskReasonSource.AI_ACCEPTED
+                        || currentPrediction != null
+                        && currentPrediction.status()
+                        == TaskPredictionStatus.SUCCEEDED
+                        ? currentPrediction : null;
+
         try {
+            TaskSubmissionAnswerCommand answer = command.toAnswer(
+                    task.questions().getFirst().id());
             TaskSubmission submission = TaskSubmission.create(
                     new TaskSubmissionId(UUID.randomUUID()),
                     userId,
                     task,
-                    prediction,
+                    submissionPrediction,
                     currentPersona.generationId(),
-                    command.answer(),
+                    answer,
                     submittedAt);
             TaskSubmission stored = submissions.insert(submission);
             TaskSubmissionOutcome outcome =
                     TaskSubmissionOutcome.submitted(stored);
             recordSubmissionMetricAfterCommit(metricObservation(
-                    command.answer(), prediction));
+                    answer, currentPrediction));
             return outcome;
         } catch (TaskValidationException exception) {
             return TaskSubmissionOutcome.rejected(
@@ -327,21 +327,41 @@ public class TaskSubmissionService {
 
     public record SubmitTaskCommand(
             TaskId taskId,
-            TaskPersonaGenerationId personaGenerationId,
-            TaskPredictionId predictionId,
-            TaskSubmissionAnswerCommand answer
+            TaskOptionId selectedOptionId,
+            TaskReasonSource reasonSource,
+            TaskPredictedReasonId predictedReasonId,
+            String reason
     ) {
         public SubmitTaskCommand {
             Objects.requireNonNull(taskId, "taskId");
-            Objects.requireNonNull(answer, "answer");
+            Objects.requireNonNull(selectedOptionId, "selectedOptionId");
+            Objects.requireNonNull(reasonSource, "reasonSource");
+            switch (reasonSource) {
+                case AI_ACCEPTED -> {
+                    Objects.requireNonNull(
+                            predictedReasonId, "predictedReasonId");
+                    if (reason != null) {
+                        throw new IllegalArgumentException(
+                                "reason is not allowed for AI_ACCEPTED");
+                    }
+                }
+                case USER_WRITTEN -> {
+                    Objects.requireNonNull(reason, "reason");
+                    if (predictedReasonId != null) {
+                        throw new IllegalArgumentException(
+                                "predictedReasonId is not allowed for USER_WRITTEN");
+                    }
+                }
+            }
         }
 
-        public SubmitTaskCommand(
-                TaskId taskId,
-                TaskPredictionId predictionId,
-                TaskSubmissionAnswerCommand answer
-        ) {
-            this(taskId, null, predictionId, answer);
+        TaskSubmissionAnswerCommand toAnswer(TaskQuestionId questionId) {
+            return switch (reasonSource) {
+                case AI_ACCEPTED -> new AcceptTaskPredictedReason(
+                        questionId, selectedOptionId, predictedReasonId);
+                case USER_WRITTEN -> new WriteTaskReason(
+                        questionId, selectedOptionId, reason);
+            };
         }
     }
 

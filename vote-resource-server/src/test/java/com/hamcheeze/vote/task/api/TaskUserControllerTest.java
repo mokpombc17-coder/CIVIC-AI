@@ -47,6 +47,7 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.submissionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.userId;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
@@ -470,7 +471,11 @@ class TaskUserControllerTest {
                 .andExpect(jsonPath("$.replayed").value(true));
 
         verify(submissions).submit(
-                eq(userId()), eq("request-key"), any());
+                eq(userId()), eq("request-key"), argThat(command ->
+                        command.reasonSource()
+                                == TaskReasonSource.USER_WRITTEN
+                                && command.predictedReasonId() == null
+                                && command.reason().equals("직접 작성한 이유")));
     }
 
     @Test
@@ -607,17 +612,11 @@ class TaskUserControllerTest {
     private static String submitBody() {
         return """
                 {
-                  "personaGenerationId": "%s",
-                  "predictionId": "%s",
-                  "questionId": "%s",
                   "selectedOptionId": "%s",
                   "reasonSource": "USER_WRITTEN",
                   "reason": "직접 작성한 이유"
                 }
-                """.formatted(
-                        personaGenerationId().value(),
-                        predictionId().value(), questionId(3).value(),
-                        UUID.randomUUID());
+                """.formatted(UUID.randomUUID());
     }
 
     private static TaskPredictionQueryService.TaskPredictionView unavailable(

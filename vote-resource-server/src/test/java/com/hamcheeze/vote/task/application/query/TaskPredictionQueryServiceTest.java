@@ -109,6 +109,7 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.directAnswerAllowed()).isTrue();
         assertThat(view.allowedReasonSources())
                 .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(view.predictedReasons()).isEmpty();
     }
 
     @Test
@@ -206,6 +207,7 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.directAnswerAllowed()).isTrue();
         assertThat(view.allowedReasonSources())
                 .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(view.predictedReasons()).isEmpty();
     }
 
     @Test

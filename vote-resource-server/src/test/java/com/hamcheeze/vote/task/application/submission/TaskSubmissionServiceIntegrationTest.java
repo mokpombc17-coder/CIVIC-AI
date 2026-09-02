@@ -25,6 +25,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -145,7 +146,7 @@ class TaskSubmissionServiceIntegrationTest {
 
     @Test
     void directMetricRunsOnceAfterCommitAndNotOnIdempotentReplay() {
-        Fixture fixture = fixture("metric-replay-user");
+        Fixture fixture = fixtureWithoutPrediction("metric-replay-user");
         String key = UUID.randomUUID().toString();
         TaskSubmissionService.SubmitTaskCommand command =
                 commandWithoutPrediction(fixture, "metric replay");
@@ -173,8 +174,9 @@ class TaskSubmissionServiceIntegrationTest {
                 command(fixture, "pending prediction direct"));
 
         assertThat(result.outcome().httpStatus()).isEqualTo(201);
-        verify(predictions, times(1)).findById(
-                fixture.prediction().id());
+        verify(predictions, times(1)).findByIdentity(
+                fixture.userId(), fixture.task().id(),
+                fixture.prediction().personaGenerationId());
         verify(metrics, times(1))
                 .directWhilePredictionNonTerminal();
     }
@@ -217,11 +219,10 @@ class TaskSubmissionServiceIntegrationTest {
         TaskSubmissionService.SubmitTaskCommand command =
                 new TaskSubmissionService.SubmitTaskCommand(
                         fixture.task().id(),
-                        fixture.prediction().id(),
-                        new AcceptTaskPredictedReason(
-                                fixture.question().id(),
-                                accepted.optionId(),
-                                accepted.id()));
+                        accepted.optionId(),
+                        TaskReasonSource.AI_ACCEPTED,
+                        accepted.id(),
+                        null);
 
         TaskSubmissionService.SubmissionExecution result = service.submit(
                 fixture.userId(), UUID.randomUUID().toString(), command);
@@ -239,7 +240,8 @@ class TaskSubmissionServiceIntegrationTest {
         doThrow(new IllegalStateException("ai metric unavailable"))
                 .when(metrics).aiAccepted();
 
-        Fixture withoutPrediction = fixture("metric-failure-direct-user");
+        Fixture withoutPrediction = fixtureWithoutPrediction(
+                "metric-failure-direct-user");
         Fixture pending = fixture(
                 "metric-failure-pending-user",
                 TaskPredictionStatus.PENDING);
@@ -263,11 +265,10 @@ class TaskSubmissionServiceIntegrationTest {
                         UUID.randomUUID().toString(),
                         new TaskSubmissionService.SubmitTaskCommand(
                                 succeeded.task().id(),
-                                succeeded.prediction().id(),
-                                new AcceptTaskPredictedReason(
-                                        succeeded.question().id(),
-                                        accepted.optionId(),
-                                        accepted.id()))));
+                                accepted.optionId(),
+                                TaskReasonSource.AI_ACCEPTED,
+                                accepted.id(),
+                                null)));
 
         assertThat(results)
                 .extracting(result -> result.outcome().httpStatus())
@@ -282,7 +283,8 @@ class TaskSubmissionServiceIntegrationTest {
 
     @Test
     void submissionInsertFailureRollsBackWithoutMetricCallback() {
-        Fixture fixture = fixture("submission-rollback-user");
+        Fixture fixture = fixtureWithoutPrediction(
+                "submission-rollback-user");
         doThrow(new IllegalStateException(
                 "forced task submission insert failure"))
                 .when(submissions).insert(any());
@@ -405,11 +407,10 @@ class TaskSubmissionServiceIntegrationTest {
         TaskSubmissionService.SubmitTaskCommand invalid =
                 new TaskSubmissionService.SubmitTaskCommand(
                         fixture.task().id(),
-                        fixture.prediction().id(),
-                        new WriteTaskReason(
-                                new TaskQuestionId(UUID.randomUUID()),
-                                fixture.question().options().getFirst().id(),
-                                "유효한 이유"));
+                        new TaskOptionId(UUID.randomUUID()),
+                        TaskReasonSource.USER_WRITTEN,
+                        null,
+                        "유효한 이유");
 
         TaskSubmissionService.SubmissionExecution first = service.submit(
                 fixture.userId(), key, invalid);
@@ -418,7 +419,7 @@ class TaskSubmissionServiceIntegrationTest {
 
         assertThat(first.outcome().httpStatus()).isEqualTo(422);
         assertThat(first.outcome().code())
-                .isEqualTo("TASK_SUBMISSION_QUESTION_MISMATCH");
+                .isEqualTo("TASK_SUBMISSION_OPTION_MISMATCH");
         assertThat(replay.replayed()).isTrue();
         assertThat(replay.outcome()).isEqualTo(first.outcome());
         assertThat(submissionCount(fixture)).isZero();
@@ -519,7 +520,10 @@ class TaskSubmissionServiceIntegrationTest {
     @Test
     void personaTransitionCommittedFirstInvalidatesOldPrediction()
             throws Exception {
-        Fixture fixture = fixture("persona-transition-user");
+        Fixture fixture = fixture(
+                "persona-transition-user", TaskPredictionStatus.SUCCEEDED);
+        TaskPredictedReason oldReason = fixture.prediction()
+                .predictedReasons().getFirst();
         CountDownLatch transitionPrepared = new CountDownLatch(1);
         CountDownLatch releaseTransition = new CountDownLatch(1);
         TransactionTemplate transactions =
@@ -543,7 +547,12 @@ class TaskSubmissionServiceIntegrationTest {
                     executor.submit(() -> service.submit(
                             fixture.userId(),
                             UUID.randomUUID().toString(),
-                            command(fixture, "이전 persona 제출")));
+                            new TaskSubmissionService.SubmitTaskCommand(
+                                    fixture.task().id(),
+                                    oldReason.optionId(),
+                                    TaskReasonSource.AI_ACCEPTED,
+                                    oldReason.id(),
+                                    null)));
             assertThat(submit.isDone()).isFalse();
 
             releaseTransition.countDown();
@@ -553,13 +562,21 @@ class TaskSubmissionServiceIntegrationTest {
 
             assertThat(result.outcome().httpStatus()).isEqualTo(409);
             assertThat(result.outcome().code())
-                    .isEqualTo("TASK_SUBMISSION_PREDICTION_MISMATCH");
+                    .isEqualTo("TASK_SUBMISSION_PREDICTION_UNAVAILABLE");
         }
         assertThat(submissionCount(fixture)).isZero();
     }
 
     private Fixture fixture(String userValue) {
         return fixture(userValue, TaskPredictionStatus.FAILED);
+    }
+
+    private Fixture fixtureWithoutPrediction(String userValue) {
+        Fixture fixture = fixture(userValue);
+        jdbcTemplate.update(
+                "DELETE FROM task_predictions WHERE prediction_id = ?",
+                fixture.prediction().id().value());
+        return fixture;
     }
 
     private Fixture fixture(
@@ -667,11 +684,11 @@ class TaskSubmissionServiceIntegrationTest {
     ) {
         int optionIndex = "변경".equals(answer) ? 1 : 0;
         return new TaskSubmissionService.SubmitTaskCommand(
-                fixture.task().id(), fixture.prediction().id(),
-                new WriteTaskReason(
-                        fixture.question().id(),
-                        fixture.question().options().get(optionIndex).id(),
-                        answer + " 이유"));
+                fixture.task().id(),
+                fixture.question().options().get(optionIndex).id(),
+                TaskReasonSource.USER_WRITTEN,
+                null,
+                answer + " 이유");
     }
 
     private TaskSubmissionService.SubmitTaskCommand commandWithoutPrediction(
@@ -680,12 +697,10 @@ class TaskSubmissionServiceIntegrationTest {
     ) {
         return new TaskSubmissionService.SubmitTaskCommand(
                 fixture.task().id(),
-                fixture.prediction().personaGenerationId(),
+                fixture.question().options().getFirst().id(),
+                TaskReasonSource.USER_WRITTEN,
                 null,
-                new WriteTaskReason(
-                        fixture.question().id(),
-                        fixture.question().options().getFirst().id(),
-                        answer + " 이유"));
+                answer + " 이유");
     }
 
     private PersonaFixture insertSucceededPersona(
@@ -785,17 +800,57 @@ class TaskSubmissionServiceIntegrationTest {
     }
 
     @Test
+    void aiAcceptanceWithoutCurrentPredictionIsRejected() {
+        Fixture fixture = fixtureWithoutPrediction(
+                "ai-without-prediction-user");
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                new TaskSubmissionService.SubmitTaskCommand(
+                        fixture.task().id(),
+                        fixture.question().options().getFirst().id(),
+                        TaskReasonSource.AI_ACCEPTED,
+                        new TaskPredictedReasonId(UUID.randomUUID()),
+                        null));
+
+        assertThat(result.outcome().httpStatus()).isEqualTo(409);
+        assertThat(result.outcome().code())
+                .isEqualTo("TASK_SUBMISSION_PREDICTION_UNAVAILABLE");
+        assertThat(submissionCount(fixture)).isZero();
+    }
+
+    @Test
+    void userWrittenSubmissionAutoLinksCurrentSucceededPrediction() {
+        Fixture fixture = fixture(
+                "direct-with-succeeded-prediction-user",
+                TaskPredictionStatus.SUCCEEDED);
+
+        TaskSubmissionService.SubmissionExecution result = service.submit(
+                fixture.userId(),
+                UUID.randomUUID().toString(),
+                command(fixture, "성공 예측 후 직접 작성"));
+
+        assertThat(result.outcome().succeeded()).isTrue();
+        UUID storedPredictionId = jdbcTemplate.queryForObject("""
+                SELECT prediction_id
+                FROM task_submissions
+                WHERE submission_id = ?
+                """, UUID.class, result.outcome().submissionId().value());
+        assertThat(storedPredictionId)
+                .isEqualTo(fixture.prediction().id().value());
+    }
+
+    @Test
     void userWrittenSubmissionWithoutPredictionPersistsNullableProvenance() {
-        Fixture fixture = fixture("direct-without-prediction-user");
+        Fixture fixture = fixtureWithoutPrediction(
+                "direct-without-prediction-user");
         TaskSubmissionService.SubmitTaskCommand command =
                 new TaskSubmissionService.SubmitTaskCommand(
                         fixture.task().id(),
-                        fixture.prediction().personaGenerationId(),
+                        fixture.question().options().getFirst().id(),
+                        TaskReasonSource.USER_WRITTEN,
                         null,
-                        new WriteTaskReason(
-                                fixture.question().id(),
-                                fixture.question().options().getFirst().id(),
-                                "예측 없이 직접 작성한 이유"));
+                        "예측 없이 직접 작성한 이유");
 
         TaskSubmissionService.SubmissionExecution result = service.submit(
                 fixture.userId(), UUID.randomUUID().toString(), command);

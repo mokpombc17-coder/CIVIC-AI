@@ -1,11 +1,9 @@
 package com.hamcheeze.vote.task.application.idempotency;
 
 import com.hamcheeze.vote.task.domain.common.TaskId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
-import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 
 import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
@@ -16,44 +14,35 @@ import java.util.UUID;
 
 public final class TaskSubmissionRequestHashFactory {
 
-    private static final String FORMAT_VERSION = "task-submit-v3";
+    private static final String FORMAT_VERSION = "task-submit-v4";
 
     public TaskRequestHash hash(
             TaskId taskId,
-            TaskPersonaGenerationId personaGenerationId,
-            TaskPredictionId predictionId,
-            TaskSubmissionAnswerCommand answer
+            TaskOptionId selectedOptionId,
+            TaskReasonSource reasonSource,
+            TaskPredictedReasonId predictedReasonId,
+            String reason
     ) {
         Objects.requireNonNull(taskId, "taskId");
-        Objects.requireNonNull(answer, "answer");
+        Objects.requireNonNull(selectedOptionId, "selectedOptionId");
+        Objects.requireNonNull(reasonSource, "reasonSource");
         return TaskRequestHash.sha256(write(output -> {
             writeString(output, FORMAT_VERSION);
             writeUuid(output, taskId.value());
-            writeNullableUuid(output, personaGenerationId == null
-                    ? null : personaGenerationId.value());
-            writeNullableUuid(output, predictionId == null
-                    ? null : predictionId.value());
-            writeUuid(output, answer.questionId().value());
-            writeUuid(output, answer.selectedOptionId().value());
-            switch (answer) {
-                case AcceptTaskPredictedReason accepted -> {
+            writeUuid(output, selectedOptionId.value());
+            switch (reasonSource) {
+                case AI_ACCEPTED -> {
                     writeString(output, "AI_ACCEPTED");
-                    writeUuid(output, accepted.predictedReasonId().value());
+                    writeUuid(output, Objects.requireNonNull(
+                            predictedReasonId, "predictedReasonId").value());
                 }
-                case WriteTaskReason written -> {
+                case USER_WRITTEN -> {
                     writeString(output, "USER_WRITTEN");
-                    writeString(output, normalizeText(written.reason()));
+                    writeString(output, normalizeText(
+                            Objects.requireNonNull(reason, "reason")));
                 }
             }
         }));
-    }
-
-    public TaskRequestHash hash(
-            TaskId taskId,
-            TaskPredictionId predictionId,
-            TaskSubmissionAnswerCommand answer
-    ) {
-        return hash(taskId, null, predictionId, answer);
     }
 
     private static String normalizeText(String value) {
@@ -68,16 +57,6 @@ public final class TaskSubmissionRequestHashFactory {
     ) throws IOException {
         output.writeLong(value.getMostSignificantBits());
         output.writeLong(value.getLeastSignificantBits());
-    }
-
-    private static void writeNullableUuid(
-            DataOutputStream output,
-            UUID value
-    ) throws IOException {
-        output.writeBoolean(value != null);
-        if (value != null) {
-            writeUuid(output, value);
-        }
     }
 
     private static void writeString(

@@ -6,8 +6,6 @@ import com.hamcheeze.vote.task.application.submission.TaskSubmissionExecutionSer
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import jakarta.servlet.http.HttpServletRequest;
@@ -56,14 +54,7 @@ final class TaskSubmissionController {
         TaskSubmissionExecutionService.SubmissionExecution execution =
                 submissions.submit(
                         user(authentication), idempotencyKey,
-                        new TaskSubmissionService.SubmitTaskCommand(
-                                new TaskId(taskId),
-                                new TaskPersonaGenerationId(
-                                        request.personaGenerationId()),
-                                request.predictionId() == null ? null
-                                        : new TaskPredictionId(
-                                                request.predictionId()),
-                                request.toAnswer()));
+                        request.toCommand(new TaskId(taskId)));
         TaskSubmissionOutcome outcome = execution.outcome();
         if (!outcome.succeeded()) {
             return TaskApiExceptionHandler.response(

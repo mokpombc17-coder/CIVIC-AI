@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
+import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -65,16 +66,17 @@ public class LocalTaskParticipationBootstrapService {
         var task = tasks.findById(LocalTaskFixture.TASK_ID)
                 .orElseThrow(() -> failure(
                         "the first local Task does not exist"));
-        var persona = currentPersonas.findCurrentUsable(userId)
-                .orElseThrow(() -> failure(
-                        "a ready local Persona does not exist"));
+        currentPersonas.findCurrentUsable(userId).orElseThrow(() -> failure(
+                "a ready local Persona does not exist"));
+        var answer = LocalTaskParticipationFixture.answer(task);
         var execution = submissionService.submit(
                 userId,
                 LocalTaskParticipationFixture
                         .TASK_SUBMISSION_IDEMPOTENCY_KEY,
                 new TaskSubmissionService.SubmitTaskCommand(
-                        task.id(), persona.generationId(), null,
-                        LocalTaskParticipationFixture.answer(task)));
+                        task.id(), answer.selectedOptionId(),
+                        TaskReasonSource.USER_WRITTEN,
+                        null, answer.reason()));
         if (!execution.outcome().succeeded()) {
             if (submissions.findByUserAndTask(
                     userId, task.id()).isPresent()) {

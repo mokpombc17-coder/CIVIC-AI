@@ -11,6 +11,8 @@ import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
+import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
+import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
@@ -19,10 +21,7 @@ import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
-import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
-import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
-import com.hamcheeze.vote.task.domain.submission.WriteTaskReason;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -124,39 +123,38 @@ final class TaskApiModels {
     }
 
     record SubmitRequest(
-            @NotNull UUID personaGenerationId,
-            UUID predictionId,
-            @NotNull UUID questionId,
             @NotNull UUID selectedOptionId,
             @NotNull TaskReasonSource reasonSource,
-            UUID acceptedPredictedReasonId,
-            String reason
+            UUID predictedReasonId,
+            @Size(max = TaskLimits.MAX_REASON_LENGTH) String reason
     ) {
-        TaskSubmissionAnswerCommand toAnswer() {
-            TaskQuestionId resolvedQuestionId = new TaskQuestionId(questionId);
-            TaskOptionId resolvedOptionId = new TaskOptionId(selectedOptionId);
-            return switch (reasonSource) {
+        TaskSubmissionService.SubmitTaskCommand toCommand(TaskId taskId) {
+            return switch (required(reasonSource, "reasonSource")) {
                 case AI_ACCEPTED -> {
                     if (reason != null) {
                         throw new IllegalArgumentException(
                                 "reason is not allowed for AI_ACCEPTED");
                     }
-                    yield new AcceptTaskPredictedReason(
-                            resolvedQuestionId,
-                            resolvedOptionId,
+                    yield new TaskSubmissionService.SubmitTaskCommand(
+                            taskId,
+                            new TaskOptionId(selectedOptionId),
+                            reasonSource,
                             new TaskPredictedReasonId(required(
-                                    acceptedPredictedReasonId,
-                                    "acceptedPredictedReasonId")));
+                                    predictedReasonId,
+                                    "predictedReasonId")),
+                            null);
                 }
                 case USER_WRITTEN -> {
-                    if (acceptedPredictedReasonId != null) {
+                    if (predictedReasonId != null) {
                         throw new IllegalArgumentException(
-                                "acceptedPredictedReasonId is not allowed "
+                                "predictedReasonId is not allowed "
                                         + "for USER_WRITTEN");
                     }
-                    yield new WriteTaskReason(
-                            resolvedQuestionId,
-                            resolvedOptionId,
+                    yield new TaskSubmissionService.SubmitTaskCommand(
+                            taskId,
+                            new TaskOptionId(selectedOptionId),
+                            reasonSource,
+                            null,
                             required(reason, "reason"));
                 }
             };
