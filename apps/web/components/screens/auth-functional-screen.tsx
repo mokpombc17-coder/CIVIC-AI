@@ -15,6 +15,7 @@ type SignupDraft = {
   passwordConfirmation: string;
   ageConfirmed: boolean;
   terms: boolean;
+  termsCheckedAt: string | null;
   flowId?: string;
   documents: Partial<Record<SignupDocumentId, SignupDocument>>;
 };
@@ -33,6 +34,7 @@ const initialDraft: SignupDraft = {
   passwordConfirmation: "",
   ageConfirmed: false,
   terms: false,
+  termsCheckedAt: null,
   documents: {},
 };
 
@@ -168,7 +170,7 @@ export function AuthFunctionalScreen({
       } else if (activeId === "AUTH-003") {
         location.replace("/signup/account");
       } else if (activeId === "AUTH-004") {
-        if (!draft.flowId || !draft.terms) {
+        if (!draft.flowId || !draft.terms || !draft.termsCheckedAt) {
           throw new Error("이메일 인증과 이용약관 동의를 모두 확인해 주세요.");
         }
         await api(signupCompletionPath(draft.flowId), {
@@ -176,7 +178,10 @@ export function AuthFunctionalScreen({
           password: draft.password,
           ...defaultSignupPreferences,
           age_14_confirmed: true,
-          terms_evidence: evidence(requiredDocument(draft.documents, "TERMS")),
+          terms_evidence: evidence(
+            requiredDocument(draft.documents, "TERMS"),
+            draft.termsCheckedAt,
+          ),
         });
         location.assign("/login");
       } else if (activeId === "AUTH-005") {
@@ -478,6 +483,7 @@ function renderFields(
               passwordConfirmation: v.passwordConfirmation,
               ageConfirmed: v.ageConfirmed,
               terms: false,
+              termsCheckedAt: null,
               documents: {},
             }));
           }}
@@ -518,7 +524,13 @@ function renderFields(
             label="이용약관에 동의합니다"
             required
             checked={draft.terms}
-            onChange={(checked) => setDraft((v) => ({ ...v, terms: checked }))}
+            onChange={(checked) =>
+              setDraft((v) => ({
+                ...v,
+                terms: checked,
+                termsCheckedAt: checked ? new Date().toISOString() : null,
+              }))
+            }
           />
           <LegalDocumentLink
             document={terms}
@@ -929,12 +941,12 @@ function Check({
   );
 }
 
-function evidence(document: SignupDocument) {
+export function evidence(document: SignupDocument, checkedAt: string) {
   return {
     document_id: document.document_id,
     document_version: document.document_version,
     body_sha256: document.body_sha256,
-    accepted_at: new Date().toISOString(),
+    checked_at: checkedAt,
     path: document.path,
   };
 }

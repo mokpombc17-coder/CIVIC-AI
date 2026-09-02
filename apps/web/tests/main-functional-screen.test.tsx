@@ -53,6 +53,7 @@ import {
   authCompletionDestination,
   authenticatedDestination,
   duplicateEmailAccountState,
+  evidence,
   isDeactivatedAccountError,
   isPasswordResetEmail,
   LoginDeactivatedNotice,
@@ -78,6 +79,28 @@ const fullAdminSession = {
   role: "HIGHEST_ADMIN" as const,
   permissions: ["RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN"] as const,
 };
+
+describe("signup consent evidence", () => {
+  it("keeps the checkbox click instant instead of replacing it at submit time", () => {
+    expect(
+      evidence(
+        {
+          document_id: "TERMS",
+          document_version: "2",
+          body_sha256: "a".repeat(64),
+          path: "/legal/terms/2",
+        },
+        "2026-09-03T03:04:05.000Z",
+      ),
+    ).toEqual({
+      document_id: "TERMS",
+      document_version: "2",
+      body_sha256: "a".repeat(64),
+      checked_at: "2026-09-03T03:04:05.000Z",
+      path: "/legal/terms/2",
+    });
+  });
+});
 
 function surveyQuestion(prompt: string, displayOrder: number) {
   return {
