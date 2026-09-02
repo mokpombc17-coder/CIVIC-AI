@@ -62,11 +62,15 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                 .andExpect(jsonPath("$.expires_at").isString())
                 .andExpect(jsonPath("$.questionnaire_version").value("1"))
                 .andExpect(jsonPath("$.documents.TERMS.document_id").value("TERMS"))
-                .andExpect(jsonPath("$.documents.TERMS.document_version").value("1"))
+                .andExpect(jsonPath("$.documents.TERMS.document_version").value("2"))
                 .andExpect(jsonPath("$.documents.TERMS.body_sha256")
-                        .value("c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076"))
-                .andExpect(jsonPath("$.documents.TERMS.path").value("/legal/terms/1"))
-                .andExpect(jsonPath("$.acceptance_controls.length()").value(2))
+                        .value("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef"))
+                .andExpect(jsonPath("$.documents.TERMS.path").value("/legal/terms/2"))
+                .andExpect(jsonPath("$.documents.ACCOUNT_RAG_PRIVACY.document_version").value("2"))
+                .andExpect(jsonPath("$.documents.ACCOUNT_RAG_PRIVACY.path")
+                        .value("/legal/required-service-information/2"))
+                .andExpect(jsonPath("$.acceptance_controls.length()").value(1))
+                .andExpect(jsonPath("$.acceptance_controls[0]").value("TERMS"))
                 .andExpect(jsonPath("$.initial_acceptance_values").doesNotExist())
                 .andExpect(cookie().httpOnly("__Host-civic-auth-flow", true))
                 .andExpect(cookie().secure("__Host-civic-auth-flow", true))
@@ -193,12 +197,10 @@ class SignupControllerContractTest extends PostgresIntegrationTest {
                   "preferred_language":"ko",
                   "rag_answer_detail":"balanced",
                   "age_14_confirmed":true,
-                  "terms_evidence":{"document_id":"TERMS","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/terms/1"},
-                  "privacy_evidence":{"document_id":"ACCOUNT_RAG_PRIVACY","document_version":"1","body_sha256":"%s","accepted_at":"2026-08-11T12:00:00Z","path":"/legal/account-rag-privacy/1"}
+                  "terms_evidence":{"document_id":"TERMS","document_version":"2","body_sha256":"%s","accepted_at":"2026-09-03T12:00:00Z","path":"/legal/terms/2"}
                 }
                 """.formatted(
                 email,
-                "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
-                "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a");
+                "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
     }
 }

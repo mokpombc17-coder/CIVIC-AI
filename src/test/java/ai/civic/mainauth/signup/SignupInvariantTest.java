@@ -72,14 +72,14 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         var flow = service.startSignup("  Person@Example.COM  ");
 
         assertThat(flow.flowId()).isNotNull();
-        assertThat(flow.acceptanceControls()).containsExactly("TERMS", "ACCOUNT_RAG_PRIVACY");
-        assertThat(flow.documents().get("TERMS").documentVersion()).isEqualTo("1");
+        assertThat(flow.acceptanceControls()).containsExactly("TERMS");
+        assertThat(flow.documents().get("TERMS").documentVersion()).isEqualTo("2");
         assertThat(flow.documents().get("TERMS").bodySha256())
-                .isEqualTo("c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076");
+                .isEqualTo("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
         assertThat(flow.documents().get("ACCOUNT_RAG_PRIVACY").path())
-                .isEqualTo("/legal/account-rag-privacy/1");
-        assertThat(flow.initialAcceptanceValues()).containsEntry("TERMS", false)
-                .containsEntry("ACCOUNT_RAG_PRIVACY", false);
+                .isEqualTo("/legal/required-service-information/2");
+        assertThat(flow.initialAcceptanceValues()).containsExactlyEntriesOf(
+                java.util.Map.of("TERMS", false));
         assertThat(count("users", "origin = 'SIGNUP'")).isZero();
         assertThat(count("credentials", "true")).isOne(); // bootstrap credential only
         assertThat(count("auth_challenges", "purpose = 'SIGNUP_EMAIL_VERIFICATION' and user_id is null"))
@@ -196,7 +196,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         assertThat(count("users", "origin = 'SIGNUP' and state = 'ACTIVE' and email_verified_at is not null"))
                 .isOne();
         assertThat(count("questionnaire_responses", "active")).isEqualTo(2);
-        assertThat(count("consent_evidence", "accepted")).isEqualTo(2);
+        assertThat(count("consent_evidence", "accepted")).isOne();
         assertThat(count("notification_outbox", "event_type = 'SIGNUP_EMAIL_VERIFICATION'"))
                 .isOne();
         assertThat(count("refresh_tokens", "true")).isZero();
@@ -214,9 +214,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 new SignupFlowService.Evidence(
                         valid.termsEvidence().documentId(), valid.termsEvidence().documentVersion(),
                         valid.termsEvidence().bodySha256(), clientFuture, valid.termsEvidence().path()),
-                new SignupFlowService.Evidence(
-                        valid.privacyEvidence().documentId(), valid.privacyEvidence().documentVersion(),
-                        valid.privacyEvidence().bodySha256(), clientFuture, valid.privacyEvidence().path()));
+                null);
         var before = Instant.now().minusSeconds(1);
 
         service.completeSignup(flow.flowId(), request);
@@ -227,7 +225,7 @@ class SignupInvariantTest extends PostgresIntegrationTest {
                 order by document_code
                 """, java.sql.Timestamp.class, "server-consent-time@example.com");
         var after = Instant.now().plusSeconds(1);
-        assertThat(accepted).hasSize(2).allSatisfy(timestamp -> {
+        assertThat(accepted).hasSize(1).allSatisfy(timestamp -> {
             assertThat(timestamp.toInstant()).isBetween(before, after);
             assertThat(timestamp.toInstant()).isNotEqualTo(clientFuture);
         });
@@ -445,13 +443,10 @@ class SignupInvariantTest extends PostgresIntegrationTest {
         return new SignupFlowService.CompletionRequest(
                 email, password, "ko", "balanced", true,
                 new SignupFlowService.Evidence(
-                        "TERMS", "1",
-                        "c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076",
-                        now, "/legal/terms/1"),
-                new SignupFlowService.Evidence(
-                        "ACCOUNT_RAG_PRIVACY", "1",
-                        "e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a",
-                        now, "/legal/account-rag-privacy/1"));
+                        "TERMS", "2",
+                        "50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef",
+                        now, "/legal/terms/2"),
+                null);
     }
 
     private int count(String table, String predicate) {

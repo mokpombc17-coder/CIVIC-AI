@@ -136,13 +136,13 @@ class MigrationTest {
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getString("document_id")).isEqualTo("ACCOUNT_RAG_PRIVACY");
                     assertThat(rows.getString("body_sha256"))
-                            .isEqualTo("e452368f1c93ba423c16904037a9080b81822974e804afef028457c2265ac78a");
-                    assertThat(rows.getString("path")).isEqualTo("/legal/account-rag-privacy/1");
+                            .isEqualTo("7cdf0bb556745596bd327fab0e891d3224185aff192431d33920b071eae816e3");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/required-service-information/2");
                     assertThat(rows.next()).isTrue();
                     assertThat(rows.getString("document_id")).isEqualTo("TERMS");
                     assertThat(rows.getString("body_sha256"))
-                            .isEqualTo("c6b86097a6d97104129a969f3669e49faa735382ffb2fbd06f93ca993cd2f076");
-                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/1");
+                            .isEqualTo("50dc88e608395e505f81fb14bd1913fb2266447980e5527a87c0fd4d50c9c6ef");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/2");
                     assertThat(rows.next()).isFalse();
                 }
             }

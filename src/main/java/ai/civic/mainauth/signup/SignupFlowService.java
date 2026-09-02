@@ -121,8 +121,8 @@ public class SignupFlowService {
         createSignupVerification(id, normalized);
         return new SignupFlowView(
                 id, expiry, schema.get("version").toString(), documentVersions, documents,
-                List.of("TERMS", "ACCOUNT_RAG_PRIVACY"),
-                Map.of("TERMS", false, "ACCOUNT_RAG_PRIVACY", false));
+                List.of("TERMS"),
+                Map.of("TERMS", false));
     }
 
     @Transactional(readOnly = true)
@@ -215,7 +215,6 @@ public class SignupFlowService {
         insertAnswer(userId, flow.schemaId(), "rag_answer_detail", request.ragAnswerDetail());
         var acceptedAt = clock.instant();
         consent.record(userId, serverAcceptedEvidence(request.termsEvidence(), acceptedAt));
-        consent.record(userId, serverAcceptedEvidence(request.privacyEvidence(), acceptedAt));
         jdbc.update("""
                 insert into account_state_outbox(user_id, account_state_version, state, event_payload)
                 select id, account_state_version, 'ACTIVE',
@@ -396,7 +395,6 @@ public class SignupFlowService {
         requireChoice(definition, "preferred_language", request.preferredLanguage());
         requireChoice(definition, "rag_answer_detail", request.ragAnswerDetail());
         validateEvidence(flow, request.termsEvidence(), "TERMS");
-        validateEvidence(flow, request.privacyEvidence(), "ACCOUNT_RAG_PRIVACY");
     }
 
     private void validateEvidence(FlowRow flow, Evidence evidence, String expectedId) {
@@ -457,8 +455,8 @@ public class SignupFlowService {
         return new SignupFlowView(
                 row.id(), row.expiresAt(), Integer.toString(row.schemaVersion()), row.documentVersions(),
                 documentViews(row.documentVersions()),
-                List.of("TERMS", "ACCOUNT_RAG_PRIVACY"),
-                Map.of("TERMS", false, "ACCOUNT_RAG_PRIVACY", false));
+                List.of("TERMS"),
+                Map.of("TERMS", false));
     }
 
     private Map<String, SignupDocumentView> documentViews(Map<String, String> versions) {
@@ -537,7 +535,7 @@ public class SignupFlowService {
             String ragAnswerDetail,
             @JsonProperty("age_14_confirmed") boolean age14Confirmed,
             Evidence termsEvidence,
-            Evidence privacyEvidence) {}
+            @JsonProperty("privacy_evidence") Evidence legacyPrivacyEvidence) {}
 
     public record SignupFlowView(
             UUID flowId,
