@@ -161,6 +161,7 @@ function SurveyForm({
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
   const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
+  const draftSaveTimeoutRef = useRef<number | null>(null);
   const initialSections = useRef(sections);
   const submitMutation = useSubmitSurveyMutation();
 
@@ -188,9 +189,14 @@ function SurveyForm({
   useEffect(() => {
     if (!draftReady || !draftScope) return;
     const timeout = window.setTimeout(() => {
+      draftSaveTimeoutRef.current = null;
       saveSurveyDraft(sessionStorage, draftScope, { answers, currentStep });
     }, 200);
-    return () => window.clearTimeout(timeout);
+    draftSaveTimeoutRef.current = timeout;
+    return () => {
+      window.clearTimeout(timeout);
+      if (draftSaveTimeoutRef.current === timeout) draftSaveTimeoutRef.current = null;
+    };
   }, [answers, currentStep, draftReady, draftScope]);
 
   useEffect(() => {
@@ -299,6 +305,10 @@ function SurveyForm({
         command: prepared.payload,
         idempotencyKey: prepared.idempotencyKey,
       });
+      if (draftSaveTimeoutRef.current !== null) {
+        window.clearTimeout(draftSaveTimeoutRef.current);
+        draftSaveTimeoutRef.current = null;
+      }
       if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
       router.replace("/home");
     } catch (error) {
