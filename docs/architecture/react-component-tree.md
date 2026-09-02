@@ -46,12 +46,13 @@ PwaStartPage /pwa/start [Server Route, manifest start_url]
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 └── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
-    ├── ParticipantEligibilityGuard [Client, 로그인 사용자만 활성화]
-    │   ├── GET /api/v1/me/service-eligibility [전역 cache 공유]
-    │   └── 필수 미제출: /survey?returnTo=/home hard navigation
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
+            └── ParticipantEligibilityGuard [Client, 로그인 사용자 본문만 제어]
+                ├── GET /api/v1/me/service-eligibility [전역 cache 공유]
+                ├── 확인 중: Shell 유지, 200ms 뒤 indicator 표시·최소 200ms 유지
+                ├── 필수 미제출: /survey?returnTo=/home hard navigation
+                └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
                 ├── PwaInstallTriggerCard [Client, beforeinstallprompt 준비 시 환영 카드 클릭으로 설치 요청]
                 └── ParticipantHomeLayout
 
@@ -64,12 +65,13 @@ ParticipantCatchAllPage [Server Route]
 │   ├── requireParticipantAccess
 │   └── ParticipantShell 또는 AdminShell
 │       ├── ParticipantShell
-│       │   ├── ParticipantEligibilityGuard [Client]
-│       │   │   ├── /survey·인증 경로 제외
-│       │   │   └── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
 │       │   └── PlatformPageShell
 │       │       └── 기존 frontend2 PlatformShell [정확히 1개]
-│       │           └── MainFunctionalScreen
+│       │           └── ParticipantEligibilityGuard [Client, 본문 slot만 제어]
+│       │               ├── /survey·인증 경로 제외
+│       │               ├── 확인 중에도 header·navigation 유지
+│       │               ├── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
+│       │               └── MainFunctionalScreen
 │       │               └── AccountFunctionalScreen [conditional]
 │       │                   ├── AccountHubSurface [/mypage, 로그아웃]
 │       │                   ├── AccountManagementSurface [/mypage/profile, 보안 포함]
@@ -265,6 +267,8 @@ Browser /api/v1/me/service-eligibility | /api/v1/me/surveys/current | /api/v1/me
 생성·이메일 인증·로그인 이후 Vote의 JWT `sub`를 기준으로 3001의 `/survey`에서 진행한다. 로그인
 callback은 역할 홈 또는 검증된 `returnTo`까지만 결정하고, 로그인된 참여자 화면의 공통
 `ParticipantEligibilityGuard`가 `GET /api/v1/me/service-eligibility`를 전역 cache로 조회한다.
+자격 확인 중에는 `ParticipantShell`의 header와 navigation을 유지한 채 본문만 차단하고, 200ms 안에
+응답하면 indicator를 노출하지 않는다. indicator가 표시된 경우에는 최소 200ms 동안 유지한다.
 `eligible=false`이고 `nextAction=COMPLETE_CURRENT_SURVEY`이면 현재 경로를 `returnTo`로 보존해
 `/survey`로 hard navigation한다. 3001은 제출 성공 후 같은 eligibility를 invalidate·재조회하여
 `eligible=true`를 확인한 뒤 `returnTo` 또는 `/home`으로 돌아와야 한다. Vote 조회 장애는 인증 성공

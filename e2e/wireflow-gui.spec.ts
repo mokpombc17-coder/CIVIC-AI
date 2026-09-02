@@ -30,6 +30,7 @@ let mockApiServer: Server;
 let twoFactorEnabled = true;
 let twoFactorEnableRequested = false;
 let twoFactorEnableRequestBodies: Record<string, unknown>[] = [];
+let serviceEligibilityDelayMs = 0;
 let serviceEligibilityRequired = false;
 
 test.beforeAll(async () => {
@@ -83,7 +84,7 @@ test.beforeAll(async () => {
       return json(response, voteSurveyCurrentFixture);
     }
     if (url.pathname === "/api/v1/me/service-eligibility" && request.method === "GET") {
-      return json(response, {
+      const eligibility = {
         activeRoundId: voteSurveyCurrentFixture.round.id,
         capabilities: serviceEligibilityRequired
           ? ["SUBMIT_CURRENT_SURVEY", "VIEW_CURRENT_SURVEY", "VIEW_OWN_SURVEY_RESPONSES"]
@@ -93,7 +94,12 @@ test.beforeAll(async () => {
         nextAction: serviceEligibilityRequired ? "COMPLETE_CURRENT_SURVEY" : null,
         reason: serviceEligibilityRequired ? "CURRENT_SURVEY_RESPONSE_REQUIRED" : null,
         surveyRequirement: serviceEligibilityRequired ? "REQUIRED" : "SATISFIED",
-      });
+      };
+      if (serviceEligibilityDelayMs > 0) {
+        setTimeout(() => json(response, eligibility), serviceEligibilityDelayMs);
+        return;
+      }
+      return json(response, eligibility);
     }
     if (url.pathname === "/api/v1/me/survey-responses/latest" && request.method === "GET") {
       return json(response, voteSurveyLatestFixture);
@@ -272,6 +278,7 @@ test.beforeEach(() => {
   twoFactorEnabled = true;
   twoFactorEnableRequested = false;
   twoFactorEnableRequestBodies = [];
+  serviceEligibilityDelayMs = 0;
   serviceEligibilityRequired = false;
 });
 
@@ -659,6 +666,57 @@ test("필수 설문 미제출 참여자는 공통 Guard가 원래 목적지를 �
   await page.goto("/home?source=eligibility-guard");
 
   await expect(page).toHaveURL(/\/survey\?returnTo=%2Fhome%3Fsource%3Deligibility-guard$/u);
+});
+
+test("자격 확인이 늦으면 Platform Shell을 유지하고 지연 indicator를 안정적으로 표시한다", async ({
+  context,
+  page,
+}) => {
+  serviceEligibilityDelayMs = 250;
+  await authenticate(context, "participant.payload.signature");
+  await page.addInitScript(() => {
+    const state = window as typeof window & {
+      __eligibilityLoadingTimings?: { hiddenAt?: number; shownAt?: number };
+    };
+    state.__eligibilityLoadingTimings = {};
+    const observer = new MutationObserver(() => {
+      const timings = state.__eligibilityLoadingTimings;
+      if (!timings) return;
+      const indicator = document.querySelector('[data-eligibility-loading-indicator="true"]');
+      if (indicator && timings.shownAt === undefined) timings.shownAt = performance.now();
+      if (!indicator && timings.shownAt !== undefined && timings.hiddenAt === undefined) {
+        timings.hiddenAt = performance.now();
+      }
+    });
+    observer.observe(document, { childList: true, subtree: true });
+  });
+
+  await page.goto("/home?source=eligibility-loading", { waitUntil: "domcontentloaded" });
+
+  const shells = page.locator('[data-platform-shell="true"]');
+  const shell = shells.last();
+  const navigation = page.getByRole("navigation", { name: "참여자 주요 메뉴" }).last();
+  const indicator = page.locator('[data-eligibility-loading-indicator="true"]');
+  await expect(shell).toBeVisible();
+  await expect(navigation).toBeVisible();
+  await expect(page.locator('[data-wireflow-layout="participant-home"]')).toHaveCount(0);
+  await expect(indicator).toHaveCount(0);
+  await expect(indicator).toBeVisible();
+  await expect(page.getByText("이용 자격 확인 중…", { exact: true })).toBeVisible();
+  await expect(indicator).toHaveCount(0);
+  await expect(
+    page.locator('[data-wireflow-layout="participant-home"] .wf-action-card'),
+  ).toHaveCount(3);
+  await expect(shells).toHaveCount(1);
+
+  const timings = await page.evaluate(() => {
+    const state = window as typeof window & {
+      __eligibilityLoadingTimings?: { hiddenAt?: number; shownAt?: number };
+    };
+    return state.__eligibilityLoadingTimings;
+  });
+  expect(timings?.shownAt).toBeGreaterThanOrEqual(200);
+  expect((timings?.hiddenAt ?? 0) - (timings?.shownAt ?? 0)).toBeGreaterThanOrEqual(180);
 });
 
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {

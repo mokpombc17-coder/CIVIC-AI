@@ -32,7 +32,13 @@ export function ParticipantShell({
     : section.backDisabled
       ? { ariaLabel: "이전 화면으로 돌아가기", disabled: true as const }
       : undefined;
-  const shell = (
+  const content = enforceServiceEligibility ? (
+    <ParticipantEligibilityGuard activeRoute={activeRoute}>{children}</ParticipantEligibilityGuard>
+  ) : (
+    children
+  );
+
+  return (
     <PlatformPageShell
       {...(backAction ? { backAction } : {})}
       bottomNavigation={
@@ -53,14 +59,9 @@ export function ParticipantShell({
         data-participant-surface="true"
         id="civic-content"
       >
-        {children}
+        {content}
       </div>
     </PlatformPageShell>
-  );
-  return enforceServiceEligibility ? (
-    <ParticipantEligibilityGuard activeRoute={activeRoute}>{shell}</ParticipantEligibilityGuard>
-  ) : (
-    shell
   );
 }
 
