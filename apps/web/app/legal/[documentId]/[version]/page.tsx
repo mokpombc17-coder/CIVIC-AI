@@ -27,7 +27,6 @@ export default async function LegalDocumentPage({ params }: LegalDocumentPagePro
         data-document-version={document.version}
       >
         <header>
-          <p>고정 문서 · 버전 {document.version}</p>
           <p>시행일 {document.effectiveDate}</p>
         </header>
         <p className="civic-legal-notice">

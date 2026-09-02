@@ -999,7 +999,7 @@ export function evidence(document: SignupDocument, checkedAt: string) {
   };
 }
 
-function LegalDocumentLink({
+export function LegalDocumentLink({
   document,
   hint,
   label,
@@ -1015,8 +1015,7 @@ function LegalDocumentLink({
         target="_blank"
       >
         전문 보기
-      </a>{" "}
-      <span>버전 {document.document_version}</span>
+      </a>
     </p>
   );
 }

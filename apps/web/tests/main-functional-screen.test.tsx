@@ -56,6 +56,7 @@ import {
   evidence,
   isDeactivatedAccountError,
   isPasswordResetEmail,
+  LegalDocumentLink,
   LoginDeactivatedNotice,
   passwordResetCodeFromSearch,
   safeReturnTarget,
@@ -1067,6 +1068,24 @@ describe("25 functional Main/Auth screens", () => {
     );
     expect(consentHtml).toContain("개인정보 수집·이용에 동의합니다");
     expect(consentHtml).not.toContain("계정·RAG");
+  });
+
+  it("가입 문서 링크에는 내부 문서 버전을 노출하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(LegalDocumentLink, {
+        document: {
+          document_id: "TERMS",
+          document_version: "3",
+          body_sha256: "synthetic-sha256",
+          path: "/legal/terms/3",
+        },
+        label: "이용약관",
+      }),
+    );
+
+    expect(html).toContain("전문 보기");
+    expect(html).toContain('href="/legal/terms/3"');
+    expect(html).not.toContain("버전 3");
   });
 
   it("frontend2 Platform Shell 참여자 메뉴와 실제 UI 관리자 메뉴를 유지한다", () => {
