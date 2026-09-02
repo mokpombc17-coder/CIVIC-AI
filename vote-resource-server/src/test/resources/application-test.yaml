@@ -16,6 +16,8 @@ vote:
       submission-simulation-enabled: false
     lifecycle:
       enabled: false
+    preparation:
+      enabled: false
     prediction:
       enabled: false
   survey:

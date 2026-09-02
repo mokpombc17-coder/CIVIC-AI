@@ -132,8 +132,15 @@ final class TaskApiExceptionHandler {
     }
 
     private static HttpStatus domainStatus(String code) {
-        if (code.equals("TASK_PREDICTION_DISABLED")) {
+        if (code.equals("TASK_PREDICTION_DISABLED")
+                || code.equals("TASK_PREPARATION_UNAVAILABLE")) {
             return HttpStatus.SERVICE_UNAVAILABLE;
+        }
+        if (code.equals("TASK_PREPARATION_IN_PROGRESS")) {
+            return HttpStatus.CONFLICT;
+        }
+        if (code.equals("TASK_PREPARATION_REJECTED")) {
+            return HttpStatus.UNPROCESSABLE_ENTITY;
         }
         if (code.endsWith("_NOT_FOUND")) {
             return HttpStatus.NOT_FOUND;

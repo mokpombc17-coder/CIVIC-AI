@@ -21,8 +21,8 @@ Runtime에 전달되는 `personaId`는 Persona 생성 API가 발급한 외부 �
 Resource Server의 내부 `userId`, `personaGenerationId`, 이메일, JWT는 전달하지
 않는다.
 
-이 문서의 신규 구현 대상은 `schemaVersion: 2`다. Resource Server 내부에는 이미
-저장된 요청을 위한 v1 해석 호환성이 남아 있지만, 신규 Runtime 구현은 v2를
+이 문서의 신규 구현 대상은 `schemaVersion: 3`다. Resource Server 내부에는 이미
+저장된 요청을 위한 v1·v2 해석 호환성이 남아 있지만, 신규 Runtime 구현은 v3를
 기준으로 한다.
 
 ## 2. Endpoint와 인증
@@ -45,10 +45,11 @@ Authorization: Bearer {service-token}
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "requestId": "511f4f55-4a42-4de4-841e-c211dde8fd1f",
   "personaId": "persona-7f49a8f2",
   "candidatePolicyVersion": "candidate-policy-v1",
+  "contentFingerprint": "sha256:4fcb7f3f42b0a2794f0126925fe043c7377046775583684755d6b5a0d78f8ea1",
   "minimumReasonsPerOption": 2,
   "maximumReasonsPerOption": 5,
   "task": {
@@ -99,15 +100,18 @@ Authorization: Bearer {service-token}
 
 | 필드 | 타입 | 필수 | 계약 |
 |---|---|---:|---|
-| `schemaVersion` | integer | O | 신규 요청은 `2` |
+| `schemaVersion` | integer | O | 신규 요청은 `3` |
 | `requestId` | UUID | O | Resource Server의 `predictionId`와 동일한 멱등성 키 |
 | `personaId` | string | O | Persona Runtime이 발급한 외부 Persona 식별자 |
 | `candidatePolicyVersion` | string | O | 예상 이유 생성 정책 버전 |
+| `contentFingerprint` | string | O | 성공한 Task Preparation의 콘텐츠 fingerprint |
 | `minimumReasonsPerOption` | integer | O | 현재 `2` |
 | `maximumReasonsPerOption` | integer | O | 현재 `5` |
 | `task` | object | O | 생성 시점의 불변 Task 콘텐츠 스냅샷 |
 
 `requestId`는 같은 논리 Prediction의 모든 재시도에서 변경하지 않는다.
+Runtime은 `taskId + contentFingerprint`가 최신 `READY` Preparation과 일치하는지
+검증한다. 일치하지 않으면 Prediction을 생성하지 않는다.
 
 ### 3.3 `task` 필드
 
@@ -168,7 +172,7 @@ AI Runtime은 선택지 내용을 자체 값으로 치환하거나 새로운 선
 
 ```json
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "requestId": "511f4f55-4a42-4de4-841e-c211dde8fd1f",
   "taskId": "82fa8a7a-9e76-4738-a3a8-e4c1c9b9369c",
   "candidates": [
@@ -343,7 +347,9 @@ Runtime은 `requestId`와 함께 원본 요청의 canonical hash 또는 동등�
 | `403 Forbidden` | `FORBIDDEN` | 영구 실패, 권한 설정 점검 |
 | `408 Request Timeout` | `TIMEOUT` | 동일 요청 재시도 |
 | `409 Conflict` | `IDEMPOTENCY_CONFLICT` | 영구 실패 |
+| `409 Conflict` | `TASK_CONTENT_MISMATCH` | 최신 준비 콘텐츠와 다르므로 영구 실패 |
 | `422 Unprocessable Entity` | `PREDICTION_INPUT_UNSUPPORTED` | 영구 실패 |
+| `422 Unprocessable Entity` | `TASK_NOT_PREPARED` | Task Preparation 완료 전이므로 영구 실패 |
 | `429 Too Many Requests` | `RATE_LIMITED` | 동일 요청 재시도 |
 | `500 Internal Server Error` | `INTERNAL_ERROR` | 동일 요청 재시도 |
 | `503 Service Unavailable` | `SERVICE_UNAVAILABLE` | 동일 요청 재시도 |
@@ -389,11 +395,12 @@ TaskPrediction 요청에는 다음 정보가 포함된다.
 AI Runtime 구현자는 다음 항목을 확인한다.
 
 - [ ] `POST /v1/task-predictions`를 구현한다.
-- [ ] `schemaVersion: 2` 요청을 지원한다.
+- [ ] `schemaVersion: 3` 요청을 지원한다.
 - [ ] `requestId` 기반 멱등성을 구현한다.
 - [ ] 같은 `requestId`와 동일 payload에는 동일 결과를 반환한다.
 - [ ] 같은 `requestId`와 다른 payload에는 `409 IDEMPOTENCY_CONFLICT`를 반환한다.
 - [ ] Persona 생성 API에서 발급한 `personaId`로 Persona를 조회한다.
+- [ ] `taskId + contentFingerprint`가 최신 `READY` Preparation과 일치하는지 검증한다.
 - [ ] Task 제목·배경, 질문·질문 배경과 모든 선택지를 모델 입력에 포함한다.
 - [ ] 요청에 포함되지 않은 선택지를 생성하지 않는다.
 - [ ] 모든 선택지에 최소 2개, 최대 5개의 예상 이유를 생성한다.

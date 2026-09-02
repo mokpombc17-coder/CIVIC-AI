@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapsho
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputException;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.infra.preparation.TaskPreparationJsonPayloadFactory;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
 
@@ -16,9 +17,11 @@ public class TaskPredictionInputSnapshotFactoryAdapter
         implements TaskPredictionInputSnapshotFactory {
 
     private final ObjectMapper objectMapper;
+    private final TaskPreparationJsonPayloadFactory taskPayloads;
 
     public TaskPredictionInputSnapshotFactoryAdapter(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
+        this.taskPayloads = new TaskPreparationJsonPayloadFactory(objectMapper);
     }
 
     @Override
@@ -33,7 +36,8 @@ public class TaskPredictionInputSnapshotFactoryAdapter
             String payload = objectMapper.writeValueAsString(
                     TaskPredictionHttpModels.PredictionRequest.from(
                             prediction.id(), prediction.personaId(),
-                            prediction.candidatePolicyVersion(), task));
+                            prediction.candidatePolicyVersion(), task,
+                            taskPayloads.fingerprint(task)));
             return TaskPredictionInputSnapshot.create(
                     prediction.id(), task.id(), prediction.userId(),
                     prediction.personaGenerationId(),

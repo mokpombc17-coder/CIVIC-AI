@@ -34,7 +34,7 @@ import java.util.UUID;
 
 final class TaskPredictionHttpModels {
 
-    static final int SCHEMA_VERSION = 2;
+    static final int SCHEMA_VERSION = 3;
 
     private TaskPredictionHttpModels() {
     }
@@ -44,16 +44,21 @@ final class TaskPredictionHttpModels {
             UUID requestId,
             String personaId,
             String candidatePolicyVersion,
+            String contentFingerprint,
             int minimumReasonsPerOption,
             int maximumReasonsPerOption,
             TaskPayload task
     ) {
-        static PredictionRequest from(PredictionCreationCommand command) {
+        static PredictionRequest from(
+                PredictionCreationCommand command,
+                String contentFingerprint
+        ) {
             return new PredictionRequest(
                     command.requestSchemaVersion(),
                     command.requestId().value(),
                     command.personaId().value(),
                     command.candidatePolicyVersion(),
+                    contentFingerprint,
                     TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION,
                     TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION,
                     TaskPayload.from(command.task()));
@@ -63,13 +68,15 @@ final class TaskPredictionHttpModels {
                 TaskPredictionId predictionId,
                 TaskPersonaId personaId,
                 String candidatePolicyVersion,
-                Task task
+                Task task,
+                String contentFingerprint
         ) {
             return new PredictionRequest(
                     SCHEMA_VERSION,
                     predictionId.value(),
                     personaId.value(),
                     candidatePolicyVersion,
+                    contentFingerprint,
                     TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION,
                     TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION,
                     TaskPayload.from(task));

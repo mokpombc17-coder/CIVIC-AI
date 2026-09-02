@@ -92,10 +92,11 @@ class TaskPredictionHttpCreationAdapterTest {
         assertThat(authorization.get()).isEqualTo("Bearer test-ai-token");
         assertThat(requestBody.get())
                 .contains(
-                        "\"schemaVersion\":2",
+                        "\"schemaVersion\":3",
                         "\"requestId\":\"" + REQUEST_ID + "\"",
                         "\"personaId\":\"persona-a\"",
                         "\"candidatePolicyVersion\":\"policy-v1\"",
+                        "\"contentFingerprint\":\"sha256:test-fingerprint\"",
                         "\"minimumReasonsPerOption\":2",
                         "\"maximumReasonsPerOption\":5",
                         "\"taskId\":\"" + TASK_ID + "\"",
@@ -222,7 +223,7 @@ class TaskPredictionHttpCreationAdapterTest {
                 respond(exchange, 200, successBody(
                         REQUEST_ID, TASK_ID,
                         new UUID(4, 1), new UUID(4, 2))
-                        .replace("\"schemaVersion\": 2",
+                        .replace("\"schemaVersion\": 3",
                                 "\"schemaVersion\": 1")));
 
         assertFailure(
@@ -284,7 +285,8 @@ class TaskPredictionHttpCreationAdapterTest {
         try {
             String payload = new ObjectMapper().writeValueAsString(
                     TaskPredictionHttpModels.PredictionRequest.from(
-                            predictionId, personaId, "policy-v1", task));
+                            predictionId, personaId, "policy-v1", task,
+                            "sha256:test-fingerprint"));
             if (requestSchemaVersion
                     != TaskPredictionHttpModels.SCHEMA_VERSION) {
                 payload = payload.replace(
@@ -333,7 +335,7 @@ class TaskPredictionHttpCreationAdapterTest {
     ) {
         return """
                 {
-                  "schemaVersion": 2,
+                  "schemaVersion": 3,
                   "requestId": "%s",
                   "taskId": "%s",
                   "candidates": [

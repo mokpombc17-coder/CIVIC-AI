@@ -202,7 +202,7 @@ public class TaskPredictionHttpCreationAdapter
                             TaskPredictionHttpModels
                                     .PredictionResponse.class);
             var candidates = switch (command.requestSchemaVersion()) {
-                case 1, TaskPredictionHttpModels.SCHEMA_VERSION ->
+                case 1, 2, TaskPredictionHttpModels.SCHEMA_VERSION ->
                         response.toDomain(command);
                 default -> throw unsupportedSchemaVersion(command);
             };
@@ -230,7 +230,7 @@ public class TaskPredictionHttpCreationAdapter
             PredictionCreationCommand command
     ) {
         switch (command.requestSchemaVersion()) {
-            case 1, TaskPredictionHttpModels.SCHEMA_VERSION -> {
+            case 1, 2, TaskPredictionHttpModels.SCHEMA_VERSION -> {
                 return;
             }
             default -> throw unsupportedSchemaVersion(command);

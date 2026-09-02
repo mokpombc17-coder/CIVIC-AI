@@ -9,5 +9,16 @@ civic:
     allow-insecure-loopback: false
 
 vote:
+  task:
+    preparation:
+      enabled: ${VOTE_TASK_PREPARATION_ENABLED:false}
+      provider: ${VOTE_TASK_PREPARATION_PROVIDER:http}
+      base-url: ${VOTE_TASK_PREPARATION_BASE_URL:}
+      path: ${VOTE_TASK_PREPARATION_PATH:/v1/tasks/prepare}
+      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:}
+      connect-timeout: ${VOTE_TASK_PREPARATION_CONNECT_TIMEOUT:5s}
+      request-timeout: ${VOTE_TASK_PREPARATION_REQUEST_TIMEOUT:30s}
+      retry-delay: ${VOTE_TASK_PREPARATION_RETRY_DELAY:30s}
+      processing-lease-duration: ${VOTE_TASK_PREPARATION_PROCESSING_LEASE_DURATION:60s}
   security:
     local-admin-api-enabled: ${VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED:false}

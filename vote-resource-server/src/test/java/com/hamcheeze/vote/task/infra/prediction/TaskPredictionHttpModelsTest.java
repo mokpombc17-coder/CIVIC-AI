@@ -32,9 +32,11 @@ class TaskPredictionHttpModelsTest {
     @Test
     void requestContainsOneSingleChoiceQuestionAndStandardOptions() {
         var request = TaskPredictionHttpModels.PredictionRequest.from(
-                command());
+                command(), "sha256:test-fingerprint");
 
         assertThat(request.schemaVersion()).isEqualTo(1);
+        assertThat(request.contentFingerprint())
+                .isEqualTo("sha256:test-fingerprint");
         assertThat(request.task().questions())
                 .extracting(TaskPredictionHttpModels.QuestionPayload::type)
                 .containsExactly("SINGLE_CHOICE");

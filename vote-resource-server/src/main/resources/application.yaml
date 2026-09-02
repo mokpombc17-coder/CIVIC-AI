@@ -51,6 +51,15 @@ vote:
       enabled: false
       scheduler-delay: 1s
       batch-size: 100
+    preparation:
+      enabled: false
+      provider: http
+      base-url: http://localhost:8090
+      path: /v1/tasks/prepare
+      connect-timeout: 5s
+      request-timeout: 30s
+      retry-delay: 30s
+      processing-lease-duration: 60s
     prediction:
       enabled: false
       provider: http
