@@ -14,6 +14,7 @@ vi.mock("@/lib/vote/vote-queries", () => ({
   flattenCompletedTaskPages: () => [],
   useCompletedTasksQuery: useCompletedTasksQueryMock,
   useOpenTasksQuery: useOpenTasksQueryMock,
+  voteCompletedApiAvailable: false,
 }));
 
 describe("VoteTaskListScreen", () => {

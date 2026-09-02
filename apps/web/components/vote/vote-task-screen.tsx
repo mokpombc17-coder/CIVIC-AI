@@ -166,7 +166,6 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
           : { kind: "USER_WRITTEN", reason: trimmedDirectReason };
       const command = createTaskSubmissionCommand({
         view: predictionView,
-        questionId: taskDetail.task.question.id,
         selectedOptionId,
         selection,
       });
@@ -189,20 +188,30 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         clearPendingTaskSubmission(taskId);
         setRecoverableSubmission(null);
         if (error.code === "TASK_ALREADY_SUBMITTED") {
-          void queryClient.invalidateQueries({ queryKey: voteQueryKeys.tasks() });
-          setStep(4);
+          setStep(1);
+          void Promise.all([
+            taskSubmissionQuery.refetch(),
+            queryClient.invalidateQueries({ queryKey: voteQueryKeys.openTasks() }),
+            queryClient.invalidateQueries({ queryKey: voteQueryKeys.detail(taskId) }),
+            queryClient.invalidateQueries({ queryKey: voteQueryKeys.submissionByTask(taskId) }),
+          ]);
           return;
+        }
+        if (error.code === "TASK_SUBMISSION_OPTION_MISMATCH") {
+          setSelectedOptionId(null);
+          setReasonChoice(null);
+          setDirectReason("");
+          setStep(1);
+          void taskQuery.refetch();
         }
         if (
           error.code === "TASK_CURRENT_PERSONA_NOT_READY" ||
-          error.code === "TASK_SUBMISSION_PERSONA_MISMATCH" ||
           error.code === "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE" ||
-          error.code === "TASK_SUBMISSION_PREDICTION_REQUIRED" ||
-          error.code === "TASK_SUBMISSION_PREDICTION_MISMATCH" ||
           error.code === "TASK_SUBMISSION_PREDICTION_UNAVAILABLE" ||
-          error.code === "TASK_PREDICTED_REASON_NOT_FOUND" ||
-          error.code === "TASK_SUBMISSION_REASON_OPTION_MISMATCH"
+          error.code === "TASK_SUBMISSION_REASON_OPTION_MISMATCH" ||
+          error.code === "TASK_PREDICTION_DISABLED"
         ) {
+          if (reasonChoice?.kind === "AI_ACCEPTED") setReasonChoice(null);
           void predictionQuery.refetch();
         }
       } else {
@@ -437,15 +446,17 @@ function getTaskSubmissionErrorMessage(error: unknown): string {
       return "과업 참여 준비가 진행 중입니다. 잠시 후 다시 시도해 주세요.";
     }
     if (
-      error.code === "TASK_SUBMISSION_PERSONA_MISMATCH" ||
       error.code === "TASK_SUBMISSION_AI_ACCEPTANCE_NOT_AVAILABLE" ||
-      error.code === "TASK_SUBMISSION_PREDICTION_REQUIRED" ||
-      error.code === "TASK_SUBMISSION_PREDICTION_MISMATCH" ||
       error.code === "TASK_SUBMISSION_PREDICTION_UNAVAILABLE" ||
-      error.code === "TASK_PREDICTED_REASON_NOT_FOUND" ||
       error.code === "TASK_SUBMISSION_REASON_OPTION_MISMATCH"
     ) {
       return "과업 참여 정보가 변경되었습니다. 준비가 완료된 뒤 다시 제출해 주세요.";
+    }
+    if (error.code === "TASK_PREDICTION_DISABLED") {
+      return "AI 예상 이유를 사용할 수 없습니다. 직접 작성 가능 여부를 다시 확인해 주세요.";
+    }
+    if (error.code === "TASK_SUBMISSION_OPTION_MISMATCH") {
+      return "선택지가 변경되었습니다. 과업 내용을 다시 확인해 주세요.";
     }
     if (
       error.code === "TASK_SUBMISSION_TASK_CLOSED" ||
@@ -459,6 +470,9 @@ function getTaskSubmissionErrorMessage(error: unknown): string {
     }
     if (error.code === "TASK_SUBMISSION_REASON_TOO_LONG") {
       return "응답 이유는 500자 이하로 입력해 주세요.";
+    }
+    if (error.code === "TASK_SUBMISSION_VALIDATION_FAILED") {
+      return "선택한 응답과 이유를 다시 확인해 주세요.";
     }
     if (error.code === "IDEMPOTENCY_CONFLICT") {
       return "제출 내용을 다시 확인한 뒤 재시도해 주세요.";
@@ -605,7 +619,7 @@ function PendingSubmissionRecovery({
   if (pending.command.reasonSource === "USER_WRITTEN") {
     reason = pending.command.reason;
   } else {
-    const acceptedReasonId = pending.command.acceptedPredictedReasonId;
+    const acceptedReasonId = pending.command.predictedReasonId;
     reason =
       predictionView?.predictedReasons.find((item) => item.id === acceptedReasonId)?.reason ??
       "AI 예상 이유를 선택한 응답입니다.";

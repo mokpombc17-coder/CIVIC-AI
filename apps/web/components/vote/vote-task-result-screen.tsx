@@ -6,7 +6,7 @@ import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 import { calculateVotePercentage, type MyTaskResult } from "@/lib/vote/vote-completed-contracts";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingResult } from "@/lib/vote/vote-publishing-fixtures";
-import { useTaskResultQuery } from "@/lib/vote/vote-queries";
+import { useTaskResultQuery, voteCompletedApiAvailable } from "@/lib/vote/vote-queries";
 import styles from "./vote.module.css";
 
 type VoteResultSource = "api" | "mock";
@@ -43,14 +43,19 @@ function ApiVoteTaskResult({ taskId }: { taskId: string }) {
 
   return (
     <VoteTaskResultShell taskId={taskId}>
-      {resultQuery.isPending ? <ResultFeedback message="투표 결과를 불러오는 중입니다." /> : null}
-      {resultQuery.isError ? (
+      {!voteCompletedApiAvailable ? (
+        <ResultFeedback message="투표 결과 기능은 아직 준비 중입니다." />
+      ) : null}
+      {voteCompletedApiAvailable && resultQuery.isPending ? (
+        <ResultFeedback message="투표 결과를 불러오는 중입니다." />
+      ) : null}
+      {voteCompletedApiAvailable && resultQuery.isError ? (
         <ResultFeedback
           message={getTaskResultErrorMessage(resultQuery.error)}
           onRetry={() => void resultQuery.refetch()}
         />
       ) : null}
-      {resultQuery.data ? (
+      {voteCompletedApiAvailable && resultQuery.data ? (
         <VoteTaskResultContent result={presentApiResult(resultQuery.data)} />
       ) : null}
     </VoteTaskResultShell>

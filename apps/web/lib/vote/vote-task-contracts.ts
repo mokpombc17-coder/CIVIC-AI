@@ -97,7 +97,6 @@ export const taskPredictionViewSchema = z.object({
   taskId: uuidSchema,
   state: predictionViewStateSchema,
   personaGenerationId: uuidSchema.nullable(),
-  personaVersionId: uuidSchema.nullable(),
   personaId: uuidSchema.nullable(),
   predictionId: uuidSchema.nullable(),
   predictionStatus: predictionStatusSchema.nullable(),
@@ -122,7 +121,6 @@ export const ensurePredictionResponseSchema = z.object({
   taskId: uuidSchema,
   predictionId: uuidSchema,
   personaGenerationId: uuidSchema,
-  personaVersionId: uuidSchema,
   personaId: uuidSchema,
   status: predictionStatusSchema,
   created: z.boolean(),
@@ -136,23 +134,15 @@ export const ensurePredictionResponseSchema = z.object({
 });
 
 const submissionSelectionSchema = z.object({
-  questionId: uuidSchema,
   selectedOptionId: uuidSchema,
 });
 
 export const aiAcceptedTaskSubmissionSchema = submissionSelectionSchema.extend({
-  personaGenerationId: uuidSchema,
-  personaVersionId: uuidSchema,
-  predictionId: uuidSchema,
   reasonSource: z.literal("AI_ACCEPTED"),
-  acceptedPredictedReasonId: uuidSchema,
-  reason: z.null().optional(),
+  predictedReasonId: uuidSchema,
 });
 
 export const userWrittenTaskSubmissionSchema = submissionSelectionSchema.extend({
-  personaGenerationId: uuidSchema,
-  personaVersionId: uuidSchema,
-  predictionId: uuidSchema,
   reasonSource: z.literal("USER_WRITTEN"),
   reason: z
     .string()
@@ -178,9 +168,8 @@ export const myTaskSubmissionSchema = z.object({
   submissionId: uuidSchema,
   taskId: uuidSchema,
   taskTitle: z.string(),
-  taskDescription: z.string().nullable(),
+  taskDescription: z.string(),
   personaGenerationId: uuidSchema,
-  personaVersionId: uuidSchema,
   predictionId: uuidSchema.nullable(),
   submittedAt: timestampSchema,
   questionId: uuidSchema,

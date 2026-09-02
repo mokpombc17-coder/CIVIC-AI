@@ -25,10 +25,6 @@ describe("VoteTaskApi", () => {
       api.submitTask(
         TASK_ID,
         {
-          personaGenerationId: "a64feaf8-fcb8-4780-8977-01c9094821ca",
-          personaVersionId: "ec85b168-a766-46a6-a64a-60ed76c66dfa",
-          predictionId: "7ae32cd0-68d8-458c-afbd-d8c657697479",
-          questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
           selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
           reasonSource: "USER_WRITTEN",
           reason: "  직접 작성  ",
@@ -40,10 +36,6 @@ describe("VoteTaskApi", () => {
     expect(calls[0]?.path).toBe(`/me/tasks/${TASK_ID}/submission`);
     expect(new Headers(calls[0]?.init?.headers).get("Idempotency-Key")).toBe(key);
     expect(JSON.parse(String(calls[0]?.init?.body))).toEqual({
-      personaGenerationId: "a64feaf8-fcb8-4780-8977-01c9094821ca",
-      personaVersionId: "ec85b168-a766-46a6-a64a-60ed76c66dfa",
-      predictionId: "7ae32cd0-68d8-458c-afbd-d8c657697479",
-      questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
       selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
       reasonSource: "USER_WRITTEN",
       reason: "직접 작성",
@@ -58,5 +50,43 @@ describe("VoteTaskApi", () => {
     };
     await expect(createVoteTaskApi(request).getOpenTask("not-a-uuid")).rejects.toThrow();
     expect(called).toBe(false);
+  });
+
+  it("personaVersionId가 없는 현재 내 제출 응답 계약을 파싱한다", async () => {
+    const request: VoteFetch = async <TResponse>() =>
+      ({
+        submissionId: SUBMISSION_ID,
+        taskId: TASK_ID,
+        taskTitle: "우리 동네 생활 개선 과업",
+        taskDescription: "단일 선택 투표입니다.",
+        personaGenerationId: "469da61a-7d39-46dc-a17b-6c045880d161",
+        predictionId: null,
+        submittedAt: "2026-09-01T07:41:58.870110Z",
+        questionId: "13010000-0000-0000-0000-000000000001",
+        question: {
+          id: "13010000-0000-0000-0000-000000000001",
+          content: "가장 먼저 개선할 분야는 무엇인가요?",
+          description: null,
+          options: [
+            {
+              id: "13020001-0000-0000-0000-000000000001",
+              displayOrder: 1,
+              content: "교통",
+            },
+          ],
+        },
+        selectedOptionId: "13020001-0000-0000-0000-000000000001",
+        reasonSource: "USER_WRITTEN",
+        acceptedPredictedReasonId: null,
+        finalReason: "교통 불편을 먼저 개선하고 싶습니다.",
+      }) as TResponse;
+
+    await expect(
+      createVoteTaskApi(request).getTaskSubmission(SUBMISSION_ID),
+    ).resolves.toMatchObject({
+      submissionId: SUBMISSION_ID,
+      predictionId: null,
+      reasonSource: "USER_WRITTEN",
+    });
   });
 });

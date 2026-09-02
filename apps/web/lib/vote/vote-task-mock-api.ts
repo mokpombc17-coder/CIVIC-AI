@@ -26,7 +26,6 @@ const QUESTION_ID = "05ecfe73-6bee-4e98-8d3d-ed49262958ef";
 const OPTION_A = "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db";
 const OPTION_B = "8de15db2-4093-4386-82a7-c1668f109c2f";
 const PERSONA_GENERATION_ID = "6f219f29-8598-49f0-9b28-cb7be5720258";
-const PERSONA_VERSION_ID = "a64feaf8-fcb8-4780-8977-01c9094821ca";
 const PERSONA_ID = "aa9c3613-f0ed-4565-8917-f8d7fb8c51c9";
 const PREDICTION_ID = "ec85b168-a766-46a6-a64a-60ed76c66dfa";
 const REASON_A = "7ae32cd0-68d8-458c-afbd-d8c657697479";
@@ -64,7 +63,6 @@ const predictionFixture = taskPredictionViewSchema.parse({
   taskId: TASK_ID,
   state: "SUCCEEDED",
   personaGenerationId: PERSONA_GENERATION_ID,
-  personaVersionId: PERSONA_VERSION_ID,
   personaId: PERSONA_ID,
   predictionId: PREDICTION_ID,
   predictionStatus: "SUCCEEDED",
@@ -159,7 +157,6 @@ export function createMockVoteTaskApi(delayMs = 80): VoteTaskApi {
         taskId: TASK_ID,
         predictionId: PREDICTION_ID,
         personaGenerationId: PERSONA_GENERATION_ID,
-        personaVersionId: PERSONA_VERSION_ID,
         personaId: PERSONA_ID,
         status: "SUCCEEDED",
         created: false,
@@ -180,27 +177,28 @@ export function createMockVoteTaskApi(delayMs = 80): VoteTaskApi {
       );
       const predicted = predictionFixture.predictedReasons.find(
         (reason) =>
-          reason.id ===
-          (command.reasonSource === "AI_ACCEPTED" ? command.acceptedPredictedReasonId : null),
+          reason.id === (command.reasonSource === "AI_ACCEPTED" ? command.predictedReasonId : null),
       );
+      if (!selected) throw new Error("TASK_SUBMISSION_VALIDATION_FAILED");
+      if (command.reasonSource === "AI_ACCEPTED" && !predicted) {
+        throw new Error("TASK_PREDICTED_REASON_NOT_FOUND");
+      }
       submission = myTaskSubmissionSchema.parse({
         submissionId: SUBMISSION_ID,
         taskId: TASK_ID,
         taskTitle: detailFixture.task.title,
         taskDescription: detailFixture.task.description,
-        personaGenerationId: command.personaGenerationId,
-        personaVersionId: command.personaVersionId,
-        predictionId: command.predictionId,
+        personaGenerationId: PERSONA_GENERATION_ID,
+        predictionId: PREDICTION_ID,
         submittedAt: "2026-08-27T04:00:00Z",
         questionId: QUESTION_ID,
         question: detailFixture.task.question,
         selectedOptionId: command.selectedOptionId,
         reasonSource: command.reasonSource,
         acceptedPredictedReasonId:
-          command.reasonSource === "AI_ACCEPTED" ? command.acceptedPredictedReasonId : null,
+          command.reasonSource === "AI_ACCEPTED" ? command.predictedReasonId : null,
         finalReason: command.reasonSource === "AI_ACCEPTED" ? predicted?.reason : command.reason,
       });
-      if (!selected) throw new Error("TASK_SUBMISSION_VALIDATION_FAILED");
       return taskSubmissionResponseSchema.parse({
         code: "TASK_SUBMISSION_CREATED",
         replayed: false,

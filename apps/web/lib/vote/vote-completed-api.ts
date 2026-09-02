@@ -21,7 +21,11 @@ export type VoteCompletedApi = Readonly<{
   getTaskResult(taskId: string, signal?: AbortSignal): Promise<MyTaskResult>;
 }>;
 
-export type VoteCompletedApiMode = "mock" | "ready";
+export type VoteCompletedApiMode = "unavailable" | "mock" | "ready";
+
+export class VoteCompletedApiUnavailableError extends Error {
+  override readonly name = "VoteCompletedApiUnavailableError";
+}
 
 export function createReadyVoteCompletedApi(request: VoteFetch = voteFetch): VoteCompletedApi {
   return {
@@ -44,11 +48,27 @@ export function createReadyVoteCompletedApi(request: VoteFetch = voteFetch): Vot
 }
 
 export function getVoteCompletedApiMode(): VoteCompletedApiMode {
-  return process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE === "mock" ? "mock" : "ready";
+  const mode = process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE;
+  if (mode === "mock" || mode === "ready") return mode;
+  return "unavailable";
 }
 
 export function createVoteCompletedApi(mode = getVoteCompletedApiMode()): VoteCompletedApi {
-  return mode === "ready" ? createReadyVoteCompletedApi() : createMockVoteCompletedApi();
+  if (mode === "ready") return createReadyVoteCompletedApi();
+  if (mode === "mock") return createMockVoteCompletedApi();
+  return createUnavailableVoteCompletedApi();
+}
+
+function createUnavailableVoteCompletedApi(): VoteCompletedApi {
+  const rejectUnavailable = () =>
+    Promise.reject(
+      new VoteCompletedApiUnavailableError("완료 Task 목록과 결과 API는 아직 제공되지 않습니다."),
+    );
+
+  return {
+    listCompletedTasks: rejectUnavailable,
+    getTaskResult: rejectUnavailable,
+  };
 }
 
 const TASK_A = "0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7";

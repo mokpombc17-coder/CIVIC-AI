@@ -10,12 +10,6 @@ export type VoteReasonSelection =
   | Readonly<{ kind: "AI_ACCEPTED"; predictedReasonId: string }>
   | Readonly<{ kind: "USER_WRITTEN"; reason: string }>;
 
-type ReadyPredictionView = TaskPredictionView & {
-  personaGenerationId: string;
-  personaVersionId: string;
-  predictionId: string;
-};
-
 export function getPredictedReasonsForOption(
   view: TaskPredictionView | undefined,
   optionId: string | null,
@@ -34,7 +28,7 @@ export function getPredictedReasonsForOption(
 }
 
 export function canStartTaskResponse(view: TaskPredictionView | undefined): boolean {
-  if (!hasSubmissionIdentity(view) || !view.submissionAllowed) return false;
+  if (!view?.submissionAllowed) return false;
 
   const aiAvailable =
     view.aiAcceptanceAllowed &&
@@ -47,8 +41,7 @@ export function canStartTaskResponse(view: TaskPredictionView | undefined): bool
 
 export function canWriteTaskReason(view: TaskPredictionView | undefined): boolean {
   return Boolean(
-    hasSubmissionIdentity(view) &&
-    view.submissionAllowed &&
+    view?.submissionAllowed &&
     view.directAnswerAllowed &&
     view.allowedReasonSources.includes("USER_WRITTEN"),
   );
@@ -56,26 +49,16 @@ export function canWriteTaskReason(view: TaskPredictionView | undefined): boolea
 
 export function createTaskSubmissionCommand({
   view,
-  questionId,
   selectedOptionId,
   selection,
 }: {
   view: TaskPredictionView | undefined;
-  questionId: string;
   selectedOptionId: string;
   selection: VoteReasonSelection;
 }): SubmitTaskRequest {
-  if (!hasSubmissionIdentity(view) || !view.submissionAllowed) {
+  if (!view?.submissionAllowed) {
     throw new Error("TASK_SUBMISSION_NOT_READY");
   }
-
-  const identity = {
-    personaGenerationId: view.personaGenerationId,
-    personaVersionId: view.personaVersionId,
-    predictionId: view.predictionId,
-    questionId,
-    selectedOptionId,
-  };
 
   if (selection.kind === "AI_ACCEPTED") {
     const predictedReason = getPredictedReasonsForOption(view, selectedOptionId).find(
@@ -84,21 +67,16 @@ export function createTaskSubmissionCommand({
     if (!predictedReason) throw new Error("TASK_PREDICTED_REASON_NOT_AVAILABLE");
 
     return submitTaskRequestSchema.parse({
-      ...identity,
+      selectedOptionId,
       reasonSource: "AI_ACCEPTED",
-      acceptedPredictedReasonId: predictedReason.id,
-      reason: null,
+      predictedReasonId: predictedReason.id,
     });
   }
 
   if (!canWriteTaskReason(view)) throw new Error("TASK_USER_WRITTEN_NOT_AVAILABLE");
   return submitTaskRequestSchema.parse({
-    ...identity,
+    selectedOptionId,
     reasonSource: "USER_WRITTEN",
     reason: selection.reason,
   });
-}
-
-function hasSubmissionIdentity(view: TaskPredictionView | undefined): view is ReadyPredictionView {
-  return Boolean(view?.personaGenerationId && view.personaVersionId && view.predictionId);
 }

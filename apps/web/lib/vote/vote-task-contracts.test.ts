@@ -8,10 +8,6 @@ import {
 } from "./vote-task-contracts";
 
 const IDS = {
-  personaGenerationId: "6f219f29-8598-49f0-9b28-cb7be5720258",
-  personaVersionId: "a64feaf8-fcb8-4780-8977-01c9094821ca",
-  predictionId: "ec85b168-a766-46a6-a64a-60ed76c66dfa",
-  questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
   selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
   reasonId: "7ae32cd0-68d8-458c-afbd-d8c657697479",
 };
@@ -75,34 +71,29 @@ describe("Vote Task contracts", () => {
     ).toBe(false);
   });
 
-  it("AI_ACCEPTED와 USER_WRITTEN의 금지 필드를 분리한다", () => {
+  it("AI_ACCEPTED와 USER_WRITTEN을 Backend가 결정하지 않는 최소 필드로 제한한다", () => {
     expect(
       submitTaskRequestSchema.safeParse({
         ...IDS,
         reasonSource: "AI_ACCEPTED",
-        acceptedPredictedReasonId: IDS.reasonId,
-        reason: null,
+        predictedReasonId: IDS.reasonId,
       }).success,
     ).toBe(true);
     expect(
       submitTaskRequestSchema.safeParse({
         ...IDS,
         reasonSource: "USER_WRITTEN",
-        acceptedPredictedReasonId: IDS.reasonId,
+        predictedReasonId: IDS.reasonId,
         reason: "직접 작성",
       }).data,
     ).toEqual({
-      personaGenerationId: IDS.personaGenerationId,
-      personaVersionId: IDS.personaVersionId,
-      predictionId: IDS.predictionId,
-      questionId: IDS.questionId,
       selectedOptionId: IDS.selectedOptionId,
       reasonSource: "USER_WRITTEN",
       reason: "직접 작성",
     });
   });
 
-  it("직접 작성도 Persona·Prediction identity를 요구하고 이유를 Unicode 1~500자로 제한한다", () => {
+  it("직접 작성은 Prediction identity 없이 이유를 Unicode 1~500자로 제한한다", () => {
     expect(
       submitTaskRequestSchema.parse({
         ...IDS,
@@ -110,10 +101,6 @@ describe("Vote Task contracts", () => {
         reason: "  내 생각  ",
       }),
     ).toEqual({
-      personaGenerationId: IDS.personaGenerationId,
-      personaVersionId: IDS.personaVersionId,
-      predictionId: IDS.predictionId,
-      questionId: IDS.questionId,
       selectedOptionId: IDS.selectedOptionId,
       reasonSource: "USER_WRITTEN",
       reason: "내 생각",
@@ -138,7 +125,6 @@ describe("Vote Task contracts", () => {
     const base = {
       taskId: IDS.selectedOptionId,
       personaGenerationId: null,
-      personaVersionId: null,
       personaId: null,
       predictionId: null,
       predictionStatus: null,

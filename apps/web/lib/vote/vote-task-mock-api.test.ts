@@ -12,10 +12,6 @@ describe("Persona-ready Task mock adapter", () => {
     await api.submitTask(
       task!.taskId,
       {
-        personaGenerationId: prediction.personaGenerationId!,
-        personaVersionId: prediction.personaVersionId!,
-        predictionId: prediction.predictionId!,
-        questionId: "05ecfe73-6bee-4e98-8d3d-ed49262958ef",
         selectedOptionId: "fd04e385-15f2-42b9-b8b1-c0b16b6ee5db",
         reasonSource: "USER_WRITTEN",
         reason: "직접 작성한 이유",

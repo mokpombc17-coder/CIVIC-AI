@@ -10,6 +10,7 @@ import {
   flattenCompletedTaskPages,
   useCompletedTasksQuery,
   useOpenTasksQuery,
+  voteCompletedApiAvailable,
 } from "@/lib/vote/vote-queries";
 import {
   presentCompletedTask,
@@ -74,8 +75,10 @@ export function VoteTaskListScreen() {
 
   const showingActiveLoading = tab === "active" && openTasksQuery.isPending;
   const showingActiveError = tab === "active" && openTasksQuery.isError;
-  const showingCompletedLoading = tab === "completed" && completedTasksQuery.isPending;
-  const showingCompletedError = tab === "completed" && completedTasksQuery.isError;
+  const showingCompletedLoading =
+    voteCompletedApiAvailable && tab === "completed" && completedTasksQuery.isPending;
+  const showingCompletedError =
+    voteCompletedApiAvailable && tab === "completed" && completedTasksQuery.isError;
   const showingBlockingLoading =
     showingActiveLoading || (showingCompletedLoading && completedTasks.length === 0);
   const showingBlockingError =
@@ -161,8 +164,15 @@ export function VoteTaskListScreen() {
                 {source.length === 0
                   ? tab === "active"
                     ? "진행 중인 투표가 없습니다."
-                    : "완료된 투표가 없습니다."
+                    : voteCompletedApiAvailable
+                      ? "완료된 투표가 없습니다."
+                      : "완료한 투표 목록은 아직 준비 중입니다."
                   : "검색 결과가 없습니다."}
+              </p>
+            ) : null}
+            {tab === "completed" && !voteCompletedApiAvailable && completedTasks.length > 0 ? (
+              <p className={styles.listInlineStatus}>
+                실제 완료한 투표 목록은 아직 준비 중이며, 아래에는 디자인 샘플만 표시됩니다.
               </p>
             ) : null}
             {showingCompletedLoading ? (

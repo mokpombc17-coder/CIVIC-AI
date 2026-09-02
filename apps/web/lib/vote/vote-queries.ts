@@ -8,7 +8,7 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
-import { createVoteCompletedApi } from "./vote-completed-api";
+import { createVoteCompletedApi, getVoteCompletedApiMode } from "./vote-completed-api";
 import { createVoteTaskApiAdapter } from "./vote-task-mock-api";
 import type {
   SubmitTaskRequest,
@@ -16,8 +16,11 @@ import type {
   TaskSubmissionResponse,
 } from "./vote-task-contracts";
 
-const completedApi = createVoteCompletedApi();
+const completedApiMode = getVoteCompletedApiMode();
+const completedApi = createVoteCompletedApi(completedApiMode);
 const voteTaskApi = createVoteTaskApiAdapter();
+
+export const voteCompletedApiAvailable = completedApiMode !== "unavailable";
 
 export const voteQueryKeys = {
   all: ["vote"] as const,
@@ -124,7 +127,7 @@ export function useCompletedTasksQuery(size = 20, enabled = true) {
       ),
     initialPageParam: null as string | null,
     getNextPageParam: (lastPage) => lastPage.nextCursor,
-    enabled,
+    enabled: enabled && voteCompletedApiAvailable,
     refetchOnWindowFocus: true,
   });
 }
@@ -133,6 +136,7 @@ export function useTaskResultQuery(taskId: string) {
   return useQuery({
     queryKey: voteQueryKeys.result(taskId),
     queryFn: ({ signal }) => completedApi.getTaskResult(taskId, signal),
+    enabled: voteCompletedApiAvailable,
     staleTime: Number.POSITIVE_INFINITY,
   });
 }
