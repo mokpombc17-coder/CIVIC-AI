@@ -452,14 +452,29 @@ public final class TaskPrediction {
                     "TASK_PREDICTED_REASON_SCOPE_INCOMPLETE",
                     "predicted reasons do not cover every task option");
         }
-        Set<Integer> expectedOrders = Set.of(1, 2);
-        if (ordersByOption.values().stream()
-                .anyMatch(orders -> !orders.equals(expectedOrders))) {
-            throw invalidPredictedReasons(
-                    "TASK_PREDICTED_REASON_COUNT_INVALID",
-                    "each option must have exactly "
-                            + TaskLimits.PREDICTED_REASONS_PER_OPTION
-                            + " predicted reasons in order");
+        for (Set<Integer> orders : ordersByOption.values()) {
+            int reasonCount = orders.size();
+            if (reasonCount < TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION
+                    || reasonCount
+                    > TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION) {
+                throw invalidPredictedReasons(
+                        "TASK_PREDICTED_REASON_COUNT_INVALID",
+                        "each option must have between "
+                                + TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION
+                                + " and "
+                                + TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION
+                                + " predicted reasons");
+            }
+            for (int expectedOrder = 1;
+                 expectedOrder <= reasonCount;
+                 expectedOrder++) {
+                if (!orders.contains(expectedOrder)) {
+                    throw invalidPredictedReasons(
+                            "TASK_PREDICTED_REASON_ORDER_INVALID",
+                            "reason order must be continuous from 1 "
+                                    + "within an option");
+                }
+            }
         }
     }
 

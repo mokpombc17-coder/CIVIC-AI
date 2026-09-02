@@ -8,7 +8,8 @@ public final class TaskLimits {
     public static final int MAX_QUESTION_CONTENT_LENGTH = 500;
     public static final int MAX_QUESTION_DESCRIPTION_LENGTH = 1_000;
     public static final int MAX_OPTIONS = 20;
-    public static final int PREDICTED_REASONS_PER_OPTION = 2;
+    public static final int MIN_PREDICTED_REASONS_PER_OPTION = 2;
+    public static final int MAX_PREDICTED_REASONS_PER_OPTION = 5;
     public static final int MAX_OPTION_CONTENT_LENGTH = 200;
     public static final int MAX_OTHER_TEXT_LENGTH = 500;
     public static final int MAX_SHORT_TEXT_LENGTH = 500;

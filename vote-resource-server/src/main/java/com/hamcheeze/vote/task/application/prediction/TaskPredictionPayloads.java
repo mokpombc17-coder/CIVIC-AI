@@ -18,8 +18,10 @@ final class TaskPredictionPayloads {
                         + "\",\"taskId\":\"" + command.task().id().value()
                         + "\",\"candidatePolicyVersion\":\""
                         + escape(command.candidatePolicyVersion())
-                        + "\",\"requestedCandidateCount\":"
-                        + TaskLimits.PREDICTED_REASONS_PER_OPTION
+                        + "\",\"minimumReasonsPerOption\":"
+                        + TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION
+                        + ",\"maximumReasonsPerOption\":"
+                        + TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION
                         + ",\"requestTimeoutMillis\":"
                         + command.requestTimeout().toMillis()
                         + ",\"questionCount\":"

@@ -67,7 +67,7 @@ public class LocalTaskPredictionFakeCreationAdapter
         TaskQuestion question = command.task().questions().getFirst();
         for (TaskOption option : question.options()) {
             for (int order = 1;
-                 order <= TaskLimits.PREDICTED_REASONS_PER_OPTION;
+                 order <= TaskLimits.MIN_PREDICTED_REASONS_PER_OPTION;
                  order++) {
                 predictedReasons.add(predictedReason(
                         command, question, option, order));

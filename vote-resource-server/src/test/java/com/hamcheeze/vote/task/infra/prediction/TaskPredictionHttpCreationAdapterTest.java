@@ -92,11 +92,12 @@ class TaskPredictionHttpCreationAdapterTest {
         assertThat(authorization.get()).isEqualTo("Bearer test-ai-token");
         assertThat(requestBody.get())
                 .contains(
-                        "\"schemaVersion\":1",
+                        "\"schemaVersion\":2",
                         "\"requestId\":\"" + REQUEST_ID + "\"",
                         "\"personaId\":\"persona-a\"",
                         "\"candidatePolicyVersion\":\"policy-v1\"",
-                        "\"requestedCandidateCount\":2",
+                        "\"minimumReasonsPerOption\":2",
+                        "\"maximumReasonsPerOption\":5",
                         "\"taskId\":\"" + TASK_ID + "\"",
                         "하나를 선택하세요",
                         "선택지 A",
@@ -221,11 +222,11 @@ class TaskPredictionHttpCreationAdapterTest {
                 respond(exchange, 200, successBody(
                         REQUEST_ID, TASK_ID,
                         new UUID(4, 1), new UUID(4, 2))
-                        .replace("\"schemaVersion\": 1",
-                                "\"schemaVersion\": 2")));
+                        .replace("\"schemaVersion\": 2",
+                                "\"schemaVersion\": 1")));
 
         assertFailure(
-                () -> adapter().create(command(Duration.ofSeconds(1), 1)),
+                () -> adapter().create(command(Duration.ofSeconds(1), 2)),
                 TaskPredictionAttemptOutcome.INVALID_RESPONSE,
                 "AI_PREDICTION_INVALID_RESPONSE",
                 false,
@@ -235,7 +236,7 @@ class TaskPredictionHttpCreationAdapterTest {
     @Test
     void rejectsUnsupportedStoredSchemaBeforeProviderCall() {
         assertFailure(
-                () -> adapter().create(command(Duration.ofSeconds(1), 2)),
+                () -> adapter().create(command(Duration.ofSeconds(1), 99)),
                 TaskPredictionAttemptOutcome.INVALID_RESPONSE,
                 "TASK_PREDICTION_REQUEST_SCHEMA_UNSUPPORTED",
                 false,
@@ -249,7 +250,7 @@ class TaskPredictionHttpCreationAdapterTest {
     }
 
     private static PredictionCreationCommand command(Duration timeout) {
-        return command(timeout, 1);
+        return command(timeout, TaskPredictionHttpModels.SCHEMA_VERSION);
     }
 
     private static PredictionCreationCommand command(
@@ -284,9 +285,11 @@ class TaskPredictionHttpCreationAdapterTest {
             String payload = new ObjectMapper().writeValueAsString(
                     TaskPredictionHttpModels.PredictionRequest.from(
                             predictionId, personaId, "policy-v1", task));
-            if (requestSchemaVersion != 1) {
+            if (requestSchemaVersion
+                    != TaskPredictionHttpModels.SCHEMA_VERSION) {
                 payload = payload.replace(
-                        "\"schemaVersion\":1",
+                        "\"schemaVersion\":"
+                                + TaskPredictionHttpModels.SCHEMA_VERSION,
                         "\"schemaVersion\":" + requestSchemaVersion);
             }
             return new PredictionCreationCommand(
@@ -330,7 +333,7 @@ class TaskPredictionHttpCreationAdapterTest {
     ) {
         return """
                 {
-                  "schemaVersion": 1,
+                  "schemaVersion": 2,
                   "requestId": "%s",
                   "taskId": "%s",
                   "candidates": [

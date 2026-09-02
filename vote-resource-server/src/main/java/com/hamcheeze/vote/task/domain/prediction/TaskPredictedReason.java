@@ -21,11 +21,13 @@ public record TaskPredictedReason(
         Objects.requireNonNull(predictionId, "predictionId");
         Objects.requireNonNull(optionId, "optionId");
         if (reasonOrder < 1
-                || reasonOrder > TaskLimits.PREDICTED_REASONS_PER_OPTION) {
+                || reasonOrder
+                > TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION) {
             throw TaskDomainException.invariant(
                     "TASK_PREDICTED_REASON_ORDER_INVALID",
                     "reasonOrder",
-                    "reasonOrder must be 1 or 2");
+                    "reasonOrder must be between 1 and "
+                            + TaskLimits.MAX_PREDICTED_REASONS_PER_OPTION);
         }
         reason = TaskText.required(
                 reason,

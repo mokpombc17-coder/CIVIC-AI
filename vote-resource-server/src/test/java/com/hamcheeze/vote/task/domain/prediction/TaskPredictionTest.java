@@ -21,10 +21,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 class TaskPredictionTest {
 
     @Test
-    void predictedReasonAllowsOnlyTwoOrderedNonBlankReasonsPerOption() {
+    void predictedReasonAllowsUpToFiveOrderedNonBlankReasonsPerOption() {
         assertThatThrownBy(() -> new TaskPredictedReason(
                 candidateId(1), predictionId(), optionId(1),
-                3, "세 번째 이유"))
+                6, "여섯 번째 이유"))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
@@ -37,7 +37,7 @@ class TaskPredictionTest {
     }
 
     @Test
-    void succeedsOnlyWithExactlyTwoReasonsForEveryOption() {
+    void succeedsWithAtLeastTwoContinuousReasonsForEveryOption() {
         Task task = openTask();
         TaskPrediction prediction = pendingPrediction();
         assertThat(prediction.requestId()).isEqualTo(prediction.id());
@@ -45,13 +45,13 @@ class TaskPredictionTest {
                 RETRY_POLICY, NOW.plusSeconds(12))).isEqualTo(1);
 
         prediction.succeed(
-                task, validCandidates(2), NOW.plusSeconds(20));
+                task, validCandidates(3), NOW.plusSeconds(20));
 
         assertThat(prediction.status())
                 .isEqualTo(TaskPredictionStatus.SUCCEEDED);
         assertThat(prediction.candidatePolicyVersion())
                 .isEqualTo("candidate-policy-v1");
-        assertThat(prediction.predictedReasons()).hasSize(4);
+        assertThat(prediction.predictedReasons()).hasSize(6);
         assertThatThrownBy(() -> prediction.predictedReasons().clear())
                 .isInstanceOf(UnsupportedOperationException.class);
         assertThatThrownBy(() -> prediction.failPermanently(
@@ -103,6 +103,28 @@ class TaskPredictionTest {
                         exception -> assertThat(exception.violation().code())
                                 .isEqualTo(
                                         "TASK_PREDICTED_REASON_OPTION_MISMATCH"));
+    }
+
+    @Test
+    void rejectsNonContinuousReasonOrders() {
+        TaskPrediction prediction = processingPrediction();
+        List<TaskPredictedReason> reasons = new ArrayList<>(
+                validCandidates(2));
+        TaskPredictedReason firstOptionSecondReason = reasons.get(1);
+        reasons.set(1, new TaskPredictedReason(
+                firstOptionSecondReason.id(),
+                firstOptionSecondReason.predictionId(),
+                firstOptionSecondReason.optionId(),
+                3,
+                firstOptionSecondReason.reason()));
+
+        assertThatThrownBy(() -> prediction.succeed(
+                openTask(), reasons, NOW.plusSeconds(20)))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(exception.violation().code())
+                                .isEqualTo(
+                                        "TASK_PREDICTED_REASON_ORDER_INVALID"));
     }
 
     @Test
