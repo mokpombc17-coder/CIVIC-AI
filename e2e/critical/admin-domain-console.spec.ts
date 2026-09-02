@@ -679,6 +679,41 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
   expect(stateBadgeWidths).toEqual([76, 76, 76]);
 });
 
+test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적용된다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  task = taskFixture("OPEN", "교통 정책 과업");
+
+  const adminResponse = await page.goto("/admin");
+  const contentSecurityPolicy = adminResponse?.headers()["content-security-policy"] ?? "";
+  const documentNonce = /style-src[^;]*'nonce-([^']+)'/u.exec(contentSecurityPolicy)?.[1];
+  expect(documentNonce).toBeTruthy();
+
+  await page.getByRole("link", { name: "시뮬레이션", exact: true }).click();
+  await expect(page).toHaveURL("/admin/simulations");
+
+  const grid = page.getByRole("region", { name: "시뮬레이션 과업 목록" });
+  const rootWrapper = grid.locator(".ag-root-wrapper");
+  const headerRow = grid.locator(".ag-header-row");
+  await expect(rootWrapper).toBeVisible();
+  await expect(headerRow).toBeVisible();
+  await expect(grid.getByRole("row", { name: /교통 정책 과업/u })).toBeVisible();
+  await expect(rootWrapper).toHaveCSS("display", "flex");
+  await expect(headerRow).toHaveCSS("display", "flex");
+
+  const injectedGridStyles = page.locator("head style[data-ag-css]");
+  await expect(injectedGridStyles.first()).toBeAttached();
+  const injectedStyleState = await injectedGridStyles.evaluateAll((styles) =>
+    styles.map((style) => ({
+      nonce: (style as HTMLStyleElement).nonce,
+      ruleCount: (style as HTMLStyleElement).sheet?.cssRules.length ?? 0,
+    })),
+  );
+  expect(injectedStyleState.length).toBeGreaterThan(0);
+  expect(injectedStyleState.every(({ nonce }) => nonce === documentNonce)).toBe(true);
+  expect(injectedStyleState.some(({ ruleCount }) => ruleCount > 0)).toBe(true);
+});
+
 test("시뮬레이션 상태는 자동 종료 기준을 설명하고 서비스 부담을 노출하지 않는다", async ({
   context,
   page,

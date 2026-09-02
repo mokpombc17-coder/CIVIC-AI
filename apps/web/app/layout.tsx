@@ -1,9 +1,11 @@
 import type { Metadata, Viewport } from "next";
+import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
 import "./wireflow.css";
 import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
+import { StyleNonceProvider } from "@/components/admin/console/style-nonce-context";
 import { AppQueryProvider } from "@/components/providers/app-query-provider";
 import { resolveSiteUrl } from "@/lib/site-url";
 
@@ -41,7 +43,9 @@ export const viewport: Viewport = {
   themeColor: "#f5f7fb",
 };
 
-export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+export default async function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
+
   return (
     <html lang="ko">
       <head>
@@ -53,9 +57,11 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
         />
       </head>
       <body>
-        <AppQueryProvider>
-          <AppShell>{children}</AppShell>
-        </AppQueryProvider>
+        <StyleNonceProvider nonce={nonce}>
+          <AppQueryProvider>
+            <AppShell>{children}</AppShell>
+          </AppQueryProvider>
+        </StyleNonceProvider>
       </body>
     </html>
   );
