@@ -59,6 +59,7 @@ import {
   LoginDeactivatedNotice,
   passwordResetCodeFromSearch,
   safeReturnTarget,
+  readSignupAcceptanceControls,
   SignupDuplicateEmailNotice,
   signupRecovery,
   signupCompletionPath,
@@ -99,6 +100,17 @@ describe("signup consent evidence", () => {
       checked_at: "2026-09-03T03:04:05.000Z",
       path: "/legal/terms/2",
     });
+  });
+
+  it("requires both terms and account-RAG privacy when the server declares both controls", () => {
+    expect(readSignupAcceptanceControls(["TERMS", "ACCOUNT_RAG_PRIVACY"])).toEqual([
+      "TERMS",
+      "ACCOUNT_RAG_PRIVACY",
+    ]);
+    expect(readSignupAcceptanceControls(undefined)).toEqual(["TERMS", "ACCOUNT_RAG_PRIVACY"]);
+    expect(() => readSignupAcceptanceControls(["ACCOUNT_RAG_PRIVACY"])).toThrow(
+      "필수 이용약관 동의 항목을 불러오지 못했습니다.",
+    );
   });
 });
 
@@ -1040,7 +1052,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(outage).toContain('href="/home"');
   });
 
-  it("가입 단계는 Vote 민감정보 동의와 계정·RAG 필수정보 안내를 구분한다", () => {
+  it("가입 단계는 일반 개인정보 동의와 Vote 민감정보 동의를 구분한다", () => {
     for (const id of ["AUTH-003", "AUTH-004", "U-ACCOUNT-002"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
@@ -1053,8 +1065,8 @@ describe("25 functional Main/Auth screens", () => {
     const consentHtml = renderToStaticMarkup(
       createElement(MainFunctionalScreen, { screen: consent }),
     );
-    expect(consentHtml).toContain("계정·RAG 필수정보 처리 안내");
-    expect(consentHtml).not.toContain("계정·RAG 개인정보 수집·이용에 동의합니다");
+    expect(consentHtml).toContain("개인정보 수집·이용에 동의합니다");
+    expect(consentHtml).not.toContain("계정·RAG");
   });
 
   it("frontend2 Platform Shell 참여자 메뉴와 실제 UI 관리자 메뉴를 유지한다", () => {
