@@ -16,6 +16,9 @@ type SignupDraft = {
   ageConfirmed: boolean;
   terms: boolean;
   termsCheckedAt: string | null;
+  privacy: boolean;
+  privacyCheckedAt: string | null;
+  acceptanceControls: SignupDocumentId[];
   flowId?: string;
   documents: Partial<Record<SignupDocumentId, SignupDocument>>;
 };
@@ -35,6 +38,9 @@ const initialDraft: SignupDraft = {
   ageConfirmed: false,
   terms: false,
   termsCheckedAt: null,
+  privacy: false,
+  privacyCheckedAt: null,
+  acceptanceControls: ["TERMS", "ACCOUNT_RAG_PRIVACY"],
   documents: {},
 };
 
@@ -159,19 +165,30 @@ export function AuthFunctionalScreen({
         }
         if (!draft.ageConfirmed) throw new Error("만 14세 이상 여부를 확인해 주세요.");
         const response = await api("/api/v1/signup/flows", { email: draft.email });
-        const body = (await response.json()) as { flow_id?: unknown; documents?: unknown };
+        const body = (await response.json()) as {
+          flow_id?: unknown;
+          documents?: unknown;
+          acceptance_controls?: unknown;
+        };
         if (typeof body.flow_id !== "string") {
           throw new Error("가입 흐름 응답이 올바르지 않습니다.");
         }
         const documents = readSignupDocuments(body.documents);
+        const acceptanceControls = readSignupAcceptanceControls(body.acceptance_controls);
         const flowId = body.flow_id;
-        setDraft((current) => ({ ...current, flowId, documents }));
+        setDraft((current) => ({ ...current, flowId, documents, acceptanceControls }));
         changeSignupStep("AUTH-005", "/signup/verify");
       } else if (activeId === "AUTH-003") {
         location.replace("/signup/account");
       } else if (activeId === "AUTH-004") {
-        if (!draft.flowId || !draft.terms || !draft.termsCheckedAt) {
-          throw new Error("이메일 인증과 이용약관 동의를 모두 확인해 주세요.");
+        const privacyRequired = draft.acceptanceControls.includes("ACCOUNT_RAG_PRIVACY");
+        if (
+          !draft.flowId ||
+          !draft.terms ||
+          !draft.termsCheckedAt ||
+          (privacyRequired && (!draft.privacy || !draft.privacyCheckedAt))
+        ) {
+          throw new Error("이메일 인증과 필수 동의를 모두 확인해 주세요.");
         }
         await api(signupCompletionPath(draft.flowId), {
           email: draft.email,
@@ -182,6 +199,14 @@ export function AuthFunctionalScreen({
             requiredDocument(draft.documents, "TERMS"),
             draft.termsCheckedAt,
           ),
+          ...(privacyRequired
+            ? {
+                privacy_evidence: evidence(
+                  requiredDocument(draft.documents, "ACCOUNT_RAG_PRIVACY"),
+                  draft.privacyCheckedAt!,
+                ),
+              }
+            : {}),
         });
         location.assign("/login");
       } else if (activeId === "AUTH-005") {
@@ -484,6 +509,9 @@ function renderFields(
               ageConfirmed: v.ageConfirmed,
               terms: false,
               termsCheckedAt: null,
+              privacy: false,
+              privacyCheckedAt: null,
+              acceptanceControls: ["TERMS", "ACCOUNT_RAG_PRIVACY"],
               documents: {},
             }));
           }}
@@ -515,10 +543,11 @@ function renderFields(
   }
   if (id === "AUTH-004") {
     const terms = draft.documents.TERMS;
-    const requiredInformation = draft.documents.ACCOUNT_RAG_PRIVACY;
+    const accountRagPrivacy = draft.documents.ACCOUNT_RAG_PRIVACY;
+    const privacyRequired = draft.acceptanceControls.includes("ACCOUNT_RAG_PRIVACY");
     return (
       <fieldset className="civic-consent-fieldset">
-        <legend className="sr-only">이용약관 동의 및 필수정보 안내</legend>
+        <legend className="sr-only">이용약관 및 개인정보 수집·이용 필수 동의</legend>
         <div className="civic-consent-item">
           <Check
             label="이용약관에 동의합니다"
@@ -539,13 +568,32 @@ function renderFields(
           />
         </div>
         <div className="civic-consent-item">
-          <p>
-            <strong>계정·RAG 필수정보 처리 안내</strong>
-          </p>
+          {privacyRequired ? (
+            <Check
+              label="개인정보 수집·이용에 동의합니다"
+              required
+              checked={draft.privacy}
+              onChange={(checked) =>
+                setDraft((v) => ({
+                  ...v,
+                  privacy: checked,
+                  privacyCheckedAt: checked ? new Date().toISOString() : null,
+                }))
+              }
+            />
+          ) : (
+            <p>
+              <strong>개인정보 처리 안내</strong>
+            </p>
+          )}
           <LegalDocumentLink
-            document={requiredInformation}
-            hint="별도 동의가 아닌 서비스 제공에 필요한 개인정보 처리 안내입니다."
-            label="개인정보 필수정보 처리 안내"
+            document={accountRagPrivacy}
+            hint={
+              privacyRequired
+                ? "수집·이용 목적, 항목, 보유기간과 거부 시 영향을 확인해 주세요."
+                : "별도 동의가 아닌 서비스 제공에 필요한 개인정보 처리 안내입니다."
+            }
+            label={privacyRequired ? "개인정보 수집·이용 동의" : "개인정보 처리 안내"}
           />
         </div>
       </fieldset>
@@ -997,6 +1045,22 @@ function readSignupDocuments(value: unknown): SignupDraft["documents"] {
     result[id] = document as unknown as SignupDocument;
   }
   return result;
+}
+
+export function readSignupAcceptanceControls(value: unknown): SignupDocumentId[] {
+  if (value === undefined) return ["TERMS", "ACCOUNT_RAG_PRIVACY"];
+  if (!Array.isArray(value) || value.some((item) => !isSignupDocumentId(item))) {
+    throw new Error("가입 동의 항목 응답이 올바르지 않습니다.");
+  }
+  const controls = [...new Set(value)] as SignupDocumentId[];
+  if (!controls.includes("TERMS")) {
+    throw new Error("필수 이용약관 동의 항목을 불러오지 못했습니다.");
+  }
+  return controls;
+}
+
+function isSignupDocumentId(value: unknown): value is SignupDocumentId {
+  return value === "TERMS" || value === "ACCOUNT_RAG_PRIVACY";
 }
 
 function requiredDocument(

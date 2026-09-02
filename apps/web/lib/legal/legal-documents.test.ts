@@ -13,13 +13,14 @@ describe("immutable signup legal documents", () => {
     }
   });
 
-  it("publishes account and RAG processing as required information instead of consent", () => {
+  it("publishes the required general privacy consent separately from sensitive information", () => {
     const document = LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY;
 
-    expect(document.version).toBe("2");
-    expect(document.title).toContain("필수정보 처리 안내");
-    expect(document.body).toContain("별도의 개인정보 수집·이용 동의문이 아니라");
-    expect(document.body).toContain("RAG 기능을 요청한 경우에만 처리");
-    expect(document.body).not.toContain("거부하면 가입");
+    expect(document.version).toBe("3");
+    expect(document.title).toBe("개인정보 수집·이용 동의");
+    expect(document.body).toContain("수집·이용 목적");
+    expect(document.body).toContain("보유·이용기간 및 파기");
+    expect(document.body).toContain("동의 거부 및 철회");
+    expect(document.body).toContain("별도 민감정보 동의");
   });
 });
