@@ -28,6 +28,8 @@ describe("ChatRoomMembershipDialog", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('data-chat-room-membership-bottom-sheet="true"');
     expect(html).toContain("rounded-t-xl");
+    expect(html).toContain("max-w-[393px]");
+    expect(html).toContain("overflow-x-hidden");
     expect(html).toContain('aria-label="채팅방 메뉴 닫기"');
     expect(html).toContain("close.png");
   });

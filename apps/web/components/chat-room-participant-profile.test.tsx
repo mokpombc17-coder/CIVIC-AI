@@ -57,4 +57,20 @@ describe("ChatRoomParticipantProfile", () => {
 
     expect(markup).toContain("참여 중 · version 1");
   });
+
+  it("긴 표시 이름은 참여자 행의 폭을 늘리지 않고 한 줄로 줄인다", () => {
+    const displayName = "매우긴참여자이름이계속이어져도시트너비를넘기지않는사용자";
+    const markup = renderToStaticMarkup(
+      <ChatRoomParticipantProfile
+        displayName={displayName}
+        imageUrl={null}
+        isSelf={false}
+        role="MEMBER"
+      />,
+    );
+
+    expect(markup).toContain("max-w-full flex-1");
+    expect(markup).toContain("min-w-0 flex-1 truncate");
+    expect(markup).toContain(`title="${displayName}"`);
+  });
 });

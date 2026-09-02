@@ -17,11 +17,13 @@ export function ChatRoomParticipantProfile({
   role,
 }: ChatRoomParticipantProfileProps) {
   return (
-    <div className="flex min-w-0 items-center gap-3">
+    <div className="flex min-w-0 max-w-full flex-1 items-center gap-3">
       <ChatRoomParticipantAvatar displayName={displayName} imageUrl={imageUrl} />
-      <div className="min-w-0">
-        <p className="flex min-w-0 flex-wrap items-center gap-1.5 text-sm font-semibold text-slate-950">
-          <span className="truncate">{displayName}</span>
+      <div className="min-w-0 flex-1">
+        <p className="flex min-w-0 items-center gap-1.5 text-sm font-semibold text-slate-950">
+          <span className="min-w-0 flex-1 truncate" title={displayName}>
+            {displayName}
+          </span>
           {isSelf ? <ParticipantBadge label="나" tone="accent" /> : null}
           {role === "OWNER" ? <ParticipantBadge label="방장" tone="neutral" /> : null}
         </p>

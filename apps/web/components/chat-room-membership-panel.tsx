@@ -358,10 +358,10 @@ function MembershipRows({
   selfMembershipId: string | null;
 }) {
   return (
-    <ul className="mt-3 grid gap-1">
+    <ul className="mt-3 grid min-w-0 max-w-full gap-1">
       {memberships.map((member) => (
         <li
-          className="flex flex-wrap items-center justify-between gap-3 py-3"
+          className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3 py-3"
           key={member.membershipId}
         >
           <ChatRoomParticipantProfile
