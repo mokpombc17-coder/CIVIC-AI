@@ -3,18 +3,24 @@
 ## Root
 
 ```text
-RootLayout [Server Route]
-└── AppShell [Client]
-    ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
-    ├── NativeBridgeRuntime
-    └── AppUpdateGate
-        ├── AppInstallBanner [conditional]
-        └── App Router children
+RootLayout [Server Route, 문서 CSP nonce 소유]
+└── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
+    └── AppQueryProvider [Client, 전역 TanStack Query cache]
+        └── AppShell [Client]
+            ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
+            ├── NativeBridgeRuntime
+            └── AppUpdateGate
+                ├── AppInstallBanner [conditional]
+                └── App Router children
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
 설치·업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
 리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
+
+`StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
+RSC 이동·갱신 요청에서 새 nonce가 발급되어도 현재 문서의 CSP는 바뀌지 않으므로,
+AG Grid가 런타임에 삽입하는 테마 `<style>`은 항상 문서 nonce를 사용한다.
 참여자 레이아웃은 저장소에 원래 있던 `PlatformShell`이 소유하고, 관리자 레이아웃은 `AdminShell`이
 소유한다.
 
@@ -29,9 +35,10 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 선택한다.
 
 ```text
-RootLayout [Server]
-└── AppQueryProvider [Client, 전역 TanStack Query cache]
-    └── AppShell
+RootLayout [Server, 문서 CSP nonce 읽기]
+└── StyleNonceProvider [Client, nonce 고정]
+    └── AppQueryProvider [Client, 전역 TanStack Query cache]
+        └── AppShell
 
 IndexPage / [Server Route] [redirect: /home]
 

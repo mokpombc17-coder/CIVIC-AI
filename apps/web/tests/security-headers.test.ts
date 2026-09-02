@@ -44,6 +44,29 @@ describe("response framing headers", () => {
     expect(JSON.stringify(config.matcher)).toContain("(?!api|");
   });
 
+  it("keeps runtime style nonces tied to the current document across RSC navigations", async () => {
+    const [rootLayout, adminLayout, nonceProvider, dataGrid] = await Promise.all([
+      readFile(path.join(process.cwd(), "apps/web/app/layout.tsx"), "utf8"),
+      readFile(path.join(process.cwd(), "apps/web/app/(admin)/admin/layout.tsx"), "utf8"),
+      readFile(
+        path.join(process.cwd(), "apps/web/components/admin/console/style-nonce-context.tsx"),
+        "utf8",
+      ),
+      readFile(
+        path.join(process.cwd(), "apps/web/components/admin/console/console-data-grid.tsx"),
+        "utf8",
+      ),
+    ]);
+
+    expect(rootLayout).toContain('const nonce = (await headers()).get("x-nonce") ?? undefined;');
+    expect(rootLayout).toContain("<StyleNonceProvider nonce={nonce}>");
+    expect(adminLayout).not.toContain("StyleNonceProvider");
+    expect(adminLayout).not.toContain('from "next/headers"');
+    expect(nonceProvider).toContain("const [documentNonce] = useState(nonce);");
+    expect(nonceProvider).toContain("value={documentNonce}");
+    expect(dataGrid).toContain("styleNonce");
+  });
+
   it("limits development-only eval and websocket allowances to development policy", () => {
     const production = buildContentSecurityPolicy("production-nonce", false);
     const development = buildContentSecurityPolicy("development-nonce", true);
