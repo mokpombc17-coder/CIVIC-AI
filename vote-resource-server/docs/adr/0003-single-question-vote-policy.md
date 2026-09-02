@@ -4,10 +4,12 @@
 - 결정일: 2026-08-19
 - 적용 대상: `vote-resource-server` Task·OpinionMap 경계
 - 선행 결정: `0002-opinion-map-submission-projection.md`
-- 후속 결정: `0004-task-result-view-opinion-map-boundary.md`
+- 후속 결정: `0004-task-result-view-opinion-map-boundary.md`,
+  `0005-simplify-persona-generation-model.md`
 
 > 단일 질문과 최종 선택 이유 정책은 유효하다. OpinionMap으로 결과를 전달하는 방식은
-> ADR 0004의 Task Result View 경계를 따른다.
+> ADR 0004의 Task Result View 경계를 따른다. Task가 보관하는 Persona 식별자는
+> ADR 0005에 따라 `personaGenerationId`로 단순화한다.
 
 ## 배경
 

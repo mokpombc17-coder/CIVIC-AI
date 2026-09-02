@@ -6,7 +6,6 @@ import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -70,7 +69,7 @@ public class MyTaskSubmissionQueryService {
         return new MyTaskSubmission(
                 submission.id(), submission.taskId(), task.title(),
                 task.description(), submission.personaGenerationId(),
-                submission.personaVersionId(), submission.predictionId(),
+                submission.predictionId(),
                 submission.submittedAt(), submission.questionId(), question,
                 submission.selectedOptionId(), submission.reasonSource(),
                 submission.acceptedPredictedReasonId(),
@@ -83,7 +82,6 @@ public class MyTaskSubmissionQueryService {
             String taskTitle,
             String taskDescription,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             Instant submittedAt,
             TaskQuestionId questionId,
@@ -98,7 +96,6 @@ public class MyTaskSubmissionQueryService {
             Objects.requireNonNull(taskId, "taskId");
             Objects.requireNonNull(taskTitle, "taskTitle");
             Objects.requireNonNull(personaGenerationId, "personaGenerationId");
-            Objects.requireNonNull(personaVersionId, "personaVersionId");
             Objects.requireNonNull(submittedAt, "submittedAt");
             Objects.requireNonNull(questionId, "questionId");
             Objects.requireNonNull(question, "question");

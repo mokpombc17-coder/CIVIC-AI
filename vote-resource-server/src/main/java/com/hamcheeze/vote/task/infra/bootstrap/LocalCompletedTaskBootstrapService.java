@@ -87,8 +87,8 @@ public class LocalCompletedTaskBootstrapService {
                 userId,
                 LocalCompletedTaskFixture.SUBMISSION_IDEMPOTENCY_KEY,
                 new TaskSubmissionService.SubmitTaskCommand(
-                        task.id(), persona.generationId(), persona.versionId(),
-                        null, LocalCompletedTaskFixture.answer(task)));
+                        task.id(), persona.generationId(), null,
+                        LocalCompletedTaskFixture.answer(task)));
         if (!execution.outcome().succeeded()) {
             throw failure("Task submission failed with "
                     + execution.outcome().code());

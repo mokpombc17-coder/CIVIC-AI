@@ -3,7 +3,6 @@ package com.hamcheeze.vote.task.application.prediction;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 
@@ -19,7 +18,6 @@ public record TaskPredictionInputSnapshot(
         TaskId taskId,
         TaskUserId userId,
         TaskPersonaGenerationId personaGenerationId,
-        TaskPersonaVersionId personaVersionId,
         TaskPersonaId providerPersonaId,
         Instant taskEndsAt,
         int requestSchemaVersion,
@@ -34,7 +32,6 @@ public record TaskPredictionInputSnapshot(
         Objects.requireNonNull(taskId, "taskId");
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(personaGenerationId, "personaGenerationId");
-        Objects.requireNonNull(personaVersionId, "personaVersionId");
         Objects.requireNonNull(providerPersonaId, "providerPersonaId");
         Objects.requireNonNull(taskEndsAt, "taskEndsAt");
         if (requestSchemaVersion < 1) {
@@ -63,7 +60,6 @@ public record TaskPredictionInputSnapshot(
             TaskId taskId,
             TaskUserId userId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId providerPersonaId,
             Instant taskEndsAt,
             int requestSchemaVersion,
@@ -73,7 +69,7 @@ public record TaskPredictionInputSnapshot(
     ) {
         return new TaskPredictionInputSnapshot(
                 predictionId, taskId, userId, personaGenerationId,
-                personaVersionId, providerPersonaId, taskEndsAt,
+                providerPersonaId, taskEndsAt,
                 requestSchemaVersion, algorithmVersion, requestPayload,
                 fingerprint(requestPayload), createdAt);
     }

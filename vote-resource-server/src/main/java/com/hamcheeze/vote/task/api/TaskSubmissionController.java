@@ -7,7 +7,6 @@ import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -61,8 +60,6 @@ final class TaskSubmissionController {
                                 new TaskId(taskId),
                                 new TaskPersonaGenerationId(
                                         request.personaGenerationId()),
-                                new TaskPersonaVersionId(
-                                        request.personaVersionId()),
                                 request.predictionId() == null ? null
                                         : new TaskPredictionId(
                                                 request.predictionId()),

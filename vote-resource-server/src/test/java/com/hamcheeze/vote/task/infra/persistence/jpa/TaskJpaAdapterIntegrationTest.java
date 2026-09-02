@@ -19,7 +19,6 @@ import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
@@ -162,7 +161,6 @@ class TaskJpaAdapterIntegrationTest {
         predictions.saveAttempt(attempt);
 
         assertThat(inserted.status()).isEqualTo(TaskPredictionStatus.SUCCEEDED);
-        assertThat(inserted.personaVersionId()).isEqualTo(persona.versionId());
         assertThat(inserted.predictedReasons()).hasSize(4);
         assertThat(inserted.predictedReasons().getFirst().optionId())
                 .isEqualTo(fixture.firstOptionId());
@@ -209,7 +207,6 @@ class TaskJpaAdapterIntegrationTest {
                 fixture.task(),
                 prediction,
                 persona.generationId(),
-                persona.versionId(),
                 fixture.choiceQuestionId(),
                 adopted.optionId(),
                 TaskReasonSource.AI_ACCEPTED,
@@ -218,7 +215,6 @@ class TaskJpaAdapterIntegrationTest {
                 NOW);
 
         TaskSubmission stored = submissions.insert(submission);
-        assertThat(stored.personaVersionId()).isEqualTo(persona.versionId());
         assertThat(stored.acceptedPredictedReasonId()).isEqualTo(adopted.id());
         assertThat(stored.selectedOptionId()).isEqualTo(adopted.optionId());
         assertThat(stored.finalReason()).isEqualTo(adopted.reason());
@@ -268,7 +264,6 @@ class TaskJpaAdapterIntegrationTest {
                 userId,
                 fixture.task(),
                 persona.generationId(),
-                persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
                 TaskPredictionStatus.FAILED,
@@ -285,7 +280,6 @@ class TaskJpaAdapterIntegrationTest {
                 fixture.task(),
                 prediction,
                 persona.generationId(),
-                persona.versionId(),
                 fixture.choiceQuestionId(),
                 fixture.firstOptionId(),
                 TaskReasonSource.USER_WRITTEN,
@@ -494,7 +488,6 @@ class TaskJpaAdapterIntegrationTest {
                 userId,
                 fixture.task(),
                 persona.generationId(),
-                persona.versionId(),
                 persona.personaId(),
                 "policy-v1",
                 TaskPredictionStatus.SUCCEEDED,
@@ -522,7 +515,6 @@ class TaskJpaAdapterIntegrationTest {
                 fixture.task(),
                 null,
                 persona.generationId(),
-                persona.versionId(),
                 fixture.choiceQuestionId(),
                 optionId,
                 TaskReasonSource.USER_WRITTEN,
@@ -573,7 +565,6 @@ class TaskJpaAdapterIntegrationTest {
                 createdAt, createdAt, createdAt, createdAt);
         return new PersonaFixture(
                 new TaskPersonaGenerationId(generationId),
-                new TaskPersonaVersionId(UUID.randomUUID()),
                 new TaskPersonaId(personaId));
     }
 
@@ -598,7 +589,6 @@ class TaskJpaAdapterIntegrationTest {
 
     private record PersonaFixture(
             TaskPersonaGenerationId generationId,
-            TaskPersonaVersionId versionId,
             TaskPersonaId personaId
     ) {
     }

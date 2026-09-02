@@ -7,9 +7,7 @@ import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
-import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
-import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
@@ -88,9 +86,7 @@ class PersonaGenerationWorkerTest {
                 .thenReturn(Optional.of(input));
         when(creation.create(any())).thenReturn(new PersonaCreationResult(
                 generation.id(),
-                new PersonaId("persona-a"),
-                new PredictedAdoptionRate(new BigDecimal("0.73")),
-                new PersonaModelVersion("model-v1")));
+                new PersonaId("persona-a")));
         when(states.succeed(any(), any(), any(), any()))
                 .thenReturn(CompletionResult.APPLIED);
         when(states.fail(any(), any(), any(), anyBoolean()))

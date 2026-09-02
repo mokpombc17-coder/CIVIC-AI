@@ -15,7 +15,6 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.openTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.optionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.pendingPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
-import static com.hamcheeze.vote.task.TaskTestFixtures.personaVersionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.questionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.submissionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.succeededPrediction;
@@ -32,12 +31,11 @@ class TaskSubmissionTest {
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), personaVersionId(),
+                personaGenerationId(),
                 new AcceptTaskPredictedReason(
                         questionId(1), optionId(1), candidateId(1)),
                 NOW.plusSeconds(30));
 
-        assertThat(submission.personaVersionId()).isEqualTo(personaVersionId());
         assertThat(submission.reasonSource())
                 .isEqualTo(TaskReasonSource.AI_ACCEPTED);
         assertThat(submission.selectedOptionId()).isEqualTo(optionId(1));
@@ -54,7 +52,7 @@ class TaskSubmissionTest {
 
         TaskSubmission submission = TaskSubmission.create(
                 submissionId(), userId(), task, failed,
-                personaGenerationId(), personaVersionId(),
+                personaGenerationId(),
                 written("직접 작성한 이유"), NOW.plusSeconds(30));
 
         assertThat(submission.reasonSource())
@@ -64,7 +62,7 @@ class TaskSubmissionTest {
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, failed,
-                personaGenerationId(), personaVersionId(),
+                personaGenerationId(),
                 new AcceptTaskPredictedReason(
                         questionId(1), optionId(1), candidateId(1)),
                 NOW.plusSeconds(30)))
@@ -82,7 +80,7 @@ class TaskSubmissionTest {
 
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), personaVersionId(),
+                personaGenerationId(),
                 new AcceptTaskPredictedReason(
                         questionId(1), optionId(2), candidateId(1)),
                 NOW.plusSeconds(30)))
@@ -99,7 +97,7 @@ class TaskSubmissionTest {
 
         TaskSubmission written = TaskSubmission.create(
                 submissionId(), userId(), task, pendingPrediction(),
-                personaGenerationId(), personaVersionId(), written("이유"),
+                personaGenerationId(), written("이유"),
                 NOW.plusSeconds(30));
         assertThat(written.reasonSource())
                 .isEqualTo(TaskReasonSource.USER_WRITTEN);
@@ -107,7 +105,7 @@ class TaskSubmissionTest {
         assertThatThrownBy(() -> TaskSubmission.create(
                 submissionId(), userId(), task, succeededPrediction(task),
                 new TaskPersonaGenerationId(new UUID(90, 1)),
-                personaVersionId(), written("이유"), NOW.plusSeconds(30)))
+                written("이유"), NOW.plusSeconds(30)))
                 .isInstanceOfSatisfying(
                         TaskDomainException.class,
                         exception -> assertThat(exception.violation().code())
@@ -122,7 +120,7 @@ class TaskSubmissionTest {
 
         TaskSubmission restored = TaskSubmission.restore(
                 submissionId(), userId(), task, prediction,
-                personaGenerationId(), personaVersionId(), questionId(1),
+                personaGenerationId(), questionId(1),
                 optionId(1), TaskReasonSource.AI_ACCEPTED, candidateId(1),
                 "저장 당시 이유", NOW.plusSeconds(30));
 

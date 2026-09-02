@@ -8,7 +8,6 @@ import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
@@ -71,9 +70,6 @@ public final class TaskTestFixtures {
     public static TaskPersonaGenerationId personaGenerationId() {
         return new TaskPersonaGenerationId(uuid(9, 1));
     }
-    public static TaskPersonaVersionId personaVersionId() {
-        return new TaskPersonaVersionId(uuid(9, 2));
-    }
     public static TaskPersonaId personaId() {
         return new TaskPersonaId("persona-a");
     }
@@ -124,7 +120,7 @@ public final class TaskTestFixtures {
     public static TaskPrediction pendingPrediction() {
         return TaskPrediction.pending(
                 predictionId(), userId(), taskId(), personaGenerationId(),
-                personaVersionId(), personaId(), "candidate-policy-v1",
+                personaId(), "candidate-policy-v1",
                 NOW.plusSeconds(11));
     }
 

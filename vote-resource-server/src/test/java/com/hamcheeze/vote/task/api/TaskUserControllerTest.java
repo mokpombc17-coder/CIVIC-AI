@@ -40,7 +40,6 @@ import java.util.UUID;
 import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
 import static com.hamcheeze.vote.task.TaskTestFixtures.pendingPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
-import static com.hamcheeze.vote.task.TaskTestFixtures.personaVersionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.predictionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.questionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.shortTextQuestion;
@@ -374,8 +373,6 @@ class TaskUserControllerTest {
                                 + "/prediction"))
                 .andExpect(jsonPath("$.created").value(true))
                 .andExpect(jsonPath("$.waiting").value(true))
-                .andExpect(jsonPath("$.personaVersionId")
-                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.personaId").value("persona-a"));
 
         verify(predictions).ensureTaskPrediction(
@@ -390,7 +387,6 @@ class TaskUserControllerTest {
                         TaskPredictionQueryService.TaskPredictionViewState
                                 .PENDING,
                         personaGenerationId(),
-                        personaVersionId(),
                         new com.hamcheeze.vote.task.domain.common
                                 .TaskPersonaId("persona-a"),
                         predictionId(),
@@ -406,8 +402,6 @@ class TaskUserControllerTest {
                         taskId().value()).principal(authentication))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.state").value("PENDING"))
-                .andExpect(jsonPath("$.personaVersionId")
-                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.waiting").value(true))
                 .andExpect(jsonPath("$.predictionRequestAllowed")
                         .value(false));
@@ -541,7 +535,7 @@ class TaskUserControllerTest {
         MyTaskSubmissionQueryService.MyTaskSubmission view =
                 new MyTaskSubmissionQueryService.MyTaskSubmission(
                         submissionId(), taskId(), "테스트 과업", "설명",
-                        personaGenerationId(), personaVersionId(),
+                        personaGenerationId(),
                         null,
                         NOW.plusSeconds(30),
                         questionId(3), shortTextQuestion(),
@@ -570,8 +564,6 @@ class TaskUserControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.submissionId")
                         .value(submissionId().value().toString()))
-                .andExpect(jsonPath("$.personaVersionId")
-                        .value(personaVersionId().value().toString()))
                 .andExpect(jsonPath("$.predictionId").doesNotExist())
                 .andExpect(jsonPath("$.reasonSource")
                         .value("USER_WRITTEN"))
@@ -616,7 +608,6 @@ class TaskUserControllerTest {
         return """
                 {
                   "personaGenerationId": "%s",
-                  "personaVersionId": "%s",
                   "predictionId": "%s",
                   "questionId": "%s",
                   "selectedOptionId": "%s",
@@ -625,7 +616,6 @@ class TaskUserControllerTest {
                 }
                 """.formatted(
                         personaGenerationId().value(),
-                        personaVersionId().value(),
                         predictionId().value(), questionId(3).value(),
                         UUID.randomUUID());
     }
@@ -634,7 +624,7 @@ class TaskUserControllerTest {
             TaskPredictionQueryService.TaskPredictionViewState state
     ) {
         return new TaskPredictionQueryService.TaskPredictionView(
-                taskId(), state, null, null, null, null, null,
+                taskId(), state, null, null, null, null,
                 List.of(), false, false, false, false, false,
                 List.of(), null, null, null, null);
     }

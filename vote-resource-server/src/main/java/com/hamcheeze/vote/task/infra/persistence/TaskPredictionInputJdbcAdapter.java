@@ -5,7 +5,6 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapsho
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -36,17 +35,16 @@ public class TaskPredictionInputJdbcAdapter
         jdbcTemplate.update("""
                 INSERT INTO task_prediction_inputs (
                     prediction_id, task_id, user_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     provider_persona_id, task_ends_at,
                     request_schema_version, algorithm_version,
                     request_payload, request_fingerprint, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 snapshot.predictionId().value(),
                 snapshot.taskId().value(),
                 snapshot.userId().value(),
                 snapshot.personaGenerationId().value(),
-                snapshot.personaVersionId().value(),
                 snapshot.providerPersonaId().value(),
                 Timestamp.from(snapshot.taskEndsAt()),
                 snapshot.requestSchemaVersion(),
@@ -64,7 +62,7 @@ public class TaskPredictionInputJdbcAdapter
         Objects.requireNonNull(predictionId, "predictionId");
         return jdbcTemplate.query("""
                 SELECT prediction_id, task_id, user_id,
-                       persona_generation_id, persona_version_id,
+                       persona_generation_id,
                        provider_persona_id, task_ends_at,
                        request_schema_version, algorithm_version,
                        request_payload, request_fingerprint, created_at
@@ -84,8 +82,6 @@ public class TaskPredictionInputJdbcAdapter
                 new TaskUserId(resultSet.getString("user_id")),
                 new TaskPersonaGenerationId(resultSet.getObject(
                         "persona_generation_id", UUID.class)),
-                new TaskPersonaVersionId(resultSet.getObject(
-                        "persona_version_id", UUID.class)),
                 new TaskPersonaId(resultSet.getString("provider_persona_id")),
                 resultSet.getTimestamp("task_ends_at").toInstant(),
                 resultSet.getInt("request_schema_version"),

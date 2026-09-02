@@ -15,7 +15,6 @@ import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -119,7 +118,6 @@ public class TaskSubmissionService {
                         requestHashFactory.hash(
                                 command.taskId(),
                                 command.personaGenerationId(),
-                                command.personaVersionId(),
                                 command.predictionId(),
                                 command.answer()),
                         TaskSubmissionOutcomeCodec.SCHEMA_VERSION);
@@ -182,17 +180,15 @@ public class TaskSubmissionService {
         }
 
         if (command.personaGenerationId() != null
-                && (!command.personaGenerationId().equals(
-                        currentPersona.generationId())
-                || !command.personaVersionId().equals(
-                        currentPersona.versionId()))) {
+                && !command.personaGenerationId().equals(
+                        currentPersona.generationId())) {
             return rejection(
                     409,
                     "TASK_SUBMISSION_PERSONA_MISMATCH",
                     task.id(),
                     TaskViolation.of(
                             "TASK_SUBMISSION_PERSONA_MISMATCH",
-                            "personaVersionId",
+                            "personaGenerationId",
                             "requested persona is not the current usable persona"));
         }
 
@@ -240,7 +236,6 @@ public class TaskSubmissionService {
                     task,
                     prediction,
                     currentPersona.generationId(),
-                    currentPersona.versionId(),
                     command.answer(),
                     submittedAt);
             TaskSubmission stored = submissions.insert(submission);
@@ -333,16 +328,11 @@ public class TaskSubmissionService {
     public record SubmitTaskCommand(
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             TaskSubmissionAnswerCommand answer
     ) {
         public SubmitTaskCommand {
             Objects.requireNonNull(taskId, "taskId");
-            if ((personaGenerationId == null) != (personaVersionId == null)) {
-                throw new IllegalArgumentException(
-                        "persona generation and version must be provided together");
-            }
             Objects.requireNonNull(answer, "answer");
         }
 
@@ -351,7 +341,7 @@ public class TaskSubmissionService {
                 TaskPredictionId predictionId,
                 TaskSubmissionAnswerCommand answer
         ) {
-            this(taskId, null, null, predictionId, answer);
+            this(taskId, null, predictionId, answer);
         }
     }
 

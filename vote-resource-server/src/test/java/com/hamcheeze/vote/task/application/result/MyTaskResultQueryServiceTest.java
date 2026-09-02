@@ -11,7 +11,6 @@ import com.hamcheeze.vote.task.application.result.TaskResultViewV1.TaskData;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -173,7 +172,6 @@ class MyTaskResultQueryServiceTest {
                 "결과 Task",
                 "결과 설명",
                 new TaskPersonaGenerationId(uuid(10)),
-                new TaskPersonaVersionId(uuid(11)),
                 null,
                 SUBMITTED_AT,
                 QUESTION_ID,

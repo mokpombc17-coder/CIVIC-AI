@@ -441,8 +441,6 @@ public class TaskPredictionStateService {
                 || !input.userId().equals(prediction.userId())
                 || !input.personaGenerationId().equals(
                         prediction.personaGenerationId())
-                || !input.personaVersionId().equals(
-                        prediction.personaVersionId())
                 || !input.providerPersonaId().equals(prediction.personaId())) {
             throw new TaskPredictionInputException(
                     TaskPredictionInputException.ErrorCode.INTEGRITY_ERROR,

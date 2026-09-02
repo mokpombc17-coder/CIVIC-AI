@@ -5,7 +5,6 @@ import com.hamcheeze.vote.persona.application.PersonaGenerationWorker;
 import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
-import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyBootstrapService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
@@ -156,10 +155,6 @@ class LocalTaskPersonaBootstrapServiceTest {
                 Optional.of(new PersonaGenerationId(
                         UUID.fromString(
                                 "41000000-0000-0000-0000-000000000001"))),
-                ready
-                        ? Optional.of(new PersonaVersionId(UUID.fromString(
-                        "41000000-0000-0000-0000-000000000002")))
-                        : Optional.empty(),
                 status,
                 ready
                         ? Optional.of(new PersonaId("local-persona"))

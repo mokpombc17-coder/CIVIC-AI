@@ -37,7 +37,7 @@ public class TaskPredictionInputSnapshotFactoryAdapter
             return TaskPredictionInputSnapshot.create(
                     prediction.id(), task.id(), prediction.userId(),
                     prediction.personaGenerationId(),
-                    prediction.personaVersionId(), prediction.personaId(),
+                    prediction.personaId(),
                     task.schedule().scheduledCloseAt(),
                     TaskPredictionHttpModels.SCHEMA_VERSION,
                     prediction.candidatePolicyVersion(), payload, createdAt);

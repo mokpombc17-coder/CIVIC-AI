@@ -20,7 +20,6 @@ import com.hamcheeze.vote.task.domain.common.TaskLifecycleHistoryId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -701,7 +700,6 @@ class TaskPredictionApplicationIntegrationTest {
                 new TaskUserId("deadline-race-" + UUID.randomUUID()),
                 task.id(),
                 new TaskPersonaGenerationId(UUID.randomUUID()),
-                new TaskPersonaVersionId(UUID.randomUUID()),
                 new TaskPersonaId("deadline-race-persona-" + UUID.randomUUID()),
                 "candidate-policy-v1",
                 now.minus(45, ChronoUnit.SECONDS)));
@@ -767,7 +765,6 @@ class TaskPredictionApplicationIntegrationTest {
         UUID roundId = UUID.randomUUID();
         UUID responseId = UUID.randomUUID();
         UUID generationId = UUID.randomUUID();
-        UUID versionId = UUID.randomUUID();
         String personaId = "persona-" + generationId;
         Timestamp createdAt = Timestamp.from(
                 Instant.now().minus(10, ChronoUnit.SECONDS));
@@ -803,18 +800,8 @@ class TaskPredictionApplicationIntegrationTest {
                 VALUES (?, 'SURVEY_RESPONSE', ?, ?, 'SUCCEEDED', 1, ?, ?, ?, ?)
                 """, generationId, responseId, personaId,
                 createdAt, createdAt, createdAt, createdAt);
-        jdbcTemplate.update("""
-                INSERT INTO persona_versions (
-                    persona_version_id, generation_id, user_id,
-                    provider_persona_id, predicted_adoption_rate,
-                    model_version, generated_at, source_type, source_id)
-                VALUES (?, ?, ?, ?, 0.5, 'test-model-v1', ?,
-                    'SURVEY_RESPONSE', ?)
-                """, versionId, generationId, userId, personaId,
-                createdAt, responseId);
         return new CurrentTaskPersona(
                 new TaskPersonaGenerationId(generationId),
-                new TaskPersonaVersionId(versionId),
                 new TaskPersonaId(personaId));
     }
 

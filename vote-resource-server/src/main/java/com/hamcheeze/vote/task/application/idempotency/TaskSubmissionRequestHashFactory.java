@@ -2,7 +2,6 @@ package com.hamcheeze.vote.task.application.idempotency;
 
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmissionAnswerCommand;
@@ -22,7 +21,6 @@ public final class TaskSubmissionRequestHashFactory {
     public TaskRequestHash hash(
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             TaskSubmissionAnswerCommand answer
     ) {
@@ -33,8 +31,6 @@ public final class TaskSubmissionRequestHashFactory {
             writeUuid(output, taskId.value());
             writeNullableUuid(output, personaGenerationId == null
                     ? null : personaGenerationId.value());
-            writeNullableUuid(output, personaVersionId == null
-                    ? null : personaVersionId.value());
             writeNullableUuid(output, predictionId == null
                     ? null : predictionId.value());
             writeUuid(output, answer.questionId().value());
@@ -57,7 +53,7 @@ public final class TaskSubmissionRequestHashFactory {
             TaskPredictionId predictionId,
             TaskSubmissionAnswerCommand answer
     ) {
-        return hash(taskId, null, null, predictionId, answer);
+        return hash(taskId, null, predictionId, answer);
     }
 
     private static String normalizeText(String value) {

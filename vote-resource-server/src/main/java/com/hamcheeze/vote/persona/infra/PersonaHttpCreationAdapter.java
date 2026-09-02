@@ -6,14 +6,11 @@ import com.hamcheeze.vote.persona.application.PersonaCreationException;
 import com.hamcheeze.vote.persona.application.PersonaCreationResult;
 import com.hamcheeze.vote.persona.application.port.out.PersonaCreationPort;
 import com.hamcheeze.vote.persona.domain.PersonaId;
-import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
-import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import org.springframework.beans.factory.annotation.Autowired;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
-import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -177,10 +174,7 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
             }
             return new PersonaCreationResult(
                     new PersonaGenerationId(response.generationId()),
-                    new PersonaId(response.personaId()),
-                    new PredictedAdoptionRate(
-                            response.predictedAdoptionRate()),
-                    new PersonaModelVersion(response.modelVersion()));
+                    new PersonaId(response.personaId()));
         } catch (PersonaCreationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -219,9 +213,7 @@ public class PersonaHttpCreationAdapter implements PersonaCreationPort {
 
     record CreatePersonaResponse(
             UUID generationId,
-            String personaId,
-            BigDecimal predictedAdoptionRate,
-            String modelVersion
+            String personaId
     ) {
     }
 

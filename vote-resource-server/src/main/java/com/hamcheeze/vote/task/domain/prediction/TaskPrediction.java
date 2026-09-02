@@ -5,7 +5,6 @@ import com.hamcheeze.vote.task.domain.common.TaskLimits;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
@@ -32,7 +31,6 @@ public final class TaskPrediction {
     private final TaskUserId userId;
     private final TaskId taskId;
     private final TaskPersonaGenerationId personaGenerationId;
-    private final TaskPersonaVersionId personaVersionId;
     private final TaskPersonaId personaId;
     private final String candidatePolicyVersion;
     private TaskPredictionStatus status;
@@ -52,7 +50,6 @@ public final class TaskPrediction {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             TaskPredictionStatus status,
@@ -72,8 +69,6 @@ public final class TaskPrediction {
         this.taskId = Objects.requireNonNull(taskId, "taskId");
         this.personaGenerationId = Objects.requireNonNull(
                 personaGenerationId, "personaGenerationId");
-        this.personaVersionId = Objects.requireNonNull(
-                personaVersionId, "personaVersionId");
         this.personaId = Objects.requireNonNull(personaId, "personaId");
         this.candidatePolicyVersion = TaskText.required(
                 candidatePolicyVersion,
@@ -105,13 +100,12 @@ public final class TaskPrediction {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             Instant createdAt
     ) {
         return new TaskPrediction(
-                id, userId, taskId, personaGenerationId, personaVersionId,
+                id, userId, taskId, personaGenerationId,
                 personaId,
                 candidatePolicyVersion,
                 TaskPredictionStatus.PENDING, 0, List.of(), null, null,
@@ -123,7 +117,6 @@ public final class TaskPrediction {
             TaskUserId userId,
             Task task,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             TaskPredictionStatus status,
@@ -140,7 +133,7 @@ public final class TaskPrediction {
     ) {
         Objects.requireNonNull(task, "task");
         TaskPrediction restored = new TaskPrediction(
-                id, userId, task.id(), personaGenerationId, personaVersionId,
+                id, userId, task.id(), personaGenerationId,
                 personaId,
                 candidatePolicyVersion, status,
                 attemptCount, predictedReasons, nextRetryAt, lastError,
@@ -215,7 +208,6 @@ public final class TaskPrediction {
             TaskUserId userId,
             Task task,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             String candidatePolicyVersion,
             TaskPredictionStatus status,
@@ -237,7 +229,7 @@ public final class TaskPrediction {
         Instant leaseUntil = processingAt == null
                 ? null : processingAt.plusSeconds(90);
         return restore(id, userId, task, personaGenerationId,
-                personaVersionId, personaId, candidatePolicyVersion,
+                personaId, candidatePolicyVersion,
                 status, attemptCount, predictedReasons, nextRetryAt,
                 lastError, createdAt, startedAt, completedAt,
                 activeId, processingAt, leaseUntil);
@@ -374,13 +366,11 @@ public final class TaskPrediction {
     public boolean matches(
             TaskUserId expectedUserId,
             TaskId expectedTaskId,
-            TaskPersonaGenerationId expectedPersonaGenerationId,
-            TaskPersonaVersionId expectedPersonaVersionId
+            TaskPersonaGenerationId expectedPersonaGenerationId
     ) {
         return userId.equals(expectedUserId)
                 && taskId.equals(expectedTaskId)
-                && personaGenerationId.equals(expectedPersonaGenerationId)
-                && personaVersionId.equals(expectedPersonaVersionId);
+                && personaGenerationId.equals(expectedPersonaGenerationId);
     }
 
     public TaskPredictionId id() { return id; }
@@ -388,7 +378,6 @@ public final class TaskPrediction {
     public TaskUserId userId() { return userId; }
     public TaskId taskId() { return taskId; }
     public TaskPersonaGenerationId personaGenerationId() { return personaGenerationId; }
-    public TaskPersonaVersionId personaVersionId() { return personaVersionId; }
     public TaskPersonaId personaId() { return personaId; }
     public String candidatePolicyVersion() { return candidatePolicyVersion; }
     public TaskPredictionStatus status() { return status; }

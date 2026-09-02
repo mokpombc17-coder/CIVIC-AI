@@ -9,7 +9,6 @@ import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
-import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -62,19 +61,14 @@ class PersonaUserControllerTest {
                 token,
                 new PersonaId("external-persona-secret"),
                 Instant.parse("2026-08-14T00:00:02Z"));
-        PersonaVersionId versionId = new PersonaVersionId(UUID.randomUUID());
         when(currentPersona.findCurrent(new PersonaUserId("user-a")))
-                .thenReturn(CurrentPersonaStatus.from(
-                        generation,
-                        Optional.of(versionId)));
+                .thenReturn(CurrentPersonaStatus.from(generation));
 
         mockMvc.perform(get("/api/v1/me/persona-status")
                         .principal(authentication))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.personaReady").value(true))
                 .andExpect(jsonPath("$.status").value("SUCCEEDED"))
-                .andExpect(jsonPath("$.personaVersionId")
-                        .value(versionId.value().toString()))
                 .andExpect(jsonPath("$.capabilities[0]").value(
                         "USE_PERSONALIZED_SERVICE"))
                 .andExpect(content().string(
@@ -107,8 +101,7 @@ class PersonaUserControllerTest {
         generation.scheduleManualRetry(
                 Instant.parse("2026-08-20T00:02:00Z"));
         when(currentPersona.findCurrent(new PersonaUserId("user-a")))
-                .thenReturn(CurrentPersonaStatus.from(
-                        generation, Optional.empty()));
+                .thenReturn(CurrentPersonaStatus.from(generation));
 
         mockMvc.perform(get("/api/v1/me/persona-status")
                         .principal(authentication))

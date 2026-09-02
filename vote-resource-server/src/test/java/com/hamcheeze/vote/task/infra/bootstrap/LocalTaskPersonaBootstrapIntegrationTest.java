@@ -119,13 +119,11 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 .isEqualTo(CurrentPersonaStatus.Status.SUCCEEDED);
         assertThat(persona.personaReady()).isTrue();
         assertThat(persona.generationId()).isPresent();
-        assertThat(persona.personaVersionId()).isPresent();
         assertThat(persona.personaId()).isPresent();
         assertThat(secondPersona.status())
                 .isEqualTo(CurrentPersonaStatus.Status.SUCCEEDED);
         assertThat(secondPersona.personaReady()).isTrue();
         assertThat(secondPersona.generationId()).isPresent();
-        assertThat(secondPersona.personaVersionId()).isPresent();
         assertThat(secondPersona.personaId()).isPresent();
         assertThat(bootstrap.initialize())
                 .isEqualTo(LocalTaskPersonaBootstrapResult.ALREADY_PRESENT);
@@ -146,11 +144,6 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 SECOND_SUBJECT)).isEqualTo(1);
         assertThat(count(
                 "SELECT count(*) FROM persona_generations "
-                        + "WHERE generation_id = ?",
-                persona.generationId().orElseThrow().value()))
-                .isEqualTo(1);
-        assertThat(count(
-                "SELECT count(*) FROM persona_versions "
                         + "WHERE generation_id = ?",
                 persona.generationId().orElseThrow().value()))
                 .isEqualTo(1);
@@ -245,7 +238,6 @@ class LocalTaskPersonaBootstrapIntegrationTest {
         assertThat(availablePrediction.state())
                 .isEqualTo(TaskPredictionViewState.NOT_REQUESTED);
         assertThat(availablePrediction.personaGenerationId()).isNotNull();
-        assertThat(availablePrediction.personaVersionId()).isNotNull();
         assertThat(availablePrediction.predictionId()).isNull();
         assertThat(availablePrediction.submissionAllowed()).isTrue();
         assertThat(availablePrediction.directAnswerAllowed()).isTrue();

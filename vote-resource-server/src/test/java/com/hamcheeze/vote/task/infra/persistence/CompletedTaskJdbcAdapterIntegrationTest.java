@@ -570,19 +570,18 @@ class CompletedTaskJdbcAdapterIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_submissions (
                     submission_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     prediction_id, submitted_at,
                     question_id, selected_option_id,
                     reason_source, accepted_predicted_reason_id,
                     final_reason)
-                VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?,
+                VALUES (?, ?, ?, ?, NULL, ?, ?, ?,
                     'USER_WRITTEN', NULL, '직접 작성 이유')
                 """,
                 submissionId,
                 userId,
                 taskId,
                 persona.generationId(),
-                persona.versionId(),
                 Timestamp.from(submittedAt),
                 questionId(taskId),
                 optionId(taskId));
@@ -611,7 +610,6 @@ class CompletedTaskJdbcAdapterIntegrationTest {
         UUID roundId = UUID.randomUUID();
         UUID responseId = UUID.randomUUID();
         UUID generationId = UUID.randomUUID();
-        UUID versionId = UUID.randomUUID();
         String personaId = "completed-reader-" + generationId;
         Timestamp timestamp = Timestamp.from(submittedAt);
         jdbcTemplate.update("""
@@ -666,21 +664,7 @@ class CompletedTaskJdbcAdapterIntegrationTest {
                 timestamp,
                 timestamp,
                 timestamp);
-        jdbcTemplate.update("""
-                INSERT INTO persona_versions (
-                    persona_version_id, generation_id, user_id,
-                    provider_persona_id, predicted_adoption_rate,
-                    model_version, generated_at, source_type, source_id)
-                VALUES (?, ?, ?, ?, 0.5, 'completed-reader-v1', ?,
-                    'SURVEY_RESPONSE', ?)
-                """,
-                versionId,
-                generationId,
-                userId,
-                personaId,
-                timestamp,
-                responseId);
-        return new PersonaFixture(generationId, versionId, personaId);
+        return new PersonaFixture(generationId, personaId);
     }
 
     private UUID questionId(UUID taskId) {
@@ -700,7 +684,6 @@ class CompletedTaskJdbcAdapterIntegrationTest {
 
     private record PersonaFixture(
             UUID generationId,
-            UUID versionId,
             String personaId
     ) {
     }

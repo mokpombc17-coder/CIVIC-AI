@@ -4,12 +4,9 @@ import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationAttemptRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
-import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
-import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
-import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
@@ -67,9 +64,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
     @Autowired
     private PersonaGenerationInputRepository inputs;
 
-    @MockitoSpyBean
-    private PersonaVersionRepository versions;
-
     @Autowired
     private MutableClock clock;
 
@@ -87,7 +81,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
                 TRUNCATE TABLE
                     persona_generation_retry_requests,
                     persona_generation_attempts,
-                    persona_versions,
                     persona_generations
                 CASCADE
                 """);
@@ -120,7 +113,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
                 .isEqualTo(PersonaGenerationStateService.CompletionResult
                         .IGNORED_STALE_CLAIM);
 
-        assertThat(count("persona_versions")).isEqualTo(1);
         assertThat(generations.findById(generation.id()).orElseThrow()
                 .attemptCount()).isEqualTo(2);
         assertThat(jdbcTemplate.queryForObject("""
@@ -128,29 +120,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
                 FROM persona_generation_attempts
                 WHERE outcome = 'LEASE_EXPIRED'
                   AND late_completion_observed_at IS NOT NULL
-                """, Long.class)).isEqualTo(1);
-    }
-
-    @Test
-    void personaVersionFailureRollsBackGenerationSuccessAndAttempt() {
-        PersonaGeneration generation = insertPending();
-        var claim = states.claimNext("instance-a:worker-1").orElseThrow();
-        doThrow(new IllegalStateException("forced version failure"))
-                .when(versions).insert(any());
-
-        assertThatThrownBy(() -> states.succeed(
-                generation.id(), claim.claimToken(),
-                input(generation), result(generation.id())))
-                .hasRootCauseMessage("forced version failure");
-
-        PersonaGeneration persisted = generations.findById(
-                generation.id()).orElseThrow();
-        assertThat(persisted.status().name()).isEqualTo("PROCESSING");
-        assertThat(persisted.claimToken()).contains(claim.claimToken());
-        assertThat(count("persona_versions")).isZero();
-        assertThat(jdbcTemplate.queryForObject("""
-                SELECT count(*) FROM persona_generation_attempts
-                WHERE outcome = 'PROCESSING'
                 """, Long.class)).isEqualTo(1);
     }
 
@@ -280,7 +249,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
         assertThat(generations.findById(generation.id()).orElseThrow()
                 .status().name()).isEqualTo("SUCCEEDED");
-        assertThat(count("persona_versions")).isEqualTo(1);
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT outcome FROM persona_generation_attempts
                 WHERE generation_id = ? AND attempt_number = 1
@@ -332,7 +300,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
 
         assertThat(generations.findById(generation.id()).orElseThrow()
                 .status().name()).isEqualTo("FAILED");
-        assertThat(count("persona_versions")).isZero();
         assertThat(jdbcTemplate.queryForObject("""
                 SELECT count(*) FROM persona_generation_attempts
                 WHERE generation_id = ?
@@ -381,9 +348,7 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
     ) {
         return new PersonaCreationResult(
                 generationId,
-                new PersonaId("persona-" + generationId.value()),
-                new PredictedAdoptionRate(new BigDecimal("0.72")),
-                new PersonaModelVersion("model-v3"));
+                new PersonaId("persona-" + generationId.value()));
     }
 
     private long count(String table) {
@@ -403,7 +368,6 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
         @Primary
         PersonaGenerationStateService deterministicPersonaStates(
                 PersonaGenerationRepository generations,
-                PersonaVersionRepository versions,
                 PersonaGenerationAttemptRepository attempts,
                 PersonaGenerationProperties properties,
                 MutableClock clock
@@ -413,7 +377,7 @@ class PersonaGenerationLeaseRecoveryIntegrationTest {
             properties.setRetryMaxDelay(Duration.ofSeconds(10));
             properties.setMaxAttempts(3);
             return new PersonaGenerationStateService(
-                    generations, versions, attempts, properties, clock,
+                    generations, attempts, properties, clock,
                     UUID::randomUUID);
         }
     }

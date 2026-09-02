@@ -73,8 +73,8 @@ public class LocalTaskParticipationBootstrapService {
                 LocalTaskParticipationFixture
                         .TASK_SUBMISSION_IDEMPOTENCY_KEY,
                 new TaskSubmissionService.SubmitTaskCommand(
-                        task.id(), persona.generationId(), persona.versionId(),
-                        null, LocalTaskParticipationFixture.answer(task)));
+                        task.id(), persona.generationId(), null,
+                        LocalTaskParticipationFixture.answer(task)));
         if (!execution.outcome().succeeded()) {
             if (submissions.findByUserAndTask(
                     userId, task.id()).isPresent()) {

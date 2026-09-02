@@ -145,7 +145,6 @@ public class TaskPredictionService {
                 userId,
                 task.id(),
                 persona.generationId(),
-                persona.versionId(),
                 persona.personaId(),
                 policy.candidatePolicyVersion(),
                 now);
@@ -186,8 +185,6 @@ public class TaskPredictionService {
                 || !input.userId().equals(prediction.userId())
                 || !input.personaGenerationId().equals(
                         prediction.personaGenerationId())
-                || !input.personaVersionId().equals(
-                        prediction.personaVersionId())
                 || !input.providerPersonaId().equals(prediction.personaId())) {
             throw TaskDomainException.invariant(
                     "TASK_PREDICTION_INPUT_INVARIANT_VIOLATION",

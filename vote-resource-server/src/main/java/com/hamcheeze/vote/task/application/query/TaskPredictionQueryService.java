@@ -9,7 +9,6 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionAvailability
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -150,7 +149,6 @@ public class TaskPredictionQueryService {
             TaskId taskId,
             TaskPredictionViewState state,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPersonaId personaId,
             TaskPredictionId predictionId,
             TaskPredictionStatus predictionStatus,
@@ -183,7 +181,6 @@ public class TaskPredictionQueryService {
                 TaskId taskId,
                 TaskPredictionViewState state,
                 TaskPersonaGenerationId personaGenerationId,
-                TaskPersonaVersionId personaVersionId,
                 TaskPersonaId personaId,
                 TaskPredictionId predictionId,
                 TaskPredictionStatus predictionStatus,
@@ -199,7 +196,7 @@ public class TaskPredictionQueryService {
                 Instant completedAt,
                 String failureCode
         ) {
-            this(taskId, state, personaGenerationId, personaVersionId,
+            this(taskId, state, personaGenerationId,
                     personaId, predictionId, predictionStatus,
                     predictedReasons, true, waiting,
                     predictionRequestAllowed, null, submissionAllowed,
@@ -215,7 +212,7 @@ public class TaskPredictionQueryService {
                 TaskPredictionViewState state,
                 boolean predictionFeatureEnabled
         ) {
-            return base(taskId, state, null, null, null,
+            return base(taskId, state, null, null,
                     null, null, List.of(), predictionFeatureEnabled,
                     false, false,
                     null, false, false, false, false, false, List.of(), null,
@@ -228,7 +225,7 @@ public class TaskPredictionQueryService {
                 boolean predictionFeatureEnabled
         ) {
             return base(taskId, TaskPredictionViewState.ALREADY_SUBMITTED,
-                    null, null, null, null, null, List.of(),
+                    null, null, null, null, List.of(),
                     predictionFeatureEnabled,
                     false, false, null, false, false, false, false, false,
                     List.of(),
@@ -241,8 +238,7 @@ public class TaskPredictionQueryService {
                 boolean predictionFeatureEnabled
         ) {
             return base(taskId, TaskPredictionViewState.NOT_REQUESTED,
-                    persona.generationId(), persona.versionId(),
-                    persona.personaId(),
+                    persona.generationId(), persona.personaId(),
                     null, null, List.of(), predictionFeatureEnabled, false,
                     predictionFeatureEnabled,
                     predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
@@ -263,7 +259,6 @@ public class TaskPredictionQueryService {
                         taskId,
                         TaskPredictionViewState.valueOf(status.name()),
                         persona.generationId(),
-                        persona.versionId(),
                         persona.personaId(),
                         prediction.id(),
                         status,
@@ -294,7 +289,6 @@ public class TaskPredictionQueryService {
                     taskId,
                     TaskPredictionViewState.valueOf(status.name()),
                     persona.generationId(),
-                    persona.versionId(),
                     persona.personaId(),
                     prediction.id(),
                     status,
@@ -320,7 +314,6 @@ public class TaskPredictionQueryService {
                 TaskId taskId,
                 TaskPredictionViewState state,
                 TaskPersonaGenerationId personaGenerationId,
-                TaskPersonaVersionId personaVersionId,
                 TaskPersonaId personaId,
                 TaskPredictionId predictionId,
                 TaskPredictionStatus predictionStatus,
@@ -341,7 +334,7 @@ public class TaskPredictionQueryService {
                 String failureCode
         ) {
             return new TaskPredictionView(
-                    taskId, state, personaGenerationId, personaVersionId,
+                    taskId, state, personaGenerationId,
                     personaId, predictionId, predictionStatus,
                     predictedReasons, predictionFeatureEnabled, waiting,
                     predictionRequestAllowed, predictionUnavailableReason,

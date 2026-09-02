@@ -125,7 +125,6 @@ final class TaskApiModels {
 
     record SubmitRequest(
             @NotNull UUID personaGenerationId,
-            @NotNull UUID personaVersionId,
             UUID predictionId,
             @NotNull UUID questionId,
             @NotNull UUID selectedOptionId,
@@ -561,7 +560,6 @@ final class TaskApiModels {
             UUID taskId,
             UUID predictionId,
             UUID personaGenerationId,
-            UUID personaVersionId,
             String personaId,
             TaskPredictionStatus status,
             boolean created,
@@ -580,7 +578,6 @@ final class TaskApiModels {
             return new EnsurePredictionResponse(
                     prediction.taskId().value(), prediction.id().value(),
                     prediction.personaGenerationId().value(),
-                    prediction.personaVersionId().value(),
                     prediction.personaId().value(), prediction.status(),
                     result.created(), !prediction.status().terminal(),
                     result.predictedAnswerAllowed(),
@@ -597,7 +594,6 @@ final class TaskApiModels {
             UUID taskId,
             TaskPredictionQueryService.TaskPredictionViewState state,
             UUID personaGenerationId,
-            UUID personaVersionId,
             String personaId,
             UUID predictionId,
             TaskPredictionStatus predictionStatus,
@@ -624,8 +620,6 @@ final class TaskApiModels {
                     view.taskId().value(), view.state(),
                     view.personaGenerationId() == null ? null
                             : view.personaGenerationId().value(),
-                    view.personaVersionId() == null ? null
-                            : view.personaVersionId().value(),
                     view.personaId() == null ? null
                             : view.personaId().value(),
                     view.predictionId() == null ? null
@@ -686,7 +680,6 @@ final class TaskApiModels {
             String taskTitle,
             String taskDescription,
             UUID personaGenerationId,
-            UUID personaVersionId,
             UUID predictionId,
             Instant submittedAt,
             UUID questionId,
@@ -704,7 +697,6 @@ final class TaskApiModels {
                     submission.taskId().value(), submission.taskTitle(),
                     submission.taskDescription(),
                     submission.personaGenerationId().value(),
-                    submission.personaVersionId().value(),
                     submission.predictionId() == null ? null
                             : submission.predictionId().value(),
                     submission.submittedAt(),

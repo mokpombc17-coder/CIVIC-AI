@@ -187,22 +187,21 @@ class TaskSchemaConstraintIntegrationTest {
     void storesPersonaIdentityWithoutDependingOnPersonaTables() {
         UUID taskId = insertDraftTask();
         UUID generationId = UUID.randomUUID();
-        UUID versionId = UUID.randomUUID();
         String personaId = "external-persona";
 
         UUID predictionId = UUID.randomUUID();
         jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     persona_id, status,
                     candidate_policy_version,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING',
+                VALUES (?, ?, ?, ?, ?, 'PENDING',
                     'policy-v1', 0, ?)
                 """,
                 predictionId, "user-persona", taskId,
-                generationId, versionId, personaId, timestamp(NOW));
+                generationId, personaId, timestamp(NOW));
 
         Integer personaRows = jdbcTemplate.queryForObject("""
                 SELECT count(*)
@@ -221,7 +220,7 @@ class TaskSchemaConstraintIntegrationTest {
                   AND target_table.relname LIKE 'persona_%'
                 """, Integer.class);
         var storedIdentity = jdbcTemplate.queryForMap("""
-                SELECT persona_generation_id, persona_version_id, persona_id
+                SELECT persona_generation_id, persona_id
                 FROM task_predictions
                 WHERE prediction_id = ?
                 """, predictionId);
@@ -235,7 +234,6 @@ class TaskSchemaConstraintIntegrationTest {
         assertThat(crossContextForeignKeys).isZero();
         assertThat(storedIdentity)
                 .containsEntry("persona_generation_id", generationId)
-                .containsEntry("persona_version_id", versionId)
                 .containsEntry("persona_id", personaId);
         assertThat(migrationCount).isEqualTo(1);
     }
@@ -248,15 +246,14 @@ class TaskSchemaConstraintIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     persona_id, status,
                     candidate_policy_version,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 1, ?)
+                VALUES (?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 1, ?)
                 """,
                 UUID.randomUUID(), "user-state", taskId,
-                persona.generationId(), persona.versionId(),
-                persona.personaId(),
+                persona.generationId(), persona.personaId(),
                 timestamp(NOW)))
                 .isInstanceOf(DataIntegrityViolationException.class)
                 .hasMessageContaining("ck_task_prediction_state");
@@ -362,14 +359,14 @@ class TaskSchemaConstraintIntegrationTest {
         assertThatThrownBy(() -> jdbcTemplate.update("""
                 INSERT INTO task_submissions (
                     submission_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     prediction_id, question_id, selected_option_id,
                     reason_source, accepted_predicted_reason_id,
                     final_reason, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
                 """,
                 UUID.randomUUID(), "user-owner", task.taskId(),
-                persona.generationId(), persona.versionId(), predictionId,
+                persona.generationId(), predictionId,
                 task.singleQuestionId(), task.secondOptionId(),
                 firstOptionReasonId, "다른 선택지의 이유",
                 timestamp(NOW.plusSeconds(10))))
@@ -593,7 +590,7 @@ class TaskSchemaConstraintIntegrationTest {
                 generationId, responseId, personaId,
                 createdAt, startedAt, completedAt, completedAt);
         return new PersonaFixture(
-                generationId, UUID.randomUUID(), personaId);
+                generationId, personaId);
     }
 
     private UUID insertPendingPrediction(
@@ -605,15 +602,14 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     persona_id, status,
                     candidate_policy_version,
                     attempt_count, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 0, ?)
+                VALUES (?, ?, ?, ?, ?, 'PENDING', 'policy-v1', 0, ?)
                 """,
                 predictionId, userId, taskId,
-                persona.generationId(), persona.versionId(),
-                persona.personaId(), timestamp(NOW));
+                persona.generationId(), persona.personaId(), timestamp(NOW));
         return predictionId;
     }
 
@@ -627,18 +623,17 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     persona_id, status,
                     candidate_policy_version,
                     attempt_count, created_at, started_at,
                     active_attempt_id, processing_started_at,
                     lease_expires_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'PROCESSING', 'policy-v1', 1,
+                VALUES (?, ?, ?, ?, ?, 'PROCESSING', 'policy-v1', 1,
                     ?, ?, ?, ?, ?)
                 """,
                 predictionId, userId, taskId,
-                persona.generationId(), persona.versionId(),
-                persona.personaId(),
+                persona.generationId(), persona.personaId(),
                 timestamp(NOW), timestamp(NOW.plusSeconds(1)),
                 activeAttemptId, timestamp(NOW.plusSeconds(1)),
                 timestamp(NOW.plusSeconds(91)));
@@ -654,16 +649,15 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_predictions (
                     prediction_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     persona_id, status,
                     candidate_policy_version,
                     attempt_count, created_at, started_at, completed_at)
-                VALUES (?, ?, ?, ?, ?, ?, 'SUCCEEDED', 'policy-v1', 1,
+                VALUES (?, ?, ?, ?, ?, 'SUCCEEDED', 'policy-v1', 1,
                     ?, ?, ?)
                 """,
                 predictionId, userId, taskId,
-                persona.generationId(), persona.versionId(),
-                persona.personaId(),
+                persona.generationId(), persona.personaId(),
                 timestamp(NOW), timestamp(NOW.plusSeconds(1)),
                 timestamp(NOW.plusSeconds(2)));
         return predictionId;
@@ -747,13 +741,13 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_submissions (
                     submission_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     prediction_id, question_id, selected_option_id,
                     reason_source, final_reason, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'USER_WRITTEN', ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'USER_WRITTEN', ?, ?)
                 """,
                 submissionId, userId, taskId, persona.generationId(),
-                persona.versionId(), predictionId, questionId, optionId,
+                predictionId, questionId, optionId,
                 "직접 작성한 이유",
                 timestamp(NOW.plusSeconds(10)));
     }
@@ -771,14 +765,14 @@ class TaskSchemaConstraintIntegrationTest {
         jdbcTemplate.update("""
                 INSERT INTO task_submissions (
                     submission_id, user_id, task_id,
-                    persona_generation_id, persona_version_id,
+                    persona_generation_id,
                     prediction_id, question_id, selected_option_id,
                     reason_source, accepted_predicted_reason_id,
                     final_reason, submitted_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, 'AI_ACCEPTED', ?, ?, ?)
                 """,
                 submissionId, userId, taskId, persona.generationId(),
-                persona.versionId(), predictionId, questionId, optionId,
+                predictionId, questionId, optionId,
                 predictedReasonId, "선택 이유 " + optionId,
                 timestamp(NOW.plusSeconds(10)));
     }
@@ -817,7 +811,6 @@ class TaskSchemaConstraintIntegrationTest {
 
     private record PersonaFixture(
             UUID generationId,
-            UUID versionId,
             String personaId
     ) {
     }

@@ -3,33 +3,27 @@ package com.hamcheeze.vote.persona.application.query;
 import com.hamcheeze.vote.persona.application.CurrentPersonaStatus;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
-import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
-import com.hamcheeze.vote.persona.domain.PersonaGenerationStatus;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Objects;
-import java.util.Optional;
 
 @Service
 public class CurrentPersonaQueryService {
 
     private final PersonaSurveySourceQueryPort sources;
     private final PersonaGenerationRepository generations;
-    private final PersonaVersionRepository versions;
 
     public CurrentPersonaQueryService(
             PersonaSurveySourceQueryPort sources,
-            PersonaGenerationRepository generations,
-            PersonaVersionRepository versions
+            PersonaGenerationRepository generations
     ) {
         this.sources = Objects.requireNonNull(sources, "sources");
         this.generations = Objects.requireNonNull(
                 generations, "generations");
-        this.versions = Objects.requireNonNull(versions, "versions");
     }
 
     @Transactional(readOnly = true)
@@ -46,15 +40,6 @@ public class CurrentPersonaQueryService {
     }
 
     private CurrentPersonaStatus toCurrentStatus(PersonaGeneration generation) {
-        if (generation.status() != PersonaGenerationStatus.SUCCEEDED) {
-            return CurrentPersonaStatus.from(generation, Optional.empty());
-        }
-        return CurrentPersonaStatus.from(
-                generation,
-                Optional.of(versions
-                        .findByGenerationId(generation.id())
-                        .orElseThrow(() -> new IllegalStateException(
-                                "succeeded current persona has no version"))
-                        .personaVersionId()));
+        return CurrentPersonaStatus.from(generation);
     }
 }

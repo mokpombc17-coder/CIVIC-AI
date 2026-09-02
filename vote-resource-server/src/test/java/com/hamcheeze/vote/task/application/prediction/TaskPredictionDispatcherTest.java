@@ -107,7 +107,6 @@ class TaskPredictionDispatcherTest {
                                 invocation.getArgument(0),
                                 prediction.taskId(), prediction.userId(),
                                 prediction.personaGenerationId(),
-                                prediction.personaVersionId(),
                                 prediction.personaId(),
                                 task.get().schedule().scheduledCloseAt(),
                                 1, prediction.candidatePolicyVersion(),

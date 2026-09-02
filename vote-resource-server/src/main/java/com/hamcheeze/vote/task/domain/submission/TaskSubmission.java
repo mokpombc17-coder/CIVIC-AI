@@ -4,7 +4,6 @@ import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -28,7 +27,6 @@ public final class TaskSubmission {
     private final TaskUserId userId;
     private final TaskId taskId;
     private final TaskPersonaGenerationId personaGenerationId;
-    private final TaskPersonaVersionId personaVersionId;
     private final TaskPredictionId predictionId;
     private final TaskQuestionId questionId;
     private final TaskOptionId selectedOptionId;
@@ -42,7 +40,6 @@ public final class TaskSubmission {
             TaskUserId userId,
             TaskId taskId,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskPredictionId predictionId,
             TaskQuestionId questionId,
             TaskOptionId selectedOptionId,
@@ -56,8 +53,6 @@ public final class TaskSubmission {
         this.taskId = Objects.requireNonNull(taskId, "taskId");
         this.personaGenerationId = Objects.requireNonNull(
                 personaGenerationId, "personaGenerationId");
-        this.personaVersionId = Objects.requireNonNull(
-                personaVersionId, "personaVersionId");
         this.predictionId = predictionId;
         this.questionId = Objects.requireNonNull(questionId, "questionId");
         this.selectedOptionId = Objects.requireNonNull(
@@ -75,7 +70,6 @@ public final class TaskSubmission {
             Task task,
             TaskPrediction prediction,
             TaskPersonaGenerationId currentPersonaGenerationId,
-            TaskPersonaVersionId currentPersonaVersionId,
             TaskSubmissionAnswerCommand answerCommand,
             Instant submittedAt
     ) {
@@ -90,17 +84,15 @@ public final class TaskSubmission {
         }
         if (prediction != null) {
             validatePredictionIdentity(
-                    userId, task, prediction, currentPersonaGenerationId,
-                    currentPersonaVersionId);
+                    userId, task, prediction, currentPersonaGenerationId);
         }
         TaskQuestion question = validateChoice(task, answerCommand);
         return switch (answerCommand) {
             case AcceptTaskPredictedReason accepted -> createAiAccepted(
                     id, userId, task, prediction, currentPersonaGenerationId,
-                    currentPersonaVersionId, question, accepted, submittedAt);
+                    question, accepted, submittedAt);
             case WriteTaskReason written -> new TaskSubmission(
                     id, userId, task.id(), currentPersonaGenerationId,
-                    currentPersonaVersionId,
                     prediction == null ? null : prediction.id(), question.id(),
                     written.selectedOptionId(), TaskReasonSource.USER_WRITTEN,
                     null, written.reason(), submittedAt);
@@ -113,7 +105,6 @@ public final class TaskSubmission {
             Task task,
             TaskPrediction prediction,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskQuestionId questionId,
             TaskOptionId selectedOptionId,
             TaskReasonSource reasonSource,
@@ -124,8 +115,7 @@ public final class TaskSubmission {
         Objects.requireNonNull(task, "task");
         if (prediction != null) {
             validatePredictionIdentity(
-                    userId, task, prediction, personaGenerationId,
-                    personaVersionId);
+                    userId, task, prediction, personaGenerationId);
         }
         TaskQuestion question = requireTaskQuestion(task, questionId);
         requireTaskOption(question, selectedOptionId);
@@ -135,7 +125,7 @@ public final class TaskSubmission {
                     prediction, selectedOptionId, acceptedPredictedReasonId);
         }
         return new TaskSubmission(
-                id, userId, task.id(), personaGenerationId, personaVersionId,
+                id, userId, task.id(), personaGenerationId,
                 prediction == null ? null : prediction.id(),
                 questionId, selectedOptionId, reasonSource,
                 acceptedPredictedReasonId, finalReason, submittedAt);
@@ -145,7 +135,6 @@ public final class TaskSubmission {
     public TaskUserId userId() { return userId; }
     public TaskId taskId() { return taskId; }
     public TaskPersonaGenerationId personaGenerationId() { return personaGenerationId; }
-    public TaskPersonaVersionId personaVersionId() { return personaVersionId; }
     public TaskPredictionId predictionId() { return predictionId; }
     public TaskQuestionId questionId() { return questionId; }
     public TaskOptionId selectedOptionId() { return selectedOptionId; }
@@ -162,7 +151,6 @@ public final class TaskSubmission {
             Task task,
             TaskPrediction prediction,
             TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId,
             TaskQuestion question,
             AcceptTaskPredictedReason accepted,
             Instant submittedAt
@@ -173,7 +161,7 @@ public final class TaskSubmission {
                 accepted.selectedOptionId(),
                 accepted.predictedReasonId());
         return new TaskSubmission(
-                id, userId, task.id(), personaGenerationId, personaVersionId,
+                id, userId, task.id(), personaGenerationId,
                 prediction.id(), question.id(), accepted.selectedOptionId(),
                 TaskReasonSource.AI_ACCEPTED, reason.id(), reason.reason(),
                 submittedAt);
@@ -248,18 +236,15 @@ public final class TaskSubmission {
             TaskUserId userId,
             Task task,
             TaskPrediction prediction,
-            TaskPersonaGenerationId personaGenerationId,
-            TaskPersonaVersionId personaVersionId
+            TaskPersonaGenerationId personaGenerationId
     ) {
         Objects.requireNonNull(userId, "userId");
         Objects.requireNonNull(personaGenerationId, "personaGenerationId");
-        Objects.requireNonNull(personaVersionId, "personaVersionId");
-        if (!prediction.matches(
-                userId, task.id(), personaGenerationId, personaVersionId)) {
+        if (!prediction.matches(userId, task.id(), personaGenerationId)) {
             throw TaskDomainException.invariant(
                     "TASK_SUBMISSION_PREDICTION_MISMATCH",
                     "predictionId",
-                    "prediction user, task or persona version is stale");
+                    "prediction user, task or persona generation is stale");
         }
     }
 

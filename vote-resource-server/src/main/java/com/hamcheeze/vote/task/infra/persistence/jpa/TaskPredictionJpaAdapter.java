@@ -57,7 +57,7 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
             List<UUID> inserted = entityManager.createNativeQuery("""
                     INSERT INTO task_predictions (
                         prediction_id, row_version, user_id, task_id,
-                        persona_generation_id, persona_version_id, persona_id,
+                        persona_generation_id, persona_id,
                         status, candidate_policy_version, attempt_count,
                         next_retry_at, last_error_code, last_error_message,
                         created_at, started_at, completed_at,
@@ -65,7 +65,7 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                         lease_expires_at)
                     VALUES (
                         :predictionId, 0, :userId, :taskId,
-                        :generationId, :versionId, :personaId,
+                        :generationId, :personaId,
                         'PENDING', :policyVersion, 0,
                         NULL, NULL, NULL, :createdAt, NULL, NULL,
                         NULL, NULL, NULL)
@@ -78,8 +78,6 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                     .setParameter("taskId", prediction.taskId().value())
                     .setParameter("generationId",
                             prediction.personaGenerationId().value())
-                    .setParameter("versionId",
-                            prediction.personaVersionId().value())
                     .setParameter("personaId", prediction.personaId().value())
                     .setParameter("policyVersion",
                             prediction.candidatePolicyVersion())

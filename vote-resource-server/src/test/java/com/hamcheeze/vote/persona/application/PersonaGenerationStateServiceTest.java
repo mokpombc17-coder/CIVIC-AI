@@ -2,13 +2,9 @@ package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationAttemptRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
-import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaId;
-import com.hamcheeze.vote.persona.domain.PersonaModelVersion;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
-import com.hamcheeze.vote.persona.domain.PersonaVersion;
-import com.hamcheeze.vote.persona.domain.PredictedAdoptionRate;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
@@ -43,14 +39,12 @@ class PersonaGenerationStateServiceTest {
 
     private final PersonaGenerationRepository generations =
             mock(PersonaGenerationRepository.class);
-    private final PersonaVersionRepository versions =
-            mock(PersonaVersionRepository.class);
     private final PersonaGenerationAttemptRepository attempts =
             mock(PersonaGenerationAttemptRepository.class);
     private final PersonaGenerationProperties properties = properties();
     private final PersonaGenerationStateService states =
             new PersonaGenerationStateService(
-                    generations, versions, attempts, properties,
+                    generations, attempts, properties,
                     Clock.fixed(NOW, ZoneOffset.UTC), () -> TOKEN.value());
 
     @Test
@@ -74,7 +68,7 @@ class PersonaGenerationStateServiceTest {
     }
 
     @Test
-    void successStoresGenerationVersionAndAttemptTogether() {
+    void successStoresGenerationResultAndAttemptTogether() {
         PersonaGeneration generation = processing();
         PersonaGenerationAttempt attempt = attempt(generation);
         SurveyResponseId responseId = new SurveyResponseId(
@@ -84,9 +78,6 @@ class PersonaGenerationStateServiceTest {
                 .thenReturn(Optional.of(generation));
         when(attempts.findByClaimToken(TOKEN))
                 .thenReturn(Optional.of(attempt));
-        when(versions.insert(any()))
-                .thenAnswer(invocation -> invocation.getArgument(0));
-
         var completion = states.succeed(
                 generation.id(), TOKEN,
                 input(generation.id(), responseId), result);
@@ -94,11 +85,6 @@ class PersonaGenerationStateServiceTest {
         assertThat(completion).isEqualTo(
                 PersonaGenerationStateService.CompletionResult.APPLIED);
         assertThat(generation.personaId()).contains(result.personaId());
-        ArgumentCaptor<PersonaVersion> version =
-                ArgumentCaptor.forClass(PersonaVersion.class);
-        verify(versions).insert(version.capture());
-        assertThat(version.getValue().generationId())
-                .isEqualTo(generation.id());
         verify(attempts).update(any(PersonaGenerationAttempt.class));
     }
 
@@ -131,7 +117,6 @@ class PersonaGenerationStateServiceTest {
                         .IGNORED_STALE_CLAIM);
         assertThat(generation.claimToken()).contains(TOKEN);
         verify(generations, never()).save(any());
-        verify(versions, never()).insert(any());
         verify(attempts).update(any(PersonaGenerationAttempt.class));
     }
 
@@ -163,9 +148,7 @@ class PersonaGenerationStateServiceTest {
     ) {
         return new PersonaCreationResult(
                 generationId,
-                new PersonaId("provider-persona-1"),
-                new PredictedAdoptionRate(new BigDecimal("0.72")),
-                new PersonaModelVersion("model-v3"));
+                new PersonaId("provider-persona-1"));
     }
 
     private static PersonaSurveySource source(SurveyResponseId responseId) {

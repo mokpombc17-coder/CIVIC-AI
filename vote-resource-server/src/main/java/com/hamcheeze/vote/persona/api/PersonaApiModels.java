@@ -16,7 +16,6 @@ final class PersonaApiModels {
             String status,
             UUID sourceResponseId,
             UUID generationId,
-            UUID personaVersionId,
             String lastErrorCode,
             int attemptCount,
             Instant nextAttemptAt,
@@ -33,8 +32,6 @@ final class PersonaApiModels {
                     value.sourceResponseId().map(id -> id.value())
                             .orElse(null),
                     value.generationId().map(id -> id.value()).orElse(null),
-                    value.personaVersionId().map(id -> id.value())
-                            .orElse(null),
                     value.lastErrorCode().orElse(null),
                     value.attemptCount(),
                     value.nextAttemptAt().orElse(null),

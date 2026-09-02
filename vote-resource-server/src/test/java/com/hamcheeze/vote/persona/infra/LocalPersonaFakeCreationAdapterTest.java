@@ -27,9 +27,6 @@ class LocalPersonaFakeCreationAdapterTest {
         assertThat(second).isEqualTo(first);
         assertThat(first.generationId()).isEqualTo(command.generationId());
         assertThat(first.personaId().value()).isNotBlank();
-        assertThat(first.predictedAdoptionRate().value())
-                .isEqualByComparingTo("0.5");
-        assertThat(first.modelVersion().value()).isEqualTo("local-fake-v1");
     }
 
     private static PersonaCreationCommand command() {

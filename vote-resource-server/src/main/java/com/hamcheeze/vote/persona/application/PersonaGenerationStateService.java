@@ -2,14 +2,11 @@ package com.hamcheeze.vote.persona.application;
 
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationAttemptRepository;
 import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
-import com.hamcheeze.vote.persona.application.port.out.PersonaVersionRepository;
 import com.hamcheeze.vote.persona.domain.PersonaGeneration;
 import com.hamcheeze.vote.persona.domain.PersonaSourceType;
-import com.hamcheeze.vote.persona.domain.PersonaVersion;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationClaimToken;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
-import com.hamcheeze.vote.persona.domain.common.PersonaVersionId;
 import com.hamcheeze.vote.persona.infra.PersonaGenerationProperties;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -27,7 +24,6 @@ import java.util.function.Supplier;
 public class PersonaGenerationStateService {
 
     private final PersonaGenerationRepository generations;
-    private final PersonaVersionRepository versions;
     private final PersonaGenerationAttemptRepository attempts;
     private final PersonaGenerationProperties properties;
     private final Clock clock;
@@ -36,17 +32,15 @@ public class PersonaGenerationStateService {
     @Autowired
     public PersonaGenerationStateService(
             PersonaGenerationRepository generations,
-            PersonaVersionRepository versions,
             PersonaGenerationAttemptRepository attempts,
             PersonaGenerationProperties properties
     ) {
-        this(generations, versions, attempts, properties,
+        this(generations, attempts, properties,
                 Clock.systemUTC(), UUID::randomUUID);
     }
 
     PersonaGenerationStateService(
             PersonaGenerationRepository generations,
-            PersonaVersionRepository versions,
             PersonaGenerationAttemptRepository attempts,
             PersonaGenerationProperties properties,
             Clock clock,
@@ -54,7 +48,6 @@ public class PersonaGenerationStateService {
     ) {
         this.generations = Objects.requireNonNull(
                 generations, "generations");
-        this.versions = Objects.requireNonNull(versions, "versions");
         this.attempts = Objects.requireNonNull(attempts, "attempts");
         this.properties = Objects.requireNonNull(properties, "properties");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -120,16 +113,6 @@ public class PersonaGenerationStateService {
         Instant succeededAt = clock.instant();
         generation.succeed(claimToken, result.personaId(), succeededAt);
         generations.save(generation);
-        versions.insert(new PersonaVersion(
-                new PersonaVersionId(UUID.randomUUID()),
-                generation.id(),
-                input.userId(),
-                result.personaId(),
-                result.predictedAdoptionRate(),
-                result.modelVersion(),
-                succeededAt,
-                PersonaSourceType.SURVEY_RESPONSE,
-                sourceId));
         finishAttempt(
                 claimToken,
                 PersonaGenerationAttemptOutcome.SUCCEEDED,

@@ -9,7 +9,6 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import org.junit.jupiter.api.BeforeEach;
@@ -26,7 +25,6 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.failedPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.openTask;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaGenerationId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.personaId;
-import static com.hamcheeze.vote.task.TaskTestFixtures.personaVersionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.succeededPrediction;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.userId;
@@ -76,7 +74,7 @@ class TaskPredictionServiceTest {
         when(tasks.findById(taskId())).thenReturn(Optional.of(openTask()));
         when(currentPersonas.findCurrentUsable(userId())).thenReturn(
                 Optional.of(new CurrentTaskPersona(
-                        personaGenerationId(), personaVersionId(), personaId())));
+                        personaGenerationId(), personaId())));
         when(inputSnapshots.create(any(), any(), any()))
                 .thenAnswer(invocation -> input(
                         invocation.<TaskPrediction>getArgument(0)));
@@ -95,7 +93,7 @@ class TaskPredictionServiceTest {
     private TaskPredictionInputSnapshot input(TaskPredictionId predictionId) {
         return TaskPredictionInputSnapshot.create(
                 predictionId, taskId(), userId(), personaGenerationId(),
-                personaVersionId(), personaId(),
+                personaId(),
                 openTask().schedule().scheduledCloseAt(), 1,
                 "candidate-policy-v1", "{}", NOW.plusSeconds(20));
     }
@@ -140,15 +138,13 @@ class TaskPredictionServiceTest {
                 .isEqualTo(result.prediction().id());
         assertThat(result.prediction().personaGenerationId())
                 .isEqualTo(personaGenerationId());
-        assertThat(result.prediction().personaVersionId())
-                .isEqualTo(personaVersionId());
     }
 
     @Test
     void resolvesConflictFreeInsertRaceToTheConcurrentWinner() {
         TaskPrediction winner = TaskPrediction.pending(
                 new TaskPredictionId(UUID.randomUUID()),
-                userId(), taskId(), personaGenerationId(), personaVersionId(),
+                userId(), taskId(), personaGenerationId(),
                 personaId(),
                 "candidate-policy-v1", NOW.plusSeconds(20));
         when(predictions.findByIdentity(
@@ -202,11 +198,10 @@ class TaskPredictionServiceTest {
                 new TaskPersonaGenerationId(UUID.randomUUID());
         CurrentTaskPersona nextPersona = new CurrentTaskPersona(
                 nextGeneration,
-                new TaskPersonaVersionId(UUID.randomUUID()),
                 new TaskPersonaId("persona-next"));
         TaskPrediction currentPrediction = TaskPrediction.pending(
                 new TaskPredictionId(UUID.randomUUID()),
-                userId(), taskId(), nextGeneration, nextPersona.versionId(),
+                userId(), taskId(), nextGeneration,
                 nextPersona.personaId(),
                 "candidate-policy-v1", NOW.plusSeconds(20));
         when(currentPersonas.findCurrentUsable(userId()))

@@ -39,7 +39,6 @@ class TaskResultViewV1JsonlWriterTest {
                 "participantId",
                 "submittedAt",
                 "personaGenerationId",
-                "personaVersionId",
                 "predictionId");
     }
 

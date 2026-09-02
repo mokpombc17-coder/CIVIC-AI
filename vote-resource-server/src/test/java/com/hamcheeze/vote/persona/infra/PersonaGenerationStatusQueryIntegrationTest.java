@@ -45,7 +45,6 @@ class PersonaGenerationStatusQueryIntegrationTest {
                 TRUNCATE TABLE
                     persona_generation_retry_requests,
                     persona_generation_attempts,
-                    persona_versions,
                     persona_generations
                 CASCADE
                 """);

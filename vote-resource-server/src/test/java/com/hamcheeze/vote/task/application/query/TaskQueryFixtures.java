@@ -4,7 +4,6 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
-import com.hamcheeze.vote.task.domain.common.TaskPersonaVersionId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
@@ -36,8 +35,6 @@ final class TaskQueryFixtures {
     static final TaskUserId USER = new TaskUserId("query-user");
     static final TaskPersonaGenerationId GENERATION =
             new TaskPersonaGenerationId(UUID.randomUUID());
-    static final TaskPersonaVersionId VERSION =
-            new TaskPersonaVersionId(UUID.randomUUID());
     static final TaskPersonaId PERSONA = new TaskPersonaId("persona-query");
 
     private TaskQueryFixtures() {
@@ -105,7 +102,6 @@ final class TaskQueryFixtures {
                 USER,
                 task.id(),
                 GENERATION,
-                VERSION,
                 PERSONA,
                 "policy-v1",
                 NOW.minusSeconds(40));
@@ -142,7 +138,7 @@ final class TaskQueryFixtures {
                         2,
                         "네 번째 예상 근거"));
         return TaskPrediction.restore(
-                predictionId, USER, task, GENERATION, VERSION, PERSONA,
+                predictionId, USER, task, GENERATION, PERSONA,
                 "policy-v1", TaskPredictionStatus.SUCCEEDED,
                 1, candidates, null, null,
                 NOW.minusSeconds(40), NOW.minusSeconds(30),
@@ -155,7 +151,6 @@ final class TaskQueryFixtures {
                 USER,
                 task,
                 GENERATION,
-                VERSION,
                 PERSONA,
                 "policy-v1",
                 TaskPredictionStatus.FAILED,
@@ -178,7 +173,6 @@ final class TaskQueryFixtures {
                 task,
                 prediction,
                 GENERATION,
-                VERSION,
                 new AcceptTaskPredictedReason(
                         task.questions().getFirst().id(),
                         task.questions().getFirst().options().getFirst().id(),
@@ -196,7 +190,6 @@ final class TaskQueryFixtures {
                 task,
                 prediction,
                 GENERATION,
-                VERSION,
                 new WriteTaskReason(
                         task.questions().getFirst().id(),
                         task.questions().getFirst().options().getFirst().id(),

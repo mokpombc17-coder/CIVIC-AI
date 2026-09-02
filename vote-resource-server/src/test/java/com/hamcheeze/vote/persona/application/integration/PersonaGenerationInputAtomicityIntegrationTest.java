@@ -80,7 +80,6 @@ class PersonaGenerationInputAtomicityIntegrationTest {
                 TRUNCATE TABLE
                     persona_generation_retry_requests,
                     persona_generation_attempts,
-                    persona_versions,
                     persona_generation_inputs,
                     persona_generations,
                     persona_inbox
