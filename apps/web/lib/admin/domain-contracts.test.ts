@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   canReadTaskResult,
   adminFieldError,
+  formatAdminProblem,
   readRoomCreationRequestPage,
   readTaskDetail,
   readTaskResultSummary,
@@ -96,6 +97,30 @@ describe("admin domain response contracts", () => {
     ).toBeNull();
     expect(canReadTaskResult({ status: "CLOSED", closureType: "EARLY_CLOSED" })).toBe(true);
     expect(canReadTaskResult({ status: "CLOSED", closureType: "CANCELLED" })).toBe(false);
+  });
+
+  it("진행 중인 시뮬레이션에는 결과가 아직 없다는 빈 상태만 표시한다", () => {
+    expect(
+      formatAdminProblem({
+        code: "SIMULATION_NOT_COMPLETED",
+        detail: "Results are available only after successful completion.",
+        status: 409,
+        traceId: "f1f7d98b-467f-4df4-9050-0f1e896a0216",
+        violations: [],
+      }),
+    ).toBe("아직 결과가 없습니다.");
+  });
+
+  it("조치가 필요한 오류에는 기존 문의 코드를 유지한다", () => {
+    expect(
+      formatAdminProblem({
+        code: "UNEXPECTED_ERROR",
+        detail: "요청을 처리하지 못했습니다.",
+        status: 500,
+        traceId: "trace-1",
+        violations: [],
+      }),
+    ).toBe("요청을 처리하지 못했습니다. 문의 코드: trace-1");
   });
 });
 
