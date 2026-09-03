@@ -9,6 +9,7 @@ import com.hamcheeze.vote.task.application.preparation.TaskPreparationResult;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationVerification;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -38,6 +39,7 @@ public class TaskPreparationHttpProvider
     private final URI prepareEndpoint;
     private final String statusPath;
 
+    @Autowired
     public TaskPreparationHttpProvider(
             TaskPreparationProperties properties,
             ObjectMapper objectMapper
