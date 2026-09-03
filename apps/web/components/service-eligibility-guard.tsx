@@ -2,7 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
-import { PlatformPageShell } from "@/components/platform-page-shell";
+import { PlatformPageShell, type PlatformPageShellProps } from "@/components/platform-page-shell";
 import {
   getServiceEligibilityQueryOptions,
   requiresCurrentSurvey,
@@ -17,13 +17,18 @@ import styles from "./service-eligibility-guard.module.css";
 
 type ServiceEligibilityGuardProps = Readonly<{
   children: ReactNode;
+  headerSize?: PlatformPageShellProps["headerSize"];
   title: string;
 }>;
 
 const eligibilityLoadingDelayMs = 200;
 const eligibilityLoadingMinimumVisibleMs = 200;
 
-export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityGuardProps) {
+export function ServiceEligibilityGuard({
+  children,
+  headerSize,
+  title,
+}: ServiceEligibilityGuardProps) {
   const eligibilityQuery = useQuery(getServiceEligibilityQueryOptions());
   const surveyRequired = eligibilityQuery.data
     ? requiresCurrentSurvey(eligibilityQuery.data)
@@ -44,6 +49,7 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
         redirecting={surveyRequired}
         showIndicator={loading.showIndicator}
         title={title}
+        {...(headerSize ? { headerSize } : {})}
       />
     );
   }
@@ -77,6 +83,7 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
         }
         role="alert"
         title={title}
+        {...(headerSize ? { headerSize } : {})}
         statusTitle={
           authenticationRequired
             ? "로그인이 필요합니다."
@@ -92,6 +99,7 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
 export function ServiceEligibilityStatus({
   action,
   description = "이용 자격 확인 중…",
+  headerSize,
   loading = false,
   redirecting = false,
   role = "status",
@@ -101,6 +109,7 @@ export function ServiceEligibilityStatus({
 }: Readonly<{
   action?: ReactNode;
   description?: string;
+  headerSize?: PlatformPageShellProps["headerSize"];
   loading?: boolean;
   redirecting?: boolean;
   role?: "alert" | "status";
@@ -111,7 +120,11 @@ export function ServiceEligibilityStatus({
   const status = loading ? "loading" : "error";
 
   return (
-    <PlatformPageShell contentClassName={styles.content!} title={title}>
+    <PlatformPageShell
+      contentClassName={styles.content!}
+      title={title}
+      {...(headerSize ? { headerSize } : {})}
+    >
       <div
         aria-busy={loading || undefined}
         className={styles.loading}

@@ -86,6 +86,7 @@ export function ChatRoomListView({
       contentInert={isOverlayOpen}
       contentClassName="chat-room-list"
       header={<PlatformHeader title="토론방" />}
+      headerSize="compact"
       overlay={overlay}
     >
       <div className="grid gap-5 px-4 pb-4 pt-5">

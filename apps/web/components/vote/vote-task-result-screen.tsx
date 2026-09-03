@@ -87,6 +87,7 @@ function VoteTaskResultShell({ children, taskId }: { children: ReactNode; taskId
           title="투표 결과보기"
         />
       }
+      headerSize="compact"
     >
       <div className={`${styles.surface} ${styles.resultSurface}`} data-task-id={taskId}>
         {children}

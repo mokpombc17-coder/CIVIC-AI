@@ -47,6 +47,7 @@ export function ChatAuthenticationBoundaryView({
   return (
     <PlatformPageShell
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
+      headerSize="compact"
       title="토론방"
     >
       <div className="px-4 py-4" data-chat-authentication-required="true">

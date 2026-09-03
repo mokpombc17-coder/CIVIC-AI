@@ -10,6 +10,7 @@ export type PlatformShellProps = Readonly<{
   contentInert?: boolean;
   contentClassName?: string;
   header: ReactNode;
+  headerSize?: "compact";
   overlay?: ReactNode;
   scroll?: PlatformShellScroll;
   shellRef?: Ref<HTMLDivElement>;
@@ -22,6 +23,7 @@ export function PlatformShell({
   contentInert = false,
   contentClassName,
   header,
+  headerSize,
   overlay,
   scroll = "self",
   shellRef,
@@ -30,6 +32,7 @@ export function PlatformShell({
     <div className={styles.stage} data-platform-shell-stage="true">
       <div
         className={joinClassNames(styles.shell, className)}
+        data-header-size={headerSize}
         data-platform-shell="true"
         data-scroll={scroll}
         ref={shellRef}

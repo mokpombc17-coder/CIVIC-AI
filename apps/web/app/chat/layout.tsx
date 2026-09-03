@@ -16,7 +16,7 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   return (
     <ChatQueryProvider>
       <ChatAuthenticationBoundary>
-        <ServiceEligibilityGuard title="토론방">
+        <ServiceEligibilityGuard headerSize="compact" title="토론방">
           <ChatRealtimeProvider>
             <ChatRoomReadStateProvider>{children}</ChatRoomReadStateProvider>
           </ChatRealtimeProvider>

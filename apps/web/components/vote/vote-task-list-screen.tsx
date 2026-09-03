@@ -89,6 +89,7 @@ export function VoteTaskListScreen() {
       bottomNavigation={<PlatformNavigationClient />}
       contentClassName={styles.voteContent!}
       header={<PlatformHeader className={styles.voteHeader!} title="투표" />}
+      headerSize="compact"
     >
       <div className={`${styles.surface} ${styles.listSurface}`}>
         <form className={styles.searchSection} onSubmit={submitSearch} role="search">

@@ -41,6 +41,7 @@ function SurveyResponseQueryView({
           title="내 설문 응답"
         />
       }
+      headerSize="compact"
     >
       <div className={`${styles.screen} ${styles.responseScreen}`} data-survey-response-mode={mode}>
         {query.isPending ? <ResponseStatus title="응답을 불러오는 중입니다." /> : null}

@@ -11,6 +11,7 @@ describe("VoteLayout", () => {
     const markup = renderToStaticMarkup(<VoteLayout>protected vote content</VoteLayout>);
 
     expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).toContain('data-header-size="compact"');
     expect(markup).not.toContain("protected vote content");
   });
 });

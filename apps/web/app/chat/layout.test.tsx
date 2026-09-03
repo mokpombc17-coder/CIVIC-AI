@@ -11,6 +11,7 @@ describe("ChatLayout", () => {
     const markup = renderToStaticMarkup(<ChatLayout>protected chat content</ChatLayout>);
 
     expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).toContain('data-header-size="compact"');
     expect(markup).not.toContain("protected chat content");
     expect(markup).not.toContain("data-chat-realtime-provider");
   });

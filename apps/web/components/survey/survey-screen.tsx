@@ -102,7 +102,6 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
 
   return (
     <PlatformShell
-      className={styles.shell!}
       contentClassName={styles.content!}
       header={
         <PlatformHeader
@@ -119,6 +118,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
           {...(headerBackAction ? { backAction: headerBackAction } : {})}
         />
       }
+      headerSize="compact"
       scroll="child"
     >
       <div className={styles.screen} data-survey-screen="flow">

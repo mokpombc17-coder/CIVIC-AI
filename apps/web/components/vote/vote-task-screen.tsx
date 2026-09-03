@@ -237,18 +237,12 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       header={
         <PlatformHeader
           backAction={backAction}
-          className={[
-            styles.voteHeader,
-            !isViewingSubmittedResponse && (step === 1 || step === 3)
-              ? styles.voteHeaderTall
-              : undefined,
-          ]
-            .filter(Boolean)
-            .join(" ")}
+          className={styles.voteHeader!}
           leading={step === 4 ? null : undefined}
           title={isViewingSubmittedResponse ? "제출 완료" : "투표 참여하기"}
         />
       }
+      headerSize="compact"
       overlay={cancelOpen ? <CancelSheet onClose={() => setCancelOpen(false)} /> : null}
     >
       <div className={`${styles.surface} ${styles.flowSurface}`} data-task-id={taskId}>

@@ -4,6 +4,7 @@ import {
   PlatformHeader,
   PlatformShell,
   type PlatformHeaderBackAction,
+  type PlatformShellProps,
   type PlatformShellScroll,
 } from "@/components/platform-shell";
 
@@ -14,6 +15,7 @@ export type PlatformPageShellProps = Readonly<{
   className?: string;
   contentClassName?: string;
   headerActions?: ReactNode;
+  headerSize?: PlatformShellProps["headerSize"];
   scroll?: PlatformShellScroll;
   title: ReactNode;
 }>;
@@ -25,6 +27,7 @@ export function PlatformPageShell({
   className,
   contentClassName,
   headerActions,
+  headerSize,
   scroll = "self",
   title,
 }: PlatformPageShellProps) {
@@ -41,6 +44,7 @@ export function PlatformPageShell({
       scroll={scroll}
       {...(className ? { className } : {})}
       {...(contentClassName ? { contentClassName } : {})}
+      {...(headerSize ? { headerSize } : {})}
     >
       {children}
     </PlatformShell>

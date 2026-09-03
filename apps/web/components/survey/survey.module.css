@@ -1,7 +1,3 @@
-.shell {
-  --platform-shell-header-height: 64px;
-}
-
 .content {
   background: var(--platform-shell-color-surface);
 }

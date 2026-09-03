@@ -25,6 +25,16 @@ describe("PlatformShell", () => {
     expect(markup.match(/data-scroll="child"/g)).toHaveLength(2);
   });
 
+  it("compact header 크기를 요청한 route를 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformShell header={<header>공통 헤더</header>} headerSize="compact">
+        도메인 콘텐츠
+      </PlatformShell>,
+    );
+
+    expect(markup).toContain('data-header-size="compact"');
+  });
+
   it("overlay가 있으면 공통 surface를 inert 처리하고 overlay layer를 분리한다", () => {
     const markup = renderToStaticMarkup(
       <PlatformShell

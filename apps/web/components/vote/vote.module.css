@@ -15,14 +15,6 @@
   color: var(--vote-text);
 }
 
-.voteHeader {
-  --platform-shell-header-height: 64px;
-}
-
-.voteHeaderTall {
-  --platform-shell-header-height: 69px;
-}
-
 .voteContent {
   background: #fff;
 }

@@ -33,6 +33,10 @@
   color: var(--platform-shell-color-text);
 }
 
+.shell[data-header-size="compact"] {
+  --platform-shell-header-height: 64px;
+}
+
 @media (max-width: 480px) {
   .shell {
     max-width: none;

@@ -20,4 +20,14 @@ describe("PlatformPageShell", () => {
     expect(markup).toMatch(/aria-current="page" href="\/home"/);
     expect(markup).toContain("홈 콘텐츠");
   });
+
+  it("route가 요청한 compact header 크기를 PlatformShell에 전달한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformPageShell headerSize="compact" title="투표">
+        <p>투표 콘텐츠</p>
+      </PlatformPageShell>,
+    );
+
+    expect(markup).toContain('data-header-size="compact"');
+  });
 });

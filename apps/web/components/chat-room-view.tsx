@@ -57,6 +57,7 @@ export function ChatRoomView({
           title={header.title}
         />
       }
+      headerSize="compact"
       overlay={roomError ? null : overlay}
       scroll="child"
       shellRef={chatRoomShellRef}
