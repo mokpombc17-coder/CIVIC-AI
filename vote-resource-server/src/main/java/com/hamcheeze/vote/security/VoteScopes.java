@@ -24,6 +24,8 @@ public final class VoteScopes {
             "vote:submissions:write";
     public static final String TASK_OUTCOMES_READ =
             "vote:task-outcomes:read";
+    public static final String TASK_PREPARATIONS_WRITE =
+            "vote:task-preparations:write";
 
     private static final String AUTHORITY_PREFIX = "SCOPE_";
 

@@ -61,6 +61,11 @@ public class VoteSecurityConfig {
                                 "/api/v1/integrations/persona/tasks/*/outcomes")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.TASK_OUTCOMES_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/integrations/persona/task-preparations/*/result")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.TASK_PREPARATIONS_WRITE))
                         .requestMatchers("/api/v1/integrations/**")
                         .denyAll()
                         .requestMatchers(

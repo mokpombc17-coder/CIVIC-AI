@@ -123,8 +123,10 @@ final class TaskAdminController {
             @PathVariable UUID taskId,
             @Valid @RequestBody TaskApiModels.ScheduleRequest request
     ) {
+        TaskId id = id(taskId);
+        preparations.requireLocallyReady(id);
         return TaskApiModels.TaskResponse.from(administration.schedule(
-                id(taskId), request.toDomain(), request.reason(),
+                id, request.toDomain(), request.reason(),
                 actor(authentication)).task());
     }
 
@@ -145,9 +147,11 @@ final class TaskAdminController {
             @PathVariable UUID taskId,
             @Valid @RequestBody TaskApiModels.OpenNowRequest request
     ) {
+        TaskId id = id(taskId);
+        preparations.verifyReady(id);
         return TaskApiModels.TaskResponse.from(
                 administration.openImmediately(
-                        id(taskId), request.closesAt(), request.reason(),
+                        id, request.closesAt(), request.reason(),
                         actor(authentication)).task());
     }
 
@@ -157,9 +161,11 @@ final class TaskAdminController {
             @PathVariable UUID taskId,
             @Valid @RequestBody TaskApiModels.ReasonRequest request
     ) {
+        TaskId id = id(taskId);
+        preparations.verifyReady(id);
         return TaskApiModels.TaskResponse.from(
                 administration.openScheduledNow(
-                        id(taskId), request.reason(),
+                        id, request.reason(),
                         actor(authentication)).task());
     }
 

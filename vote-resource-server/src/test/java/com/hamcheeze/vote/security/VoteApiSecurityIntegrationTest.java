@@ -294,6 +294,55 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
+    void taskPreparationCallbackRequiresDedicatedWriteScope()
+            throws Exception {
+        String requestId =
+                "10000000-0000-0000-0000-000000000999";
+        String path = "/api/v1/integrations/persona/"
+                + "task-preparations/" + requestId + "/result";
+        String body = """
+                {
+                  "schemaVersion": 1,
+                  "requestId": "%s",
+                  "taskId": "20000000-0000-0000-0000-000000000999",
+                  "contentFingerprint": "sha256:%s",
+                  "status": "READY",
+                  "preparedAt": "2026-09-03T03:03:00Z",
+                  "error": null
+                }
+                """.formatted(requestId, "a".repeat(64));
+
+        mockMvc.perform(post(path)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(post(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "persona-runtime",
+                                        VoteScopes.TASK_OUTCOMES_READ))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(post(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "persona-runtime",
+                                        VoteScopes.TASK_PREPARATIONS_WRITE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(body))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_PREPARATION_NOT_FOUND"));
+    }
+
+    @Test
     void rejectsMissingOrWrongUserScopeWithProblemDetail()
             throws Exception {
         mockMvc.perform(get("/api/v1/me/tasks/completed"))

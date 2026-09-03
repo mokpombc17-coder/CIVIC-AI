@@ -3,7 +3,9 @@ package com.hamcheeze.vote.task.infra.preparation;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationProvider;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationCommand;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderResult;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationRemoteStatus;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationVerification;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -42,5 +44,23 @@ public class LocalTaskPreparationFakeProvider
                 TaskPreparationStatus.READY,
                 false,
                 clock.instant());
+    }
+
+    @Override
+    public TaskPreparationRemoteStatus findStatus(
+            TaskPreparationVerification verification
+    ) {
+        Objects.requireNonNull(verification, "verification");
+        var now = clock.instant();
+        return new TaskPreparationRemoteStatus(
+                verification.schemaVersion(),
+                verification.requestId(),
+                verification.taskId(),
+                verification.contentFingerprint(),
+                TaskPreparationStatus.READY,
+                now,
+                now,
+                null,
+                now);
     }
 }

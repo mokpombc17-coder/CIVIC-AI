@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.infra.preparation;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationCommand;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderException;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationVerification;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -34,6 +35,7 @@ class TaskPreparationHttpProviderTest {
     private final AtomicReference<String> body = new AtomicReference<>();
     private final AtomicReference<String> authorization =
             new AtomicReference<>();
+    private final AtomicReference<String> method = new AtomicReference<>();
 
     private HttpServer server;
     private TaskPreparationProperties properties;
@@ -46,6 +48,8 @@ class TaskPreparationHttpProviderTest {
         properties.setBaseUrl("http://127.0.0.1:"
                 + server.getAddress().getPort());
         properties.setPath("/v1/tasks/prepare");
+        properties.setStatusPath(
+                "/v1/task-preparations/{requestId}");
         properties.setAuthToken("runtime-token");
         properties.setConnectTimeout(Duration.ofSeconds(1));
         properties.setRequestTimeout(Duration.ofSeconds(1));
@@ -130,6 +134,46 @@ class TaskPreparationHttpProviderTest {
                         });
     }
 
+    @Test
+    void getsStatusByRequestIdAndValidatesReadyResponse() {
+        server.createContext(
+                "/v1/task-preparations/" + REQUEST_ID,
+                exchange -> {
+                    method.set(exchange.getRequestMethod());
+                    authorization.set(exchange.getRequestHeaders()
+                            .getFirst("Authorization"));
+                    respond(exchange, 200, statusBody("READY"));
+                });
+
+        var result = provider().findStatus(verification());
+
+        assertThat(method.get()).isEqualTo("GET");
+        assertThat(authorization.get()).isEqualTo("Bearer runtime-token");
+        assertThat(result.status()).isEqualTo(TaskPreparationStatus.READY);
+        assertThat(result.preparedAt()).isEqualTo(PREPARED_AT);
+    }
+
+    @Test
+    void rejectsMismatchedStatusResponsePermanently() {
+        server.createContext(
+                "/v1/task-preparations/" + REQUEST_ID,
+                exchange -> respond(
+                        exchange,
+                        200,
+                        statusBody("READY").replace(
+                                TASK_ID.value().toString(),
+                                UUID.randomUUID().toString())));
+
+        assertThatThrownBy(() -> provider().findStatus(verification()))
+                .isInstanceOfSatisfying(
+                        TaskPreparationProviderException.class,
+                        exception -> {
+                            assertThat(exception.retryable()).isFalse();
+                            assertThat(exception.code()).isEqualTo(
+                                    "TASK_PREPARATION_RESPONSE_MISMATCH");
+                        });
+    }
+
     private TaskPreparationHttpProvider provider() {
         return new TaskPreparationHttpProvider(
                 properties, new ObjectMapper());
@@ -142,6 +186,11 @@ class TaskPreparationHttpProviderTest {
                 TASK_ID,
                 FINGERPRINT,
                 "{\"task\":\"payload\"}");
+    }
+
+    private static TaskPreparationVerification verification() {
+        return new TaskPreparationVerification(
+                1, REQUEST_ID, TASK_ID, FINGERPRINT);
     }
 
     private static String successBody() {
@@ -178,6 +227,28 @@ class TaskPreparationHttpProviderTest {
                 REQUEST_ID,
                 TASK_ID.value(),
                 FINGERPRINT);
+    }
+
+    private static String statusBody(String status) {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "requestId": "%s",
+                  "taskId": "%s",
+                  "contentFingerprint": "%s",
+                  "status": "%s",
+                  "acceptedAt": "2026-09-02T06:59:00Z",
+                  "preparedAt": "%s",
+                  "error": null,
+                  "updatedAt": "%s"
+                }
+                """.formatted(
+                REQUEST_ID,
+                TASK_ID.value(),
+                FINGERPRINT,
+                status,
+                PREPARED_AT,
+                PREPARED_AT);
     }
 
     private static void respond(

@@ -37,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -435,6 +436,7 @@ class TaskAdminControllerTest {
                 eq(new TaskSchedule(opensAt, closesAt)),
                 eq("예약"),
                 eq(actorId()));
+        verify(preparations).requireLocallyReady(taskId());
 
         mockMvc.perform(put("/api/v1/admin/tasks/{taskId}/schedule",
                         taskId().value())
@@ -467,6 +469,7 @@ class TaskAdminControllerTest {
                 .andExpect(status().isOk());
         verify(administration).openImmediately(
                 eq(taskId()), eq(closesAt), eq("즉시 발행"), eq(actorId()));
+        verify(preparations).verifyReady(taskId());
 
         mockMvc.perform(post("/api/v1/admin/tasks/{taskId}/start-now",
                         taskId().value())
@@ -476,6 +479,7 @@ class TaskAdminControllerTest {
                 .andExpect(status().isOk());
         verify(administration).openScheduledNow(
                 eq(taskId()), eq("즉시 시작"), eq(actorId()));
+        verify(preparations, times(2)).verifyReady(taskId());
 
         mockMvc.perform(put("/api/v1/admin/tasks/{taskId}/deadline",
                         taskId().value())

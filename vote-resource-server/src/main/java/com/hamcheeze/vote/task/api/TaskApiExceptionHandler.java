@@ -133,7 +133,9 @@ final class TaskApiExceptionHandler {
 
     private static HttpStatus domainStatus(String code) {
         if (code.equals("TASK_PREDICTION_DISABLED")
-                || code.equals("TASK_PREPARATION_UNAVAILABLE")) {
+                || code.equals("TASK_PREPARATION_UNAVAILABLE")
+                || code.equals(
+                "TASK_PREPARATION_VERIFICATION_UNAVAILABLE")) {
             return HttpStatus.SERVICE_UNAVAILABLE;
         }
         if (code.equals("TASK_PREPARATION_IN_PROGRESS")) {

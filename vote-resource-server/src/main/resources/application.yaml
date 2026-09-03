@@ -56,6 +56,7 @@ vote:
       provider: http
       base-url: http://localhost:8090
       path: /v1/tasks/prepare
+      status-path: /v1/task-preparations/{requestId}
       connect-timeout: 5s
       request-timeout: 30s
       retry-delay: 30s

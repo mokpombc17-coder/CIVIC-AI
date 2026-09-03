@@ -43,6 +43,7 @@ vote:
       provider: ${VOTE_TASK_PREPARATION_PROVIDER:fake}
       base-url: ${VOTE_TASK_PREPARATION_BASE_URL:http://localhost:8090}
       path: ${VOTE_TASK_PREPARATION_PATH:/v1/tasks/prepare}
+      status-path: /v1/task-preparations/{requestId}
       auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:}
       connect-timeout: ${VOTE_TASK_PREPARATION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREPARATION_REQUEST_TIMEOUT:30s}

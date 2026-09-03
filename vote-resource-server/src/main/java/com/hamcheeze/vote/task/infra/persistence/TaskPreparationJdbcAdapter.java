@@ -59,6 +59,20 @@ public class TaskPreparationJdbcAdapter
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<TaskPreparationRecord> findByRequestId(UUID requestId) {
+        Objects.requireNonNull(requestId, "requestId");
+        return jdbcTemplate.query(
+                        SELECT + """
+                        WHERE request_id = ?
+                        """,
+                        this::map,
+                        requestId)
+                .stream()
+                .findFirst();
+    }
+
+    @Override
     @Transactional
     public Optional<TaskPreparationRecord> findByTaskIdForUpdate(
             TaskId taskId

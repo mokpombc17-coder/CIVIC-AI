@@ -84,6 +84,44 @@ public class TaskPreparationStateService {
                 });
     }
 
+    @Transactional(readOnly = true)
+    public TaskPreparationVerification verification(TaskId taskId) {
+        Task task = tasks.findById(Objects.requireNonNull(taskId, "taskId"))
+                .orElseThrow(() -> invariant(
+                        "TASK_NOT_FOUND", "Task does not exist"));
+        TaskPreparationRecord preparation = preparations
+                .findByTaskId(taskId)
+                .orElseThrow(() -> invariant(
+                        "TASK_PREPARATION_NOT_READY",
+                        "Task preparation is not ready"));
+        String fingerprint = payloads.fingerprint(task);
+        if (!preparation.contentFingerprint().equals(fingerprint)) {
+            throw invariant(
+                    "TASK_PREPARATION_FINGERPRINT_MISMATCH",
+                    "Task preparation does not match current content");
+        }
+        return new TaskPreparationVerification(
+                1,
+                preparation.requestId(),
+                task.id(),
+                fingerprint);
+    }
+
+    @Transactional(readOnly = true)
+    public void requireLocallyReady(TaskId taskId) {
+        TaskPreparationVerification verification = verification(taskId);
+        TaskPreparationRecord preparation = preparations
+                .findByTaskId(taskId)
+                .orElseThrow(() -> invariant(
+                        "TASK_PREPARATION_NOT_READY",
+                        "Task preparation is not ready"));
+        if (!preparation.readyFor(verification.contentFingerprint())) {
+            throw invariant(
+                    "TASK_PREPARATION_NOT_READY",
+                    "Task preparation is not ready");
+        }
+    }
+
     @Transactional
     public TaskPreparationRecord applyProviderResult(
             TaskPreparationCommand command,
@@ -96,8 +134,110 @@ public class TaskPreparationStateService {
             return markReady(command, result);
         }
         TaskPreparationRecord existing = lockPreparation(command.taskId());
-        requireCurrentAttempt(existing, command);
+        requireSameAttempt(existing, command);
         return existing;
+    }
+
+    @Transactional
+    public TaskPreparationRecord applyCallback(
+            TaskPreparationResult result
+    ) {
+        Objects.requireNonNull(result, "result");
+        TaskId taskId = preparations.findByRequestId(result.requestId())
+                .map(TaskPreparationRecord::taskId)
+                .orElse(result.taskId());
+        Task task = tasks.findByIdForUpdate(taskId)
+                .orElseThrow(() -> invariant(
+                        "TASK_PREPARATION_NOT_FOUND",
+                        "Task preparation does not exist"));
+        TaskPreparationRecord existing = preparations
+                .findByTaskIdForUpdate(taskId)
+                .orElseThrow(() -> invariant(
+                        "TASK_PREPARATION_NOT_FOUND",
+                        "Task preparation does not exist"));
+
+        if (!existing.requestId().equals(result.requestId())) {
+            throw invariant(
+                    "TASK_PREPARATION_STALE_RESULT",
+                    "Task preparation result is no longer current");
+        }
+        if (!existing.taskId().equals(result.taskId())
+                || !existing.contentFingerprint().equals(
+                        result.contentFingerprint())) {
+            throw invariant(
+                    "TASK_PREPARATION_RESULT_MISMATCH",
+                    "Task preparation result does not match its request");
+        }
+        if (!payloads.fingerprint(task).equals(
+                existing.contentFingerprint())) {
+            throw invariant(
+                    "TASK_PREPARATION_STALE_RESULT",
+                    "Task content changed after preparation started");
+        }
+        if (sameTerminalResult(existing, result)) {
+            return existing;
+        }
+        if (existing.status() != TaskPreparationStatus.PROCESSING
+                && !(existing.status() == TaskPreparationStatus.FAILED
+                && result.status() == TaskPreparationStatus.READY)) {
+            throw invariant(
+                    "TASK_PREPARATION_TERMINAL_STATE_CONFLICT",
+                    "Task preparation already has a different terminal result");
+        }
+        return saveCallbackResult(existing, result, clock.instant());
+    }
+
+    @Transactional
+    public TaskPreparationRecord applyVerification(
+            TaskPreparationVerification verification,
+            TaskPreparationRemoteStatus remote
+    ) {
+        Objects.requireNonNull(verification, "verification");
+        Objects.requireNonNull(remote, "remote");
+        if (remote.schemaVersion() != verification.schemaVersion()
+                || !remote.requestId().equals(verification.requestId())
+                || !remote.taskId().equals(verification.taskId())
+                || !remote.contentFingerprint().equals(
+                        verification.contentFingerprint())) {
+            throw invariant(
+                    "TASK_PREPARATION_FINGERPRINT_MISMATCH",
+                    "Runtime status does not match current preparation");
+        }
+
+        Task task = tasks.findByIdForUpdate(verification.taskId())
+                .orElseThrow(() -> invariant(
+                        "TASK_NOT_FOUND", "Task does not exist"));
+        TaskPreparationRecord existing = preparations
+                .findByTaskIdForUpdate(verification.taskId())
+                .orElseThrow(() -> invariant(
+                        "TASK_PREPARATION_NOT_READY",
+                        "Task preparation is not ready"));
+        if (!existing.requestId().equals(verification.requestId())
+                || !existing.contentFingerprint().equals(
+                        verification.contentFingerprint())
+                || !payloads.fingerprint(task).equals(
+                        verification.contentFingerprint())) {
+            throw invariant(
+                    "TASK_PREPARATION_FINGERPRINT_MISMATCH",
+                    "Task preparation changed during verification");
+        }
+        if (remote.status() == TaskPreparationStatus.PROCESSING
+                || existing.status() == TaskPreparationStatus.READY
+                && remote.status() == TaskPreparationStatus.READY) {
+            return existing;
+        }
+        TaskPreparationResult result = remote.terminalResult();
+        if (sameTerminalResult(existing, result)) {
+            return existing;
+        }
+        if (existing.status() != TaskPreparationStatus.PROCESSING
+                && !(existing.status() == TaskPreparationStatus.FAILED
+                && result.status() == TaskPreparationStatus.READY)) {
+            throw invariant(
+                    "TASK_PREPARATION_TERMINAL_STATE_CONFLICT",
+                    "Runtime status conflicts with local terminal result");
+        }
+        return saveCallbackResult(existing, result, clock.instant());
     }
 
     @Transactional
@@ -109,7 +249,19 @@ public class TaskPreparationStateService {
         Objects.requireNonNull(result, "result");
         validateResult(command, result);
         TaskPreparationRecord existing = lockPreparation(command.taskId());
-        requireCurrentAttempt(existing, command);
+        requireSameAttempt(existing, command);
+        if (existing.status() == TaskPreparationStatus.READY) {
+            if (Objects.equals(existing.preparedAt(), result.preparedAt())) {
+                return existing;
+            }
+            throw new IllegalStateException(
+                    "Task preparation already has another READY result");
+        }
+        if (existing.status() != TaskPreparationStatus.PROCESSING
+                && existing.status() != TaskPreparationStatus.FAILED) {
+            throw new IllegalStateException(
+                    "Task preparation attempt is already terminal");
+        }
         Instant now = clock.instant();
         return preparations.save(new TaskPreparationRecord(
                 existing.taskId(),
@@ -135,7 +287,10 @@ public class TaskPreparationStateService {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(exception, "exception");
         TaskPreparationRecord existing = lockPreparation(command.taskId());
-        requireCurrentAttempt(existing, command);
+        requireSameAttempt(existing, command);
+        if (existing.status() != TaskPreparationStatus.PROCESSING) {
+            return existing;
+        }
         Instant now = clock.instant();
         TaskPreparationStatus status = exception.retryable()
                 ? TaskPreparationStatus.FAILED
@@ -234,12 +389,50 @@ public class TaskPreparationStateService {
                         "Task preparation disappeared during provider call"));
     }
 
-    private static void requireCurrentAttempt(
+    private TaskPreparationRecord saveCallbackResult(
+            TaskPreparationRecord existing,
+            TaskPreparationResult result,
+            Instant now
+    ) {
+        TaskPreparationResult.Error error = result.error();
+        return preparations.save(new TaskPreparationRecord(
+                existing.taskId(),
+                existing.requestId(),
+                existing.contentFingerprint(),
+                existing.requestPayload(),
+                result.status(),
+                existing.attemptCount(),
+                null,
+                result.status() == TaskPreparationStatus.FAILED
+                        ? now.plus(policy.retryDelay()) : null,
+                result.preparedAt(),
+                error == null ? null : error.code(),
+                error == null ? null : error.detail(),
+                existing.createdAt(),
+                now));
+    }
+
+    private static boolean sameTerminalResult(
+            TaskPreparationRecord existing,
+            TaskPreparationResult result
+    ) {
+        if (existing.status() != result.status()) {
+            return false;
+        }
+        if (result.status() == TaskPreparationStatus.READY) {
+            return Objects.equals(
+                    existing.preparedAt(), result.preparedAt());
+        }
+        TaskPreparationResult.Error error = result.error();
+        return Objects.equals(existing.lastErrorCode(), error.code())
+                && Objects.equals(existing.lastErrorDetail(), error.detail());
+    }
+
+    private static void requireSameAttempt(
             TaskPreparationRecord preparation,
             TaskPreparationCommand command
     ) {
-        if (preparation.status() != TaskPreparationStatus.PROCESSING
-                || !preparation.requestId().equals(command.requestId())
+        if (!preparation.requestId().equals(command.requestId())
                 || !preparation.contentFingerprint().equals(
                         command.contentFingerprint())) {
             throw new IllegalStateException(

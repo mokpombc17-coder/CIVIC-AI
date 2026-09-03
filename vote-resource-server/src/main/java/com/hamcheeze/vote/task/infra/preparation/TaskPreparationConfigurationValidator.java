@@ -57,6 +57,13 @@ public class TaskPreparationConfigurationValidator
         if (provider.equals("http")) {
             validateBaseUrl(properties.getBaseUrl(), production);
             required(properties.getPath(), "vote.task.preparation.path");
+            String statusPath = required(
+                    properties.getStatusPath(),
+                    "vote.task.preparation.status-path");
+            if (!statusPath.contains("{requestId}")) {
+                invalid("vote.task.preparation.status-path",
+                        "must contain {requestId}");
+            }
         }
     }
 

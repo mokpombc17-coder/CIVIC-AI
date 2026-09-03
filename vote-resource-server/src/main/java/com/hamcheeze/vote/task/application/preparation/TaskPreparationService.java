@@ -26,6 +26,30 @@ public class TaskPreparationService {
         return execute(states.claim(taskId));
     }
 
+    public void requireLocallyReady(TaskId taskId) {
+        states.requireLocallyReady(taskId);
+    }
+
+    public void verifyReady(TaskId taskId) {
+        TaskPreparationVerification verification =
+                states.verification(taskId);
+        final TaskPreparationRemoteStatus remote;
+        try {
+            remote = provider().findStatus(verification);
+        } catch (TaskPreparationProviderException exception) {
+            throw publicVerificationFailure(exception);
+        }
+        TaskPreparationRecord current =
+                states.applyVerification(verification, remote);
+        if (!remote.ready()
+                || current.status() != TaskPreparationStatus.READY) {
+            throw TaskDomainException.invariant(
+                    "TASK_PREPARATION_NOT_READY",
+                    "taskPreparation",
+                    "Task preparation is not ready");
+        }
+    }
+
     private TaskPreparationReceipt execute(TaskPreparationClaim claim) {
         if (!claim.requiresProviderCall()) {
             return TaskPreparationReceipt.from(claim.existing(), true);
@@ -39,7 +63,11 @@ public class TaskPreparationService {
             return TaskPreparationReceipt.from(
                     preparation, result.replayed());
         } catch (TaskPreparationProviderException exception) {
-            states.markFailed(command, exception);
+            TaskPreparationRecord preparation =
+                    states.markFailed(command, exception);
+            if (preparation.status() == TaskPreparationStatus.READY) {
+                return TaskPreparationReceipt.from(preparation, true);
+            }
             throw publicFailure(exception);
         }
     }
@@ -68,5 +96,29 @@ public class TaskPreparationService {
                 exception.retryable()
                         ? "Task preparation is temporarily unavailable"
                         : "Runtime rejected the Task content");
+    }
+
+    private static TaskDomainException publicVerificationFailure(
+            TaskPreparationProviderException exception
+    ) {
+        if (exception.code().equals(
+                "TASK_PREPARATION_RESPONSE_MISMATCH")) {
+            return TaskDomainException.invariant(
+                    "TASK_PREPARATION_FINGERPRINT_MISMATCH",
+                    "taskPreparation",
+                    "Runtime status does not match current preparation");
+        }
+        if (!exception.retryable()
+                && exception.httpStatus() != null
+                && exception.httpStatus() == 404) {
+            return TaskDomainException.invariant(
+                    "TASK_PREPARATION_NOT_READY",
+                    "taskPreparation",
+                    "Runtime preparation does not exist");
+        }
+        return TaskDomainException.invariant(
+                "TASK_PREPARATION_VERIFICATION_UNAVAILABLE",
+                "taskPreparation",
+                "Task preparation could not be verified");
     }
 }

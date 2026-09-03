@@ -11,6 +11,7 @@ public class TaskPreparationProperties {
     private String provider = "http";
     private String baseUrl = "http://localhost:8090";
     private String path = "/v1/tasks/prepare";
+    private String statusPath = "/v1/task-preparations/{requestId}";
     private String authToken;
     private Duration connectTimeout = Duration.ofSeconds(5);
     private Duration requestTimeout = Duration.ofSeconds(30);
@@ -25,6 +26,8 @@ public class TaskPreparationProperties {
     public void setBaseUrl(String value) { this.baseUrl = value; }
     public String getPath() { return path; }
     public void setPath(String value) { this.path = value; }
+    public String getStatusPath() { return statusPath; }
+    public void setStatusPath(String value) { this.statusPath = value; }
     public String getAuthToken() { return authToken; }
     public void setAuthToken(String value) { this.authToken = value; }
     public Duration getConnectTimeout() { return connectTimeout; }
