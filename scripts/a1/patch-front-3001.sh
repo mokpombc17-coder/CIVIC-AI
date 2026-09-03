@@ -6,7 +6,6 @@ script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 . "$script_dir/lib-a1-image-patch.sh"
 
 A1_SERVICE="front"
-repository="https://github.com/Ham-n-Cheeze/civic-ai-frontend.git"
 A1_COMPOSE_PROJECT="civic-front-3001"
 a1_parse_args "$(basename "$0")" "$@"
 if [[ "$A1_ACTION" == deploy ]]; then

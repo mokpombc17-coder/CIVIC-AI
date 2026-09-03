@@ -6,11 +6,7 @@ staged, and untracked non-ignored files are fingerprinted, copied to a temporary
 directory, and built there exactly as they exist locally. Uncommitted application
 changes are therefore included without mounting or modifying the working tree.
 
-Run only the script that matches the repository:
-
-- Front repository: `patch-front-3001.sh`
-- Chat repository: `patch-chat-8083.sh`
-- Vote repository: `patch-vote-8082.sh`
+Run `patch-front-3001.sh` from the Front repository.
 
 Each deploy derives a 40-character snapshot ID from the complete local working tree.
 The full SHA-256, current Git commit, branch, and dirty state are recorded in release
@@ -28,11 +24,6 @@ the snapshot.
 - The SSH key must be a current-user regular file with mode `0600`.
 - Only a local Unix-socket Docker endpoint is accepted, and the default Buildx
   builder must support `linux/arm64`.
-- Chat and Vote default to the existing `civic-chat-8083_mongodb-data` and
-  `civic-vote-8082_postgres-data` volumes. `--data-volume` can override them;
-  the scripts never create a replacement data volume.
-- Vote secrets stay in `/etc/civic/vote-8082.env` unless another server path is
-  explicitly supplied.
 - Deploy skips separate format, lint, typecheck, and test commands. It performs
   only the production build required to create the runtime image, then deploys.
 - Existing public Nginx and TLS state is validated and preserved. Failed health,
@@ -44,14 +35,7 @@ Dry-run fingerprints the current repository but does not build, contact A1, or
 modify source files.
 
 ```bash
-# Front
 scripts/a1/patch-front-3001.sh --dry-run
-
-# Chat
-scripts/a1/patch-chat-8083.sh --dry-run
-
-# Vote
-scripts/a1/patch-vote-8082.sh --dry-run
 ```
 
 ## Deploy
@@ -66,15 +50,12 @@ the chat WebSocket use the public Nginx routes instead of local development port
 
 ```bash
 scripts/a1/patch-front-3001.sh
-scripts/a1/patch-chat-8083.sh
-scripts/a1/patch-vote-8082.sh
 ```
 
 To pin a reviewed source state, pass the snapshot ID printed by `--dry-run` with
 `--sha`; the script rejects a mismatch.
 
-Front, Chat, and Vote default respectively to Compose projects
-`civic-front-3001`, `civic-chat-8083`, and `civic-vote-8082`.
+Front defaults to the `civic-front-3001` Compose project.
 
 ## Roll back
 

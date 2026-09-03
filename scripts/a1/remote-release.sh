@@ -14,7 +14,7 @@ service="${2:-}"
 source_sha="${3:-}"
 stage="${4:-}"
 [[ "$action" == deploy || "$action" == rollback ]] || die "invalid action"
-[[ "$service" =~ ^(front|chat|vote)$ ]] || die "invalid service"
+[[ "$service" == front ]] || die "invalid service"
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || die "invalid source SHA"
 [[ "$stage" == /tmp/civic-a1-* && "$stage" != *".."* ]] || die "invalid stage path"
 
@@ -50,107 +50,11 @@ load_env() {
   [[ "$ARCHIVE_SHA256" =~ ^[0-9a-f]{64}$ ]] || die "invalid archive digest"
 }
 
-find_one_container() {
-  local compose_service="$1"
-  local -a ids=()
-  mapfile -t ids < <(docker ps -aq \
-    --filter "label=com.docker.compose.project=${COMPOSE_PROJECT}" \
-    --filter "label=com.docker.compose.service=${compose_service}")
-  [[ "${#ids[@]}" == 1 ]] || die "expected one ${COMPOSE_PROJECT}/${compose_service} container"
-  printf '%s\n' "${ids[0]}"
-}
-
-ensure_vote_server_env() {
-  [[ "$service" == vote ]] || return 0
-  [[ -n "$SERVER_ENV" && "$SERVER_ENV" == /* && "$SERVER_ENV" != *".."* ]] \
-    || die "Vote server env path is invalid"
-  if [[ -e "$SERVER_ENV" ]]; then
-    [[ -f "$SERVER_ENV" && ! -L "$SERVER_ENV" ]] || die "Vote server env must be a regular file"
-    [[ "$(stat -c '%a:%u' "$SERVER_ENV")" == "600:0" ]] \
-      || die "Vote server env must be root-owned mode 0600"
-    return 0
-  fi
-
-  local db_id app_id inspect_file generated_file
-  db_id="$(find_one_container vote-db)"
-  app_id="$(find_one_container vote-resource-server)"
-  inspect_file="$(mktemp /tmp/civic-vote-env-inspect.XXXXXX)"
-  generated_file="$(mktemp /tmp/civic-vote-env.XXXXXX)"
-  chmod 0600 "$inspect_file" "$generated_file"
-  if ! docker inspect "$db_id" "$app_id" > "$inspect_file"; then
-    rm -f -- "$inspect_file" "$generated_file"
-    die "could not inspect the current Vote containers"
-  fi
-  if ! python3 - "$inspect_file" "$generated_file" <<'PY'
-import json
-import pathlib
-import sys
-
-records = json.loads(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"))
-by_service = {
-    record.get("Config", {}).get("Labels", {}).get("com.docker.compose.service"): record
-    for record in records
-}
-
-def environment(record):
-    values = {}
-    for entry in record.get("Config", {}).get("Env", []):
-        name, separator, value = entry.partition("=")
-        if separator:
-            values[name] = value
-    return values
-
-db = environment(by_service.get("vote-db", {}))
-app = environment(by_service.get("vote-resource-server", {}))
-required = ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
-missing = [name for name in required if not db.get(name)]
-if missing:
-    raise SystemExit("current Vote DB container lacks required server configuration")
-selected = {name: value for name, value in db.items() if name.startswith("POSTGRES_")}
-selected.update({name: value for name, value in app.items() if name.startswith("VOTE_")})
-
-def quote(value):
-    if "\n" in value or "\r" in value:
-        raise SystemExit("multiline container environment values are unsupported")
-    return "'" + value.replace("\\", "\\\\").replace("'", "\\'") + "'"
-
-output = "".join(f"{name}={quote(selected[name])}\n" for name in sorted(selected))
-pathlib.Path(sys.argv[2]).write_text(output, encoding="utf-8")
-PY
-  then
-    rm -f -- "$inspect_file" "$generated_file"
-    die "could not derive the server-only Vote env from the running deployment"
-  fi
-  install -d -m 0755 "$(dirname "$SERVER_ENV")"
-  install -o root -g root -m 0600 "$generated_file" "$SERVER_ENV"
-  rm -f -- "$inspect_file" "$generated_file"
-  printf 'vote_server_env=created-from-current-runtime\n'
-}
-
 compose() {
   local directory="$1"
   shift
-  local args=(docker compose -p "$COMPOSE_PROJECT")
-  if [[ -n "$SERVER_ENV" ]]; then
-    [[ -f "$SERVER_ENV" && ! -L "$SERVER_ENV" ]] || die "required server env file missing: $SERVER_ENV"
-    args+=(--env-file "$SERVER_ENV")
-  fi
-  args+=(-f "$directory/compose.yaml")
-  case "$service" in
-    front) FRONT_IMAGE="$IMAGE_REF" "${args[@]}" "$@" ;;
-    chat)
-      [[ -n "$DATA_VOLUME" ]] || die "Chat requires an existing data volume"
-      docker volume inspect "$DATA_VOLUME" >/dev/null || die "Chat data volume does not exist: $DATA_VOLUME"
-      CHAT_IMAGE="$IMAGE_REF" CHAT_DATA_VOLUME="$DATA_VOLUME" PUBLIC_ORIGIN="$PUBLIC_ORIGIN" \
-        "${args[@]}" "$@"
-      ;;
-    vote)
-      [[ -n "$DATA_VOLUME" ]] || die "Vote requires an existing data volume"
-      docker volume inspect "$DATA_VOLUME" >/dev/null || die "Vote data volume does not exist: $DATA_VOLUME"
-      VOTE_IMAGE="$IMAGE_REF" VOTE_DATA_VOLUME="$DATA_VOLUME" VOTE_SERVER_ENV="$SERVER_ENV" \
-        PUBLIC_ORIGIN="$PUBLIC_ORIGIN" "${args[@]}" "$@"
-      ;;
-  esac
+  FRONT_IMAGE="$IMAGE_REF" docker compose -p "$COMPOSE_PROJECT" \
+    -f "$directory/compose.yaml" "$@"
 }
 
 ensure_nginx_runtime() {
@@ -199,19 +103,15 @@ copy_nginx_in_place() {
 
 merge_service_nginx_blocks() {
   local source="$1" output="$2"
-  python3 - "$service" "$NGINX_CONFIG" "$source" "$output" <<'PY'
+  python3 - "$NGINX_CONFIG" "$source" "$output" <<'PY'
 import pathlib
 import sys
 
-service, live_path, source_path, output_path = sys.argv[1:]
-markers = {
-    "front": [
-        ("# BEGIN CIVIC FRONT 3001 IMAGE MAP MANAGED", "# END CIVIC FRONT 3001 IMAGE MAP MANAGED"),
-        ("# BEGIN CIVIC FRONT 3001 MANAGED", "# END CIVIC FRONT 3001 MANAGED"),
-    ],
-    "chat": [("# BEGIN CIVIC CHAT 8083 MANAGED", "# END CIVIC CHAT 8083 MANAGED")],
-    "vote": [("# BEGIN CIVIC VOTE 8082 MANAGED", "# END CIVIC VOTE 8082 MANAGED")],
-}[service]
+live_path, source_path, output_path = sys.argv[1:]
+markers = [
+    ("# BEGIN CIVIC FRONT 3001 IMAGE MAP MANAGED", "# END CIVIC FRONT 3001 IMAGE MAP MANAGED"),
+    ("# BEGIN CIVIC FRONT 3001 MANAGED", "# END CIVIC FRONT 3001 MANAGED"),
+]
 live = pathlib.Path(live_path).read_text(encoding="utf-8").splitlines()
 source_lines = pathlib.Path(source_path).read_text(encoding="utf-8").splitlines()
 
@@ -247,33 +147,21 @@ wait_healthy() {
 }
 
 smoke() {
-  local health_path health_status protected_status public_status
-  if [[ "$service" == front ]]; then health_path="/chat"; else health_path="/actuator/health"; fi
+  local health_path health_status public_status
+  health_path="/chat"
   health_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
     "http://127.0.0.1:${SERVICE_PORT}${health_path}" || true)"
-  if [[ "$service" == front ]]; then
-    [[ "$health_status" =~ ^(200|301|302|303|307|308|401)$ ]] || die "direct Front smoke failed: HTTP $health_status"
-  else
-    [[ "$health_status" == 200 ]] || die "direct health smoke failed: HTTP $health_status"
-  fi
-  protected_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    "http://127.0.0.1:${SERVICE_PORT}${PROTECTED_PATH}" || true)"
-  if [[ "$service" != front ]]; then
-    [[ "$protected_status" == 401 || "$protected_status" == 403 ]] \
-      || die "direct protected endpoint was not protected: HTTP $protected_status"
-  fi
+  [[ "$health_status" =~ ^(200|301|302|303|307|308|401)$ ]] \
+    || die "direct Front smoke failed: HTTP $health_status"
   public_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
     "https://${PUBLIC_HOST}${PROTECTED_PATH}" || true)"
-  case "$service" in
-    front) [[ "$public_status" =~ ^(200|301|302|303|307|308|401)$ ]] ;;
-    chat|vote) [[ "$public_status" == 401 || "$public_status" == 403 ]] ;;
-  esac || die "public smoke failed: HTTP $public_status"
+  [[ "$public_status" =~ ^(200|301|302|303|307|308|401)$ ]] \
+    || die "public smoke failed: HTTP $public_status"
 }
 
 activate_release() {
   local directory="$1"
   load_env "$directory"
-  ensure_vote_server_env
   compose "$directory" config --quiet
   compose "$directory" up -d --no-build
   wait_healthy "$directory" || die "container did not become healthy"
@@ -337,7 +225,6 @@ for required in image.tar.gz image.tar.gz.sha256 compose.yaml candidate.nginx.co
 done
 (cd "$stage" && sha256sum -c image.tar.gz.sha256)
 load_env "$stage"
-ensure_vote_server_env
 [[ "$SOURCE_SHA" == "$source_sha" ]] || die "staged SHA mismatch"
 gzip -dc "$stage/image.tar.gz" | docker load >/dev/null
 actual_id="$(docker image inspect "$IMAGE_REF" --format '{{.Id}}')"

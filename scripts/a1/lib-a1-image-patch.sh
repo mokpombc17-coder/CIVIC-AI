@@ -17,8 +17,6 @@ A1_DEFAULT_HOST_IP="140.238.17.223"
 A1_DEFAULT_DOCKER_CONFIG="/Users/junseok/.config/civic-a1/docker"
 A1_DEFAULT_DOCKER_PLUGIN_DIR="/Users/junseok/.docker/cli-plugins"
 A1_DRY_RUN=false
-A1_DATA_VOLUME=""
-A1_SERVER_ENV=""
 A1_COMPOSE_PROJECT=""
 A1_SOURCE_ROOT=""
 A1_SOURCE_BRANCH=""
@@ -49,9 +47,7 @@ Options:
   --sha SHA                Deploy snapshot ID to confirm, or required rollback release ID
   --ssh-user USER          SSH user (default: ubuntu)
   --public-host HOST       HTTPS host (default: civic-ai.co.kr)
-  --data-volume NAME       Existing service DB volume; required by Chat/Vote deploy
-  --server-env PATH        Existing server-side env file; required by Vote deploy
-  --compose-project NAME   Existing Compose project name (service-specific default)
+  --compose-project NAME   Existing Compose project name
   --nginx-config PATH      Public Nginx config (default: /etc/civic/nginx/nginx-public.conf)
   --nginx-container NAME   Public Nginx container (default: civic-public-nginx)
   --dry-run                Validate inputs and print the local-working-tree deployment plan
@@ -74,8 +70,6 @@ a1_parse_args() {
       --action) A1_ACTION="${2:-}"; shift 2 ;;
       --ssh-user) A1_SSH_USER="${2:-}"; shift 2 ;;
       --public-host) A1_PUBLIC_HOST="${2:-}"; shift 2 ;;
-      --data-volume) A1_DATA_VOLUME="${2:-}"; shift 2 ;;
-      --server-env) A1_SERVER_ENV="${2:-}"; shift 2 ;;
       --compose-project) A1_COMPOSE_PROJECT="${2:-}"; shift 2 ;;
       --nginx-config) A1_NGINX_CONFIG="${2:-}"; shift 2 ;;
       --nginx-container) A1_NGINX_CONTAINER="${2:-}"; shift 2 ;;
@@ -99,14 +93,8 @@ a1_parse_args() {
   [[ "$A1_PUBLIC_HOST" =~ ^[a-z0-9]([a-z0-9.-]*[a-z0-9])?$ ]] || a1_die "invalid public host"
   [[ "$A1_NGINX_CONFIG" == /* && "$A1_NGINX_CONFIG" != *".."* ]] || a1_die "Nginx path must be absolute"
   [[ "$A1_NGINX_CONTAINER" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || a1_die "invalid Nginx container"
-  if [[ -n "$A1_DATA_VOLUME" ]]; then
-    [[ "$A1_DATA_VOLUME" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]] || a1_die "invalid data volume"
-  fi
   if [[ -n "$A1_COMPOSE_PROJECT" ]]; then
     [[ "$A1_COMPOSE_PROJECT" =~ ^[a-z0-9][a-z0-9_-]*$ ]] || a1_die "invalid Compose project"
-  fi
-  if [[ -n "$A1_SERVER_ENV" ]]; then
-    [[ "$A1_SERVER_ENV" == /* && "$A1_SERVER_ENV" != *".."* ]] || a1_die "server env path must be absolute"
   fi
 
   A1_HOST_IP="$(python3 - "$A1_HOST_IP" <<'PY'
@@ -337,18 +325,6 @@ a1_build_front_image() {
     --tag "$image" --file "$A1_SCRIPT_DIR/templates/front.runtime.Dockerfile" "$runtime_context"
 }
 
-a1_build_java_image() {
-  local source="$1" image="$2" source_url="$3"
-  a1_log "building immutable Java runtime image for ${A1_PLATFORM}"
-  docker buildx build --builder default --platform "$A1_PLATFORM" --load \
-    --label "org.opencontainers.image.revision=${A1_SOURCE_COMMIT}" \
-    --label "co.civic.source.snapshot=${A1_SHA}" \
-    --label "co.civic.source.dirty=${A1_SOURCE_DIRTY}" \
-    --label "org.opencontainers.image.source=${source_url%.git}" \
-    --tag "$image" --file "$source/Dockerfile" "$source"
-  a1_assert_source_unchanged
-}
-
 a1_verify_image() {
   local image="$1"
   local platform revision snapshot
@@ -439,8 +415,6 @@ a1_write_release_env() {
     printf 'NGINX_MAIN_CONFIG=%s\n' "$A1_NGINX_MAIN_CONFIG"
     printf 'NGINX_TLS_DIR=%s\n' "$A1_NGINX_TLS_DIR"
     printf 'NGINX_CONTAINER=%s\n' "$A1_NGINX_CONTAINER"
-    printf 'DATA_VOLUME=%s\n' "$A1_DATA_VOLUME"
-    printf 'SERVER_ENV=%s\n' "$A1_SERVER_ENV"
   } > "$output"
   chmod 0600 "$output"
 }
@@ -459,10 +433,4 @@ a1_stage_and_run_remote() {
   fi
   ssh "${A1_SSH_OPTIONS[@]}" "$A1_TARGET" rm -rf -- "$remote_stage" || true
   return "$remote_status"
-}
-
-a1_prepare_remote_stage() {
-  local stage="$1"
-  install -m 0700 "$A1_SCRIPT_DIR/remote-release.sh" "$stage/remote-release.sh"
-  install -m 0600 "$A1_SCRIPT_DIR/templates/${A1_SERVICE}.compose.yaml" "$stage/compose.yaml"
 }
