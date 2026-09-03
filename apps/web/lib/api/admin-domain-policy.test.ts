@@ -126,6 +126,14 @@ describe("admin domain route allowlist", () => {
       path: `/api/v1/admin/tasks/${taskId}/result-view`,
       scope: "vote:tasks:admin",
     });
+    expect(matchVoteTaskAdminRoute("POST", [taskId, "preparation"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/preparation`,
+      scope: "vote:tasks:admin",
+    });
+    expect(matchVoteTaskAdminRoute("GET", [taskId, "preparation"])).toEqual({
+      allowedMethods: ["POST"],
+      status: 405,
+    });
   });
 
   it("requires UUID identifiers and rejects Simulation paths", () => {

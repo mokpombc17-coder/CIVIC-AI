@@ -42,6 +42,31 @@ export type RoomCreationRequestPage = Readonly<{
 
 export type TaskStatus = "DRAFT" | "SCHEDULED" | "OPEN" | "CLOSED";
 export type TaskClosureType = "EARLY_CLOSED" | "DEADLINE_REACHED" | "CANCELLED" | "MISSED_SCHEDULE";
+export type TaskPreparationStatus = "PROCESSING" | "READY" | "FAILED" | "REJECTED";
+
+export type TaskPreparationError = Readonly<{
+  code: string;
+  detail: string;
+  retryable: boolean;
+}>;
+
+export type TaskPreparationView = Readonly<{
+  attemptCount: number;
+  contentFingerprint: string;
+  lastError: TaskPreparationError | null;
+  preparedAt: string | null;
+  processingStartedAt: string | null;
+  requestId: string;
+  status: TaskPreparationStatus;
+  updatedAt: string;
+}>;
+
+export type TaskCapabilities = Readonly<{
+  canEditContent: boolean;
+  canOpenNow: boolean;
+  canSchedule: boolean;
+  canStartPreparation: boolean;
+}>;
 
 export type TaskSchedule = Readonly<{
   closesAt: string;
@@ -104,8 +129,16 @@ export type TaskLifecycleEvent = Readonly<{
 }>;
 
 export type TaskDetail = Readonly<{
+  capabilities: TaskCapabilities;
   lifecycleHistory: readonly TaskLifecycleEvent[];
+  preparation: TaskPreparationView | null;
   task: Task;
+}>;
+
+export type TaskPreparationStartResponse = Readonly<{
+  preparation: TaskPreparationView;
+  replayed: boolean;
+  taskId: string;
 }>;
 
 export type TaskResultSummary = Readonly<{
@@ -123,6 +156,13 @@ const closureTypes = new Set<TaskClosureType>([
   "CANCELLED",
   "MISSED_SCHEDULE",
 ]);
+const taskPreparationStatuses = new Set<TaskPreparationStatus>([
+  "PROCESSING",
+  "READY",
+  "FAILED",
+  "REJECTED",
+]);
+const contentFingerprintPattern = /^sha256:[0-9a-f]{64}$/u;
 
 export function readRoomCreationRequestPage(value: unknown): RoomCreationRequestPage | null {
   const record = object(value);
@@ -226,9 +266,30 @@ export function readTaskDetail(value: unknown): TaskDetail | null {
   const record = object(value);
   if (!record || !Array.isArray(record.lifecycleHistory)) return null;
   const task = readTask(record.task);
+  const preparation = record.preparation === null ? null : readTaskPreparation(record.preparation);
+  const capabilities = readTaskCapabilities(record.capabilities);
   const lifecycleHistory = record.lifecycleHistory.map(readTaskLifecycleEvent);
-  return task && lifecycleHistory.every(Boolean)
-    ? { task, lifecycleHistory: lifecycleHistory as TaskLifecycleEvent[] }
+  return task &&
+    capabilities &&
+    (record.preparation === null || preparation) &&
+    lifecycleHistory.every(Boolean)
+    ? {
+        task,
+        preparation,
+        capabilities,
+        lifecycleHistory: lifecycleHistory as TaskLifecycleEvent[],
+      }
+    : null;
+}
+
+export function readTaskPreparationStartResponse(
+  value: unknown,
+): TaskPreparationStartResponse | null {
+  const record = object(value);
+  const taskId = record && string(record.taskId);
+  const preparation = record && readTaskPreparation(record.preparation);
+  return record && taskId && preparation && typeof record.replayed === "boolean"
+    ? { taskId, preparation, replayed: record.replayed }
     : null;
 }
 
@@ -324,6 +385,7 @@ export function formatAdminProblem(problem: AdminProblem): string {
       "다른 관리자가 토론방을 변경했습니다. 최신 설정에서 다시 시도해 주세요.",
     USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 토론방 수를 초과했습니다.",
     SIMULATION_NOT_COMPLETED: "아직 결과가 없습니다.",
+    TASK_PREPARATION_UNAVAILABLE: "AI 답변 준비를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
   };
@@ -473,6 +535,90 @@ function readTaskLifecycleEvent(value: unknown): TaskLifecycleEvent | null {
     reason: nullableString(record.reason),
     closureType,
     occurredAt,
+  };
+}
+
+function readTaskPreparation(value: unknown): TaskPreparationView | null {
+  const record = object(value);
+  if (!record) return null;
+  const requestId = string(record.requestId);
+  const status = string(record.status);
+  const contentFingerprint = string(record.contentFingerprint);
+  const updatedAt = string(record.updatedAt);
+  const processingStartedAt = nullableString(record.processingStartedAt);
+  const preparedAt = nullableString(record.preparedAt);
+  const lastError = record.lastError === null ? null : readTaskPreparationError(record.lastError);
+  if (
+    !requestId ||
+    !status ||
+    !taskPreparationStatuses.has(status as TaskPreparationStatus) ||
+    !contentFingerprint ||
+    !contentFingerprintPattern.test(contentFingerprint) ||
+    !nonNegativeInteger(record.attemptCount) ||
+    (record.processingStartedAt !== null && !processingStartedAt) ||
+    (record.preparedAt !== null && !preparedAt) ||
+    (record.lastError !== null && !lastError) ||
+    !updatedAt ||
+    !taskPreparationStateIsConsistent(
+      status as TaskPreparationStatus,
+      processingStartedAt,
+      preparedAt,
+      lastError,
+    )
+  ) {
+    return null;
+  }
+  return {
+    requestId,
+    status: status as TaskPreparationStatus,
+    contentFingerprint,
+    attemptCount: record.attemptCount as number,
+    processingStartedAt,
+    preparedAt,
+    lastError,
+    updatedAt,
+  };
+}
+
+function taskPreparationStateIsConsistent(
+  status: TaskPreparationStatus,
+  processingStartedAt: string | null,
+  preparedAt: string | null,
+  lastError: TaskPreparationError | null,
+): boolean {
+  if (status === "PROCESSING") {
+    return processingStartedAt !== null && preparedAt === null && lastError === null;
+  }
+  if (status === "READY") return preparedAt !== null && lastError === null;
+  if (status === "FAILED") return preparedAt === null && lastError?.retryable === true;
+  return preparedAt === null && lastError?.retryable === false;
+}
+
+function readTaskPreparationError(value: unknown): TaskPreparationError | null {
+  const record = object(value);
+  const code = record && string(record.code);
+  const detail = record && string(record.detail);
+  return record && code && detail && typeof record.retryable === "boolean"
+    ? { code, detail, retryable: record.retryable }
+    : null;
+}
+
+function readTaskCapabilities(value: unknown): TaskCapabilities | null {
+  const record = object(value);
+  if (
+    !record ||
+    typeof record.canEditContent !== "boolean" ||
+    typeof record.canStartPreparation !== "boolean" ||
+    typeof record.canSchedule !== "boolean" ||
+    typeof record.canOpenNow !== "boolean"
+  ) {
+    return null;
+  }
+  return {
+    canEditContent: record.canEditContent,
+    canStartPreparation: record.canStartPreparation,
+    canSchedule: record.canSchedule,
+    canOpenNow: record.canOpenNow,
   };
 }
 

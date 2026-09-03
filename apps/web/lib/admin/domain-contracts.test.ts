@@ -5,6 +5,7 @@ import {
   formatAdminProblem,
   readRoomCreationRequestPage,
   readTaskDetail,
+  readTaskPreparationStartResponse,
   readTaskResultSummary,
   validateRejectionReason,
 } from "./domain-contracts";
@@ -59,28 +60,52 @@ describe("admin domain response contracts", () => {
     ).toBe("질문을 입력해 주세요.");
   });
 
-  it("parses task detail while keeping lifecycle history", () => {
+  it("parses task preparation and capabilities with lifecycle history", () => {
     const task = taskResponse();
-    expect(
-      readTaskDetail({
-        task,
-        lifecycleHistory: [
-          {
-            id: "event-1",
-            eventType: "TASK_CREATED",
-            previousStatus: null,
-            newStatus: "DRAFT",
-            previousSchedule: null,
-            newSchedule: null,
-            trigger: "ADMIN",
-            actorId: "admin-id",
-            reason: null,
-            closureType: null,
-            occurredAt: "2026-08-26T02:00:00Z",
-          },
-        ],
-      })?.lifecycleHistory,
-    ).toHaveLength(1);
+    const detail = readTaskDetail({
+      task,
+      preparation: {
+        requestId: "5aaf64a5-d6c9-4fd0-aa6d-371c22c90a58",
+        status: "PROCESSING",
+        contentFingerprint:
+          "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        attemptCount: 1,
+        processingStartedAt: "2026-09-03T03:00:00Z",
+        preparedAt: null,
+        lastError: null,
+        updatedAt: "2026-09-03T03:00:00Z",
+      },
+      capabilities: {
+        canEditContent: false,
+        canStartPreparation: false,
+        canSchedule: false,
+        canOpenNow: false,
+      },
+      lifecycleHistory: [
+        {
+          id: "event-1",
+          eventType: "TASK_CREATED",
+          previousStatus: null,
+          newStatus: "DRAFT",
+          previousSchedule: null,
+          newSchedule: null,
+          trigger: "ADMIN",
+          actorId: "admin-id",
+          reason: null,
+          closureType: null,
+          occurredAt: "2026-08-26T02:00:00Z",
+        },
+      ],
+    });
+
+    expect(detail?.preparation?.status).toBe("PROCESSING");
+    expect(detail?.capabilities).toEqual({
+      canEditContent: false,
+      canStartPreparation: false,
+      canSchedule: false,
+      canOpenNow: false,
+    });
+    expect(detail?.lifecycleHistory).toHaveLength(1);
   });
 
   it("rejects inconsistent result totals and enables only completed results", () => {
@@ -97,6 +122,33 @@ describe("admin domain response contracts", () => {
     ).toBeNull();
     expect(canReadTaskResult({ status: "CLOSED", closureType: "EARLY_CLOSED" })).toBe(true);
     expect(canReadTaskResult({ status: "CLOSED", closureType: "CANCELLED" })).toBe(false);
+  });
+
+  it("rejects state-inconsistent task preparation responses", () => {
+    const base = {
+      requestId: "5aaf64a5-d6c9-4fd0-aa6d-371c22c90a58",
+      contentFingerprint: "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+      attemptCount: 1,
+      processingStartedAt: null,
+      updatedAt: "2026-09-03T03:00:00Z",
+    };
+    const response = (preparation: Record<string, unknown>) =>
+      readTaskPreparationStartResponse({
+        taskId: "7e85d865-4616-4cf5-967c-7d23c27dbf4c",
+        preparation,
+        replayed: false,
+      });
+
+    expect(response({ ...base, status: "READY", preparedAt: null, lastError: null })).toBeNull();
+    expect(response({ ...base, status: "FAILED", preparedAt: null, lastError: null })).toBeNull();
+    expect(
+      response({
+        ...base,
+        status: "REJECTED",
+        preparedAt: null,
+        lastError: { code: "REJECTED", detail: "Rejected", retryable: true },
+      }),
+    ).toBeNull();
   });
 
   it("진행 중인 시뮬레이션에는 결과가 아직 없다는 빈 상태만 표시한다", () => {
@@ -121,6 +173,17 @@ describe("admin domain response contracts", () => {
         violations: [],
       }),
     ).toBe("요청을 처리하지 못했습니다. 문의 코드: trace-1");
+  });
+
+  it("AI 답변 준비 장애를 관리자에게 복구 가능한 문구로 안내한다", () => {
+    expect(
+      formatAdminProblem({
+        code: "TASK_PREPARATION_UNAVAILABLE",
+        detail: "The runtime is unavailable.",
+        status: 503,
+        violations: [],
+      }),
+    ).toBe("AI 답변 준비를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
   });
 });
 

@@ -134,13 +134,15 @@ export function matchVoteTaskAdminRoute(
   const methods =
     action === "schedule"
       ? ["POST", "PUT"]
-      : action === "deadline"
-        ? ["PUT"]
-        : ["open-now", "start-now", "close", "cancel"].includes(action)
-          ? ["POST"]
-          : ["result-summary", "result-view"].includes(action)
-            ? ["GET"]
-            : [];
+      : action === "preparation"
+        ? ["POST"]
+        : action === "deadline"
+          ? ["PUT"]
+          : ["open-now", "start-now", "close", "cancel"].includes(action)
+            ? ["POST"]
+            : ["result-summary", "result-view"].includes(action)
+              ? ["GET"]
+              : [];
   return methods.length > 0
     ? allow(normalizedMethod, methods, taskPath(segments), "vote:tasks:admin")
     : { allowedMethods: [], status: 404 };
