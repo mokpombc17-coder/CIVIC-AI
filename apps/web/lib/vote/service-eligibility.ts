@@ -1,5 +1,6 @@
 "use client";
 
+import { queryOptions } from "@tanstack/react-query";
 import { z } from "zod";
 import { voteFetch, type VoteFetch } from "./vote-fetch";
 
@@ -35,6 +36,16 @@ export function createServiceEligibilityApi(request: VoteFetch = voteFetch): Ser
 }
 
 export const serviceEligibilityApi = createServiceEligibilityApi();
+
+export function getServiceEligibilityQueryOptions(
+  api: ServiceEligibilityApi = serviceEligibilityApi,
+) {
+  return queryOptions({
+    queryKey: serviceEligibilityQueryKey,
+    queryFn: ({ signal }) => api.getCurrent(signal),
+    staleTime: serviceEligibilityStaleTimeMs,
+  });
+}
 
 export function requiresCurrentSurvey(eligibility: ServiceEligibility): boolean {
   return eligibility.eligible === false && eligibility.nextAction === "COMPLETE_CURRENT_SURVEY";

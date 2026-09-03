@@ -7,7 +7,7 @@ export type SurveyReturnPathInput = string | readonly string[] | null | undefine
 
 export function createSurveyHref(returnTo: string): string {
   const searchParams = new URLSearchParams({
-    from: resolveSurveyReturnPath(returnTo),
+    returnTo: resolveSurveyReturnPath(returnTo),
   });
 
   return `${SURVEY_PATH}?${searchParams.toString()}`;
@@ -21,11 +21,7 @@ export function resolveSurveyReturnPath(value: SurveyReturnPathInput): string {
   try {
     const url = new URL(value, SURVEY_RETURN_PATH_BASE_URL);
 
-    if (
-      url.origin !== SURVEY_RETURN_PATH_BASE_URL ||
-      url.pathname === SURVEY_PATH ||
-      url.pathname.startsWith(`${SURVEY_PATH}/`)
-    ) {
+    if (url.origin !== SURVEY_RETURN_PATH_BASE_URL || isBlockedReturnPath(url.pathname)) {
       return DEFAULT_SURVEY_RETURN_PATH;
     }
 
@@ -33,4 +29,13 @@ export function resolveSurveyReturnPath(value: SurveyReturnPathInput): string {
   } catch {
     return DEFAULT_SURVEY_RETURN_PATH;
   }
+}
+
+function isBlockedReturnPath(pathname: string): boolean {
+  const normalizedPathname = pathname.toLowerCase();
+
+  return [SURVEY_PATH, "/login", "/signup", "/auth", "/api/auth"].some(
+    (blockedPath) =>
+      normalizedPathname === blockedPath || normalizedPathname.startsWith(`${blockedPath}/`),
+  );
 }

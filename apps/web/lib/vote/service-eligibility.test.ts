@@ -1,6 +1,8 @@
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import {
   createServiceEligibilityApi,
+  getServiceEligibilityQueryOptions,
   requiresCurrentSurvey,
   serviceEligibilityQueryKey,
   type ServiceEligibility,
@@ -62,5 +64,25 @@ describe("service eligibility", () => {
 
   it("인증 성공 시 함께 제거할 수 있도록 vote query namespace를 사용한다", () => {
     expect(serviceEligibilityQueryKey).toEqual(["vote", "service-eligibility"]);
+  });
+
+  it("Guard와 제출 완료 화면이 공유할 query 옵션을 제공한다", async () => {
+    const queryClient = new QueryClient({
+      defaultOptions: { queries: { retry: false, staleTime: Number.POSITIVE_INFINITY } },
+    });
+    const eligibleResponse = {
+      ...requiredEligibility,
+      eligible: true,
+      nextAction: null,
+      reason: null,
+      surveyRequirement: "SATISFIED",
+    } satisfies ServiceEligibility;
+    const api = { getCurrent: vi.fn().mockResolvedValue(eligibleResponse) };
+
+    await expect(queryClient.fetchQuery(getServiceEligibilityQueryOptions(api))).resolves.toEqual(
+      eligibleResponse,
+    );
+    expect(api.getCurrent).toHaveBeenCalledOnce();
+    expect(queryClient.getQueryData(serviceEligibilityQueryKey)).toEqual(eligibleResponse);
   });
 });

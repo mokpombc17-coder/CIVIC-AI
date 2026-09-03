@@ -1,6 +1,7 @@
 "use client";
 
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { serviceEligibilityQueryKey } from "@/lib/vote/service-eligibility";
 import { surveyApi } from "./survey-api";
 import type { SubmitSurveyRequest } from "./survey-contracts";
 
@@ -53,9 +54,22 @@ export function useSubmitSurveyMutation() {
     onSuccess: async (result) => {
       if (!result.persisted) return;
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: surveyQueryKeys.current() }),
-        queryClient.invalidateQueries({ queryKey: surveyQueryKeys.latest() }),
-        queryClient.invalidateQueries({ queryKey: surveyQueryKeys.history() }),
+        queryClient.invalidateQueries({
+          queryKey: surveyQueryKeys.current(),
+          refetchType: "none",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: surveyQueryKeys.latest(),
+          refetchType: "none",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: surveyQueryKeys.history(),
+          refetchType: "none",
+        }),
+        queryClient.invalidateQueries({
+          queryKey: serviceEligibilityQueryKey,
+          refetchType: "none",
+        }),
       ]);
     },
   });

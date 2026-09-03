@@ -8,7 +8,7 @@ import {
 describe("survey navigation", () => {
   it("설문으로 이동할 때 내부 복귀 경로를 보존한다", () => {
     expect(createSurveyHref("/vote/task-01?step=2#answer")).toBe(
-      "/survey?from=%2Fvote%2Ftask-01%3Fstep%3D2%23answer",
+      "/survey?returnTo=%2Fvote%2Ftask-01%3Fstep%3D2%23answer",
     );
   });
 
@@ -28,6 +28,11 @@ describe("survey navigation", () => {
     ["/vote", "/chat"],
     "/survey",
     "/survey/step-1",
+    "/login",
+    "/login/callback?returnTo=/chat",
+    "/signup",
+    "/auth/callback",
+    "/api/auth/session",
   ])("안전하지 않거나 순환하는 복귀 경로 %j는 홈으로 대체한다", (value) => {
     expect(resolveSurveyReturnPath(value)).toBe(DEFAULT_SURVEY_RETURN_PATH);
   });

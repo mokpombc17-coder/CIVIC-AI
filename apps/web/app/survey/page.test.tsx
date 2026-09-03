@@ -6,7 +6,7 @@ import SurveyPage, { metadata } from "./page";
 describe("SurveyPage", () => {
   it("PlatformShell 기반 설문 흐름을 독립 route로 제공한다", async () => {
     const page = await SurveyPage({
-      searchParams: Promise.resolve({ from: "/vote?tab=active" }),
+      searchParams: Promise.resolve({ returnTo: "/vote?tab=active" }),
     });
     const html = renderToStaticMarkup(<SurveyLayout>{page}</SurveyLayout>);
 

@@ -1,13 +1,13 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import { useQuery } from "@tanstack/react-query";
 import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
 import {
   PlatformHeader,
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
-import type { SurveySection } from "@/lib/survey/survey-contracts";
+import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
   buildSubmitSurveyRequest,
   createSurveyAnswerState,
@@ -23,6 +23,7 @@ import {
   prepareSurveySubmission,
   type PendingSurveySubmission,
 } from "@/lib/survey/survey-submission";
+import { canReturnAfterSurveySubmission } from "@/lib/survey/survey-completion";
 import {
   loadSurveyDraft,
   removeSurveyDraft,
@@ -31,6 +32,7 @@ import {
   type SurveyDraftScope,
 } from "@/lib/survey/survey-draft-storage";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { getServiceEligibilityQueryOptions } from "@/lib/vote/service-eligibility";
 import {
   SurveyFlowLayout,
   SurveyHeaderProgress,
@@ -51,15 +53,21 @@ type SurveyHeaderProgressState = Readonly<{
   totalSteps: number;
 }>;
 
-export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
+export function SurveyScreen({ returnTo }: { returnTo: string }) {
   const surveyQuery = useCurrentSurveyQuery();
   const [headerBackAction, setHeaderBackAction] = useState<PlatformHeaderBackAction | null>(null);
   const [headerProgress, setHeaderProgress] = useState<SurveyHeaderProgressState | null>(null);
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResponse | null>(null);
   const updateHeaderBackAction = useCallback((action: PlatformHeaderBackAction | null) => {
     setHeaderBackAction(action);
   }, []);
   const updateHeaderProgress = useCallback((progress: SurveyHeaderProgressState | null) => {
     setHeaderProgress(progress);
+  }, []);
+  const handleSubmitted = useCallback((result: SubmissionResponse) => {
+    setHeaderBackAction(null);
+    setHeaderProgress(null);
+    setSubmissionResult(result);
   }, []);
 
   useEffect(() => {
@@ -103,38 +111,47 @@ export function SurveyScreen({ cancelHref }: { cancelHref: string }) {
       scroll="child"
     >
       <div className={styles.screen} data-survey-screen="flow">
-        {surveyQuery.isPending ? <SurveyStatus loading title="설문을 불러오는 중입니다." /> : null}
-        {surveyQuery.isError ? (
-          <SurveyStatus
-            actions={
-              <button
-                className={`${styles.action} ${styles.primaryAction}`}
-                onClick={() => void surveyQuery.refetch()}
-                type="button"
-              >
-                다시 시도
-              </button>
-            }
-            description={getSurveyLoadErrorMessage(surveyQuery.error)}
-            role="alert"
-            title="설문을 불러오지 못했습니다."
-          />
-        ) : null}
-        {surveyQuery.data?.status === "SUBMITTED" ? (
-          <SurveySubmitted cancelHref={cancelHref} />
-        ) : null}
-        {surveyQuery.data?.status === "PENDING" ? (
-          <SurveyForm
-            cancelHref={cancelHref}
-            contentVersionId={surveyQuery.data.contentVersionId}
-            key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
-            onHeaderBackActionChange={updateHeaderBackAction}
-            onHeaderProgressChange={updateHeaderProgress}
-            onRefresh={() => void surveyQuery.refetch()}
-            roundId={surveyQuery.data.roundId}
-            sections={surveyQuery.data.sections}
-          />
-        ) : null}
+        {submissionResult ? (
+          <SurveySubmissionCompletion result={submissionResult} returnTo={returnTo} />
+        ) : (
+          <>
+            {surveyQuery.isPending ? (
+              <SurveyStatus loading title="설문을 불러오는 중입니다." />
+            ) : null}
+            {surveyQuery.isError ? (
+              <SurveyStatus
+                actions={
+                  <button
+                    className={`${styles.action} ${styles.primaryAction}`}
+                    onClick={() => void surveyQuery.refetch()}
+                    type="button"
+                  >
+                    다시 시도
+                  </button>
+                }
+                description={getSurveyLoadErrorMessage(surveyQuery.error)}
+                role="alert"
+                title="설문을 불러오지 못했습니다."
+              />
+            ) : null}
+            {surveyQuery.data?.status === "SUBMITTED" ? (
+              <SurveySubmitted returnTo={returnTo} />
+            ) : null}
+            {surveyQuery.data?.status === "PENDING" ? (
+              <SurveyForm
+                cancelHref={returnTo}
+                contentVersionId={surveyQuery.data.contentVersionId}
+                key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
+                onHeaderBackActionChange={updateHeaderBackAction}
+                onHeaderProgressChange={updateHeaderProgress}
+                onRefresh={() => void surveyQuery.refetch()}
+                onSubmitted={handleSubmitted}
+                roundId={surveyQuery.data.roundId}
+                sections={surveyQuery.data.sections}
+              />
+            ) : null}
+          </>
+        )}
       </div>
     </PlatformShell>
   );
@@ -146,6 +163,7 @@ function SurveyForm({
   onHeaderBackActionChange,
   onHeaderProgressChange,
   onRefresh,
+  onSubmitted,
   roundId,
   sections,
 }: {
@@ -154,10 +172,10 @@ function SurveyForm({
   onHeaderBackActionChange: (action: PlatformHeaderBackAction | null) => void;
   onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
+  onSubmitted: (result: SubmissionResponse) => void;
   roundId: string;
   sections: readonly SurveySection[];
 }) {
-  const router = useRouter();
   const totalSteps = sections.length + 1;
   const [currentStep, setCurrentStep] = useState(1);
   const [answers, setAnswers] = useState<SurveyAnswerState>(() =>
@@ -324,7 +342,7 @@ function SurveyForm({
     setSubmissionError(null);
 
     try {
-      await submitMutation.mutateAsync({
+      const result = await submitMutation.mutateAsync({
         command: prepared.payload,
         idempotencyKey: prepared.idempotencyKey,
       });
@@ -333,7 +351,7 @@ function SurveyForm({
         draftSaveTimeoutRef.current = null;
       }
       if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
-      router.replace("/home");
+      onSubmitted(result);
     } catch (error) {
       const apiErrors = getSurveySubmissionErrors(error);
       if (Object.keys(apiErrors.fieldErrors).length > 0) {
@@ -434,15 +452,77 @@ function SurveyConfirmation({
   );
 }
 
-function SurveySubmitted({ cancelHref }: { cancelHref: string }) {
+function SurveySubmitted({ returnTo }: { returnTo: string }) {
   return (
     <SurveyStatus
       actions={
-        <a className={`${styles.action} ${styles.primaryAction}`} href={cancelHref}>
+        <button
+          className={`${styles.action} ${styles.primaryAction}`}
+          onClick={() => window.location.replace(returnTo)}
+          type="button"
+        >
           돌아가기
-        </a>
+        </button>
       }
       icon={<span aria-hidden="true" className={styles.submittedIcon} />}
+      title="설문 제출을 완료했습니다."
+    />
+  );
+}
+
+function SurveySubmissionCompletion({
+  result,
+  returnTo,
+}: Readonly<{ result: SubmissionResponse; returnTo: string }>) {
+  const eligibilityQuery = useQuery({
+    ...getServiceEligibilityQueryOptions(),
+    enabled: result.persisted,
+    staleTime: 0,
+  });
+  const canReturn =
+    eligibilityQuery.isSuccess &&
+    !eligibilityQuery.isFetching &&
+    canReturnAfterSurveySubmission(result, eligibilityQuery.data);
+
+  useEffect(() => {
+    if (!canReturn) return;
+    window.location.replace(returnTo);
+  }, [canReturn, returnTo]);
+
+  if (!result.persisted) {
+    return (
+      <SurveyStatus
+        description="미리보기 응답은 저장되지 않습니다."
+        icon={<span aria-hidden="true" className={styles.submittedIcon} />}
+        title="설문 응답 검증을 완료했습니다."
+      />
+    );
+  }
+
+  if (eligibilityQuery.isFetching || canReturn) {
+    return (
+      <SurveyStatus
+        description="서비스 이용 가능 여부를 확인하고 있습니다."
+        loading
+        title="설문 제출을 완료했습니다."
+      />
+    );
+  }
+
+  return (
+    <SurveyStatus
+      actions={
+        <button
+          className={`${styles.action} ${styles.primaryAction}`}
+          onClick={() => void eligibilityQuery.refetch()}
+          type="button"
+        >
+          다시 확인
+        </button>
+      }
+      description="완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 확인해 주세요."
+      icon={<span aria-hidden="true" className={styles.submittedIcon} />}
+      role="alert"
       title="설문 제출을 완료했습니다."
     />
   );

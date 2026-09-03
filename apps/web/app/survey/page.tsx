@@ -7,11 +7,11 @@ export const metadata: Metadata = {
 };
 
 type SurveyPageProps = Readonly<{
-  searchParams: Promise<Readonly<{ from?: string | readonly string[] | undefined }>>;
+  searchParams: Promise<Readonly<{ returnTo?: string | readonly string[] | undefined }>>;
 }>;
 
 export default async function SurveyPage({ searchParams }: SurveyPageProps) {
-  const { from } = await searchParams;
+  const { returnTo } = await searchParams;
 
-  return <SurveyScreen cancelHref={resolveSurveyReturnPath(from)} />;
+  return <SurveyScreen returnTo={resolveSurveyReturnPath(returnTo)} />;
 }

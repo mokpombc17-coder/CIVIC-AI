@@ -4,10 +4,8 @@ import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import {
+  getServiceEligibilityQueryOptions,
   requiresCurrentSurvey,
-  serviceEligibilityApi,
-  serviceEligibilityQueryKey,
-  serviceEligibilityStaleTimeMs,
 } from "@/lib/vote/service-eligibility";
 import {
   createEligibilityLoginLocation,
@@ -26,11 +24,7 @@ const eligibilityLoadingDelayMs = 200;
 const eligibilityLoadingMinimumVisibleMs = 200;
 
 export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityGuardProps) {
-  const eligibilityQuery = useQuery({
-    queryKey: serviceEligibilityQueryKey,
-    queryFn: ({ signal }) => serviceEligibilityApi.getCurrent(signal),
-    staleTime: serviceEligibilityStaleTimeMs,
-  });
+  const eligibilityQuery = useQuery(getServiceEligibilityQueryOptions());
   const surveyRequired = eligibilityQuery.data
     ? requiresCurrentSurvey(eligibilityQuery.data)
     : false;
