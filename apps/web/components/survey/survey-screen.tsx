@@ -7,6 +7,17 @@ import {
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
+import { ConsentApiError } from "@/lib/consent/consent-api";
+import type { SensitiveSurveyConsentDocument } from "@/lib/consent/consent-contracts";
+import {
+  useAcceptSensitiveSurveyConsentMutation,
+  useCurrentSensitiveSurveyConsentDocumentQuery,
+} from "@/lib/consent/consent-queries";
+import {
+  attachConsentReceipt,
+  prepareConsentAcceptance,
+  type PendingConsentAcceptance,
+} from "@/lib/consent/consent-submission";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
   buildSubmitSurveyRequest,
@@ -178,11 +189,14 @@ function SurveyForm({
 }) {
   const totalSteps = sections.length + 1;
   const [currentStep, setCurrentStep] = useState(1);
+  const isConfirmationStep = currentStep === totalSteps;
   const [answers, setAnswers] = useState<SurveyAnswerState>(() =>
     createSurveyAnswerState(sections),
   );
   const [errors, setErrors] = useState<SurveyValidationErrors>({});
-  const [isRequiredConfirmationChecked, setIsRequiredConfirmationChecked] = useState(false);
+  const [confirmedConsentDocumentIdentity, setConfirmedConsentDocumentIdentity] = useState<
+    string | null
+  >(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [validationScrollRequest, setValidationScrollRequest] = useState(0);
   const [draftReady, setDraftReady] = useState(false);
@@ -190,13 +204,39 @@ function SurveyForm({
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
   const headerProgressVisibleRef = useRef(false);
+  const consentDocumentIdentityRef = useRef<string | null>(null);
+  const pendingConsentAcceptance = useRef<PendingConsentAcceptance | null>(null);
   const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
   const draftSaveTimeoutRef = useRef<number | null>(null);
   const initialSections = useRef(sections);
+  const consentDocumentQuery = useCurrentSensitiveSurveyConsentDocumentQuery(isConfirmationStep);
+  const acceptConsentMutation = useAcceptSensitiveSurveyConsentMutation();
   const submitMutation = useSubmitSurveyMutation();
+  const isSubmitting = acceptConsentMutation.isPending || submitMutation.isPending;
+  const consentDocumentIdentity = consentDocumentQuery.data
+    ? `${consentDocumentQuery.data.documentCode}:${consentDocumentQuery.data.documentVersion}`
+    : null;
+  const isRequiredConfirmationChecked =
+    consentDocumentIdentity !== null &&
+    confirmedConsentDocumentIdentity === consentDocumentIdentity;
   const goToPreviousStep = useCallback(() => {
     setCurrentStep((step) => Math.max(step - 1, 1));
   }, []);
+
+  useEffect(() => {
+    const document = consentDocumentQuery.data;
+    if (!document) return;
+    const identity = `${document.documentCode}:${document.documentVersion}`;
+    if (
+      consentDocumentIdentityRef.current !== null &&
+      consentDocumentIdentityRef.current !== identity
+    ) {
+      setConfirmedConsentDocumentIdentity(null);
+      pendingConsentAcceptance.current = null;
+      pendingSubmission.current = null;
+    }
+    consentDocumentIdentityRef.current = identity;
+  }, [consentDocumentQuery.data]);
 
   useEffect(() => {
     let active = true;
@@ -281,7 +321,6 @@ function SurveyForm({
   }
 
   const currentSection = sections[currentStep - 1];
-  const isConfirmationStep = currentStep === totalSteps;
   const stepTitle = isConfirmationStep
     ? CONFIRMATION_STEP_TITLE
     : (currentSection?.title ?? sections[0]!.title);
@@ -327,7 +366,8 @@ function SurveyForm({
   }
 
   async function submitSurvey() {
-    if (!isRequiredConfirmationChecked || submitMutation.isPending) return;
+    const consentDocument = consentDocumentQuery.data;
+    if (!isRequiredConfirmationChecked || !consentDocument || isSubmitting) return;
     const validationErrors = validateSurvey(sections, answers);
     if (Object.keys(validationErrors).length > 0) {
       setErrors(validationErrors);
@@ -336,12 +376,34 @@ function SurveyForm({
       return;
     }
 
-    const payload = buildSubmitSurveyRequest(roundId, sections, answers);
-    const prepared = prepareSurveySubmission(payload, pendingSubmission.current);
-    pendingSubmission.current = prepared;
     setSubmissionError(null);
 
     try {
+      let pendingConsent = prepareConsentAcceptance(
+        consentDocument,
+        roundId,
+        pendingConsentAcceptance.current,
+      );
+      pendingConsentAcceptance.current = pendingConsent;
+      let receipt = pendingConsent.receipt;
+
+      if (!receipt) {
+        receipt = await acceptConsentMutation.mutateAsync({
+          command: pendingConsent.payload,
+          idempotencyKey: pendingConsent.idempotencyKey,
+        });
+        pendingConsent = attachConsentReceipt(pendingConsent, receipt);
+        pendingConsentAcceptance.current = pendingConsent;
+      }
+
+      const payload = buildSubmitSurveyRequest(
+        roundId,
+        receipt.consentReceiptId,
+        sections,
+        answers,
+      );
+      const prepared = prepareSurveySubmission(payload, pendingSubmission.current);
+      pendingSubmission.current = prepared;
       const result = await submitMutation.mutateAsync({
         command: prepared.payload,
         idempotencyKey: prepared.idempotencyKey,
@@ -353,6 +415,19 @@ function SurveyForm({
       if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
       onSubmitted(result);
     } catch (error) {
+      if (error instanceof ConsentApiError) {
+        const consentError = getConsentSubmissionError(error);
+        setSubmissionError(consentError.message);
+        if (consentError.newAttempt) {
+          pendingConsentAcceptance.current = null;
+          pendingSubmission.current = null;
+        }
+        if (consentError.refreshDocument) {
+          setConfirmedConsentDocumentIdentity(null);
+          void consentDocumentQuery.refetch();
+        }
+        return;
+      }
       const apiErrors = getSurveySubmissionErrors(error);
       if (Object.keys(apiErrors.fieldErrors).length > 0) {
         setErrors(apiErrors.fieldErrors);
@@ -361,7 +436,10 @@ function SurveyForm({
       }
       setSubmissionError(apiErrors.message);
       if (apiErrors.refresh) onRefresh();
-      if (apiErrors.newAttempt) pendingSubmission.current = null;
+      if (apiErrors.newAttempt) {
+        pendingConsentAcceptance.current = null;
+        pendingSubmission.current = null;
+      }
     }
   }
 
@@ -369,11 +447,11 @@ function SurveyForm({
     <SurveyStepActions
       cancelHref={cancelHref}
       currentStep={currentStep}
-      isSubmitting={submitMutation.isPending}
+      isSubmitting={isSubmitting}
       onNext={goToNextStep}
       onPrevious={goToPreviousStep}
       onSubmit={() => void submitSurvey()}
-      submitDisabled={!isRequiredConfirmationChecked}
+      submitDisabled={!isRequiredConfirmationChecked || !consentDocumentQuery.data}
       totalSteps={totalSteps}
     />
   );
@@ -399,7 +477,13 @@ function SurveyForm({
               <SurveyConfirmation
                 actions={actions}
                 checked={isRequiredConfirmationChecked}
-                onChange={setIsRequiredConfirmationChecked}
+                document={consentDocumentQuery.data ?? null}
+                error={consentDocumentQuery.isError}
+                loading={consentDocumentQuery.isPending}
+                onChange={(checked) =>
+                  setConfirmedConsentDocumentIdentity(checked ? consentDocumentIdentity : null)
+                }
+                onRetry={() => void consentDocumentQuery.refetch()}
               />
             ) : currentSection ? (
               <SurveySectionFields
@@ -425,11 +509,19 @@ function SurveyForm({
 function SurveyConfirmation({
   actions,
   checked,
+  document,
+  error,
+  loading,
   onChange,
+  onRetry,
 }: {
   actions: ReactNode;
   checked: boolean;
+  document: SensitiveSurveyConsentDocument | null;
+  error: boolean;
+  loading: boolean;
   onChange: (checked: boolean) => void;
+  onRetry: () => void;
 }) {
   return (
     <section className={styles.confirmation}>
@@ -437,6 +529,7 @@ function SurveyConfirmation({
         <input
           className={styles.confirmationNativeCheck}
           checked={checked}
+          disabled={!document}
           onChange={(event) => onChange(event.target.checked)}
           type="checkbox"
         />
@@ -446,7 +539,16 @@ function SurveyConfirmation({
           <strong>필수</strong>
         </span>
       </label>
-      <p>동의를 거부할 수 있으나, 동의하지 않으면 가입할 수 없습니다.</p>
+      {loading ? <p>동의 내용을 불러오는 중입니다.</p> : null}
+      {error ? (
+        <div className={styles.confirmationError} role="alert">
+          <p>동의 내용을 불러오지 못했습니다.</p>
+          <button onClick={onRetry} type="button">
+            다시 불러오기
+          </button>
+        </div>
+      ) : null}
+      {document ? <p className={styles.confirmationDocument}>{document.content}</p> : null}
       {actions}
     </section>
   );
@@ -577,6 +679,32 @@ function getSurveyLoadErrorMessage(error: unknown): string {
   return "잠시 후 다시 시도해 주세요.";
 }
 
+function getConsentSubmissionError(error: ConsentApiError): {
+  message: string;
+  newAttempt: boolean;
+  refreshDocument: boolean;
+} {
+  if (error.code === "CONSENT_DOCUMENT_CHANGED") {
+    return {
+      message: "동의 내용이 변경되었습니다. 새 내용을 확인하고 다시 동의해 주세요.",
+      newAttempt: true,
+      refreshDocument: true,
+    };
+  }
+  if (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "INVALID_IDEMPOTENCY_KEY") {
+    return {
+      message: "동의 요청을 새로 준비했습니다. 다시 제출해 주세요.",
+      newAttempt: true,
+      refreshDocument: false,
+    };
+  }
+  return {
+    message: "동의 정보를 저장하지 못했습니다. 같은 내용으로 다시 시도해 주세요.",
+    newAttempt: false,
+    refreshDocument: false,
+  };
+}
+
 function getSurveySubmissionErrors(error: unknown): {
   fieldErrors: SurveyValidationErrors;
   message: string;
@@ -616,6 +744,17 @@ function getSurveySubmissionErrors(error: unknown): {
       message: "설문 회차가 변경되어 최신 설문을 다시 불러옵니다.",
       newAttempt: true,
       refresh: true,
+    };
+  }
+  if (
+    error.code === "SENSITIVE_INFORMATION_CONSENT_REQUIRED" ||
+    error.code === "CONSENT_RECEIPT_INVALID"
+  ) {
+    return {
+      fieldErrors,
+      message: "민감정보 동의를 다시 확인한 뒤 제출해 주세요.",
+      newAttempt: true,
+      refresh: false,
     };
   }
   if (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "INVALID_IDEMPOTENCY_KEY") {

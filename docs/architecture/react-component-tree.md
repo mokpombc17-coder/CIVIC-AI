@@ -74,13 +74,16 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `SurveyPage`는 검증한 `returnTo`를 `SurveyScreen`의 취소·제출 후 복귀 목적지로 전달한다. 절대 URL,
 프로토콜 상대 URL, `/survey` 및 인증 재귀 경로는 `/home`으로 대체한다. `SurveyScreen`은 Current
 Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`의 7개 Section과 29개 Question을
-조립한 뒤 프론트 전용 필수 확인 단계를 마지막에 추가한다. Section 이동 전에 일반 Question과 행렬
-Item을 검증하며 최종 제출은 29개 answer payload로 접어 Survey API mutation에 전달한다. 영구 저장
+조립한 뒤 운영 서버의 민감정보 동의 문서를 표시하는 필수 확인 단계를 마지막에 추가한다. Section 이동
+전에 일반 Question과 행렬 Item을 검증한다. 최종 제출은 운영 서버에 동의 증적을 먼저 저장하고 받은
+`consentReceiptId`를 29개 answer payload와 함께 Survey API mutation에 전달한다. 영구 저장
 제출 후에는 eligibility 캐시를 무효화하고 강제로 재조회해 `eligible=true`일 때만 검증된 `returnTo`로
 전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인 action을 제공한다.
 로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태를 유지한다. 답변과 현재 단계는 현재 인증
 subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
-Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며 제출 성공 또는
+Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며, 동의 저장과 Survey 제출은
+각각 독립된 idempotency key를 사용한다. Survey 재시도에는 최초 클릭 시각과 이미 발급된 consent receipt를
+유지한다. 제출 성공 또는
 `SUBMITTED` 재진입 시 임시 답변을 삭제한다. 1~~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
@@ -114,7 +117,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │                   │   │   │   └── SurveyDropdownSurface [Client] [View] [shared menu surface]
                 │                   │   │   └── SurveyMultiSelect [Client] [Control] [multiple-choice]
                 │                   │   │       └── SurveyDropdownSurface [Client] [View] [shared menu surface]
-                │                   │   └── SurveyConfirmation [Client graph] [Feature] [frontend-only: step 8]
+                │                   │   └── SurveyConfirmation [Client graph] [Feature] [consent API-driven: step 8]
                 │                   │       └── SurveyStepActions [Client graph] [Feature] [inside card]
                 │                   └── SurveyStepActions [Client graph] [Feature] [step 1~7]
                 │           └── SurveySubmissionCompletion [Client graph] [Feature] [post-submit eligibility recheck]
@@ -125,6 +128,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 
 `survey-contracts.ts`는 v4의 Section → Question 및 행렬 Item read/write union을 소유하고,
 `survey-api.ts`와 `survey-queries.ts`는 transport·runtime parsing·query cache를 담당한다.
+`consent-contracts.ts`, `consent-api.ts`, `consent-queries.ts`는 운영 서버의 민감정보 동의 문서와 동의 증적
+계약·transport·query/mutation을 담당한다. `consent-submission.ts`는 동의 요청 snapshot, 최초 보조 클릭 시각,
+idempotency key와 발급된 receipt를 Survey 제출 재시도 동안 유지한다.
 `survey-answer-state.ts`는 Question type별 draft, 행렬 Item 상태, 화면 이동용 검증과 29개 answer 제출
 payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,

@@ -7,6 +7,7 @@ import {
 } from "./survey-answer-state";
 
 const ROUND_ID = "11111111-1111-4111-8111-111111111111";
+const CONSENT_RECEIPT_ID = "77777777-7777-4777-8777-777777777777";
 const SINGLE_ID = "22222222-2222-4222-8222-222222222222";
 const MATRIX_ID = "33333333-3333-4333-8333-333333333333";
 const ITEM_A = "44444444-4444-4444-8444-444444444444";
@@ -61,7 +62,7 @@ describe("survey answer state", () => {
   });
 
   it("행렬 Item을 한 Question answer 안에 접고 kind와 inputText를 보내지 않는다", () => {
-    const payload = buildSubmitSurveyRequest(ROUND_ID, sections, {
+    const payload = buildSubmitSurveyRequest(ROUND_ID, CONSENT_RECEIPT_ID, sections, {
       [SINGLE_ID]: { type: "SINGLE_CHOICE", selection: { optionId: OPTION_YES } },
       [MATRIX_ID]: {
         type: "MATRIX_SINGLE_CHOICE",
@@ -73,6 +74,7 @@ describe("survey answer state", () => {
     });
 
     expect(payload.answers).toHaveLength(2);
+    expect(payload.consentReceiptId).toBe(CONSENT_RECEIPT_ID);
     expect(payload.answers[1]).toEqual({
       questionId: MATRIX_ID,
       type: "MATRIX_SINGLE_CHOICE",

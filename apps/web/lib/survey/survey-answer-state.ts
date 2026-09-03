@@ -63,6 +63,7 @@ export function validateSurvey(
 
 export function buildSubmitSurveyRequest(
   roundId: string,
+  consentReceiptId: string,
   sections: readonly SurveySection[],
   answers: SurveyAnswerState,
 ): SubmitSurveyRequest {
@@ -72,6 +73,7 @@ export function buildSubmitSurveyRequest(
 
   return {
     roundId,
+    consentReceiptId,
     answers: getSurveyQuestions(sections).map((question) =>
       toSurveyAnswerInput(question, answers[question.questionId]!),
     ),

@@ -225,6 +225,7 @@ export const surveyAnswerSchema = z.discriminatedUnion("type", [
 
 export const submitSurveyRequestSchema = z.object({
   roundId: uuidSchema,
+  consentReceiptId: uuidSchema,
   answers: z.array(surveyAnswerSchema),
 });
 
