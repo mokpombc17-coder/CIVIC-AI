@@ -123,6 +123,26 @@ public class TaskPreparationStateService {
     }
 
     @Transactional
+    public void deferPublicationVerification(TaskId taskId) {
+        Task task = tasks.findByIdForUpdate(Objects.requireNonNull(
+                        taskId, "taskId"))
+                .orElse(null);
+        if (task == null) {
+            return;
+        }
+        TaskPreparationRecord existing = preparations
+                .findByTaskIdForUpdate(taskId)
+                .orElse(null);
+        if (existing == null
+                || !existing.readyFor(payloads.fingerprint(task))) {
+            return;
+        }
+        Instant now = clock.instant();
+        preparations.save(copyWithPublicationRetry(
+                existing, now.plus(policy.retryDelay()), now));
+    }
+
+    @Transactional
     public TaskPreparationRecord applyProviderResult(
             TaskPreparationCommand command,
             TaskPreparationProviderResult result
@@ -221,10 +241,16 @@ public class TaskPreparationStateService {
                     "TASK_PREPARATION_FINGERPRINT_MISMATCH",
                     "Task preparation changed during verification");
         }
-        if (remote.status() == TaskPreparationStatus.PROCESSING
-                || existing.status() == TaskPreparationStatus.READY
-                && remote.status() == TaskPreparationStatus.READY) {
+        if (remote.status() == TaskPreparationStatus.PROCESSING) {
             return existing;
+        }
+        if (existing.status() == TaskPreparationStatus.READY
+                && remote.status() == TaskPreparationStatus.READY) {
+            if (existing.publicationVerificationNextRetryAt() == null) {
+                return existing;
+            }
+            return preparations.save(copyWithPublicationRetry(
+                    existing, null, clock.instant()));
         }
         TaskPreparationResult result = remote.terminalResult();
         if (sameTerminalResult(existing, result)) {
@@ -272,6 +298,7 @@ public class TaskPreparationStateService {
                 existing.attemptCount(),
                 null,
                 null,
+                null,
                 result.preparedAt(),
                 null,
                 null,
@@ -304,6 +331,7 @@ public class TaskPreparationStateService {
                 existing.attemptCount(),
                 null,
                 exception.retryable() ? now.plus(policy.retryDelay()) : null,
+                null,
                 null,
                 exception.code(),
                 errorDetail(exception),
@@ -362,6 +390,7 @@ public class TaskPreparationStateService {
                 null,
                 null,
                 null,
+                null,
                 createdAt,
                 now));
         return TaskPreparationClaim.execute(command);
@@ -405,11 +434,34 @@ public class TaskPreparationStateService {
                 null,
                 result.status() == TaskPreparationStatus.FAILED
                         ? now.plus(policy.retryDelay()) : null,
+                null,
                 result.preparedAt(),
                 error == null ? null : error.code(),
                 error == null ? null : error.detail(),
                 existing.createdAt(),
                 now));
+    }
+
+    private static TaskPreparationRecord copyWithPublicationRetry(
+            TaskPreparationRecord existing,
+            Instant retryAt,
+            Instant updatedAt
+    ) {
+        return new TaskPreparationRecord(
+                existing.taskId(),
+                existing.requestId(),
+                existing.contentFingerprint(),
+                existing.requestPayload(),
+                existing.status(),
+                existing.attemptCount(),
+                existing.processingStartedAt(),
+                existing.nextRetryAt(),
+                retryAt,
+                existing.preparedAt(),
+                existing.lastErrorCode(),
+                existing.lastErrorDetail(),
+                existing.createdAt(),
+                updatedAt);
     }
 
     private static boolean sameTerminalResult(

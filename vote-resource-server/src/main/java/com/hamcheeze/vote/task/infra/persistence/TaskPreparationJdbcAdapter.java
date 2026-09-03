@@ -29,6 +29,7 @@ public class TaskPreparationJdbcAdapter
                    attempt_count,
                    processing_started_at,
                    next_retry_at,
+                   publication_verification_next_retry_at,
                    prepared_at,
                    last_error_code,
                    last_error_detail,
@@ -105,12 +106,13 @@ public class TaskPreparationJdbcAdapter
                             attempt_count,
                             processing_started_at,
                             next_retry_at,
+                            publication_verification_next_retry_at,
                             prepared_at,
                             last_error_code,
                             last_error_detail,
                             created_at,
                             updated_at)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         ON CONFLICT (task_id) DO UPDATE SET
                             request_id = EXCLUDED.request_id,
                             content_fingerprint = EXCLUDED.content_fingerprint,
@@ -120,6 +122,8 @@ public class TaskPreparationJdbcAdapter
                             processing_started_at =
                                 EXCLUDED.processing_started_at,
                             next_retry_at = EXCLUDED.next_retry_at,
+                            publication_verification_next_retry_at =
+                                EXCLUDED.publication_verification_next_retry_at,
                             prepared_at = EXCLUDED.prepared_at,
                             last_error_code = EXCLUDED.last_error_code,
                             last_error_detail = EXCLUDED.last_error_detail,
@@ -133,6 +137,7 @@ public class TaskPreparationJdbcAdapter
                 preparation.attemptCount(),
                 timestamp(preparation.processingStartedAt()),
                 timestamp(preparation.nextRetryAt()),
+                timestamp(preparation.publicationVerificationNextRetryAt()),
                 timestamp(preparation.preparedAt()),
                 preparation.lastErrorCode(),
                 preparation.lastErrorDetail(),
@@ -155,6 +160,8 @@ public class TaskPreparationJdbcAdapter
                 resultSet.getInt("attempt_count"),
                 instant(resultSet, "processing_started_at"),
                 instant(resultSet, "next_retry_at"),
+                instant(resultSet,
+                        "publication_verification_next_retry_at"),
                 instant(resultSet, "prepared_at"),
                 resultSet.getString("last_error_code"),
                 resultSet.getString("last_error_detail"),

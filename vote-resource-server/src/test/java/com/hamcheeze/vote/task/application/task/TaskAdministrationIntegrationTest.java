@@ -8,6 +8,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
 import com.hamcheeze.vote.task.application.result.TaskResultViewDocumentQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationService;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
@@ -43,7 +44,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
         "vote.survey.bootstrap.enabled=false",
-        "vote.task.lifecycle.enabled=false"
+        "vote.task.lifecycle.enabled=false",
+        "vote.task.preparation.enabled=true",
+        "vote.task.preparation.provider=fake",
+        "vote.task.preparation.retry-delay=1h"
 })
 @ActiveProfiles({"local", "test"})
 class TaskAdministrationIntegrationTest {
@@ -62,6 +66,9 @@ class TaskAdministrationIntegrationTest {
 
     @Autowired
     private TaskResultViewDocumentQueryService resultDocuments;
+
+    @Autowired
+    private TaskPreparationService preparationService;
 
     @Test
     void createsReplacesAndListsDraftsWithoutPersistingInvalidQuestions() {
@@ -293,7 +300,7 @@ class TaskAdministrationIntegrationTest {
                 now.minus(2, ChronoUnit.HOURS),
                 now.minus(1, ChronoUnit.MINUTES));
         TaskLifecycleScheduler scheduler = new TaskLifecycleScheduler(
-                administration, 100);
+                administration, preparationService, 100);
 
         int transitioned = scheduler.transitionAvailable();
 
@@ -324,8 +331,35 @@ class TaskAdministrationIntegrationTest {
     }
 
     @Test
+    void schedulerSkipsPublicationVerificationRetryWithoutBlockingDeadlines() {
+        Instant now = Instant.now();
+        Task deferred = persistLifecycleTask(
+                TaskStatus.SCHEDULED,
+                now.minus(2, ChronoUnit.MINUTES),
+                now.plus(1, ChronoUnit.HOURS));
+        preparationService.deferPublicationVerification(deferred.id());
+        Task deadlineReached = persistLifecycleTask(
+                TaskStatus.OPEN,
+                now.minus(2, ChronoUnit.HOURS),
+                now.minus(1, ChronoUnit.MINUTES));
+        TaskLifecycleScheduler scheduler = new TaskLifecycleScheduler(
+                administration, preparationService, 100);
+
+        int transitioned = scheduler.transitionAvailable();
+
+        assertThat(transitioned).isGreaterThanOrEqualTo(1);
+        assertThat(administration.findById(deferred.id()))
+                .get().extracting(Task::status)
+                .isEqualTo(TaskStatus.SCHEDULED);
+        assertThat(administration.findById(deadlineReached.id()))
+                .get().extracting(Task::status)
+                .isEqualTo(TaskStatus.CLOSED);
+    }
+
+    @Test
     void concurrentSchedulerInstancesRecordOnlyOneTransition() throws Exception {
-        new TaskLifecycleScheduler(administration, 100)
+        new TaskLifecycleScheduler(
+                administration, preparationService, 100)
                 .transitionAvailable();
         Instant now = Instant.now();
         Task due = persistLifecycleTask(
@@ -372,11 +406,31 @@ class TaskAdministrationIntegrationTest {
             Instant closeAt
     ) {
         Instant createdAt = openAt.minus(1, ChronoUnit.HOURS);
+        TaskId taskId = new TaskId(UUID.randomUUID());
+        String title = "scheduler 대상 " + UUID.randomUUID();
+        List<TaskQuestion> questions =
+                List.of(choiceQuestion("scheduler 질문"));
+        if (status == TaskStatus.SCHEDULED) {
+            tasks.save(Task.restore(
+                    taskId,
+                    title,
+                    null,
+                    questions,
+                    TaskStatus.DRAFT,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    createdAt,
+                    createdAt));
+            preparationService.prepare(taskId);
+        }
         Task task = Task.restore(
-                new TaskId(UUID.randomUUID()),
-                "scheduler 대상 " + UUID.randomUUID(),
+                taskId,
+                title,
                 null,
-                List.of(choiceQuestion("scheduler 질문")),
+                questions,
                 status,
                 new TaskSchedule(openAt, closeAt),
                 createdAt.plus(1, ChronoUnit.MINUTES),

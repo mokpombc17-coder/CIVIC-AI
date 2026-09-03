@@ -18,6 +18,8 @@ public interface TaskRepository {
 
     List<Task> findAll();
 
+    Optional<Task> findNextLifecycleCandidate(Instant dueAt);
+
     Optional<Task> findNextLifecycleCandidateForUpdate(Instant dueAt);
 
     void appendLifecycleHistory(List<TaskLifecycleHistory> histories);

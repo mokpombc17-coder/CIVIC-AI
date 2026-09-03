@@ -15,6 +15,7 @@ public record TaskPreparationRecord(
         int attemptCount,
         Instant processingStartedAt,
         Instant nextRetryAt,
+        Instant publicationVerificationNextRetryAt,
         Instant preparedAt,
         String lastErrorCode,
         String lastErrorDetail,

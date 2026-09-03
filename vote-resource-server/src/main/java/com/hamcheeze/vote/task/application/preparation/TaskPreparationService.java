@@ -30,6 +30,10 @@ public class TaskPreparationService {
         states.requireLocallyReady(taskId);
     }
 
+    public void deferPublicationVerification(TaskId taskId) {
+        states.deferPublicationVerification(taskId);
+    }
+
     public void verifyReady(TaskId taskId) {
         TaskPreparationVerification verification =
                 states.verification(taskId);

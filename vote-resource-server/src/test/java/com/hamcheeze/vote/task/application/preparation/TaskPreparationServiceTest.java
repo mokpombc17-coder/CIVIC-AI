@@ -104,13 +104,13 @@ class TaskPreparationServiceTest {
         return new TaskPreparationRecord(
                 TASK_ID, REQUEST_ID, FINGERPRINT, "{}",
                 TaskPreparationStatus.READY, 1,
-                null, null, NOW, null, null, NOW, NOW);
+                null, null, null, NOW, null, null, NOW, NOW);
     }
 
     private static TaskPreparationRecord processingRecord() {
         return new TaskPreparationRecord(
                 TASK_ID, REQUEST_ID, FINGERPRINT, "{}",
                 TaskPreparationStatus.PROCESSING, 1,
-                NOW, null, null, null, null, NOW, NOW);
+                NOW, null, null, null, null, null, NOW, NOW);
     }
 }

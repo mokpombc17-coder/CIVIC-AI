@@ -292,6 +292,33 @@ public class TaskAdministrationService {
                 .map(task -> transitionDue(task, now));
     }
 
+    @Transactional(readOnly = true)
+    public Optional<TaskLifecycleCandidate> findNextLifecycleCandidate() {
+        Instant now = clock.instant();
+        return tasks.findNextLifecycleCandidate(now)
+                .map(task -> new TaskLifecycleCandidate(
+                        task.id(),
+                        task.status(),
+                        task.status() == TaskStatus.SCHEDULED
+                                && now.isBefore(task.schedule()
+                                .scheduledCloseAt())));
+    }
+
+    @Transactional
+    public Optional<TaskLifecycleChange> transitionLifecycleCandidate(
+            TaskLifecycleCandidate candidate
+    ) {
+        Objects.requireNonNull(candidate, "candidate");
+        Instant now = clock.instant();
+        Optional<Task> stored = tasks.findByIdForUpdate(candidate.taskId());
+        if (stored.isEmpty()
+                || stored.get().status() != candidate.status()
+                || !lifecycleDue(stored.get(), now)) {
+            return Optional.empty();
+        }
+        return Optional.of(transitionDue(stored.get(), now));
+    }
+
     private TaskLifecycleChange transitionDue(Task task, Instant now) {
         TaskLifecycleHistory history = switch (task.status()) {
             case SCHEDULED -> !now.isBefore(
@@ -310,6 +337,14 @@ public class TaskAdministrationService {
                     "repository returned a task without a due transition");
         };
         return save(task, history);
+    }
+
+    private static boolean lifecycleDue(Task task, Instant now) {
+        return switch (task.status()) {
+            case SCHEDULED -> !task.schedule().scheduledOpenAt().isAfter(now);
+            case OPEN -> !task.schedule().scheduledCloseAt().isAfter(now);
+            default -> false;
+        };
     }
 
     private Task lockTask(TaskId taskId) {
@@ -382,6 +417,17 @@ public class TaskAdministrationService {
     public record TaskCreationExecution(Task task, boolean replayed) {
         public TaskCreationExecution {
             Objects.requireNonNull(task, "task");
+        }
+    }
+
+    public record TaskLifecycleCandidate(
+            TaskId taskId,
+            TaskStatus status,
+            boolean requiresPreparationVerification
+    ) {
+        public TaskLifecycleCandidate {
+            Objects.requireNonNull(taskId, "taskId");
+            Objects.requireNonNull(status, "status");
         }
     }
 }

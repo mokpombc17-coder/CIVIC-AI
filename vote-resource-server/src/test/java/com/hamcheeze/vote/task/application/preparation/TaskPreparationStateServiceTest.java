@@ -246,6 +246,30 @@ class TaskPreparationStateServiceTest {
                 .doesNotThrowAnyException();
     }
 
+    @Test
+    void failedPublicationVerificationStoresRetryBoundary() {
+        Task task = draftTask();
+        UUID requestId = UUID.randomUUID();
+        TaskPreparationRecord ready = ready(task, requestId);
+        when(tasks.findByIdForUpdate(task.id()))
+                .thenReturn(Optional.of(task));
+        when(preparations.findByTaskIdForUpdate(task.id()))
+                .thenReturn(Optional.of(ready));
+        when(payloads.fingerprint(task)).thenReturn(FINGERPRINT);
+        when(preparations.save(any())).thenAnswer(
+                invocation -> invocation.getArgument(0));
+
+        service.deferPublicationVerification(task.id());
+
+        ArgumentCaptor<TaskPreparationRecord> saved =
+                ArgumentCaptor.forClass(TaskPreparationRecord.class);
+        verify(preparations).save(saved.capture());
+        assertThat(saved.getValue().publicationVerificationNextRetryAt())
+                .isEqualTo(NOW.plusSeconds(30));
+        assertThat(saved.getValue().status())
+                .isEqualTo(TaskPreparationStatus.READY);
+    }
+
     private void prepareCallback(
             Task task,
             TaskPreparationRecord preparation
@@ -293,6 +317,7 @@ class TaskPreparationStateServiceTest {
                 null,
                 null,
                 null,
+                null,
                 NOW,
                 NOW);
     }
@@ -304,7 +329,7 @@ class TaskPreparationStateServiceTest {
         return new TaskPreparationRecord(
                 task.id(), requestId, FINGERPRINT, "{}",
                 TaskPreparationStatus.READY, 1,
-                null, null, NOW, null, null, NOW, NOW);
+                null, null, null, NOW, null, null, NOW, NOW);
     }
 
     private static TaskPreparationRecord failed(
@@ -314,7 +339,7 @@ class TaskPreparationStateServiceTest {
         return new TaskPreparationRecord(
                 task.id(), requestId, FINGERPRINT, "{}",
                 TaskPreparationStatus.FAILED, 1,
-                null, NOW.plusSeconds(30), null,
+                null, NOW.plusSeconds(30), null, null,
                 "TIMEOUT", "runtime timed out", NOW, NOW);
     }
 }

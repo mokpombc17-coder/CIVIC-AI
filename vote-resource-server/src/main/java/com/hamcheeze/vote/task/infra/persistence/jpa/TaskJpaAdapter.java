@@ -19,6 +19,33 @@ import java.time.Instant;
 @Repository
 public class TaskJpaAdapter implements TaskRepository {
 
+    private static final String LIFECYCLE_CANDIDATE_QUERY = """
+            SELECT task.task_id
+            FROM tasks task
+            LEFT JOIN task_preparations preparation
+                ON preparation.task_id = task.task_id
+            WHERE (task.status = 'SCHEDULED'
+                    AND task.scheduled_close_at <= :dueAt)
+               OR (task.status = 'SCHEDULED'
+                    AND task.scheduled_open_at <= :dueAt
+                    AND preparation.status = 'READY'
+                    AND (preparation.publication_verification_next_retry_at
+                            IS NULL
+                        OR preparation.publication_verification_next_retry_at
+                            <= :dueAt))
+               OR (task.status = 'OPEN'
+                    AND task.scheduled_close_at <= :dueAt)
+            ORDER BY CASE
+                WHEN task.status = 'SCHEDULED'
+                        AND task.scheduled_close_at <= :dueAt
+                    THEN task.scheduled_close_at
+                WHEN task.status = 'SCHEDULED'
+                    THEN task.scheduled_open_at
+                ELSE task.scheduled_close_at
+            END,
+            task.task_id
+            """;
+
     @PersistenceContext
     private EntityManager entityManager;
 
@@ -86,27 +113,34 @@ public class TaskJpaAdapter implements TaskRepository {
     }
 
     @Override
+    @Transactional(readOnly = true)
+    public Optional<Task> findNextLifecycleCandidate(Instant dueAt) {
+        @SuppressWarnings("unchecked")
+        List<UUID> taskIds = entityManager.createNativeQuery(
+                        LIFECYCLE_CANDIDATE_QUERY + "LIMIT 1",
+                        UUID.class)
+                .setParameter("dueAt", dueAt)
+                .getResultList();
+        if (taskIds.isEmpty()) {
+            return Optional.empty();
+        }
+        TaskJpaEntity entity = entityManager.find(
+                TaskJpaEntity.class, taskIds.getFirst());
+        return Optional.ofNullable(entity)
+                .map(stored -> TaskJpaMapper.toDomain(
+                        entityManager, stored));
+    }
+
+    @Override
     @Transactional
     public Optional<Task> findNextLifecycleCandidateForUpdate(
             Instant dueAt
     ) {
         @SuppressWarnings("unchecked")
-        List<UUID> taskIds = entityManager.createNativeQuery("""
-                        SELECT task_id
-                        FROM tasks
-                        WHERE (status = 'SCHEDULED'
-                                AND scheduled_open_at <= :dueAt)
-                           OR (status = 'OPEN'
-                                AND scheduled_close_at <= :dueAt)
-                        ORDER BY CASE
-                            WHEN status = 'SCHEDULED'
-                                THEN scheduled_open_at
-                            ELSE scheduled_close_at
-                        END,
-                        task_id
-                        FOR UPDATE SKIP LOCKED
-                        LIMIT 1
-                        """, UUID.class)
+        List<UUID> taskIds = entityManager.createNativeQuery(
+                        LIFECYCLE_CANDIDATE_QUERY
+                                + "FOR UPDATE OF task SKIP LOCKED\nLIMIT 1",
+                        UUID.class)
                 .setParameter("dueAt", dueAt)
                 .getResultList();
         if (taskIds.isEmpty()) {

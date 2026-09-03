@@ -117,6 +117,7 @@ class AdminTaskQueryServiceTest {
                 1,
                 null,
                 null,
+                null,
                 NOW,
                 null,
                 null,
