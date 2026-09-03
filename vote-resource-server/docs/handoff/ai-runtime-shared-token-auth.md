@@ -61,8 +61,10 @@ VOTE_AI_RUNTIME_BASE_URL=https://civic-ai.co.kr
 VOTE_AI_RUNTIME_AUTH_TOKEN=<shared-secret>
 ```
 
-`VOTE_AI_RUNTIME_AUTH_TOKEN`이 없으면 스테이징 Compose 구성이 실패하도록 설정되어 있다.
-token 생성·보관·교체는 Secret 관리 수단에서 수행한다.
+`VOTE_AI_RUNTIME_AUTH_TOKEN`이 없으면 공개된 스테이징 테스트 token을 기본값으로 사용한다.
+명시적으로 환경 변수를 주입하면 기본값보다 우선하며, production에서는 이 기본값을
+사용하지 않고 별도의 Secret을 주입한다. 운영 token 생성·보관·교체는 Secret 관리 수단에서
+수행한다.
 
 ## 9000 구현 체크리스트
 
