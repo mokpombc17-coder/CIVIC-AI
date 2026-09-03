@@ -100,7 +100,8 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
     .toBe(1);
 
   await submitButton.click();
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(/\/survey$/);
+  await expect(page.getByRole("heading", { name: "설문 응답 검증을 완료했습니다." })).toBeVisible();
 
   expect(submittedCommand).not.toBeNull();
   expect(submittedCommand!.roundId).toBe(ROUND_ID);
@@ -193,7 +194,8 @@ test("제출 401이면 토큰 갱신 후 같은 payload와 멱등성 키로 한 
   await advanceAnsweredSurveyToConfirmation(page);
   await page.getByText("민감정보 수집·이용에 동의합니다", { exact: true }).click();
   await page.getByRole("button", { name: "제출하기", exact: true }).click();
-  await expect(page).toHaveURL(/\/home$/);
+  await expect(page).toHaveURL(/\/survey$/);
+  await expect(page.getByRole("heading", { name: "설문 응답 검증을 완료했습니다." })).toBeVisible();
 
   expect(refreshCount).toBe(1);
   expect(attempts).toHaveLength(2);
@@ -201,8 +203,96 @@ test("제출 401이면 토큰 갱신 후 같은 payload와 멱등성 키로 한 
   expect(attempts[1]!.command).toEqual(attempts[0]!.command);
 });
 
+test("미완료 사용자를 설문으로 보내고 영구 제출 후 원래 경로로 복귀시킨다", async ({ page }) => {
+  const eligibilityResults: boolean[] = [];
+  let submitted = false;
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    await route.fulfill({ json: { subject: "survey-eligibility-e2e-user" } });
+  });
+  await page.route("https://t1.kakaocdn.net/**", async (route) => {
+    await route.abort("failed");
+  });
+  await page.route("**/api/v1/me/**", async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const corsHeaders = createCorsHeaders(page);
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/service-eligibility" && request.method() === "GET") {
+      eligibilityResults.push(submitted);
+      await route.fulfill({
+        headers: corsHeaders,
+        json: {
+          activeRoundId: submitted ? null : ROUND_ID,
+          capabilities: submitted
+            ? ["USE_GENERAL_SERVICE", "USE_PERSONALIZED_SERVICE"]
+            : ["VIEW_CURRENT_SURVEY", "SUBMIT_CURRENT_SURVEY"],
+          eligible: submitted,
+          evaluatedAt: "2026-09-03T00:00:00Z",
+          nextAction: submitted ? null : "COMPLETE_CURRENT_SURVEY",
+          reason: submitted ? null : "CURRENT_SURVEY_RESPONSE_REQUIRED",
+          surveyRequirement: submitted ? "SATISFIED" : "REQUIRED",
+        },
+      });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/surveys/current" && request.method() === "GET") {
+      await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
+      submitted = true;
+      await route.fulfill({
+        status: 201,
+        headers: corsHeaders,
+        json: {
+          status: "SUBMITTED",
+          persisted: true,
+          replayed: false,
+          responseId: uuid(3),
+          roundId: ROUND_ID,
+          contentVersionId: CONTENT_VERSION_ID,
+          submittedAt: "2026-09-03T00:00:00Z",
+        },
+      });
+      return;
+    }
+
+    await route.abort("failed");
+  });
+
+  const returnTo = "/vote/task-1?source=push#answer";
+  await page.goto(returnTo);
+  await expect
+    .poll(() => {
+      const currentUrl = new URL(page.url());
+      return {
+        pathname: currentUrl.pathname,
+        returnTo: currentUrl.searchParams.get("returnTo"),
+      };
+    })
+    .toEqual({ pathname: "/survey", returnTo });
+
+  await answerVisibleSurveyToConfirmation(page);
+  await page.getByText("민감정보 수집·이용에 동의합니다", { exact: true }).click();
+  await page.getByRole("button", { name: "제출하기", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/vote\/task-1\?source=push#answer$/);
+  expect(eligibilityResults[0]).toBe(false);
+  expect(eligibilityResults.at(-1)).toBe(true);
+  expect(eligibilityResults.filter(Boolean).length).toBeGreaterThanOrEqual(1);
+});
+
 async function advanceAnsweredSurveyToConfirmation(page: Page): Promise<void> {
   await page.goto("/survey");
+  await answerVisibleSurveyToConfirmation(page);
+}
+
+async function answerVisibleSurveyToConfirmation(page: Page): Promise<void> {
   const form = page.locator("[data-survey-step]");
   for (let step = 1; step <= 7; step += 1) {
     await expect(form).toHaveAttribute("data-survey-step", String(step));
