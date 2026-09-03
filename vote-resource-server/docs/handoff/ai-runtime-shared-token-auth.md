@@ -43,7 +43,8 @@ token이 없거나 다르면 RFC Problem Details 형식의 `401 UNAUTHENTICATED`
 
 스테이징 기본 진입점은 `https://civic-ai.co.kr`이다.
 
-- `/v1/**`를 9000으로 전달한다.
+- `/v1/personas`, `/v1/tasks/prepare`, `/v1/task-preparations/**`,
+  `/v1/task-predictions`를 9000으로 전달한다.
 - `/api/v1/integrations/persona/**`를 8082로 전달한다.
 - 양방향 모두 `Authorization` header를 보존한다.
 - 8082나 9000의 애플리케이션 포트를 인터넷에 직접 노출하지 않는다.
@@ -71,4 +72,3 @@ token 생성·보관·교체는 Secret 관리 수단에서 수행한다.
 - [ ] 사용자 JWT, 공유 token, Authorization header를 로그에 남기지 않는다.
 - [ ] HTTPS 진입점과 Nginx path routing을 통해서만 통신한다.
 - [ ] 재시도 시 기존 idempotency key와 payload를 그대로 유지한다.
-

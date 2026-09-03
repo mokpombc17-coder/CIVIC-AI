@@ -502,7 +502,9 @@ Endpoint와 기존 request body는 유지한다.
 - [ ] `VOTE_TASK_PREPARATION_PROVIDER=http` 설정
 - [ ] 배포 네트워크 기준으로 `VOTE_TASK_PREPARATION_BASE_URL`을 9000 주소로 설정
 - [ ] 양쪽 서버에 같은 `VOTE_AI_RUNTIME_AUTH_TOKEN` Secret 주입
-- [ ] Nginx가 `/v1/**`는 9000, `/api/v1/integrations/persona/**`는 8082로 전달하는지 확인
+- [ ] Nginx가 합의된 Runtime 경로(`/v1/personas`, `/v1/tasks/prepare`,
+  `/v1/task-preparations/**`, `/v1/task-predictions`)는 9000,
+  `/api/v1/integrations/persona/**`는 8082로 전달하는지 확인
 - [ ] Nginx가 `Authorization` header를 양방향으로 보존하는지 확인
 - [ ] 전처리 접수 → callback → 즉시 발행 E2E 검증
 - [ ] 전처리 접수 → callback → 예약 발행 E2E 검증
