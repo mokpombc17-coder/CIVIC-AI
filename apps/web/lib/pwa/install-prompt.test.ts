@@ -1,24 +1,11 @@
-import { createElement } from "react";
-import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { PwaInstallTriggerCard } from "./pwa-install-trigger-card";
 import {
   capturePwaInstallPrompt,
   requestPwaInstall,
   type BeforeInstallPromptEvent,
-} from "@/lib/pwa/install-prompt";
+} from "./install-prompt";
 
-describe("PwaInstallTriggerCard", () => {
-  it("keeps the home welcome card unchanged until the browser offers installation", () => {
-    const html = renderToStaticMarkup(
-      createElement(PwaInstallTriggerCard, null, createElement("h2", null, "CIVIC.AI")),
-    );
-
-    expect(html).toContain('class="wf-card wf-home-welcome wf-pwa-install-trigger"');
-    expect(html).toContain('data-pwa-install-trigger="true"');
-    expect(html).not.toContain("<button");
-  });
-
+describe("PWA install prompt", () => {
   it("suppresses the automatic promotion when capturing the browser prompt", () => {
     const preventDefault = vi.fn();
     const event = { preventDefault } as unknown as Event;

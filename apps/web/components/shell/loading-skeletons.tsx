@@ -6,6 +6,7 @@ import { PlatformPageShell } from "@/components/platform-page-shell";
 import { PlatformNavigation } from "@/components/platform-shell";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-frame";
+import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
@@ -63,13 +64,7 @@ export function ParticipantLoadingView({ pathname }: Readonly<{ pathname: string
       {...(screen.id === "U-RAG-001"
         ? { headerActions: <RagNewQuestionHeaderAction disabled /> }
         : {})}
-      title={
-        screen.id === "U-HOME-001" ? (
-          <span className="civic-brand-title">CIVIC.AI</span>
-        ) : (
-          header.title
-        )
-      }
+      title={screen.id === "U-HOME-001" ? <HomeBrandTitle /> : header.title}
     >
       {authRoute ? (
         content
