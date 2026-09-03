@@ -4437,17 +4437,8 @@ body {
 
 .civic-region-badge {
   display: inline-flex;
-  min-height: 20px;
   flex: none;
   align-items: center;
-  border-radius: 999px;
-  padding: 0 7px;
-  background: #edf2ff;
-  color: #0a4fd1;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: -0.2px;
-  line-height: 20px;
 }
 
 .civic-header-login {
@@ -4653,10 +4644,12 @@ body {
   justify-self: start;
 }
 
+.civic-region-badge,
 [data-wireflow-screen="U-HOME-001"] .wf-badge {
   height: 22px;
   min-height: 22px;
   border-radius: 4px;
+  padding: 2px 6px;
   background: #edf2ff;
   color: #0a4fd1;
   font-size: 12px;
@@ -4980,10 +4973,6 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
-.civic-header-user-trigger:hover {
-  color: #0a4fd1;
-}
-
 .civic-header-user-trigger:focus-visible {
   outline: 2px solid #266ef5;
   outline-offset: 2px;
@@ -5001,7 +4990,6 @@ body {
 
 .civic-header-user-chevron {
   flex: none;
-  transition: transform 120ms ease;
 }
 
 .civic-header-user-chevron[data-open="true"] {
@@ -5011,27 +4999,26 @@ body {
 .civic-header-user-menu {
   position: absolute;
   z-index: 30;
-  top: calc(100% + 8px);
+  top: calc(100% + 4px);
   right: 0;
   display: grid;
   width: max-content;
-  min-width: 148px;
-  gap: 2px;
-  border: 1px solid #d9dee8;
-  border-radius: 10px;
-  padding: 6px;
+  min-width: 136px;
+  border: 1px solid #e1e5ec;
+  border-radius: 6px;
+  padding: 4px;
   background: #fff;
-  box-shadow: 0 8px 24px rgb(21 35 59 / 16%);
+  box-shadow: 0 4px 12px rgb(21 35 59 / 10%);
 }
 
 .civic-header-user-menu-item {
   display: flex;
   width: 100%;
-  min-height: 40px;
+  min-height: 36px;
   align-items: center;
   border: 0;
-  border-radius: 7px;
-  padding: 8px 10px;
+  border-radius: 4px;
+  padding: 7px 8px;
   background: transparent;
   color: #1f2124;
   font-size: 14px;
@@ -5045,7 +5032,7 @@ body {
 }
 
 .civic-header-user-menu-item:hover {
-  background: #f3f6fb;
+  background: #f5f6f8;
 }
 
 .civic-header-user-menu-item:focus-visible {
@@ -5056,10 +5043,6 @@ body {
 .civic-header-user-menu-item:disabled {
   cursor: wait;
   opacity: 0.6;
-}
-
-.civic-header-user-menu-logout {
-  color: #c22b2b;
 }
 
 .civic-header-user-menu-error {

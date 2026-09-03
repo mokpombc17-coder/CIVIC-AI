@@ -202,7 +202,7 @@ export function CurrentUserMenuPanel({
         </button>
       ) : null}
       <button
-        className="civic-header-user-menu-item civic-header-user-menu-logout"
+        className="civic-header-user-menu-item"
         disabled={logoutBusy}
         onClick={onLogout}
         type="button"
