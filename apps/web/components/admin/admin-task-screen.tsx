@@ -23,11 +23,14 @@ import {
   readAdminProblem,
   readTask,
   readTaskDetail,
+  readTaskPreparationStartResponse,
   readTaskResultSummary,
   readTaskSummaries,
   type Task,
   type AdminProblem,
+  type TaskCapabilities,
   type TaskDetail,
+  type TaskPreparationView,
   type TaskResultSummary,
   type TaskStatus,
   type TaskSummary,
@@ -313,6 +316,7 @@ function searchTaskId(): string | null {
 function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
   const router = useRouter();
   const [task, setTask] = useState<Task | null>(null);
+  const [contentEditable, setContentEditable] = useState(taskContentEditAllowed(taskId, false));
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [question, setQuestion] = useState("");
@@ -333,8 +337,13 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         if (detail.task.status !== "DRAFT") {
           return setMessage("초안 상태의 과업만 전체 수정할 수 있습니다.");
         }
+        const nextContentEditable = taskContentEditAllowed(
+          taskId,
+          detail.capabilities.canEditContent,
+        );
         const current = detail.task;
         setTask(current);
+        setContentEditable(nextContentEditable);
         setTitle(current.title);
         setDescription(current.description ?? "");
         setQuestion(current.question?.content ?? "");
@@ -348,6 +357,9 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
             { id: null, content: "" },
           ],
         );
+        if (!nextContentEditable) {
+          setMessage("AI 답변 준비가 진행 중이거나 완료되어 내용을 수정할 수 없습니다.");
+        }
       });
     }, 0);
     return () => window.clearTimeout(timer);
@@ -355,6 +367,9 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (!contentEditable) {
+      return setMessage("AI 답변 준비가 진행 중이거나 완료되어 내용을 수정할 수 없습니다.");
+    }
     const validation = validateDraft(title, question, options);
     if (validation) return setMessage(validation);
     setPending(true);
@@ -385,6 +400,9 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       if (!response.ok) {
         const nextProblem = await readAdminProblem(response);
         setProblem(nextProblem);
+        if (nextProblem.code === "TASK_CONTENT_LOCKED_BY_PREPARATION") {
+          setContentEditable(false);
+        }
         setMessage(formatAdminProblem(nextProblem));
         return;
       }
@@ -394,7 +412,10 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
     } catch {
       if (task) {
         const latest = await requestTaskDetail(task.id);
-        if (latest) setTask(latest.task);
+        if (latest) {
+          setTask(latest.task);
+          setContentEditable(taskContentEditAllowed(task.id, latest.capabilities.canEditContent));
+        }
       }
       setMessage("저장 결과가 불명확하여 서버 상태를 다시 확인했습니다. 자동 재전송하지 않습니다.");
     } finally {
@@ -414,7 +435,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
           <input
             aria-describedby={adminFieldError(problem, "title") ? "task-title-error" : undefined}
             aria-invalid={Boolean(adminFieldError(problem, "title"))}
-            disabled={pending}
+            disabled={pending || !contentEditable}
             maxLength={200}
             onChange={(event) => setTitle(event.currentTarget.value)}
             required
@@ -425,7 +446,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         <label className="civic-field">
           <span>배경</span>
           <textarea
-            disabled={pending}
+            disabled={pending || !contentEditable}
             onChange={(event) => setDescription(event.currentTarget.value)}
             rows={4}
             value={description}
@@ -438,7 +459,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
               adminFieldError(problem, "question.content") ? "task-question-error" : undefined
             }
             aria-invalid={Boolean(adminFieldError(problem, "question.content"))}
-            disabled={pending}
+            disabled={pending || !contentEditable}
             onChange={(event) => setQuestion(event.currentTarget.value)}
             required
             rows={4}
@@ -477,7 +498,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
                       `question.options.${index}.content`,
                     ),
                   )}
-                  disabled={pending}
+                  disabled={pending || !contentEditable}
                   maxLength={255}
                   onChange={(event) => {
                     const content = event.currentTarget.value;
@@ -500,7 +521,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
                 />
               </label>
               <button
-                disabled={pending || options.length <= 2}
+                disabled={pending || !contentEditable || options.length <= 2}
                 onClick={() =>
                   setOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))
                 }
@@ -513,7 +534,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         </ol>
         <button
           className="wf-button wf-button-secondary"
-          disabled={pending}
+          disabled={pending || !contentEditable}
           onClick={() => setOptions((current) => [...current, { id: null, content: "" }])}
           type="button"
         >
@@ -530,13 +551,21 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         >
           취소
         </Link>
-        <button className="civic-primary-action" disabled={pending} type="submit">
+        <button
+          className="civic-primary-action"
+          disabled={pending || !contentEditable}
+          type="submit"
+        >
           {pending ? "서버 확인 중…" : task ? "초안 전체 저장" : "초안 저장"}
         </button>
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </form>
   );
+}
+
+export function taskContentEditAllowed(taskId: string | null, canEditContent: boolean): boolean {
+  return taskId === null || canEditContent;
 }
 
 function TaskOverviewTab({
@@ -558,6 +587,8 @@ function TaskOverviewTab({
   const [message, setMessage] = useState("");
   const [pending, setPending] = useState(false);
   const [problem, setProblem] = useState<AdminProblem | null>(null);
+  const [preparationPending, setPreparationPending] = useState(false);
+  const [preparationRefreshPending, setPreparationRefreshPending] = useState(false);
   const [closeReason, setCloseReason] = useState("");
   const [closePending, setClosePending] = useState(false);
   const [closeProblem, setCloseProblem] = useState<AdminProblem | null>(null);
@@ -573,6 +604,92 @@ function TaskOverviewTab({
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  useEffect(() => {
+    if (
+      !shouldPollTaskPreparation(
+        detail?.preparation?.status ?? null,
+        preparationRefreshPending,
+        preparationPending,
+      )
+    ) {
+      return;
+    }
+    let cancelled = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      const loaded = await requestTaskDetail(taskId);
+      if (cancelled) return;
+      if (loaded) {
+        setDetail(loaded);
+        setPreparationRefreshPending(false);
+      }
+      if (!loaded || shouldPollTaskPreparation(loaded.preparation?.status ?? null, false)) {
+        timer = window.setTimeout(() => void poll(), 2_000);
+      }
+    };
+    timer = window.setTimeout(() => void poll(), 2_000);
+    return () => {
+      cancelled = true;
+      if (timer !== undefined) window.clearTimeout(timer);
+    };
+  }, [detail?.preparation?.status, preparationPending, preparationRefreshPending, taskId]);
+
+  async function startPreparation() {
+    if (!detail || preparationPending || !detail.capabilities.canStartPreparation) return;
+    setPreparationPending(true);
+    setProblem(null);
+    setMessage("");
+    try {
+      const response = await authenticatedFetch(
+        `/api/v1/admin/tasks/${encodeURIComponent(detail.task.id)}/preparation`,
+        { method: "POST" },
+      );
+      if (!response.ok) {
+        const nextProblem = await readAdminProblem(response);
+        await load();
+        setProblem(nextProblem);
+        setMessage(formatAdminProblem(nextProblem));
+        return;
+      }
+      const accepted = readTaskPreparationStartResponse(await response.json());
+      if (!accepted || accepted.taskId !== detail.task.id) {
+        setMessage("서버의 AI 답변 준비 응답 형식을 확인해야 합니다.");
+        return;
+      }
+      setPreparationRefreshPending(true);
+      setDetail((current) =>
+        current
+          ? {
+              ...current,
+              preparation: accepted.preparation,
+              capabilities: {
+                ...current.capabilities,
+                canEditContent: false,
+                canStartPreparation: false,
+                canSchedule: false,
+                canOpenNow: false,
+              },
+            }
+          : current,
+      );
+      const latest = await requestTaskDetail(detail.task.id);
+      if (latest) {
+        setDetail(latest);
+        setPreparationRefreshPending(false);
+      }
+      setMessage(
+        accepted.preparation.status === "READY"
+          ? "AI 답변 준비가 완료된 상태를 확인했습니다."
+          : "AI 답변 준비 요청을 접수했습니다.",
+      );
+    } catch {
+      await load();
+      setMessage("요청 결과가 불명확하여 최신 준비 상태를 다시 확인했습니다.");
+    } finally {
+      setPreparationPending(false);
+    }
+  }
 
   async function mutate(action: LifecycleAction, values: LifecycleValues) {
     if (!detail || pending) return;
@@ -596,7 +713,7 @@ function TaskOverviewTab({
       const task = readTask(await response.json());
       if (!task) return setMessage("서버의 과업 변경 응답 형식을 확인해야 합니다.");
       const latest = await requestTaskDetail(task.id);
-      setDetail(latest ?? { task, lifecycleHistory: detail.lifecycleHistory });
+      setDetail(latest ?? { ...detail, task });
       setProblem(null);
       onTaskChanged();
       setMessage("과업의 최신 상태를 반영했습니다.");
@@ -634,7 +751,7 @@ function TaskOverviewTab({
       const closed = readTask(await response.json());
       if (!closed) return setMessage("서버의 조기 종료 응답 형식을 확인해야 합니다.");
       const latest = await requestTaskDetail(closed.id);
-      setDetail(latest ?? { task: closed, lifecycleHistory: detail.lifecycleHistory });
+      setDetail(latest ?? { ...detail, task: closed });
       setCloseReason("");
       onEarlyCloseOpenChange(false);
       onTaskChanged();
@@ -676,6 +793,7 @@ function TaskOverviewTab({
             {task.status === "DRAFT" ? (
               <button
                 className="wf-button wf-button-secondary"
+                disabled={!detail.capabilities.canEditContent}
                 onClick={() => onEditDraft(task.id)}
                 type="button"
               >
@@ -757,7 +875,14 @@ function TaskOverviewTab({
           ) : null}
         </div>
         <aside aria-label="과업 운영" className="civic-task-detail-operations">
+          <TaskPreparationPanel
+            capabilities={detail.capabilities}
+            onStart={() => void startPreparation()}
+            pending={preparationPending}
+            preparation={detail.preparation}
+          />
           <LifecyclePanel
+            capabilities={detail.capabilities}
             key={task.status}
             onSubmit={mutate}
             pending={pending}
@@ -776,11 +901,13 @@ type LifecycleValues = Readonly<{ closesAt: string; opensAt: string; reason: str
 
 function LifecyclePanel({
   task,
+  capabilities,
   pending,
   onSubmit,
   problem,
 }: Readonly<{
   task: Task;
+  capabilities: TaskCapabilities;
   pending: boolean;
   problem: AdminProblem | null;
   onSubmit: (action: LifecycleAction, values: LifecycleValues) => void;
@@ -793,6 +920,7 @@ function LifecyclePanel({
   if (actions.length === 0) return null;
   const needsOpensAt = action === "schedule" || action === "reschedule";
   const needsClosesAt = needsOpensAt || action === "open-now" || action === "deadline";
+  const actionEnabled = lifecycleActionEnabled(action, capabilities);
   return (
     <form
       className="civic-domain-action-panel"
@@ -864,13 +992,106 @@ function LifecyclePanel({
       </label>
       <button
         className={action === "cancel" ? "civic-danger-action" : "civic-primary-action"}
-        disabled={pending}
+        disabled={pending || !actionEnabled}
         type="submit"
       >
         {pending ? "최신 상태 확인 중…" : "적용하기"}
       </button>
+      {!actionEnabled ? (
+        <p className="console-status">AI 답변 준비가 완료되면 이 동작을 사용할 수 있습니다.</p>
+      ) : null}
     </form>
   );
+}
+
+export function lifecycleActionEnabled(
+  action: LifecycleAction,
+  capabilities: TaskCapabilities,
+): boolean {
+  if (action === "schedule" || action === "reschedule") return capabilities.canSchedule;
+  if (action === "open-now" || action === "start-now") return capabilities.canOpenNow;
+  return true;
+}
+
+export function shouldPollTaskPreparation(
+  status: TaskPreparationView["status"] | null,
+  refreshPending: boolean,
+  requestPending = false,
+): boolean {
+  return !requestPending && (refreshPending || status === "PROCESSING");
+}
+
+export function TaskPreparationPanel({
+  preparation,
+  capabilities,
+  pending,
+  onStart,
+}: Readonly<{
+  preparation: TaskPreparationView | null;
+  capabilities: TaskCapabilities;
+  pending: boolean;
+  onStart: () => void;
+}>) {
+  const statusLabel = preparationStatusLabel(preparation);
+  const actionLabel = preparationActionLabel(preparation, capabilities, pending);
+  return (
+    <section aria-label="AI 답변 준비" className="civic-domain-action-panel">
+      <h2>AI 답변 준비</h2>
+      <p className="console-status" role="status">
+        {statusLabel}
+      </p>
+      {preparation ? (
+        <dl className="civic-domain-impact-list">
+          <div>
+            <dt>시도 횟수</dt>
+            <dd>{preparation.attemptCount.toLocaleString("ko-KR")}</dd>
+          </div>
+          <div>
+            <dt>최근 확인</dt>
+            <dd>{formatDate(preparation.updatedAt)}</dd>
+          </div>
+        </dl>
+      ) : null}
+      {preparation?.lastError ? (
+        <div className="civic-form-alert" role="alert">
+          <strong>{preparation.lastError.code}</strong>
+          <p>{preparation.lastError.detail}</p>
+        </div>
+      ) : null}
+      {actionLabel ? (
+        <button
+          className="civic-primary-action"
+          disabled={pending || !capabilities.canStartPreparation}
+          onClick={onStart}
+          type="button"
+        >
+          {actionLabel}
+        </button>
+      ) : null}
+    </section>
+  );
+}
+
+function preparationStatusLabel(preparation: TaskPreparationView | null): string {
+  if (!preparation) return "AI 예상 답변을 만들기 위한 공통 준비를 시작할 수 있습니다.";
+  if (preparation.status === "PROCESSING") return "AI 답변 준비 중";
+  if (preparation.status === "READY") return "AI 답변 준비 완료";
+  if (preparation.status === "FAILED") return "AI 답변 준비 실패";
+  return "AI 답변 준비 거절됨";
+}
+
+function preparationActionLabel(
+  preparation: TaskPreparationView | null,
+  capabilities: TaskCapabilities,
+  pending: boolean,
+): string | null {
+  if (pending) return "AI 답변 준비 요청 중…";
+  if (!preparation) return "답변 생성 시작";
+  if (preparation.status === "FAILED") return "답변 생성 다시 시도";
+  if (preparation.status === "PROCESSING") {
+    return capabilities.canStartPreparation ? "답변 생성 다시 요청" : "AI 답변 준비 중…";
+  }
+  return null;
 }
 
 function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {

@@ -20,8 +20,12 @@ import {
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import {
   AdminTaskScreen,
+  TaskPreparationPanel,
+  lifecycleActionEnabled,
   lifecycleActionLabel,
   lifecycleActions,
+  shouldPollTaskPreparation,
+  taskContentEditAllowed,
   TASK_GRID_COLUMNS,
   taskWorkspacePath,
   taskWorkspaceTabForScreen,
@@ -250,6 +254,77 @@ describe("latest Wire Flow shared product UI", () => {
   it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
     expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
     expect(lifecycleActionLabel("deadline")).toBe("마감 변경");
+  });
+
+  it("서버 capabilities에 따라 AI 답변 준비와 발행 동작을 제어한다", () => {
+    const capabilities = {
+      canEditContent: true,
+      canStartPreparation: true,
+      canSchedule: false,
+      canOpenNow: false,
+    } as const;
+    const html = renderToStaticMarkup(
+      <TaskPreparationPanel
+        capabilities={capabilities}
+        onStart={() => undefined}
+        pending={false}
+        preparation={null}
+      />,
+    );
+
+    expect(html).toContain("AI 답변 준비");
+    expect(html).toContain(">답변 생성 시작</button>");
+    expect(html).not.toContain("disabled");
+    expect(lifecycleActionEnabled("open-now", capabilities)).toBe(false);
+    expect(lifecycleActionEnabled("schedule", capabilities)).toBe(false);
+    expect(lifecycleActionEnabled("cancel", capabilities)).toBe(true);
+  });
+
+  it("실패한 AI 답변 준비는 오류와 재시도 버튼을 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <TaskPreparationPanel
+        capabilities={{
+          canEditContent: true,
+          canStartPreparation: true,
+          canSchedule: false,
+          canOpenNow: false,
+        }}
+        onStart={() => undefined}
+        pending={false}
+        preparation={{
+          requestId: "5aaf64a5-d6c9-4fd0-aa6d-371c22c90a58",
+          status: "FAILED",
+          contentFingerprint:
+            "sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+          attemptCount: 2,
+          processingStartedAt: null,
+          preparedAt: null,
+          lastError: {
+            code: "TASK_PREPARATION_MODEL_UNAVAILABLE",
+            detail: "AI 모델을 일시적으로 사용할 수 없습니다.",
+            retryable: true,
+          },
+          updatedAt: "2026-09-03T03:00:00Z",
+        }}
+      />,
+    );
+
+    expect(html).toContain("AI 답변 준비 실패");
+    expect(html).toContain("AI 모델을 일시적으로 사용할 수 없습니다.");
+    expect(html).toContain(">답변 생성 다시 시도</button>");
+  });
+
+  it("준비 중이거나 성공 응답 뒤 상세 동기화가 남아 있으면 순차 재확인한다", () => {
+    expect(shouldPollTaskPreparation("PROCESSING", false)).toBe(true);
+    expect(shouldPollTaskPreparation("READY", true)).toBe(true);
+    expect(shouldPollTaskPreparation("READY", false)).toBe(false);
+    expect(shouldPollTaskPreparation("PROCESSING", true, true)).toBe(false);
+  });
+
+  it("기존 과업 편집은 서버의 canEditContent capability로 잠근다", () => {
+    expect(taskContentEditAllowed(null, false)).toBe(true);
+    expect(taskContentEditAllowed("task-id", true)).toBe(true);
+    expect(taskContentEditAllowed("task-id", false)).toBe(false);
   });
 
   it("새 과업 화면은 배경을 입력하고 초안을 저장하도록 안내한다", () => {
