@@ -39,6 +39,8 @@ class SurveySchemaConstraintIntegrationTest {
                 "survey_questions",
                 "survey_question_items",
                 "survey_options",
+                "survey_consent_documents",
+                "survey_consent_receipts",
                 "survey_round_control",
                 "survey_rounds",
                 "survey_round_transitions",

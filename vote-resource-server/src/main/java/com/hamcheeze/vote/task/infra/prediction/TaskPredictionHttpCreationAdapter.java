@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.prediction.PredictionCreationExceptio
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationResult;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
 import tools.jackson.databind.ObjectMapper;
@@ -34,6 +35,7 @@ public class TaskPredictionHttpCreationAdapter
     private final HttpClient httpClient;
     private final URI endpoint;
 
+    @Autowired
     public TaskPredictionHttpCreationAdapter(
             TaskPredictionProperties properties,
             ObjectMapper objectMapper
