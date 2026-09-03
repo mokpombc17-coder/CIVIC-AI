@@ -53,7 +53,7 @@ describe("CurrentUserHeaderIdentity", () => {
     expect(html).not.toContain('role="separator"');
   });
 
-  it("일반 사용자에게 관리자 페이지를 노출하지 않고 설치 불가 시 로그아웃만 제공한다", () => {
+  it("일반 사용자에게 관리자 페이지를 노출하지 않고 설치 불가 상태를 disabled로 알린다", () => {
     const html = renderToStaticMarkup(
       <CurrentUserMenuPanel
         installAvailable={false}
@@ -65,7 +65,7 @@ describe("CurrentUserHeaderIdentity", () => {
     );
 
     expect(html).not.toContain("관리자 페이지");
-    expect(html).not.toContain("앱 설치");
+    expect(html).toMatch(/<button[^>]+disabled=""[^>]*>앱 설치<\/button>/);
     expect(html).toContain("로그아웃");
   });
 

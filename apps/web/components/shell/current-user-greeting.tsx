@@ -196,11 +196,14 @@ export function CurrentUserMenuPanel({
           관리자 페이지
         </Link>
       ) : null}
-      {installAvailable ? (
-        <button className="civic-header-user-menu-item" onClick={onInstall} type="button">
-          앱 설치
-        </button>
-      ) : null}
+      <button
+        className="civic-header-user-menu-item"
+        disabled={!installAvailable}
+        onClick={onInstall}
+        type="button"
+      >
+        앱 설치
+      </button>
       <button
         className="civic-header-user-menu-item"
         disabled={logoutBusy}
