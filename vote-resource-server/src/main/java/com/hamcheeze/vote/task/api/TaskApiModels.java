@@ -8,6 +8,8 @@ import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
+import com.hamcheeze.vote.task.application.query.TaskProgressResponsesQueryService;
+import com.hamcheeze.vote.task.application.query.TaskProgressSummaryQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
@@ -284,6 +286,80 @@ final class TaskApiModels {
                     TaskResponse.from(detail.task()),
                     detail.lifecycleHistory().stream()
                             .map(LifecycleResponse::from).toList());
+        }
+    }
+
+    record AdminTaskProgressSummaryResponse(
+            UUID taskId,
+            TaskStatus status,
+            Instant observedAt,
+            long submissionCount,
+            List<AdminTaskOptionProgressResponse> options
+    ) {
+        static AdminTaskProgressSummaryResponse from(
+                TaskProgressSummaryQueryService.TaskProgressSummary summary
+        ) {
+            return new AdminTaskProgressSummaryResponse(
+                    summary.taskId().value(),
+                    summary.status(),
+                    summary.observedAt(),
+                    summary.submissionCount(),
+                    summary.options().stream()
+                            .map(AdminTaskOptionProgressResponse::from)
+                            .toList());
+        }
+    }
+
+    record AdminTaskOptionProgressResponse(
+            UUID optionId,
+            String content,
+            long count,
+            double rate
+    ) {
+        static AdminTaskOptionProgressResponse from(
+                TaskProgressSummaryQueryService.OptionProgress option
+        ) {
+            return new AdminTaskOptionProgressResponse(
+                    option.optionId().value(), option.content(),
+                    option.count(), option.rate());
+        }
+    }
+
+    record AdminTaskProgressResponsesResponse(
+            UUID taskId,
+            TaskStatus status,
+            Instant observedAt,
+            List<AdminTaskProgressResponse> responses,
+            String nextCursor,
+            boolean hasMore
+    ) {
+        static AdminTaskProgressResponsesResponse from(
+                TaskProgressResponsesQueryService.TaskProgressResponsePage page
+        ) {
+            return new AdminTaskProgressResponsesResponse(
+                    page.taskId().value(), page.status(), page.observedAt(),
+                    page.responses().stream()
+                            .map(AdminTaskProgressResponse::from)
+                            .toList(),
+                    page.nextCursor(), page.hasMore());
+        }
+    }
+
+    record AdminTaskProgressResponse(
+            UUID selectedOptionId,
+            String selectedOptionContent,
+            TaskReasonSource reasonSource,
+            String reason,
+            Instant submittedAt
+    ) {
+        static AdminTaskProgressResponse from(
+                TaskProgressResponsesQueryService.TaskProgressResponse response
+        ) {
+            return new AdminTaskProgressResponse(
+                    response.selectedOptionId().value(),
+                    response.selectedOptionContent(),
+                    response.reasonSource(), response.reason(),
+                    response.submittedAt());
         }
     }
 
