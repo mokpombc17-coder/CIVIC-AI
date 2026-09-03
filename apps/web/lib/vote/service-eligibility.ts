@@ -18,6 +18,7 @@ export const serviceEligibilitySchema = z.object({
 export type ServiceEligibility = z.infer<typeof serviceEligibilitySchema>;
 
 export const serviceEligibilityQueryKey = ["vote", "service-eligibility"] as const;
+export const serviceEligibilityStaleTimeMs = 5 * 60 * 1_000;
 
 export type ServiceEligibilityApi = Readonly<{
   getCurrent(signal?: AbortSignal): Promise<ServiceEligibility>;
