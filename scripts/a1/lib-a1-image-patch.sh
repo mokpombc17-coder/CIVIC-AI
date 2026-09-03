@@ -10,8 +10,6 @@ A1_NGINX_CONFIG="/etc/civic/nginx/nginx-public.conf"
 A1_NGINX_MAIN_CONFIG="/etc/civic/nginx/nginx.conf"
 A1_NGINX_TLS_DIR="/etc/civic/nginx/tls"
 A1_NGINX_CONTAINER="civic-public-nginx"
-A1_FRONT_NODE_IMAGE="node:24.18.0-bookworm-slim"
-A1_FRONT_PNPM_STORE_VOLUME="civic-a1-front-pnpm-store"
 A1_DEFAULT_SSH_KEY="/Users/junseok/Downloads/civic-a1-deploy/ssh/civic-ai-dev_ed25519"
 A1_DEFAULT_HOST_IP="140.238.17.223"
 A1_DEFAULT_DOCKER_CONFIG="/Users/junseok/.config/civic-a1/docker"
@@ -49,9 +47,9 @@ Options:
   --sha SHA                Deploy snapshot ID to confirm, or required rollback release ID
   --ssh-user USER          SSH user (default: ubuntu)
   --public-host HOST       HTTPS host (default: civic-ai.co.kr)
-  --data-volume NAME       Existing service DB volume; required by Chat/Vote deploy
+  --data-volume NAME       Existing Vote PostgreSQL volume
   --server-env PATH        Existing server-side env file; required by Vote deploy
-  --compose-project NAME   Existing Compose project name (service-specific default)
+  --compose-project NAME   Existing Compose project name (default: civic-vote-8082)
   --nginx-config PATH      Public Nginx config (default: /etc/civic/nginx/nginx-public.conf)
   --nginx-container NAME   Public Nginx container (default: civic-public-nginx)
   --dry-run                Validate inputs and print the local-working-tree deployment plan
@@ -304,37 +302,6 @@ a1_assert_source_unchanged() {
     || a1_die "the build changed source files; restore the working tree before deploying"
 }
 
-a1_build_front_image() {
-  local source="$1" image="$2"
-  local node_runtime_image runtime_context
-  a1_log "resolving the Linux ARM64 Node build/runtime image"
-  docker pull --platform "$A1_PLATFORM" "$A1_FRONT_NODE_IMAGE"
-  node_runtime_image="$(docker image inspect "$A1_FRONT_NODE_IMAGE" --format '{{index .RepoDigests 0}}')"
-  [[ "$node_runtime_image" == *@sha256:* ]] \
-    || a1_die "could not resolve an immutable Node runtime digest"
-  docker volume create "$A1_FRONT_PNPM_STORE_VOLUME" >/dev/null
-  a1_log "building the Front standalone artifact in local ARM64 Linux"
-  docker run --rm --platform "$A1_PLATFORM" \
-    -e PNPM_STORE_DIR=/pnpm/store \
-    -v "$A1_FRONT_PNPM_STORE_VOLUME:/pnpm/store" \
-    -v "$source:/workspace" \
-    -v "$A1_SCRIPT_DIR/build-front-artifact.sh:/usr/local/bin/civic-build-front:ro" \
-    -w /workspace \
-    "$node_runtime_image" bash /usr/local/bin/civic-build-front
-  a1_assert_source_unchanged
-  runtime_context="$source/apps/web/.next/standalone"
-  [[ -f "$runtime_context/apps/web/server.js" ]] \
-    || a1_die "Front standalone runtime context is incomplete"
-  a1_log "packaging the prebuilt standalone artifact as an immutable runtime image"
-  docker buildx build --builder default --platform "$A1_PLATFORM" --load \
-    --build-arg "NODE_RUNTIME_IMAGE=$node_runtime_image" \
-    --label "org.opencontainers.image.revision=${A1_SOURCE_COMMIT}" \
-    --label "co.civic.source.snapshot=${A1_SHA}" \
-    --label "co.civic.source.dirty=${A1_SOURCE_DIRTY}" \
-    --label "org.opencontainers.image.source=https://github.com/Ham-n-Cheeze/civic-ai-frontend" \
-    --tag "$image" --file "$A1_SCRIPT_DIR/templates/front.runtime.Dockerfile" "$runtime_context"
-}
-
 a1_build_java_image() {
   local source="$1" image="$2" source_url="$3"
   a1_log "building immutable Java runtime image for ${A1_PLATFORM}"
@@ -388,25 +355,6 @@ PY
   )" || a1_die "could not resolve the canonical image manifest digest from the archive"
 }
 
-a1_extract_front_assets() {
-  local image="$1" output="$2" extraction_root="$3"
-  local container_id
-  mkdir -p "$extraction_root/static" "$extraction_root/public"
-  container_id="$(docker create "$image")"
-  trap 'docker rm -f "${container_id:-}" >/dev/null 2>&1 || true' RETURN
-  docker cp "${container_id}:/app/apps/web/.next/static/." "$extraction_root/static/"
-  docker cp "${container_id}:/app/apps/web/public/." "$extraction_root/public/"
-  (
-    cd "$extraction_root/static"
-    find . -type f -print | LC_ALL=C sort | sed 's#^\./#/_next/static/#'
-    cd "$extraction_root/public"
-    find . -type f -print | LC_ALL=C sort | sed 's#^\./#/#'
-  ) | LC_ALL=C sort -u > "$output"
-  docker rm -f "$container_id" >/dev/null
-  trap - RETURN
-  [[ -s "$output" ]] || a1_die "Front asset extraction produced an empty manifest"
-}
-
 a1_fetch_live_nginx() {
   local output="$1"
   ssh "${A1_SSH_OPTIONS[@]}" "$A1_TARGET" sudo test -f "$A1_NGINX_CONFIG" \
@@ -457,10 +405,4 @@ a1_stage_and_run_remote() {
   fi
   ssh "${A1_SSH_OPTIONS[@]}" "$A1_TARGET" rm -rf -- "$remote_stage" || true
   return "$remote_status"
-}
-
-a1_prepare_remote_stage() {
-  local stage="$1"
-  install -m 0700 "$A1_SCRIPT_DIR/remote-release.sh" "$stage/remote-release.sh"
-  install -m 0600 "$A1_SCRIPT_DIR/templates/${A1_SERVICE}.compose.yaml" "$stage/compose.yaml"
 }

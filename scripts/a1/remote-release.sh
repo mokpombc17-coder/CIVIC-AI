@@ -14,7 +14,7 @@ service="${2:-}"
 source_sha="${3:-}"
 stage="${4:-}"
 [[ "$action" == deploy || "$action" == rollback ]] || die "invalid action"
-[[ "$service" =~ ^(front|chat|vote)$ ]] || die "invalid service"
+[[ "$service" == vote ]] || die "invalid service"
 [[ "$source_sha" =~ ^[0-9a-f]{40}$ ]] || die "invalid source SHA"
 [[ "$stage" == /tmp/civic-a1-* && "$stage" != *".."* ]] || die "invalid stage path"
 
@@ -61,7 +61,6 @@ find_one_container() {
 }
 
 ensure_vote_server_env() {
-  [[ "$service" == vote ]] || return 0
   [[ -n "$SERVER_ENV" && "$SERVER_ENV" == /* && "$SERVER_ENV" != *".."* ]] \
     || die "Vote server env path is invalid"
   if [[ -e "$SERVER_ENV" ]]; then
@@ -136,21 +135,10 @@ compose() {
     args+=(--env-file "$SERVER_ENV")
   fi
   args+=(-f "$directory/compose.yaml")
-  case "$service" in
-    front) FRONT_IMAGE="$IMAGE_REF" "${args[@]}" "$@" ;;
-    chat)
-      [[ -n "$DATA_VOLUME" ]] || die "Chat requires an existing data volume"
-      docker volume inspect "$DATA_VOLUME" >/dev/null || die "Chat data volume does not exist: $DATA_VOLUME"
-      CHAT_IMAGE="$IMAGE_REF" CHAT_DATA_VOLUME="$DATA_VOLUME" PUBLIC_ORIGIN="$PUBLIC_ORIGIN" \
-        "${args[@]}" "$@"
-      ;;
-    vote)
-      [[ -n "$DATA_VOLUME" ]] || die "Vote requires an existing data volume"
-      docker volume inspect "$DATA_VOLUME" >/dev/null || die "Vote data volume does not exist: $DATA_VOLUME"
-      VOTE_IMAGE="$IMAGE_REF" VOTE_DATA_VOLUME="$DATA_VOLUME" VOTE_SERVER_ENV="$SERVER_ENV" \
-        PUBLIC_ORIGIN="$PUBLIC_ORIGIN" "${args[@]}" "$@"
-      ;;
-  esac
+  [[ -n "$DATA_VOLUME" ]] || die "Vote requires an existing data volume"
+  docker volume inspect "$DATA_VOLUME" >/dev/null || die "Vote data volume does not exist: $DATA_VOLUME"
+  VOTE_IMAGE="$IMAGE_REF" VOTE_DATA_VOLUME="$DATA_VOLUME" VOTE_SERVER_ENV="$SERVER_ENV" \
+    PUBLIC_ORIGIN="$PUBLIC_ORIGIN" "${args[@]}" "$@"
 }
 
 ensure_nginx_runtime() {
@@ -247,28 +235,18 @@ wait_healthy() {
 }
 
 smoke() {
-  local health_path health_status protected_status public_status
-  if [[ "$service" == front ]]; then health_path="/chat"; else health_path="/actuator/health"; fi
+  local health_status protected_status public_status
   health_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-    "http://127.0.0.1:${SERVICE_PORT}${health_path}" || true)"
-  if [[ "$service" == front ]]; then
-    [[ "$health_status" =~ ^(200|301|302|303|307|308|401)$ ]] || die "direct Front smoke failed: HTTP $health_status"
-  else
-    [[ "$health_status" == 200 ]] || die "direct health smoke failed: HTTP $health_status"
-  fi
+    "http://127.0.0.1:${SERVICE_PORT}/actuator/health" || true)"
+  [[ "$health_status" == 200 ]] || die "direct health smoke failed: HTTP $health_status"
   protected_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
     "http://127.0.0.1:${SERVICE_PORT}${PROTECTED_PATH}" || true)"
-  if [[ "$service" != front ]]; then
-    [[ "$protected_status" == 401 || "$protected_status" == 403 ]] \
-      || die "direct protected endpoint was not protected: HTTP $protected_status"
-  fi
- public_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
-   "https://${PUBLIC_HOST}${PROTECTED_PATH}" || true)"
+  [[ "$protected_status" == 401 || "$protected_status" == 403 ]] \
+    || die "direct protected endpoint was not protected: HTTP $protected_status"
+  public_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
+    "https://${PUBLIC_HOST}${PROTECTED_PATH}" || true)"
   for _ in $(seq 1 15); do
-    case "$service" in
-      front) [[ "$public_status" =~ ^(200|301|302|303|307|308|401)$ ]] && return 0 ;;
-      chat|vote) [[ "$public_status" == 401 || "$public_status" == 403 ]] && return 0 ;;
-    esac
+    [[ "$public_status" == 401 || "$public_status" == 403 ]] && return 0
     sleep 2
     public_status="$(curl --silent --output /dev/null --write-out '%{http_code}' \
       "https://${PUBLIC_HOST}${PROTECTED_PATH}" || true)"
