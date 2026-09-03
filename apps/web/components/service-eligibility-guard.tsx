@@ -1,7 +1,7 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import {
   requiresCurrentSurvey,
@@ -22,6 +22,9 @@ type ServiceEligibilityGuardProps = Readonly<{
   title: string;
 }>;
 
+const eligibilityLoadingDelayMs = 200;
+const eligibilityLoadingMinimumVisibleMs = 200;
+
 export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityGuardProps) {
   const eligibilityQuery = useQuery({
     queryKey: serviceEligibilityQueryKey,
@@ -31,6 +34,7 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
   const surveyRequired = eligibilityQuery.data
     ? requiresCurrentSurvey(eligibilityQuery.data)
     : false;
+  const loading = useDelayedEligibilityLoading(eligibilityQuery.isPending || surveyRequired);
 
   useEffect(() => {
     if (!surveyRequired) return;
@@ -39,8 +43,15 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
     window.location.replace(createRequiredSurveyLocation(returnTo));
   }, [surveyRequired]);
 
-  if (eligibilityQuery.isPending || surveyRequired) {
-    return <ServiceEligibilityStatus loading title={title} />;
+  if (loading.blockContent) {
+    return (
+      <ServiceEligibilityStatus
+        loading
+        redirecting={surveyRequired}
+        showIndicator={loading.showIndicator}
+        title={title}
+      />
+    );
   }
 
   if (eligibilityQuery.isError) {
@@ -86,34 +97,84 @@ export function ServiceEligibilityGuard({ children, title }: ServiceEligibilityG
 
 export function ServiceEligibilityStatus({
   action,
-  description = "서비스 이용 가능 여부를 확인하고 있습니다.",
+  description = "이용 자격 확인 중…",
   loading = false,
+  redirecting = false,
   role = "status",
+  showIndicator = true,
   statusTitle = "서비스 이용 여부를 확인하는 중입니다.",
   title,
 }: Readonly<{
   action?: ReactNode;
   description?: string;
   loading?: boolean;
+  redirecting?: boolean;
   role?: "alert" | "status";
+  showIndicator?: boolean;
   statusTitle?: string;
   title: string;
 }>) {
+  const status = loading ? "loading" : "error";
+
   return (
     <PlatformPageShell contentClassName={styles.content!} title={title}>
-      <div className={styles.surface}>
-        <section
-          aria-busy={loading || undefined}
-          className={styles.statusCard}
-          data-service-eligibility-status={loading ? "loading" : "error"}
-          role={role}
-        >
-          {loading ? <span aria-hidden="true" className={styles.loadingSpinner} /> : null}
-          <h2>{statusTitle}</h2>
-          <p>{description}</p>
-          {action ? <div className={styles.actions}>{action}</div> : null}
-        </section>
+      <div
+        aria-busy={loading || undefined}
+        className={styles.loading}
+        data-eligibility-loading={loading || undefined}
+        data-service-eligibility-status={status}
+      >
+        {showIndicator ? (
+          <section
+            aria-live={loading ? "polite" : undefined}
+            className={styles.loadingStatus}
+            data-eligibility-loading-indicator={loading || undefined}
+            role={role}
+          >
+            {loading ? <span aria-hidden="true" className={styles.loadingSpinner} /> : null}
+            {loading ? null : <h2>{statusTitle}</h2>}
+            <p>{redirecting ? "필수 설문 화면으로 이동하고 있습니다…" : description}</p>
+            {action ? <div className={styles.actions}>{action}</div> : null}
+          </section>
+        ) : null}
       </div>
     </PlatformPageShell>
   );
+}
+
+function useDelayedEligibilityLoading(isBlocking: boolean): Readonly<{
+  blockContent: boolean;
+  showIndicator: boolean;
+}> {
+  const [indicatorVisible, setIndicatorVisible] = useState(false);
+  const [minimumVisibleElapsed, setMinimumVisibleElapsed] = useState(false);
+
+  useEffect(() => {
+    if (!isBlocking || indicatorVisible) return;
+    const delay = window.setTimeout(() => {
+      setIndicatorVisible(true);
+    }, eligibilityLoadingDelayMs);
+    return () => window.clearTimeout(delay);
+  }, [indicatorVisible, isBlocking]);
+
+  useEffect(() => {
+    if (!indicatorVisible) return;
+    const minimumVisible = window.setTimeout(() => {
+      setMinimumVisibleElapsed(true);
+    }, eligibilityLoadingMinimumVisibleMs);
+    return () => window.clearTimeout(minimumVisible);
+  }, [indicatorVisible]);
+
+  const blockContent = isBlocking || (indicatorVisible && !minimumVisibleElapsed);
+
+  useEffect(() => {
+    if (blockContent || !indicatorVisible) return;
+    const reset = window.setTimeout(() => {
+      setIndicatorVisible(false);
+      setMinimumVisibleElapsed(false);
+    }, 0);
+    return () => window.clearTimeout(reset);
+  }, [blockContent, indicatorVisible]);
+
+  return { blockContent, showIndicator: indicatorVisible };
 }

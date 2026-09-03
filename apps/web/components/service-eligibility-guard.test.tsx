@@ -23,7 +23,7 @@ describe("ServiceEligibilityGuard", () => {
     const markup = renderGuard(queryClient);
 
     expect(markup).toContain('data-platform-shell="true"');
-    expect(markup).toContain('data-service-eligibility-status="loading"');
+    expect(markup).toContain('data-eligibility-loading="true"');
     expect(markup).not.toContain("protected content");
   });
 
@@ -53,8 +53,18 @@ describe("ServiceEligibilityGuard", () => {
 
     const markup = renderGuard(queryClient);
 
-    expect(markup).toContain('data-service-eligibility-status="loading"');
+    expect(markup).toContain('data-eligibility-loading="true"');
     expect(markup).not.toContain("protected content");
+  });
+
+  it("3000 Guard와 동일한 로딩 문구와 indicator 구조를 사용한다", () => {
+    const markup = renderToStaticMarkup(
+      <ServiceEligibilityStatus loading showIndicator title="토론방" />,
+    );
+
+    expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).toContain('data-eligibility-loading-indicator="true"');
+    expect(markup).toContain("이용 자격 확인 중…");
   });
 
   it("오류 상태는 보호 콘텐츠 대신 재시도 동선을 표시한다", () => {

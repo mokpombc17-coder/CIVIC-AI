@@ -1,0 +1,16 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it, vi } from "vitest";
+import VoteLayout from "./layout";
+
+vi.mock("next/navigation", () => ({
+  usePathname: () => "/vote/task-1",
+}));
+
+describe("VoteLayout", () => {
+  it("eligibility 확인 전에는 하위 투표 화면을 렌더링하지 않는다", () => {
+    const markup = renderToStaticMarkup(<VoteLayout>protected vote content</VoteLayout>);
+
+    expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).not.toContain("protected vote content");
+  });
+});

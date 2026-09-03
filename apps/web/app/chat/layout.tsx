@@ -4,6 +4,7 @@ import { ChatAuthenticationBoundary } from "@/components/chat-authentication-bou
 import { ChatQueryProvider } from "@/components/chat-query-provider";
 import { ChatRealtimeProvider } from "@/components/chat-realtime-provider";
 import { ChatRoomReadStateProvider } from "@/components/chat-room-read-state-provider";
+import { ServiceEligibilityGuard } from "@/components/service-eligibility-guard";
 
 export const metadata: Metadata = {
   robots: {
@@ -15,9 +16,11 @@ export default function ChatLayout({ children }: { children: ReactNode }) {
   return (
     <ChatQueryProvider>
       <ChatAuthenticationBoundary>
-        <ChatRealtimeProvider>
-          <ChatRoomReadStateProvider>{children}</ChatRoomReadStateProvider>
-        </ChatRealtimeProvider>
+        <ServiceEligibilityGuard title="토론방">
+          <ChatRealtimeProvider>
+            <ChatRoomReadStateProvider>{children}</ChatRoomReadStateProvider>
+          </ChatRealtimeProvider>
+        </ServiceEligibilityGuard>
       </ChatAuthenticationBoundary>
     </ChatQueryProvider>
   );

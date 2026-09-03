@@ -3,50 +3,41 @@
   font-family: var(--font-pretendard), Pretendard, Inter, sans-serif;
 }
 
-.surface {
-  min-height: 100%;
-  padding: 16px;
-  color: #121417;
+.loading {
+  display: grid;
+  min-height: clamp(18rem, 55dvh, 36rem);
+  place-items: center;
 }
 
-.statusCard {
-  display: flex;
-  min-height: 240px;
-  align-items: center;
-  justify-content: center;
-  flex-direction: column;
+.loadingStatus {
+  display: grid;
+  justify-items: center;
   gap: 12px;
-  border: 1px solid #e5e8eb;
-  border-radius: 12px;
-  background: #fff;
-  padding: 28px 20px;
+  color: #526475;
+  font-size: 14px;
+  line-height: 1.5;
   text-align: center;
 }
 
-.statusCard h2,
-.statusCard p {
+.loadingStatus h2 {
   margin: 0;
-}
-
-.statusCard h2 {
+  color: #121417;
   font-size: 18px;
   font-weight: 700;
   line-height: 1.45;
 }
 
-.statusCard p {
-  color: #59616b;
-  font-size: 14px;
-  line-height: 1.5;
+.loadingStatus p {
+  margin: 0;
 }
 
 .loadingSpinner {
-  width: 28px;
-  height: 28px;
-  border: 3px solid #d9e6f5;
-  border-top-color: #266ef5;
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e2e6ea;
+  border-top-color: #121417;
   border-radius: 50%;
-  animation: serviceEligibilityLoadingSpin 700ms linear infinite;
+  animation: serviceEligibilityLoadingSpin 0.8s linear infinite;
 }
 
 .actions {

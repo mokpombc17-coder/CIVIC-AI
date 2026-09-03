@@ -479,6 +479,7 @@ flowchart TD
     ChatRealtimeProvider["ChatRealtimeProvider [Client] [Provider]<br/>apps/web/components/chat-realtime-provider.tsx"]
     ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat-room-read-state-provider.tsx"]
     ChatAuthenticationBoundary["ChatAuthenticationBoundary [Client] [Boundary]<br/>apps/web/components/chat-authentication-boundary.tsx"]
+    ServiceEligibilityGuard["ServiceEligibilityGuard [Client] [Boundary]<br/>apps/web/components/service-eligibility-guard.tsx"]
     ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
@@ -566,8 +567,10 @@ flowchart TD
     ChildrenSlot -. "route /chat" .-> ChatLayout
     ChatLayout --> ChatQueryProvider
     ChatQueryProvider --> ChatAuthenticationBoundary
-    ChatAuthenticationBoundary -->|"authentication valid"| ChatRealtimeProvider
+    ChatAuthenticationBoundary -->|"authentication valid"| ServiceEligibilityGuard
     ChatAuthenticationBoundary -->|"HTTP 401"| PlatformPageShell
+    ServiceEligibilityGuard -->|"eligible"| ChatRealtimeProvider
+    ServiceEligibilityGuard -->|"loading or error"| PlatformPageShell
     ChatRealtimeProvider --> ChatRoomReadStateProvider
     ChatRoomReadStateProvider --> ChatChildrenSlot
     ChatRealtimeProvider --> ChatRoomInboxRuntime
@@ -616,7 +619,8 @@ flowchart TD
 
     ChildrenSlot -. "route /vote" .-> VoteLayout
     VoteLayout --> VoteQueryProvider
-    VoteQueryProvider --> VoteChildrenSlot
+    VoteQueryProvider --> ServiceEligibilityGuard
+    ServiceEligibilityGuard -->|"eligible"| VoteChildrenSlot
     VoteChildrenSlot -. "route /vote" .-> VotePage
     VotePage --> VoteTaskListScreen
     VoteTaskListScreen --> PlatformShell
