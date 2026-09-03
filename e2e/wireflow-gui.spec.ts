@@ -739,6 +739,37 @@ test("자격 확인이 늦으면 Platform Shell을 유지하고 지연 indicator
   expect((timings?.hiddenAt ?? 0) - (timings?.shownAt ?? 0)).toBeGreaterThanOrEqual(180);
 });
 
+test("참여자 Platform Shell 헤더는 자격 확인 전후와 주요 경로에서 64px을 유지한다", async ({
+  context,
+  page,
+}) => {
+  serviceEligibilityDelayMs = 1_000;
+  await authenticate(context, "participant.payload.signature");
+
+  const shell = page.locator('[data-platform-shell="true"]').last();
+  const headerHeight = () =>
+    shell
+      .locator("header")
+      .first()
+      .evaluate((element) => element.getBoundingClientRect().height);
+
+  await page.goto("/rag", { waitUntil: "domcontentloaded" });
+  await expect(page.locator('[data-eligibility-loading="true"]')).toBeVisible();
+  expect(await headerHeight()).toBe(64);
+
+  await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
+  expect(await headerHeight()).toBe(64);
+
+  serviceEligibilityDelayMs = 0;
+  await page.goto("/mypage");
+  await expect(page.locator('[data-wireflow-screen="U-ACCOUNT-001"]')).toBeVisible();
+  expect(await headerHeight()).toBe(64);
+
+  await page.goto("/home");
+  await expect(page.locator('[data-wireflow-layout="participant-home"]')).toBeVisible();
+  expect(await headerHeight()).toBe(64);
+});
+
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
   twoFactorEnabled = false;
   await authenticate(context, "participant.payload.signature");

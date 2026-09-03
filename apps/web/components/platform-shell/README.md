@@ -7,7 +7,7 @@ Figma의 참여자 모바일 화면 규격을 코드로 옮긴 공통 레이아�
 참고한다.
 
 - 기준 surface: `393 × 852`
-- header: 기본 `69px` + top safe-area
+- header: 기본 `64px` + top safe-area
 - header의 Figma back icon은 기본적으로 회색 disabled 상태이며, 화면이 `backAction.href` 또는 `backAction.onClick`을 제공하면 검정색 link/button으로 활성화된다.
 - bottom navigation: 기본 `64px` + bottom safe-area
 - 일반 화면은 기본값인 `scroll="self"`로 공통 content 영역이 스크롤한다.

@@ -133,12 +133,6 @@ body {
   border-radius: 0;
 }
 
-/* Figma auth screens keep the shared 64px mobile header; the body starts below it. */
-.civic-login-shell,
-.civic-signup-account-shell {
-  --platform-shell-header-height: 64px;
-}
-
 /* Figma signup flow: nodes 74:51, 74:152, and 74:194 at a 393px reference width. */
 :is(
     [data-wireflow-screen="AUTH-002"],
@@ -4424,11 +4418,6 @@ body {
 
 /* === 2026-08-28 Figma 디자이너 수정분 정렬 ===================== */
 
-/* 공통 헤더: 브랜드 타이틀(홈) */
-[data-platform-shell="true"]:has(.civic-brand-title) {
-  --platform-shell-header-height: 64px;
-}
-
 .civic-brand-title {
   color: #0a4fd1;
   font-size: 20px;
@@ -6523,10 +6512,6 @@ body {
 }
 
 /* Figma Wire Flow 74:565 · U-RAG-001 document-grounded AI conversation. */
-[data-platform-shell="true"]:has([data-wireflow-screen="U-RAG-001"]) {
-  --platform-shell-header-height: 64px;
-}
-
 .civic-platform-participant-body:has(> [data-wireflow-screen="U-RAG-001"]),
 .civic-platform-participant-body > [data-wireflow-screen="U-RAG-001"] {
   height: 100%;
