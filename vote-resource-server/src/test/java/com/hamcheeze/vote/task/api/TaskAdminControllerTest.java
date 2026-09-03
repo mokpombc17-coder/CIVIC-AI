@@ -2,6 +2,9 @@ package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationReceipt;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationService;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService.TaskCreationExecution;
 import com.hamcheeze.vote.task.application.task.TaskLifecycleChange;
@@ -47,6 +50,8 @@ class TaskAdminControllerTest {
 
     private final TaskAdministrationService administration =
             mock(TaskAdministrationService.class);
+    private final TaskPreparationService preparations =
+            mock(TaskPreparationService.class);
     private final AdminTaskQueryService queries =
             mock(AdminTaskQueryService.class);
     private final AuthenticatedUserIdResolver userIds =
@@ -60,7 +65,7 @@ class TaskAdminControllerTest {
         when(userIds.resolve(authentication)).thenReturn("admin-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new TaskAdminController(
-                                administration, queries, userIds))
+                                administration, preparations, queries, userIds))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
     }
@@ -291,7 +296,12 @@ class TaskAdminControllerTest {
                         task.closedAt(), task.closureType(), task.createdAt(),
                         task.updatedAt())));
         when(queries.findById(task.id())).thenReturn(Optional.of(
-                new AdminTaskQueryService.AdminTaskDetail(task, List.of())));
+                new AdminTaskQueryService.AdminTaskDetail(
+                        task,
+                        null,
+                        new AdminTaskQueryService.AdminTaskCapabilities(
+                                true, true, false, false),
+                        List.of())));
 
         mockMvc.perform(put("/api/v1/admin/tasks/{taskId}",
                         task.id().value())
@@ -341,7 +351,46 @@ class TaskAdminControllerTest {
                 .andExpect(jsonPath("$.task.id")
                         .value(task.id().value().toString()))
                 .andExpect(jsonPath("$.lifecycleHistory.length()")
-                        .value(0));
+                        .value(0))
+                .andExpect(jsonPath("$.preparation").doesNotExist())
+                .andExpect(jsonPath("$.capabilities.canEditContent")
+                        .value(true))
+                .andExpect(jsonPath("$.capabilities.canStartPreparation")
+                        .value(true));
+    }
+
+    @Test
+    void startsTaskPreparationAndReturnsAcceptedProcessingState()
+            throws Exception {
+        String fingerprint = "sha256:" + "a".repeat(64);
+        when(preparations.prepare(taskId())).thenReturn(
+                new TaskPreparationReceipt(
+                        taskId(),
+                        java.util.UUID.randomUUID(),
+                        fingerprint,
+                        TaskPreparationStatus.PROCESSING,
+                        1,
+                        false,
+                        NOW,
+                        null,
+                        null,
+                        null,
+                        NOW));
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/tasks/{taskId}/preparation",
+                        taskId().value())
+                        .principal(authentication))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.taskId")
+                        .value(taskId().value().toString()))
+                .andExpect(jsonPath("$.preparation.status")
+                        .value("PROCESSING"))
+                .andExpect(jsonPath("$.preparation.contentFingerprint")
+                        .value(fingerprint))
+                .andExpect(jsonPath("$.replayed").value(false));
+
+        verify(preparations).prepare(taskId());
     }
 
     @Test

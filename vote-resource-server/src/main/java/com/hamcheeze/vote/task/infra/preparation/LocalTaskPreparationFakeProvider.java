@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.infra.preparation;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationProvider;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationCommand;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderResult;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
@@ -38,6 +39,7 @@ public class LocalTaskPreparationFakeProvider
                 command.requestId(),
                 command.taskId(),
                 command.contentFingerprint(),
+                TaskPreparationStatus.READY,
                 false,
                 clock.instant());
     }

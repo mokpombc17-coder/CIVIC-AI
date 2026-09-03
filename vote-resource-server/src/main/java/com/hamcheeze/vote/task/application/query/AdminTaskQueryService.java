@@ -1,6 +1,10 @@
 package com.hamcheeze.vote.task.application.query;
 
+import com.hamcheeze.vote.task.application.port.out.TaskPreparationPayloadFactory;
+import com.hamcheeze.vote.task.application.port.out.TaskPreparationRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationRecord;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
@@ -19,9 +23,19 @@ import java.util.Optional;
 public class AdminTaskQueryService {
 
     private final TaskRepository tasks;
+    private final TaskPreparationRepository preparations;
+    private final TaskPreparationPayloadFactory preparationPayloads;
 
-    public AdminTaskQueryService(TaskRepository tasks) {
+    public AdminTaskQueryService(
+            TaskRepository tasks,
+            TaskPreparationRepository preparations,
+            TaskPreparationPayloadFactory preparationPayloads
+    ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
+        this.preparations = Objects.requireNonNull(
+                preparations, "preparations");
+        this.preparationPayloads = Objects.requireNonNull(
+                preparationPayloads, "preparationPayloads");
     }
 
     @Transactional(readOnly = true)
@@ -34,10 +48,22 @@ public class AdminTaskQueryService {
     @Transactional(readOnly = true)
     public Optional<AdminTaskDetail> findById(TaskId taskId) {
         Objects.requireNonNull(taskId, "taskId");
-        return tasks.findById(taskId)
-                .map(task -> new AdminTaskDetail(
-                        task,
-                        tasks.findLifecycleHistory(task.id())));
+        return tasks.findById(taskId).map(task -> {
+            TaskPreparationRecord preparation = currentPreparation(task)
+                    .orElse(null);
+            return new AdminTaskDetail(
+                    task,
+                    preparation,
+                    AdminTaskCapabilities.from(task, preparation),
+                    tasks.findLifecycleHistory(task.id()));
+        });
+    }
+
+    private Optional<TaskPreparationRecord> currentPreparation(Task task) {
+        String fingerprint = preparationPayloads.fingerprint(task);
+        return preparations.findByTaskId(task.id())
+                .filter(preparation -> preparation.contentFingerprint()
+                        .equals(fingerprint));
     }
 
     public record AdminTaskSummary(
@@ -70,12 +96,41 @@ public class AdminTaskQueryService {
 
     public record AdminTaskDetail(
             Task task,
+            TaskPreparationRecord preparation,
+            AdminTaskCapabilities capabilities,
             List<TaskLifecycleHistory> lifecycleHistory
     ) {
         public AdminTaskDetail {
             Objects.requireNonNull(task, "task");
+            Objects.requireNonNull(capabilities, "capabilities");
             lifecycleHistory = List.copyOf(Objects.requireNonNull(
                     lifecycleHistory, "lifecycleHistory"));
+        }
+    }
+
+    public record AdminTaskCapabilities(
+            boolean canEditContent,
+            boolean canStartPreparation,
+            boolean canSchedule,
+            boolean canOpenNow
+    ) {
+        static AdminTaskCapabilities from(
+                Task task,
+                TaskPreparationRecord preparation
+        ) {
+            boolean draft = task.status() == TaskStatus.DRAFT;
+            TaskPreparationStatus status = preparation == null
+                    ? null : preparation.status();
+            boolean contentLocked = status == TaskPreparationStatus.PROCESSING
+                    || status == TaskPreparationStatus.READY;
+            boolean ready = status == TaskPreparationStatus.READY;
+            boolean canStart = preparation == null
+                    || status == TaskPreparationStatus.FAILED;
+            return new AdminTaskCapabilities(
+                    draft && !contentLocked,
+                    draft && canStart,
+                    draft && ready,
+                    draft && ready);
         }
     }
 }

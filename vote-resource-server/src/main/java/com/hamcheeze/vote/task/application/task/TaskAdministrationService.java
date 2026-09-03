@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.idempotency.TaskRequestHash;
 import com.hamcheeze.vote.task.application.port.out.TaskAdminCreationReceiptRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStateService;
 import com.hamcheeze.vote.task.application.result.TaskResultManifestFinalizer;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
@@ -36,15 +37,17 @@ public class TaskAdministrationService {
     private final TaskRepository tasks;
     private final TaskAdminCreationReceiptRepository creationReceipts;
     private final TaskResultManifestFinalizer resultManifestFinalizer;
+    private final TaskPreparationStateService preparations;
     private final Clock clock;
 
     @Autowired
     public TaskAdministrationService(
             TaskRepository tasks,
             TaskAdminCreationReceiptRepository creationReceipts,
-            TaskResultManifestFinalizer resultManifestFinalizer
+            TaskResultManifestFinalizer resultManifestFinalizer,
+            TaskPreparationStateService preparations
     ) {
-        this(tasks, creationReceipts, resultManifestFinalizer,
+        this(tasks, creationReceipts, resultManifestFinalizer, preparations,
                 Clock.systemUTC());
     }
 
@@ -52,6 +55,7 @@ public class TaskAdministrationService {
             TaskRepository tasks,
             TaskAdminCreationReceiptRepository creationReceipts,
             TaskResultManifestFinalizer resultManifestFinalizer,
+            TaskPreparationStateService preparations,
             Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
@@ -59,6 +63,8 @@ public class TaskAdministrationService {
                 creationReceipts, "creationReceipts");
         this.resultManifestFinalizer = Objects.requireNonNull(
                 resultManifestFinalizer, "resultManifestFinalizer");
+        this.preparations = Objects.requireNonNull(
+                preparations, "preparations");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -117,6 +123,7 @@ public class TaskAdministrationService {
         Objects.requireNonNull(command, "command");
         Objects.requireNonNull(actorId, "actorId");
         Task task = lockTask(taskId);
+        preparations.requireContentEditable(task);
         task.replaceContent(
                 command.title(),
                 command.description(),

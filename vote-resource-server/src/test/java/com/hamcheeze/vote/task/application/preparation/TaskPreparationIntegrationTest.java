@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskPreparationRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
+import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
@@ -25,6 +26,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(properties = {
@@ -81,6 +83,26 @@ class TaskPreparationIntegrationTest {
                 .get()
                 .extracting(Task::status)
                 .isEqualTo(TaskStatus.DRAFT);
+    }
+
+    @Test
+    void readyPreparationLocksDraftContent() {
+        Task draft = draft("수정 잠금 과업");
+        preparationService.prepare(draft.id());
+
+        assertThatThrownBy(() -> administration.replaceDraft(
+                draft.id(),
+                new TaskAdministrationService.ReplaceDraftCommand(
+                        "수정 시도",
+                        draft.description(),
+                        draft.questions().getFirst()),
+                ADMIN))
+                .isInstanceOfSatisfying(
+                        TaskDomainException.class,
+                        exception -> assertThat(
+                                exception.violation().code())
+                                .isEqualTo(
+                                        "TASK_CONTENT_LOCKED_BY_PREPARATION"));
     }
 
     private Task draft(String title) {

@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -56,7 +57,47 @@ public class TaskPreparationStateService {
     public TaskPreparationClaim claim(TaskId taskId) {
         Instant now = clock.instant();
         Task task = lockTask(taskId);
+        if (task.status() != TaskStatus.DRAFT) {
+            throw invariant(
+                    "TASK_PREPARATION_TASK_NOT_DRAFT",
+                    "Only a draft Task can be prepared");
+        }
+        task.validatePublishable();
         return claim(task, now);
+    }
+
+    @Transactional
+    public void requireContentEditable(Task task) {
+        Objects.requireNonNull(task, "task");
+        String fingerprint = payloads.fingerprint(task);
+        preparations.findByTaskIdForUpdate(task.id())
+                .filter(preparation -> preparation.contentFingerprint()
+                        .equals(fingerprint))
+                .filter(preparation -> preparation.status()
+                        == TaskPreparationStatus.PROCESSING
+                        || preparation.status()
+                        == TaskPreparationStatus.READY)
+                .ifPresent(preparation -> {
+                    throw invariant(
+                            "TASK_CONTENT_LOCKED_BY_PREPARATION",
+                            "Task content is locked by its preparation");
+                });
+    }
+
+    @Transactional
+    public TaskPreparationRecord applyProviderResult(
+            TaskPreparationCommand command,
+            TaskPreparationProviderResult result
+    ) {
+        Objects.requireNonNull(command, "command");
+        Objects.requireNonNull(result, "result");
+        validateResult(command, result);
+        if (result.status() == TaskPreparationStatus.READY) {
+            return markReady(command, result);
+        }
+        TaskPreparationRecord existing = lockPreparation(command.taskId());
+        requireCurrentAttempt(existing, command);
+        return existing;
     }
 
     @Transactional
@@ -124,7 +165,7 @@ public class TaskPreparationStateService {
                 preparations.findByTaskIdForUpdate(task.id());
         if (stored.isPresent()
                 && stored.get().readyFor(fingerprint)) {
-            return TaskPreparationClaim.ready(stored.get());
+            return TaskPreparationClaim.existing(stored.get());
         }
         if (stored.isPresent()
                 && stored.get().contentFingerprint().equals(fingerprint)
@@ -135,12 +176,11 @@ public class TaskPreparationStateService {
                     "Runtime rejected the current Task content");
         }
         if (stored.isPresent()
+                && stored.get().contentFingerprint().equals(fingerprint)
                 && stored.get().status()
                 == TaskPreparationStatus.PROCESSING
                 && !leaseExpired(stored.get(), now)) {
-            throw invariant(
-                    "TASK_PREPARATION_IN_PROGRESS",
-                    "Task preparation is already in progress");
+            return TaskPreparationClaim.existing(stored.get());
         }
         boolean sameContent = stored.isPresent()
                 && stored.get().contentFingerprint().equals(fingerprint);

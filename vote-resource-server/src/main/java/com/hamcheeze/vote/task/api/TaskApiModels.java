@@ -1,6 +1,9 @@
 package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.task.application.prediction.EnsureTaskPredictionResult;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationReceipt;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationRecord;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
@@ -277,6 +280,8 @@ final class TaskApiModels {
 
     record AdminTaskDetailResponse(
             TaskResponse task,
+            TaskPreparationViewResponse preparation,
+            AdminTaskCapabilitiesResponse capabilities,
             List<LifecycleResponse> lifecycleHistory
     ) {
         static AdminTaskDetailResponse from(
@@ -284,8 +289,99 @@ final class TaskApiModels {
         ) {
             return new AdminTaskDetailResponse(
                     TaskResponse.from(detail.task()),
+                    TaskPreparationViewResponse.from(detail.preparation()),
+                    AdminTaskCapabilitiesResponse.from(
+                            detail.capabilities()),
                     detail.lifecycleHistory().stream()
                             .map(LifecycleResponse::from).toList());
+        }
+    }
+
+    record TaskPreparationCommandResponse(
+            UUID taskId,
+            TaskPreparationViewResponse preparation,
+            boolean replayed
+    ) {
+        static TaskPreparationCommandResponse from(
+                TaskPreparationReceipt receipt
+        ) {
+            return new TaskPreparationCommandResponse(
+                    receipt.taskId().value(),
+                    TaskPreparationViewResponse.from(receipt),
+                    receipt.replayed());
+        }
+    }
+
+    record TaskPreparationViewResponse(
+            UUID requestId,
+            TaskPreparationStatus status,
+            String contentFingerprint,
+            int attemptCount,
+            Instant processingStartedAt,
+            Instant preparedAt,
+            TaskPreparationErrorResponse lastError,
+            Instant updatedAt
+    ) {
+        static TaskPreparationViewResponse from(
+                TaskPreparationRecord preparation
+        ) {
+            return preparation == null ? null
+                    : new TaskPreparationViewResponse(
+                            preparation.requestId(), preparation.status(),
+                            preparation.contentFingerprint(),
+                            preparation.attemptCount(),
+                            preparation.processingStartedAt(),
+                            preparation.preparedAt(),
+                            TaskPreparationErrorResponse.from(
+                                    preparation.status(),
+                                    preparation.lastErrorCode(),
+                                    preparation.lastErrorDetail()),
+                            preparation.updatedAt());
+        }
+
+        static TaskPreparationViewResponse from(
+                TaskPreparationReceipt receipt
+        ) {
+            return new TaskPreparationViewResponse(
+                    receipt.requestId(), receipt.status(),
+                    receipt.contentFingerprint(), receipt.attemptCount(),
+                    receipt.processingStartedAt(), receipt.preparedAt(),
+                    TaskPreparationErrorResponse.from(
+                            receipt.status(), receipt.lastErrorCode(),
+                            receipt.lastErrorDetail()),
+                    receipt.updatedAt());
+        }
+    }
+
+    record TaskPreparationErrorResponse(
+            String code,
+            String detail,
+            boolean retryable
+    ) {
+        static TaskPreparationErrorResponse from(
+                TaskPreparationStatus status,
+                String code,
+                String detail
+        ) {
+            return code == null ? null : new TaskPreparationErrorResponse(
+                    code, detail, status == TaskPreparationStatus.FAILED);
+        }
+    }
+
+    record AdminTaskCapabilitiesResponse(
+            boolean canEditContent,
+            boolean canStartPreparation,
+            boolean canSchedule,
+            boolean canOpenNow
+    ) {
+        static AdminTaskCapabilitiesResponse from(
+                AdminTaskQueryService.AdminTaskCapabilities capabilities
+        ) {
+            return new AdminTaskCapabilitiesResponse(
+                    capabilities.canEditContent(),
+                    capabilities.canStartPreparation(),
+                    capabilities.canSchedule(),
+                    capabilities.canOpenNow());
         }
     }
 

@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.preparation;
 
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationCommand;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderException;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
@@ -75,7 +76,22 @@ class TaskPreparationHttpProviderTest {
         assertThat(result.requestId()).isEqualTo(REQUEST_ID);
         assertThat(result.taskId()).isEqualTo(TASK_ID);
         assertThat(result.contentFingerprint()).isEqualTo(FINGERPRINT);
+        assertThat(result.status()).isEqualTo(TaskPreparationStatus.READY);
         assertThat(result.preparedAt()).isEqualTo(PREPARED_AT);
+    }
+
+    @Test
+    void acceptsAsynchronousProcessingResponse() {
+        server.createContext("/v1/tasks/prepare", exchange -> respond(
+                exchange,
+                202,
+                processingBody()));
+
+        var result = provider().prepare(command());
+
+        assertThat(result.status())
+                .isEqualTo(TaskPreparationStatus.PROCESSING);
+        assertThat(result.preparedAt()).isNull();
     }
 
     @Test
@@ -144,6 +160,24 @@ class TaskPreparationHttpProviderTest {
                 TASK_ID.value(),
                 FINGERPRINT,
                 PREPARED_AT);
+    }
+
+    private static String processingBody() {
+        return """
+                {
+                  "schemaVersion": 1,
+                  "requestId": "%s",
+                  "taskId": "%s",
+                  "contentFingerprint": "%s",
+                  "status": "PROCESSING",
+                  "replayed": false,
+                  "acceptedAt": "2026-09-02T06:59:00Z",
+                  "preparedAt": null
+                }
+                """.formatted(
+                REQUEST_ID,
+                TASK_ID.value(),
+                FINGERPRINT);
     }
 
     private static void respond(

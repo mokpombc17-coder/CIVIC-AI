@@ -11,6 +11,7 @@ public record TaskPreparationProviderResult(
         UUID requestId,
         TaskId taskId,
         String contentFingerprint,
+        TaskPreparationStatus status,
         boolean replayed,
         Instant preparedAt
 ) {
@@ -25,6 +26,15 @@ public record TaskPreparationProviderResult(
             throw new IllegalArgumentException(
                     "contentFingerprint must not be blank");
         }
-        Objects.requireNonNull(preparedAt, "preparedAt");
+        Objects.requireNonNull(status, "status");
+        if (status != TaskPreparationStatus.PROCESSING
+                && status != TaskPreparationStatus.READY) {
+            throw new IllegalArgumentException(
+                    "provider status must be PROCESSING or READY");
+        }
+        if ((status == TaskPreparationStatus.READY) != (preparedAt != null)) {
+            throw new IllegalArgumentException(
+                    "preparedAt is required only for READY");
+        }
     }
 }

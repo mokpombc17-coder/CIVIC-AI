@@ -3,6 +3,9 @@ package com.hamcheeze.vote.task.api;
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyKey;
 import com.hamcheeze.vote.task.application.query.AdminTaskQueryService;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationReceipt;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationService;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService.TaskCreationExecution;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -31,6 +34,7 @@ final class TaskAdminController {
             "Idempotency-Replayed";
 
     private final TaskAdministrationService administration;
+    private final TaskPreparationService preparations;
     private final AdminTaskQueryService queries;
     private final AuthenticatedUserIdResolver userIds;
     private final TaskAdminCreateRequestHashFactory requestHashes =
@@ -38,10 +42,12 @@ final class TaskAdminController {
 
     TaskAdminController(
             TaskAdministrationService administration,
+            TaskPreparationService preparations,
             AdminTaskQueryService queries,
             AuthenticatedUserIdResolver userIds
     ) {
         this.administration = administration;
+        this.preparations = preparations;
         this.queries = queries;
         this.userIds = userIds;
     }
@@ -97,6 +103,18 @@ final class TaskAdminController {
                 .map(TaskApiModels.AdminTaskDetailResponse::from)
                 .orElseThrow(() -> TaskApiException.notFound(
                         "TASK_NOT_FOUND", "The task does not exist."));
+    }
+
+    @PostMapping("/{taskId}/preparation")
+    ResponseEntity<TaskApiModels.TaskPreparationCommandResponse> prepare(
+            @PathVariable UUID taskId
+    ) {
+        TaskPreparationReceipt receipt = preparations.prepare(id(taskId));
+        TaskApiModels.TaskPreparationCommandResponse response =
+                TaskApiModels.TaskPreparationCommandResponse.from(receipt);
+        return receipt.status() == TaskPreparationStatus.PROCESSING
+                ? ResponseEntity.accepted().body(response)
+                : ResponseEntity.ok(response);
     }
 
     @PostMapping("/{taskId}/schedule")

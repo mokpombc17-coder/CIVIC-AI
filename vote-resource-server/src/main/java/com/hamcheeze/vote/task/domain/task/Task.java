@@ -494,7 +494,7 @@ public final class Task {
                 historyClosureType, occurredAt);
     }
 
-    private void validatePublishable() {
+    public void validatePublishable() {
         List<TaskViolation> violations = new ArrayList<>();
         if (questions.size() != 1) {
             violations.add(TaskViolation.of(

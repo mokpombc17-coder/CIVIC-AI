@@ -28,25 +28,16 @@ public class TaskPreparationService {
 
     private TaskPreparationReceipt execute(TaskPreparationClaim claim) {
         if (!claim.requiresProviderCall()) {
-            TaskPreparationRecord ready = claim.ready();
-            return new TaskPreparationReceipt(
-                    ready.taskId(),
-                    ready.requestId(),
-                    ready.contentFingerprint(),
-                    true,
-                    ready.preparedAt());
+            return TaskPreparationReceipt.from(claim.existing(), true);
         }
 
         TaskPreparationCommand command = claim.command();
         try {
             TaskPreparationProviderResult result = provider().prepare(command);
-            TaskPreparationRecord ready = states.markReady(command, result);
-            return new TaskPreparationReceipt(
-                    ready.taskId(),
-                    ready.requestId(),
-                    ready.contentFingerprint(),
-                    result.replayed(),
-                    ready.preparedAt());
+            TaskPreparationRecord preparation =
+                    states.applyProviderResult(command, result);
+            return TaskPreparationReceipt.from(
+                    preparation, result.replayed());
         } catch (TaskPreparationProviderException exception) {
             states.markFailed(command, exception);
             throw publicFailure(exception);

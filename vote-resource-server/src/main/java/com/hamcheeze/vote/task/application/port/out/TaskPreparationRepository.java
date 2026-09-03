@@ -7,6 +7,8 @@ import java.util.Optional;
 
 public interface TaskPreparationRepository {
 
+    Optional<TaskPreparationRecord> findByTaskId(TaskId taskId);
+
     Optional<TaskPreparationRecord> findByTaskIdForUpdate(TaskId taskId);
 
     TaskPreparationRecord save(TaskPreparationRecord preparation);

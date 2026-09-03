@@ -4,6 +4,7 @@ import com.hamcheeze.vote.task.application.port.out.TaskPreparationProvider;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationCommand;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderException;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationProviderResult;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -100,7 +101,13 @@ public class TaskPreparationHttpProvider
     ) {
         int status = response.statusCode();
         if (status == 200 || status == 201) {
-            return decode(command, response.body());
+            return decode(
+                    command, response.body(), TaskPreparationStatus.READY);
+        }
+        if (status == 202) {
+            return decode(
+                    command, response.body(),
+                    TaskPreparationStatus.PROCESSING);
         }
         String remoteCode = errorCode(response.body());
         boolean retryable = status == 408 || status == 429
@@ -121,18 +128,26 @@ public class TaskPreparationHttpProvider
 
     private TaskPreparationProviderResult decode(
             TaskPreparationCommand command,
-            String body
+            String body,
+            TaskPreparationStatus expectedStatus
     ) {
         try {
             PreparationResponse response = objectMapper.readValue(
                     body, PreparationResponse.class);
+            TaskPreparationStatus responseStatus =
+                    TaskPreparationStatus.valueOf(response.status());
             if (response.schemaVersion() == null
                     || response.requestId() == null
                     || response.taskId() == null
                     || response.contentFingerprint() == null
-                    || !"READY".equals(response.status())
                     || response.replayed() == null
-                    || response.preparedAt() == null) {
+                    || responseStatus != expectedStatus
+                    || responseStatus == TaskPreparationStatus.PROCESSING
+                    && response.acceptedAt() == null
+                    || responseStatus == TaskPreparationStatus.READY
+                    && response.preparedAt() == null
+                    || responseStatus == TaskPreparationStatus.PROCESSING
+                    && response.preparedAt() != null) {
                 throw new IllegalArgumentException(
                         "required response field is missing");
             }
@@ -153,6 +168,7 @@ public class TaskPreparationHttpProvider
                     response.requestId(),
                     new TaskId(response.taskId()),
                     response.contentFingerprint(),
+                    responseStatus,
                     response.replayed(),
                     response.preparedAt());
         } catch (TaskPreparationProviderException exception) {
@@ -215,6 +231,7 @@ public class TaskPreparationHttpProvider
             String contentFingerprint,
             String status,
             Boolean replayed,
+            Instant acceptedAt,
             Instant preparedAt
     ) {
     }

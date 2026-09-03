@@ -4,12 +4,12 @@ import java.util.Objects;
 
 record TaskPreparationClaim(
         TaskPreparationCommand command,
-        TaskPreparationRecord ready
+        TaskPreparationRecord existing
 ) {
     TaskPreparationClaim {
-        if ((command == null) == (ready == null)) {
+        if ((command == null) == (existing == null)) {
             throw new IllegalArgumentException(
-                    "exactly one of command and ready is required");
+                    "exactly one of command and existing is required");
         }
     }
 
@@ -18,9 +18,9 @@ record TaskPreparationClaim(
                 Objects.requireNonNull(command, "command"), null);
     }
 
-    static TaskPreparationClaim ready(TaskPreparationRecord ready) {
+    static TaskPreparationClaim existing(TaskPreparationRecord existing) {
         return new TaskPreparationClaim(
-                null, Objects.requireNonNull(ready, "ready"));
+                null, Objects.requireNonNull(existing, "existing"));
     }
 
     boolean requiresProviderCall() {
