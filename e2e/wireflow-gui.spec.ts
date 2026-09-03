@@ -488,7 +488,8 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
 
   await expect(page.locator(".civic-participant-home-header")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "페이지 전환" })).toHaveCount(0);
-  await expect(page.getByRole("heading", { exact: true, name: "CIVIC.AI" })).toBeVisible();
+  await expect(page.locator(".civic-brand-title")).toHaveText("CIVIC.AI");
+  await expect(page.locator(".civic-region-badge")).toHaveText("광주/전남");
   const shell = page.locator('[data-platform-shell="true"]');
   const navigation = page.getByRole("navigation", { name: "참여자 주요 메뉴" });
   await expect(shell).toHaveCount(1);
@@ -498,12 +499,56 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
 
   const cards = page.locator('[data-wireflow-layout="participant-home"] .wf-action-card');
   await expect(cards).toHaveCount(3);
-  await expect(cards.nth(0)).toContainText("무엇이 궁금한가요?");
+  await expect(cards.nth(0)).toContainText("어떤 점부터 짚어볼까요?");
   await expect(cards.nth(0)).toContainText("질문하기");
-  await expect(cards.nth(1)).toContainText("함께 나누는 의견");
+  await expect(cards.nth(1)).toContainText("서로 오가는 이야기");
   await expect(cards.nth(1)).toContainText("토론하기");
-  await expect(cards.nth(2)).toContainText("내 생각을 더하는 한 표");
-  await expect(cards.nth(2)).toContainText("참여하기");
+  await expect(cards.nth(2)).toContainText("논의에 보태는 내 의견");
+  await expect(cards.nth(2)).toContainText("투표하기");
+
+  const welcomeCard = page.locator(".wf-home-welcome");
+  await expect(welcomeCard).not.toHaveAttribute("data-pwa-install-trigger");
+  await page.evaluate(() => {
+    const state = window as typeof window & { __pwaInstallPromptCalls?: number };
+    state.__pwaInstallPromptCalls = 0;
+    const event = new Event("beforeinstallprompt", { cancelable: true });
+    Object.defineProperties(event, {
+      prompt: {
+        value: async () => {
+          state.__pwaInstallPromptCalls = (state.__pwaInstallPromptCalls ?? 0) + 1;
+        },
+      },
+      userChoice: {
+        value: Promise.resolve({ outcome: "accepted", platform: "web" }),
+      },
+    });
+    window.dispatchEvent(event);
+  });
+
+  const userMenuTrigger = page.getByRole("button", { name: "citizen님 사용자 메뉴" });
+  await userMenuTrigger.click();
+  const userMenu = page.getByRole("group", { name: "사용자 메뉴" });
+  await expect(userMenu).toBeVisible();
+  await expect(userMenu.getByText("관리자 페이지", { exact: true })).toHaveCount(0);
+  await expect(userMenu.getByRole("button", { name: "앱 설치" })).toBeVisible();
+  await expect(userMenu.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  await expect(userMenu.getByRole("separator")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(userMenu).toHaveCount(0);
+  await expect(userMenuTrigger).toBeFocused();
+
+  await userMenuTrigger.click();
+  await userMenu.getByRole("button", { name: "앱 설치" }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as typeof window & { __pwaInstallPromptCalls?: number }).__pwaInstallPromptCalls,
+      ),
+    )
+    .toBe(1);
+  await expect(userMenu).toHaveCount(0);
+  await expect(welcomeCard.getByRole("button")).toHaveCount(0);
 
   await expectBox(cards.nth(0), {
     x: [16, 18],
@@ -532,28 +577,24 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
   });
 });
 
-test("관리자 로그인 홈은 이름 왼쪽에 관리자·사용자 페이지 전환을 제공한다", async ({
+test("관리자 로그인 홈은 사용자 팝업에서 관리자 페이지 이동을 제공한다", async ({
   context,
   page,
 }) => {
   await authenticate(context, "admin.payload.signature");
   await page.goto("/home");
 
-  const switcher = page.getByRole("navigation", { name: "페이지 전환" });
-  await expect(switcher).toBeVisible();
-  const adminPageLink = switcher.getByRole("link", { name: "관리자 페이지로 이동" });
+  await expect(page.getByRole("navigation", { name: "페이지 전환" })).toHaveCount(0);
+  const userMenuTrigger = page.getByRole("button", { name: "citizen님 사용자 메뉴" });
+  await expect(userMenuTrigger).toBeVisible();
+  await userMenuTrigger.click();
+
+  const userMenu = page.getByRole("group", { name: "사용자 메뉴" });
+  await expect(userMenu).toBeVisible();
+  const adminPageLink = userMenu.getByRole("link", { name: "관리자 페이지" });
   await expect(adminPageLink).toHaveAttribute("href", "/admin");
-  await expect(switcher.getByRole("link", { name: "사용자 페이지로 이동" })).toHaveAttribute(
-    "href",
-    "/home",
-  );
-  await expect(switcher.getByRole("link", { name: "사용자 페이지로 이동" })).toHaveAttribute(
-    "aria-current",
-    "page",
-  );
-  await expect(page.locator(".civic-header-page-switch + .civic-header-greeting")).toHaveText(
-    "citizen님",
-  );
+  await expect(userMenu.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  await expect(userMenu.getByRole("separator")).toHaveCount(0);
 
   await adminPageLink.click();
   await expect(page).toHaveURL(/\/admin$/u);

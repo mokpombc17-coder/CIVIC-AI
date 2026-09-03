@@ -6,7 +6,6 @@ import { AdminFunctionalScreen } from "./admin-functional-screen";
 import { AuthFunctionalScreen } from "./auth-functional-screen";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
-import { PwaInstallTriggerCard } from "@/components/pwa/pwa-install-trigger-card";
 import {
   WireflowCommonState,
   WireflowConflictState,
@@ -59,14 +58,14 @@ export function MainFunctionalScreen({
         : path) as Route;
     return (
       <ScreenFrame screen={screen}>
-        <PwaInstallTriggerCard>
+        <section className="wf-card wf-home-welcome">
           <WireflowBadge>참여 안내</WireflowBadge>
           <h2>배우고, 토론하고, 함께 결정합니다.</h2>
           <p>
             CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
             투표로 남겨보세요.
           </p>
-        </PwaInstallTriggerCard>
+        </section>
         <ParticipantHomeLayout
           actions={[
             {

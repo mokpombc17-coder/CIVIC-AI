@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { CurrentUserGreeting } from "@/components/shell/current-user-greeting";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
@@ -33,7 +34,7 @@ export default async function HomePage() {
           <CurrentUserGreeting />
         )
       }
-      headerTitle={<span className="civic-brand-title">CIVIC.AI</span>}
+      headerTitle={<HomeBrandTitle />}
       requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
       title={heading.title}
     >

@@ -8,7 +8,8 @@ test("루트는 공개 홈으로 직접 이동한다", async ({ page }) => {
 
   await page.goto("/");
   await expect(page).toHaveURL(/\/home$/u);
-  await expect(page.getByRole("heading", { name: "CIVIC.AI", exact: true })).toBeVisible();
+  await expect(page.locator(".civic-brand-title")).toHaveText("CIVIC.AI");
+  await expect(page.locator(".civic-region-badge")).toHaveText("광주/전남");
 });
 
 test("레거시 투표 경로는 표준 단수형 경로로 이동한다", async ({ page }) => {
@@ -22,7 +23,8 @@ test("비로그인 사용자는 홈을 보고 보호 기능 링크에서 로그�
   await page.goto("/home");
 
   await expect(page).toHaveURL(/\/home$/u);
-  await expect(page.getByRole("heading", { name: "CIVIC.AI", exact: true })).toBeVisible();
+  await expect(page.locator(".civic-brand-title")).toHaveText("CIVIC.AI");
+  await expect(page.locator(".civic-region-badge")).toHaveText("광주/전남");
   const loginAction = page.getByRole("link", { name: "로그인", exact: true });
   await expect(loginAction).toHaveAttribute("href", "/login?returnTo=%2Fhome");
   await expect(loginAction).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");

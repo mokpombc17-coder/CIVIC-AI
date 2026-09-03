@@ -52,7 +52,12 @@ PwaStartPage /pwa/start [Server Route, manifest start_url]
 
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
+├── HomeBrandTitle [CIVIC.AI + 고정 권역 광주/전남]
 └── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
+    ├── headerActions
+    │   ├── 비로그인: Login Link
+    │   └── CurrentUserGreeting [Client, 사용자 팝업·PWA 설치·로그아웃]
+    │       └── 관리자 역할: 관리자 페이지 Link 추가
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
             └── ParticipantEligibilityGuard [Client, 로그인 사용자 본문만 제어]
@@ -60,8 +65,7 @@ HomePage /home [Server Route]
                 ├── 확인 중: Shell 유지, 200ms 뒤 indicator 표시·최소 200ms 유지
                 ├── 필수 미제출: /survey?returnTo=/home hard navigation
                 └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
-                ├── PwaInstallTriggerCard [Client, beforeinstallprompt 준비 시 환영 카드 클릭으로 설치 요청]
-                └── ParticipantHomeLayout
+                    └── ParticipantHomeLayout
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -188,9 +192,10 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
 담당한다.
 
-`PwaInstallTriggerCard`는 브라우저가 `beforeinstallprompt`를 제공한 경우에만 기존 환영 카드 위에
-접근 가능한 투명 버튼을 활성화한다. 클릭 시 브라우저의 네이티브 설치 UI를 요청하고,
-`appinstalled` 이후에는 다시 비활성화한다. iOS 설치 안내나 별도 시각 CTA는 소유하지 않는다.
+`CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. 브라우저가
+`beforeinstallprompt`를 제공한 경우에만 팝업에 `앱 설치`를 추가하고, 요청 또는 `appinstalled`
+이후에는 다시 숨긴다. 관리자는 같은 팝업에서 관리자 페이지로 이동한다. 홈의 참여 안내 카드는
+설치 동작을 소유하지 않는다. iOS 설치 안내나 별도 시각 CTA는 제공하지 않는다.
 
 `PwaStartup`의 세션 초기화는 `/pwa/start`에서만 실행한다. standalone display mode 또는 iOS
 standalone flag가 없으면 Refresh를 호출하지 않는다. API 계약 의존부는

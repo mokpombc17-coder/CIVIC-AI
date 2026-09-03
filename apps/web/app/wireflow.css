@@ -4426,6 +4426,30 @@ body {
   line-height: 20px;
 }
 
+.civic-home-brand {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  vertical-align: middle;
+}
+
+.civic-region-badge {
+  display: inline-flex;
+  min-height: 20px;
+  flex: none;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0 7px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  line-height: 20px;
+}
+
 .civic-header-login {
   display: inline-flex;
   min-height: 44px;
@@ -4627,28 +4651,6 @@ body {
 
 .wf-home-welcome .wf-badge {
   justify-self: start;
-}
-
-.wf-pwa-install-trigger {
-  position: relative;
-}
-
-.wf-pwa-install-trigger-button {
-  position: absolute;
-  z-index: 1;
-  inset: 0;
-  width: 100%;
-  border: 0;
-  border-radius: inherit;
-  padding: 0;
-  background: transparent;
-  cursor: pointer;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.wf-pwa-install-trigger-button:focus-visible {
-  outline: 3px solid var(--wf-blue);
-  outline-offset: 3px;
 }
 
 [data-wireflow-screen="U-HOME-001"] .wf-badge {
@@ -4954,64 +4956,118 @@ body {
   font-weight: 700;
 }
 
-/* 홈 헤더 관리자 화면 전환 + 인사말 (이메일 로컬파트 + 님) */
+/* 홈 헤더 사용자 메뉴 (이메일 로컬파트 + 님) */
 .civic-header-identity {
-  display: flex;
+  position: relative;
+  display: inline-flex;
   min-width: 0;
   align-items: center;
-  gap: 8px;
 }
 
-.civic-header-page-switch {
+.civic-header-user-trigger {
   display: inline-flex;
-  flex: none;
-  overflow: hidden;
-  border: 1px solid #b8cdf8;
-  border-radius: 7px;
-  background: #f7f9fe;
-}
-
-.civic-header-page-link {
-  display: inline-flex;
-  min-height: 28px;
+  min-width: 0;
+  max-width: min(132px, 34vw);
+  min-height: 44px;
   align-items: center;
-  justify-content: center;
-  padding: 4px 7px;
-  color: var(--wf-blue-dark);
-  font-size: 11px;
+  gap: 3px;
+  border: 0;
+  border-radius: 7px;
+  padding: 0;
+  background: transparent;
+  color: #1f2124;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.civic-header-user-trigger:hover {
+  color: #0a4fd1;
+}
+
+.civic-header-user-trigger:focus-visible {
+  outline: 2px solid #266ef5;
+  outline-offset: 2px;
+}
+
+.civic-header-greeting {
+  overflow: hidden;
+  color: currentColor;
+  font-size: 14px;
   font-weight: 700;
-  line-height: 18px;
+  line-height: 21px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.civic-header-user-chevron {
+  flex: none;
+  transition: transform 120ms ease;
+}
+
+.civic-header-user-chevron[data-open="true"] {
+  transform: rotate(180deg);
+}
+
+.civic-header-user-menu {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 8px);
+  right: 0;
+  display: grid;
+  width: max-content;
+  min-width: 148px;
+  gap: 2px;
+  border: 1px solid #d9dee8;
+  border-radius: 10px;
+  padding: 6px;
+  background: #fff;
+  box-shadow: 0 8px 24px rgb(21 35 59 / 16%);
+}
+
+.civic-header-user-menu-item {
+  display: flex;
+  width: 100%;
+  min-height: 40px;
+  align-items: center;
+  border: 0;
+  border-radius: 7px;
+  padding: 8px 10px;
+  background: transparent;
+  color: #1f2124;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 20px;
+  cursor: pointer;
+  text-align: left;
   text-decoration: none;
   white-space: nowrap;
   -webkit-tap-highlight-color: transparent;
 }
 
-.civic-header-page-link + .civic-header-page-link {
-  border-left: 1px solid #b8cdf8;
+.civic-header-user-menu-item:hover {
+  background: #f3f6fb;
 }
 
-.civic-header-page-link[aria-current="page"] {
-  background: var(--wf-blue);
-  color: #fff;
-}
-
-.civic-header-page-link:not([aria-current="page"]):hover {
-  background: var(--wf-blue-soft);
-}
-
-.civic-header-page-link:focus-visible {
-  position: relative;
-  z-index: 1;
-  outline: 2px solid var(--wf-blue-dark);
+.civic-header-user-menu-item:focus-visible {
+  outline: 2px solid #266ef5;
   outline-offset: -2px;
 }
 
-.civic-header-greeting {
-  color: #1f2124;
-  font-size: 14px;
-  font-weight: 700;
-  line-height: 21px;
-  white-space: nowrap;
+.civic-header-user-menu-item:disabled {
+  cursor: wait;
+  opacity: 0.6;
+}
+
+.civic-header-user-menu-logout {
+  color: #c22b2b;
+}
+
+.civic-header-user-menu-error {
+  max-width: 168px;
+  margin: 2px 10px 4px;
+  color: #b42318;
+  font-size: 12px;
+  line-height: 17px;
 }
 
 /* 본문 인용 칩 — iKMS 인용 칩 형태 (연파랑 필 + 문서명 축약 + p.N) */

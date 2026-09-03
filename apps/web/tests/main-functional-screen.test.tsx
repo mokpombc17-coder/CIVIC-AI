@@ -1132,8 +1132,8 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
-    expect(html).toContain('class="wf-card wf-home-welcome wf-pwa-install-trigger"');
-    expect(html).toContain('data-pwa-install-trigger="true"');
+    expect(html).toContain('class="wf-card wf-home-welcome"');
+    expect(html).not.toContain("data-pwa-install-trigger");
     expect(html).toContain("배우고, 토론하고, 함께 결정합니다.");
     expect(html).toContain(
       "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로 남겨보세요.",
