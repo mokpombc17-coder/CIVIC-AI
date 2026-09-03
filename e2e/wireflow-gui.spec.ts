@@ -508,6 +508,39 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
 
   const welcomeCard = page.locator(".wf-home-welcome");
   await expect(welcomeCard).not.toHaveAttribute("data-pwa-install-trigger");
+  const badgeStyles = await page
+    .locator(".civic-region-badge, .wf-home-welcome .wf-badge")
+    .evaluateAll((badges) =>
+      badges.map((badge) => {
+        const style = getComputedStyle(badge);
+        return {
+          backgroundColor: style.backgroundColor,
+          borderRadius: style.borderRadius,
+          color: style.color,
+          fontSize: style.fontSize,
+          fontWeight: style.fontWeight,
+          height: style.height,
+          lineHeight: style.lineHeight,
+          padding: style.padding,
+        };
+      }),
+    );
+  expect(badgeStyles).toHaveLength(2);
+  expect(badgeStyles[0]).toEqual(badgeStyles[1]);
+  const userMenuTrigger = page.getByRole("button", { name: "citizen님 사용자 메뉴" });
+  await userMenuTrigger.click();
+  const userMenu = page.getByRole("group", { name: "사용자 메뉴" });
+  await expect(userMenu).toBeVisible();
+  await userMenuTrigger.hover();
+  await expect(userMenuTrigger).toHaveCSS("color", "rgb(31, 33, 36)");
+  await expect(page.locator(".civic-header-user-chevron")).toHaveCSS("transition-duration", "0s");
+  await expect(userMenu.getByText("관리자 페이지", { exact: true })).toHaveCount(0);
+  const installAction = userMenu.getByRole("button", { name: "앱 설치" });
+  const logoutAction = userMenu.getByRole("button", { name: "로그아웃" });
+  await expect(installAction).toBeVisible();
+  await expect(installAction).toBeDisabled();
+  await expect(installAction).toHaveCSS("color", "rgb(154, 161, 172)");
+  await expect(logoutAction).toBeVisible();
   await page.evaluate(() => {
     const state = window as typeof window & { __pwaInstallPromptCalls?: number };
     state.__pwaInstallPromptCalls = 0;
@@ -524,21 +557,18 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
     });
     window.dispatchEvent(event);
   });
-
-  const userMenuTrigger = page.getByRole("button", { name: "citizen님 사용자 메뉴" });
-  await userMenuTrigger.click();
-  const userMenu = page.getByRole("group", { name: "사용자 메뉴" });
-  await expect(userMenu).toBeVisible();
-  await expect(userMenu.getByText("관리자 페이지", { exact: true })).toHaveCount(0);
-  await expect(userMenu.getByRole("button", { name: "앱 설치" })).toBeVisible();
-  await expect(userMenu.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  await expect(installAction).toBeEnabled();
+  await installAction.hover();
+  await expect(installAction).toHaveCSS("background-color", "rgb(245, 246, 248)");
+  await expect(installAction).toHaveCSS("color", "rgb(31, 33, 36)");
+  await expect(logoutAction).toHaveCSS("color", "rgb(31, 33, 36)");
   await expect(userMenu.getByRole("separator")).toHaveCount(0);
   await page.keyboard.press("Escape");
   await expect(userMenu).toHaveCount(0);
   await expect(userMenuTrigger).toBeFocused();
 
   await userMenuTrigger.click();
-  await userMenu.getByRole("button", { name: "앱 설치" }).click();
+  await installAction.click();
   await expect
     .poll(() =>
       page.evaluate(
