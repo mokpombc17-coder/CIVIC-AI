@@ -18,17 +18,15 @@ Vote Resource Server가 Runtime으로 결과를 push하지 않는다. Runtime은
 
 ## 2. 인증
 
-모든 요청은 서비스 간 Bearer JWT를 사용한다.
+모든 요청은 사용자 JWT가 아닌 8082↔9000 전용 공유 Bearer token을 사용한다.
 
 ```http
-Authorization: Bearer {service-token}
+Authorization: Bearer {ai-runtime-shared-token}
 ```
 
-필수 scope는 다음과 같다.
-
-```text
-vote:task-outcomes:read
-```
+JWT 서명, 사용자 `sub`, OAuth scope는 검사하지 않는다. Vote Resource Server는
+`VOTE_AI_RUNTIME_AUTH_TOKEN`과 요청 token을 비교하며, 누락되거나 다르면 `401`을
+반환한다. 실제 token은 문서나 Git에 저장하지 않고 양쪽 서버의 Secret으로 주입한다.
 
 Runtime에는 Vote Resource Server의 내부 `userId`를 제공하지 않는다. Persona
 생성 API가 발급한 외부 `personaId`를 사용자 측 식별자로 사용한다.
@@ -136,7 +134,6 @@ finalReason = 서버 필터를 통과한 사용자 직접 작성 이유
 | --- | --- | --- |
 | `400` | `INVALID_REQUEST` | cursor·limit·식별자 수정 전 재시도 금지 |
 | `401` | `UNAUTHENTICATED` | 서비스 토큰 갱신 및 운영 경고 |
-| `403` | `ACCESS_DENIED` | scope 설정 수정 및 운영 경고 |
 | `404` | `TASK_NOT_FOUND` | 잘못된 Task 식별자, 자동 재시도 금지 |
 | `404` | `TASK_OUTCOME_NOT_FOUND` | 해당 Persona가 아직 제출하지 않았거나 식별자가 잘못됨 |
 | `5xx` | 서버 오류 | 지수 백오프로 동일 요청 재시도 |
@@ -146,6 +143,8 @@ finalReason = 서버 필터를 통과한 사용자 직접 작성 이유
 ## 7. Runtime 구현 체크리스트
 
 - [ ] Task Prediction 요청에서 받은 `taskId`를 조회 대상으로 관리한다.
+- [ ] 모든 요청에 공유 token을 `Authorization: Bearer`로 전송한다.
+- [ ] 사용자 JWT를 전달하지 않고 token을 로그에 기록하지 않는다.
 - [ ] Task별 마지막 `nextCursor`를 영속화한다.
 - [ ] 한 페이지의 모든 item 저장 성공 후 cursor를 갱신한다.
 - [ ] `outcomeId`로 중복 Outcome을 멱등 처리한다.

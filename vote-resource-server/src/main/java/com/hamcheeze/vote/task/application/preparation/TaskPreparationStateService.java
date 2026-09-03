@@ -362,7 +362,8 @@ public class TaskPreparationStateService {
                 && stored.get().contentFingerprint().equals(fingerprint)
                 && stored.get().status()
                 == TaskPreparationStatus.PROCESSING
-                && !leaseExpired(stored.get(), now)) {
+                && !stored.get().processingLeaseExpired(
+                        now, policy.processingLeaseDuration())) {
             return TaskPreparationClaim.existing(stored.get());
         }
         boolean sameContent = stored.isPresent()
@@ -394,15 +395,6 @@ public class TaskPreparationStateService {
                 createdAt,
                 now));
         return TaskPreparationClaim.execute(command);
-    }
-
-    private boolean leaseExpired(
-            TaskPreparationRecord preparation,
-            Instant now
-    ) {
-        return !preparation.processingStartedAt()
-                .plus(policy.processingLeaseDuration())
-                .isAfter(now);
     }
 
     private Task lockTask(TaskId taskId) {

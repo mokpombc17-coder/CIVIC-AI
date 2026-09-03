@@ -11,6 +11,8 @@ civic:
     browser-origin: ${VOTE_BROWSER_ORIGIN}
 
 vote:
+  ai-runtime:
+    auth-token: ${VOTE_AI_RUNTIME_AUTH_TOKEN:}
   integration:
     outbox:
       dispatcher-enabled: ${VOTE_INTEGRATION_OUTBOX_DISPATCHER_ENABLED:${VOTE_INTEGRATION_OUTBOX_ENABLED:false}}
@@ -18,7 +20,7 @@ vote:
     enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:false}}
     provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:http}}
     base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:}}
-    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}}
     connect-timeout: ${VOTE_PERSONA_CONNECT_TIMEOUT:5s}
     request-timeout: ${VOTE_PERSONA_REQUEST_TIMEOUT:60s}
     dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:5s}}
@@ -39,7 +41,7 @@ vote:
       provider: ${VOTE_TASK_PREPARATION_PROVIDER:http}
       base-url: ${VOTE_TASK_PREPARATION_BASE_URL:}
       path: ${VOTE_TASK_PREPARATION_PATH:/v1/tasks/prepare}
-      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:}
+      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
       connect-timeout: ${VOTE_TASK_PREPARATION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREPARATION_REQUEST_TIMEOUT:30s}
       retry-delay: ${VOTE_TASK_PREPARATION_RETRY_DELAY:30s}
@@ -49,7 +51,7 @@ vote:
       provider: ${VOTE_TASK_PREDICTION_PROVIDER:http}
       base-url: ${VOTE_TASK_PREDICTION_BASE_URL:}
       path: ${VOTE_TASK_PREDICTION_PATH:/v1/task-predictions}
-      auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:}
+      auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
       connect-timeout: ${VOTE_TASK_PREDICTION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREDICTION_REQUEST_TIMEOUT:60s}
       candidate-policy-version: ${VOTE_TASK_PREDICTION_CANDIDATE_POLICY_VERSION:candidate-policy-v1}

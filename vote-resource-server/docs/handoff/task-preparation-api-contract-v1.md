@@ -2,7 +2,7 @@
 
 ## 문서 상태
 
-- 상태: 구현 전 합의용 목표 계약
+- 상태: 8082 구현 완료, 9000·관리자 프론트엔드 연동 대기
 - API 계약 버전: `1`
 - 대상: Persona Runtime(9000), Vote Resource Server(8082), 관리자 프론트엔드
 - 관련 시나리오: [Task 전처리 및 관리자 발행 시나리오](./task-preparation-publication-scenario.md)
@@ -25,11 +25,13 @@
 | 호출 | 인증 |
 |---|---|
 | 관리자 프론트엔드 → 8082 | 사용자 JWT, scope `vote:tasks:admin` |
-| 8082 → 9000 | 서비스 Bearer token |
-| 9000 → 8082 callback | 서비스 JWT, scope `vote:task-preparations:write` |
+| 8082 → 9000 | `VOTE_AI_RUNTIME_AUTH_TOKEN` 공유 Bearer token |
+| 9000 → 8082 callback | 동일한 공유 Bearer token |
 
-스테이징의 9000 base URL은 배포 환경 변수로 주입한다. 현재 합의된 대상 포트는
-`civic-ai.co.kr:9000`이며 소스 코드에 주소를 하드코딩하지 않는다.
+사용자 JWT는 9000에 전달하지 않는다. 양쪽 서비스는 들어오는 요청의 공유 token을
+검사하고 token을 로그에 기록하지 않는다. 스테이징의 9000 base URL은 Nginx HTTPS
+진입점인 `https://civic-ai.co.kr`을 기본값으로 사용하며 `VOTE_AI_RUNTIME_BASE_URL`로
+재정의할 수 있다.
 
 ## 2. 계약 변경 요약
 
@@ -249,11 +251,12 @@ HTTP/1.1 200 OK
 
 ```http
 POST /api/v1/integrations/persona/task-preparations/{requestId}/result
-Authorization: Bearer <persona-runtime-service-jwt>
+Authorization: Bearer <ai-runtime-shared-token>
 Content-Type: application/json
 ```
 
-필요 scope는 `vote:task-preparations:write`다.
+8082는 `VOTE_AI_RUNTIME_AUTH_TOKEN`과 요청 token이 일치하는지 검사한다. JWT claim이나
+OAuth scope는 사용하지 않는다.
 
 ### READY 요청
 
@@ -314,7 +317,7 @@ HTTP/1.1 204 No Content
 | HTTP | code | 조건 | 재시도 |
 |---:|---|---|---:|
 | 400 | `INVALID_REQUEST` | JSON 또는 path/body 형식 오류 | 수정 후 |
-| 401/403 | 인증 표준 오류 | token/scope 오류 | 인증 수정 후 |
+| 401 | `UNAUTHENTICATED` | 공유 token 누락 또는 불일치 | 인증 수정 후 |
 | 404 | `TASK_PREPARATION_NOT_FOUND` | 알 수 없는 requestId | 중단 |
 | 409 | `TASK_PREPARATION_RESULT_MISMATCH` | taskId 또는 fingerprint 불일치 | 중단 |
 | 409 | `TASK_PREPARATION_STALE_RESULT` | 현재 요청보다 오래된 결과 | 중단 |
@@ -413,6 +416,9 @@ Authorization: Bearer <admin-jwt>
 
 관리자 프론트엔드는 상태 규칙을 중복 구현하기보다 `capabilities`로 버튼 활성화를 판단한다.
 `preparation=null`이면 아직 요청하지 않은 상태다.
+`PROCESSING`의 processing lease가 유효한 동안에는 `canStartPreparation=false`이고,
+lease가 만료되면 `canStartPreparation=true`가 된다. 이때 `canEditContent`는 계속 `false`이며,
+전처리 시작 API를 다시 호출하면 같은 `requestId`로 요청을 재전송한다.
 
 ## 9. 기존 관리자 수정·발행 API 변경
 
@@ -459,31 +465,46 @@ Endpoint와 기존 request body는 유지한다.
 
 ### Persona Runtime(9000)
 
-- `POST /v1/tasks/prepare`에서 `202 PROCESSING` 지원
-- `(requestId, contentFingerprint)` 멱등 처리
-- terminal 상태와 오류 저장
-- 8082 callback 재시도
-- `GET /v1/task-preparations/{requestId}` 제공
-- READY 상태 불변 보장
-- 서비스 token 검증
+- [ ] `POST /v1/tasks/prepare`에서 `202 PROCESSING` 지원
+- [ ] `(requestId, contentFingerprint)` 멱등 처리
+- [ ] terminal 상태와 오류 저장
+- [ ] 8082 callback 재시도
+- [ ] `GET /v1/task-preparations/{requestId}` 제공
+- [ ] READY 상태 불변 보장
+- [ ] 모든 8082↔9000 요청에서 동일한 공유 token 검증·전송
+- [ ] 사용자 JWT를 받거나 전달하지 않고 token을 로그에 기록하지 않음
 
 ### 관리자 프론트엔드
 
-- 8082 Task 상세의 `preparation`, `capabilities` 사용
-- `답변 생성 시작`에서 신규 관리자 POST 호출
-- PROCESSING 진행 상태와 FAILED/REJECTED 오류 표시
-- capabilities에 따라 수정·예약·즉시 발행 버튼 제어
-- 9000 직접 호출 금지
-- mutation 성공 후 Task 상세 query invalidate
+- [ ] 8082 Task 상세의 `preparation`, `capabilities` 사용
+- [ ] `답변 생성 시작`에서 신규 관리자 POST 호출
+- [ ] PROCESSING 진행 상태와 FAILED/REJECTED 오류 표시
+- [ ] capabilities에 따라 수정·예약·즉시 발행 버튼 제어
+- [ ] 9000 직접 호출 금지
+- [ ] mutation 성공 후 Task 상세 query invalidate
 
 ### Vote Resource Server(8082)
 
-- 관리자 전처리 시작 API 제공
-- 기존 9000 prepare client를 비동기 응답에 맞게 수정
-- callback API와 전용 scope 추가
-- 9000 상태 조회 client 추가
-- Task 상세 read model 확장
-- 수정·예약·즉시 발행·예약 scheduler에 동일한 guard 적용
-- callback/GET 결과를 같은 상태 전이 함수로 반영
-- stale callback, 중복 callback, READY 회귀 차단
-- 예약 확인 실패 시 retry deferral을 적용해 scheduler starvation 방지
+- [x] 관리자 전처리 시작 API 제공
+- [x] 기존 9000 prepare client를 비동기 응답에 맞게 수정
+- [x] callback API와 공유 token 전용 보안 경계 추가
+- [x] 9000 상태 조회 client 추가
+- [x] Task 상세 read model 확장
+- [x] 수정·예약·즉시 발행·예약 scheduler에 동일한 guard 적용
+- [x] callback/GET 결과를 같은 상태 전이 함수로 반영
+- [x] stale callback, 중복 callback, READY 회귀 차단
+- [x] 예약 확인 실패 시 retry deferral을 적용해 scheduler starvation 방지
+
+## 12. 스테이징 연동 전 남은 작업
+
+- [ ] 8082 배포 시 Flyway `V37`, `V38` 적용 확인
+- [ ] `VOTE_TASK_PREPARATION_ENABLED=true` 설정
+- [ ] `VOTE_TASK_PREPARATION_PROVIDER=http` 설정
+- [ ] 배포 네트워크 기준으로 `VOTE_TASK_PREPARATION_BASE_URL`을 9000 주소로 설정
+- [ ] 양쪽 서버에 같은 `VOTE_AI_RUNTIME_AUTH_TOKEN` Secret 주입
+- [ ] Nginx가 `/v1/**`는 9000, `/api/v1/integrations/persona/**`는 8082로 전달하는지 확인
+- [ ] Nginx가 `Authorization` header를 양방향으로 보존하는지 확인
+- [ ] 전처리 접수 → callback → 즉시 발행 E2E 검증
+- [ ] 전처리 접수 → callback → 예약 발행 E2E 검증
+- [ ] callback 유실, 9000 일시 장애, 중복 callback, stale callback 복구 검증
+- [ ] 준비되지 않은 Task가 사용자 Task 목록에 노출되지 않는지 검증

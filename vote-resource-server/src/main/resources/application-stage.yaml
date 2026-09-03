@@ -9,6 +9,8 @@ civic:
     allow-insecure-loopback: false
 
 vote:
+  ai-runtime:
+    auth-token: ${VOTE_AI_RUNTIME_AUTH_TOKEN:}
   task:
     preparation:
       enabled: ${VOTE_TASK_PREPARATION_ENABLED:false}
@@ -16,7 +18,7 @@ vote:
       base-url: ${VOTE_TASK_PREPARATION_BASE_URL:}
       path: ${VOTE_TASK_PREPARATION_PATH:/v1/tasks/prepare}
       status-path: /v1/task-preparations/{requestId}
-      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:}
+      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
       connect-timeout: ${VOTE_TASK_PREPARATION_CONNECT_TIMEOUT:5s}
       request-timeout: ${VOTE_TASK_PREPARATION_REQUEST_TIMEOUT:30s}
       retry-delay: ${VOTE_TASK_PREPARATION_RETRY_DELAY:30s}

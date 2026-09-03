@@ -31,11 +31,11 @@ Resource Server의 내부 `userId`, `personaGenerationId`, 이메일, JWT는 전
 POST /v1/task-predictions
 Content-Type: application/json; charset=UTF-8
 Accept: application/json
-Authorization: Bearer {service-token}
+Authorization: Bearer {ai-runtime-shared-token}
 ```
 
 - 개발·로컬 환경에서는 합의에 따라 `Authorization`을 생략할 수 있다.
-- 스테이징·운영 환경에서는 서비스 간 Bearer token 또는 동등한 인증을 사용한다.
+- 스테이징·운영 환경에서는 `VOTE_AI_RUNTIME_AUTH_TOKEN` 공유 Bearer token을 사용한다.
 - Runtime은 인증 token을 요청·오류 로그에 기록하지 않는다.
 - 성공 상태는 `200 OK` 또는 `201 Created`를 사용할 수 있다.
 
@@ -423,7 +423,7 @@ Resource Server에서 사용하는 환경 변수는 다음과 같다.
 | `VOTE_TASK_PREDICTION_PROVIDER` | `http` | Provider 구현 선택 |
 | `VOTE_TASK_PREDICTION_BASE_URL` | 없음 | AI Runtime base URL |
 | `VOTE_TASK_PREDICTION_PATH` | `/v1/task-predictions` | 요청 경로 |
-| `VOTE_TASK_PREDICTION_AUTH_TOKEN` | 없음 | 서비스 간 Bearer token |
+| `VOTE_AI_RUNTIME_AUTH_TOKEN` | 없음 | 8082↔9000 공통 Bearer token |
 | `VOTE_TASK_PREDICTION_CONNECT_TIMEOUT` | `5s` | 연결 timeout |
 | `VOTE_TASK_PREDICTION_REQUEST_TIMEOUT` | `60s` | 요청 timeout |
 | `VOTE_TASK_PREDICTION_CANDIDATE_POLICY_VERSION` | `candidate-policy-v1` | 생성 정책 버전 |
@@ -443,14 +443,14 @@ Resource Server에서 사용하는 환경 변수는 다음과 같다.
 VOTE_TASK_PREDICTION_ENABLED=true
 VOTE_TASK_PREDICTION_PROVIDER=http
 VOTE_TASK_PREDICTION_BASE_URL=https://{runtime-host}
-VOTE_TASK_PREDICTION_AUTH_TOKEN={service-token}
+VOTE_AI_RUNTIME_AUTH_TOKEN={shared-secret}
 ```
 
 ## 10. 최소 호출 예시
 
 ```bash
 curl -X POST 'https://{runtime-host}/v1/task-predictions' \
-  -H 'Authorization: Bearer {service-token}' \
+  -H 'Authorization: Bearer {ai-runtime-shared-token}' \
   -H 'Content-Type: application/json; charset=UTF-8' \
   -H 'Accept: application/json' \
   --data-binary '@task-prediction-request.json'

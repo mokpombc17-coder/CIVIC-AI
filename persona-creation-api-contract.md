@@ -33,10 +33,11 @@ Survey 최종 제출
 POST /v1/personas
 Content-Type: application/json
 Accept: application/json
-Authorization: Bearer <service-token>
+Authorization: Bearer <ai-runtime-shared-token>
 ```
 
-- `Authorization`은 서버 간 인증용 token이다.
+- `Authorization`은 `VOTE_AI_RUNTIME_AUTH_TOKEN`으로 공유하는 서버 간 인증용 token이다.
+- 사용자 JWT는 전달하지 않는다.
 - 운영 환경에서는 HTTPS를 사용해야 한다.
 - `generationId`는 별도 HTTP header가 아니라 request body에 포함한다.
 
@@ -371,7 +372,7 @@ Persona Runtime Server는 `generationId`, 요청 hash, `personaId`를 함께 보
 Persona Runtime Server 구현자는 다음 항목을 확인한다.
 
 - [ ] `POST /v1/personas`를 제공한다.
-- [ ] `Authorization: Bearer <service-token>`을 검증한다.
+- [ ] `Authorization: Bearer <ai-runtime-shared-token>`을 검증한다.
 - [ ] `schemaVersion=2`를 지원한다.
 - [ ] 29개 Question과 Matrix Item 구조를 파싱한다.
 - [ ] `MATRIX_SINGLE_CHOICE`의 `itemValues[].selectedOption`을 처리한다.
@@ -396,7 +397,7 @@ Persona Runtime Server 구현자는 다음 항목을 확인한다.
 VOTE_PERSONA_ENABLED=true
 VOTE_PERSONA_PROVIDER=http
 VOTE_PERSONA_BASE_URL=https://<persona-runtime-host>
-VOTE_PERSONA_AUTH_TOKEN=<service-token>
+VOTE_AI_RUNTIME_AUTH_TOKEN=<shared-secret>
 VOTE_PERSONA_REQUEST_TIMEOUT=60s
 VOTE_PERSONA_MAX_ATTEMPTS=3
 VOTE_PERSONA_RETRY_INITIAL_DELAY=30s

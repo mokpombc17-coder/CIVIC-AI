@@ -6,6 +6,7 @@ import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
 import org.springframework.core.env.Environment;
 import org.springframework.core.env.Profiles;
 import org.springframework.http.HttpMethod;
@@ -15,12 +16,51 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
 import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.intercept.AuthorizationFilter;
 import tools.jackson.databind.ObjectMapper;
 
 @Configuration(proxyBeanMethods = false)
 public class VoteSecurityConfig {
 
     @Bean
+    @Order(1)
+    SecurityFilterChain aiRuntimeIntegrationSecurityFilterChain(
+            HttpSecurity http,
+            VoteApiSecurityProblemWriter problemWriter,
+            @Value("${vote.ai-runtime.auth-token:}")
+            String authToken
+    ) throws Exception {
+        http
+                .securityMatcher("/api/v1/integrations/persona/**")
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/integrations/persona/tasks/*/outcome",
+                                "/api/v1/integrations/persona/tasks/*/outcomes")
+                        .permitAll()
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/integrations/persona/task-preparations/*/result")
+                        .permitAll()
+                        .anyRequest()
+                        .denyAll())
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(problemWriter)
+                        .accessDeniedHandler(problemWriter));
+        http.addFilterBefore(
+                new AiRuntimeSharedTokenFilter(
+                        authToken,
+                        problemWriter),
+                AuthorizationFilter.class);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
     SecurityFilterChain voteApiSecurityFilterChain(
             HttpSecurity http,
             VoteApiSecurityProblemWriter problemWriter,
@@ -55,17 +95,6 @@ public class VoteSecurityConfig {
                                 VoteScopes.PERSONA_GENERATION_RETRIES_WRITE))
                         .requestMatchers("/api/v1/operations/**")
                         .denyAll()
-                        .requestMatchers(
-                                HttpMethod.GET,
-                                "/api/v1/integrations/persona/tasks/*/outcome",
-                                "/api/v1/integrations/persona/tasks/*/outcomes")
-                        .hasAuthority(VoteScopes.authority(
-                                VoteScopes.TASK_OUTCOMES_READ))
-                        .requestMatchers(
-                                HttpMethod.POST,
-                                "/api/v1/integrations/persona/task-preparations/*/result")
-                        .hasAuthority(VoteScopes.authority(
-                                VoteScopes.TASK_PREPARATIONS_WRITE))
                         .requestMatchers("/api/v1/integrations/**")
                         .denyAll()
                         .requestMatchers(

@@ -12,6 +12,8 @@ server:
   port: ${SERVER_PORT:8083}
 
 vote:
+  ai-runtime:
+    auth-token: ${VOTE_AI_RUNTIME_AUTH_TOKEN:}
   integration:
     outbox:
       dispatcher-enabled: false
@@ -26,7 +28,7 @@ vote:
     enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:false}}
     provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:http}}
     base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}}
-    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:}}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}}
     connect-timeout: ${VOTE_PERSONA_CONNECT_TIMEOUT:5s}
     request-timeout: ${VOTE_PERSONA_REQUEST_TIMEOUT:60s}
     dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:5s}}
@@ -57,6 +59,7 @@ vote:
       base-url: http://localhost:8090
       path: /v1/tasks/prepare
       status-path: /v1/task-preparations/{requestId}
+      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
       connect-timeout: 5s
       request-timeout: 30s
       retry-delay: 30s
@@ -66,6 +69,7 @@ vote:
       provider: http
       base-url: http://localhost:8090
       path: /v1/task-predictions
+      auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
       connect-timeout: 5s
       candidate-policy-version: candidate-policy-v1
       request-timeout: 60s

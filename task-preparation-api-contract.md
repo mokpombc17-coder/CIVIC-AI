@@ -21,11 +21,12 @@ Task Prediction 요청을 즉시 처리할 수 있도록 준비하는 것이다.
 ```http
 POST /v1/tasks/prepare
 Content-Type: application/json
-Authorization: Bearer {service-token}
+Authorization: Bearer {ai-runtime-shared-token}
 ```
 
 - 외부 사용자가 호출하는 API가 아니다.
-- Runtime은 서비스 토큰을 검증해야 한다.
+- Runtime은 `VOTE_AI_RUNTIME_AUTH_TOKEN` 공유 토큰을 검증해야 한다.
+- 사용자 JWT는 전달하지 않는다.
 - TLS가 적용된 내부 또는 허용된 네트워크에서만 노출한다.
 - `requestId`가 멱등성 키이므로 별도의 `Idempotency-Key` header는 사용하지 않는다.
 
@@ -305,7 +306,7 @@ Preparation 구현 시 기존 `Task Prediction API 계약`에도 `contentFingerp
 
 ## 13. Runtime 구현 체크리스트
 
-- [ ] 서비스 토큰을 검증한다.
+- [ ] `VOTE_AI_RUNTIME_AUTH_TOKEN` 공유 토큰을 검증한다.
 - [ ] `schemaVersion = 1`만 허용한다.
 - [ ] 질문과 선택지 배열 순서를 보존한다.
 - [ ] 모든 식별자와 필수 문구를 검증한다.

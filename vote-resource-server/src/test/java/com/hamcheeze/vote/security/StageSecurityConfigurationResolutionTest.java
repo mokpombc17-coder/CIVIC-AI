@@ -13,7 +13,9 @@ class StageSecurityConfigurationResolutionTest {
                     .withInitializer(
                             new ConfigDataApplicationContextInitializer())
                     .withPropertyValues(
-                            "spring.profiles.active=local,stage,auth-main");
+                            "spring.profiles.active=local,stage,auth-main",
+                            "VOTE_AI_RUNTIME_AUTH_TOKEN="
+                                    + "stage-shared-runtime-token");
 
     @Test
     void stageUsesMainAuthWhileKeepingLocalFeatureDefaults() {
@@ -50,6 +52,18 @@ class StageSecurityConfigurationResolutionTest {
             assertThat(context.getEnvironment().getProperty(
                     "vote.task.prediction.enabled", Boolean.class))
                     .isTrue();
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.ai-runtime.auth-token"))
+                    .isEqualTo("stage-shared-runtime-token");
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.persona.auth-token"))
+                    .isEqualTo("stage-shared-runtime-token");
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.task.preparation.auth-token"))
+                    .isEqualTo("stage-shared-runtime-token");
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.task.prediction.auth-token"))
+                    .isEqualTo("stage-shared-runtime-token");
             assertThat(context.getEnvironment().getProperty(
                     "vote.survey.bootstrap.enabled", Boolean.class))
                     .isTrue();

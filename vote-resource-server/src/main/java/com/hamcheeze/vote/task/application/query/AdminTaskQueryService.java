@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.application.query;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationPayloadFactory;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationPolicy;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationRecord;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -11,9 +12,11 @@ import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import com.hamcheeze.vote.task.domain.task.TaskLifecycleHistory;
 import com.hamcheeze.vote.task.domain.task.TaskSchedule;
 import com.hamcheeze.vote.task.domain.task.TaskStatus;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -25,17 +28,35 @@ public class AdminTaskQueryService {
     private final TaskRepository tasks;
     private final TaskPreparationRepository preparations;
     private final TaskPreparationPayloadFactory preparationPayloads;
+    private final TaskPreparationPolicy preparationPolicy;
+    private final Clock clock;
 
+    @Autowired
     public AdminTaskQueryService(
             TaskRepository tasks,
             TaskPreparationRepository preparations,
-            TaskPreparationPayloadFactory preparationPayloads
+            TaskPreparationPayloadFactory preparationPayloads,
+            TaskPreparationPolicy preparationPolicy
+    ) {
+        this(tasks, preparations, preparationPayloads,
+                preparationPolicy, Clock.systemUTC());
+    }
+
+    AdminTaskQueryService(
+            TaskRepository tasks,
+            TaskPreparationRepository preparations,
+            TaskPreparationPayloadFactory preparationPayloads,
+            TaskPreparationPolicy preparationPolicy,
+            Clock clock
     ) {
         this.tasks = Objects.requireNonNull(tasks, "tasks");
         this.preparations = Objects.requireNonNull(
                 preparations, "preparations");
         this.preparationPayloads = Objects.requireNonNull(
                 preparationPayloads, "preparationPayloads");
+        this.preparationPolicy = Objects.requireNonNull(
+                preparationPolicy, "preparationPolicy");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Transactional(readOnly = true)
@@ -54,7 +75,11 @@ public class AdminTaskQueryService {
             return new AdminTaskDetail(
                     task,
                     preparation,
-                    AdminTaskCapabilities.from(task, preparation),
+                    AdminTaskCapabilities.from(
+                            task,
+                            preparation,
+                            clock.instant(),
+                            preparationPolicy),
                     tasks.findLifecycleHistory(task.id()));
         });
     }
@@ -116,7 +141,9 @@ public class AdminTaskQueryService {
     ) {
         static AdminTaskCapabilities from(
                 Task task,
-                TaskPreparationRecord preparation
+                TaskPreparationRecord preparation,
+                Instant now,
+                TaskPreparationPolicy preparationPolicy
         ) {
             boolean draft = task.status() == TaskStatus.DRAFT;
             TaskPreparationStatus status = preparation == null
@@ -125,7 +152,11 @@ public class AdminTaskQueryService {
                     || status == TaskPreparationStatus.READY;
             boolean ready = status == TaskPreparationStatus.READY;
             boolean canStart = preparation == null
-                    || status == TaskPreparationStatus.FAILED;
+                    || status == TaskPreparationStatus.FAILED
+                    || status == TaskPreparationStatus.PROCESSING
+                    && preparation.processingLeaseExpired(
+                            now,
+                            preparationPolicy.processingLeaseDuration());
             return new AdminTaskCapabilities(
                     draft && !contentLocked,
                     draft && canStart,

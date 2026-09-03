@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.preparation;
 
 import com.hamcheeze.vote.task.domain.common.TaskId;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -39,6 +40,21 @@ public record TaskPreparationRecord(
     public boolean readyFor(String fingerprint) {
         return status == TaskPreparationStatus.READY
                 && contentFingerprint.equals(fingerprint);
+    }
+
+    public boolean processingLeaseExpired(
+            Instant now,
+            Duration processingLeaseDuration
+    ) {
+        Objects.requireNonNull(now, "now");
+        Objects.requireNonNull(
+                processingLeaseDuration, "processingLeaseDuration");
+        return status == TaskPreparationStatus.PROCESSING
+                && !Objects.requireNonNull(
+                                processingStartedAt,
+                                "processingStartedAt")
+                        .plus(processingLeaseDuration)
+                        .isAfter(now);
     }
 
     private static void requireText(String value, String field) {

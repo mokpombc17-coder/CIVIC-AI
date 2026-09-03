@@ -92,6 +92,47 @@ class TaskPreparationStateServiceTest {
     }
 
     @Test
+    void expiredProcessingClaimResendsTheSameRequest() {
+        Task task = draftTask();
+        UUID requestId = UUID.randomUUID();
+        TaskPreparationRecord processing = new TaskPreparationRecord(
+                task.id(),
+                requestId,
+                FINGERPRINT,
+                "{}",
+                TaskPreparationStatus.PROCESSING,
+                1,
+                NOW.minus(policy.processingLeaseDuration()),
+                null,
+                null,
+                null,
+                null,
+                null,
+                NOW.minus(policy.processingLeaseDuration()),
+                NOW.minus(policy.processingLeaseDuration()));
+        when(tasks.findByIdForUpdate(task.id()))
+                .thenReturn(Optional.of(task));
+        when(preparations.findByTaskIdForUpdate(task.id()))
+                .thenReturn(Optional.of(processing));
+        when(payloads.fingerprint(task)).thenReturn(FINGERPRINT);
+        when(payloads.create(task, requestId)).thenReturn(
+                new TaskPreparationCommand(
+                        1, requestId, task.id(), FINGERPRINT, "{}"));
+        when(preparations.save(any())).thenAnswer(
+                invocation -> invocation.getArgument(0));
+
+        TaskPreparationClaim claim = service.claim(task.id());
+
+        assertThat(claim.requiresProviderCall()).isTrue();
+        assertThat(claim.command().requestId()).isEqualTo(requestId);
+        ArgumentCaptor<TaskPreparationRecord> saved =
+                ArgumentCaptor.forClass(TaskPreparationRecord.class);
+        verify(preparations).save(saved.capture());
+        assertThat(saved.getValue().attemptCount()).isEqualTo(2);
+        assertThat(saved.getValue().processingStartedAt()).isEqualTo(NOW);
+    }
+
+    @Test
     void processingPreparationLocksCurrentDraftContent() {
         Task task = draftTask();
         when(payloads.fingerprint(task)).thenReturn(FINGERPRINT);

@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.application.query;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationPayloadFactory;
 import com.hamcheeze.vote.task.application.port.out.TaskPreparationRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
+import com.hamcheeze.vote.task.application.preparation.TaskPreparationPolicy;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationRecord;
 import com.hamcheeze.vote.task.application.preparation.TaskPreparationStatus;
 import com.hamcheeze.vote.task.domain.common.TaskActorId;
@@ -18,6 +19,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -31,6 +36,9 @@ class AdminTaskQueryServiceTest {
 
     private static final String FINGERPRINT = "sha256:"
             + "a".repeat(64);
+    private static final TaskPreparationPolicy PREPARATION_POLICY =
+            new TaskPreparationPolicy(
+                    Duration.ofSeconds(30), Duration.ofMinutes(1));
 
     @Mock
     private TaskRepository tasks;
@@ -44,7 +52,11 @@ class AdminTaskQueryServiceTest {
     @BeforeEach
     void setUp() {
         service = new AdminTaskQueryService(
-                tasks, preparations, preparationPayloads);
+                tasks,
+                preparations,
+                preparationPayloads,
+                PREPARATION_POLICY,
+                Clock.fixed(NOW, ZoneOffset.UTC));
     }
 
     @Test
@@ -136,5 +148,65 @@ class AdminTaskQueryServiceTest {
         assertThat(detail.capabilities().canStartPreparation()).isFalse();
         assertThat(detail.capabilities().canSchedule()).isTrue();
         assertThat(detail.capabilities().canOpenNow()).isTrue();
+    }
+
+    @Test
+    void expiredProcessingLeaseAllowsRetryWithoutUnlockingContent() {
+        Task task = TaskQueryFixtures.draftTask("응답 유실");
+        TaskPreparationRecord preparation = processing(
+                task, NOW.minus(PREPARATION_POLICY
+                        .processingLeaseDuration()));
+        when(tasks.findById(task.id())).thenReturn(Optional.of(task));
+        when(tasks.findLifecycleHistory(task.id())).thenReturn(List.of());
+        when(preparationPayloads.fingerprint(task)).thenReturn(FINGERPRINT);
+        when(preparations.findByTaskId(task.id()))
+                .thenReturn(Optional.of(preparation));
+
+        var capabilities = service.findById(task.id()).orElseThrow()
+                .capabilities();
+
+        assertThat(capabilities.canEditContent()).isFalse();
+        assertThat(capabilities.canStartPreparation()).isTrue();
+        assertThat(capabilities.canSchedule()).isFalse();
+        assertThat(capabilities.canOpenNow()).isFalse();
+    }
+
+    @Test
+    void freshProcessingLeaseKeepsRetryDisabled() {
+        Task task = TaskQueryFixtures.draftTask("처리 중");
+        TaskPreparationRecord preparation = processing(
+                task, NOW.minusSeconds(30));
+        when(tasks.findById(task.id())).thenReturn(Optional.of(task));
+        when(tasks.findLifecycleHistory(task.id())).thenReturn(List.of());
+        when(preparationPayloads.fingerprint(task)).thenReturn(FINGERPRINT);
+        when(preparations.findByTaskId(task.id()))
+                .thenReturn(Optional.of(preparation));
+
+        var capabilities = service.findById(task.id()).orElseThrow()
+                .capabilities();
+
+        assertThat(capabilities.canEditContent()).isFalse();
+        assertThat(capabilities.canStartPreparation()).isFalse();
+    }
+
+    private static TaskPreparationRecord processing(
+            Task task,
+            Instant startedAt
+    ) {
+        return new TaskPreparationRecord(
+                task.id(),
+                UUID.randomUUID(),
+                FINGERPRINT,
+                "{}",
+                TaskPreparationStatus.PROCESSING,
+                1,
+                startedAt,
+                null,
+                null,
+                null,
+                null,
+                null,
+                startedAt,
+                startedAt);
     }
 }

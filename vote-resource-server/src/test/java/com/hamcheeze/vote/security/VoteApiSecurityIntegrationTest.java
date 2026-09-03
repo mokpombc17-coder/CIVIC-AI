@@ -41,7 +41,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest
+@SpringBootTest(properties =
+        "vote.ai-runtime.auth-token=test-ai-runtime-shared-token")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 @Import({
@@ -49,6 +50,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
         VoteApiSecurityIntegrationTest.TestApiController.class
 })
 class VoteApiSecurityIntegrationTest {
+
+    private static final String AI_RUNTIME_TOKEN =
+            "test-ai-runtime-shared-token";
 
     @Autowired
     private MockMvc mockMvc;
@@ -265,7 +269,7 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
-    void taskOutcomeIntegrationRequiresDedicatedReadScope()
+    void taskOutcomeIntegrationRequiresSharedRuntimeToken()
             throws Exception {
         String path = "/api/v1/integrations/persona/tasks/"
                 + "00000000-0000-0000-0000-000000000999/outcomes";
@@ -280,21 +284,34 @@ class VoteApiSecurityIntegrationTest {
                                 "Bearer " + scopedToken(
                                         "persona-runtime",
                                         VoteScopes.TASKS_READ)))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 
         mockMvc.perform(get(path)
                         .header(
                                 HttpHeaders.AUTHORIZATION,
-                                "Bearer " + scopedToken(
-                                        "persona-runtime",
-                                        VoteScopes.TASK_OUTCOMES_READ)))
+                                "Bearer wrong-runtime-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + AI_RUNTIME_TOKEN,
+                                "Bearer " + AI_RUNTIME_TOKEN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + AI_RUNTIME_TOKEN))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
     }
 
     @Test
-    void taskPreparationCallbackRequiresDedicatedWriteScope()
+    void taskPreparationCallbackRequiresSharedRuntimeToken()
             throws Exception {
         String requestId =
                 "10000000-0000-0000-0000-000000000999";
@@ -321,25 +338,33 @@ class VoteApiSecurityIntegrationTest {
         mockMvc.perform(post(path)
                         .header(
                                 HttpHeaders.AUTHORIZATION,
-                                "Bearer " + scopedToken(
-                                        "persona-runtime",
-                                        VoteScopes.TASK_OUTCOMES_READ))
+                                "Bearer wrong-runtime-token")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
 
         mockMvc.perform(post(path)
                         .header(
                                 HttpHeaders.AUTHORIZATION,
-                                "Bearer " + scopedToken(
-                                        "persona-runtime",
-                                        VoteScopes.TASK_PREPARATIONS_WRITE))
+                                "Bearer " + AI_RUNTIME_TOKEN)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(body))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code")
                         .value("TASK_PREPARATION_NOT_FOUND"));
+    }
+
+    @Test
+    void sharedRuntimeTokenDoesNotAuthenticateUserApis()
+            throws Exception {
+        mockMvc.perform(get("/api/v1/test/current-user")
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + AI_RUNTIME_TOKEN))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code")
+                        .value("UNAUTHENTICATED"));
     }
 
     @Test
