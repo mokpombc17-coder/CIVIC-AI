@@ -2,12 +2,14 @@ package com.hamcheeze.vote.survey.application.response;
 
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.idempotency.IdempotentSurveySubmissionExecutor;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseSubmittedEventPublisher;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
@@ -63,6 +65,8 @@ class SurveyResponseSubmissionServicePreviewTest {
             mock(SurveyResponseSubmittedEventPublisher.class);
     private final UserTransactionLock userTransactions =
             mock(UserTransactionLock.class);
+    private final SurveyConsentService consents =
+            mock(SurveyConsentService.class);
 
     @Test
     void validatesAndAcceptsWithoutReceiptResponseOrEventPersistence() {
@@ -84,6 +88,12 @@ class SurveyResponseSubmissionServicePreviewTest {
         when(rounds.findActive()).thenReturn(Optional.of(round));
         when(contents.findById(LocalSurveyFixture.CONTENT_VERSION_ID))
                 .thenReturn(Optional.of(content));
+        ConsentReceiptId consentReceiptId = new ConsentReceiptId(
+                UUID.randomUUID());
+        when(consents.validateReceipt(
+                consentReceiptId, USER, round.id()))
+                .thenReturn(new SurveyConsentService.ReceiptValidation(
+                        true, null, null));
         SurveyResponseSubmissionService service =
                 new SurveyResponseSubmissionService(
                         idempotency,
@@ -93,6 +103,7 @@ class SurveyResponseSubmissionServicePreviewTest {
                         responses,
                         submittedEvents,
                         userTransactions,
+                        consents,
                         Clock.fixed(NOW, ZoneOffset.UTC));
         UUID idempotencyKey = UUID.randomUUID();
 
@@ -103,6 +114,7 @@ class SurveyResponseSubmissionServicePreviewTest {
                         new SurveyResponseSubmissionService
                                 .SubmitSurveyResponseCommand(
                                 round.id(),
+                                consentReceiptId,
                                 content.questions().stream()
                                         .map(SurveyResponseSubmissionServicePreviewTest
                                                 ::validAnswer)
@@ -118,6 +130,54 @@ class SurveyResponseSubmissionServicePreviewTest {
         verifyNoInteractions(
                 idempotency,
                 outcomeCodec,
+                responses,
+                submittedEvents,
+                userTransactions);
+    }
+
+    @Test
+    void rejectsPreviewWhenConsentReceiptDoesNotBelongToTheUser() {
+        SurveyRound round = mock(SurveyRound.class);
+        when(round.id()).thenReturn(LocalSurveyFixture.ROUND_ID);
+        when(rounds.findActive()).thenReturn(Optional.of(round));
+        ConsentReceiptId receiptId = new ConsentReceiptId(UUID.randomUUID());
+        when(consents.validateReceipt(
+                receiptId, USER, LocalSurveyFixture.ROUND_ID))
+                .thenReturn(new SurveyConsentService.ReceiptValidation(
+                        false,
+                        "CONSENT_RECEIPT_INVALID",
+                        "The consent receipt does not belong to the user."));
+        SurveyResponseSubmissionService service =
+                new SurveyResponseSubmissionService(
+                        idempotency,
+                        outcomeCodec,
+                        rounds,
+                        contents,
+                        responses,
+                        submittedEvents,
+                        userTransactions,
+                        consents,
+                        Clock.fixed(NOW, ZoneOffset.UTC));
+
+        SurveyResponseSubmissionService.SubmissionExecution execution =
+                service.submitPreview(
+                        USER,
+                        UUID.randomUUID().toString(),
+                        new SurveyResponseSubmissionService
+                                .SubmitSurveyResponseCommand(
+                                LocalSurveyFixture.ROUND_ID,
+                                receiptId,
+                                List.of()));
+
+        assertThat(execution.outcome().httpStatus()).isEqualTo(409);
+        assertThat(execution.outcome().code())
+                .isEqualTo("CONSENT_RECEIPT_INVALID");
+        assertThat(execution.outcome().violations().getFirst().path())
+                .isEqualTo("consentReceiptId");
+        verifyNoInteractions(
+                idempotency,
+                outcomeCodec,
+                contents,
                 responses,
                 submittedEvents,
                 userTransactions);

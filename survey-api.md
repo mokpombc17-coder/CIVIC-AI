@@ -14,6 +14,8 @@
 | Method | Path | 설명 |
 |---|---|---|
 | `GET` | `/api/v1/me/surveys/current` | 현재 설문 상태와 미제출 설문 내용을 조회한다. |
+| `GET` | `/api/v1/me/survey-consent-documents/current?roundId={roundId}` | 현재 회차의 동의 문서 코드·버전·본문·해시를 조회한다. |
+| `POST` | `/api/v1/me/survey-consents` | 현재 문서에 대한 사용자의 동의 증적을 저장한다. |
 | `POST` | `/api/v1/me/survey-responses` | 현재 회차의 응답을 한 번 최종 제출한다. |
 | `GET` | `/api/v1/me/survey-responses/latest` | 자신의 가장 최근 최종 응답 원문을 조회한다. |
 | `GET` | `/api/v1/me/survey-responses` | 자신의 과거 응답 목록을 최신순으로 조회한다. |
@@ -46,11 +48,37 @@ Question, 16개 Matrix Item을 반환한다. 배열은 DB의 표시 순서대로
 
 Item은 `itemId`, `itemKey`, `itemLabel`, Option은 `optionId`, `label`만
 가진다. DB에 보존하는 `description`, `sourceNumber`, `optionLocalKey`, 모든
-lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전용 표현과
-필수 동의·확인 페이지도 Survey payload에 포함하지 않는다.
+lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전용 표현은
+Survey payload에 포함하지 않으며, 동의 문서는 별도 API로 조회한다.
 
 활성 회차가 정확히 하나 존재하지 않으면 현재 Survey와 Eligibility API는
 `404 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다.
+
+### 동의 문서와 증적
+
+동의 저장에도 별도의 UUID `Idempotency-Key`를 필수로 전달한다. 같은 사용자·key와
+같은 payload 재시도는 HTTP `200`으로 기존 `consentReceiptId`와 최초
+`acceptedAt`을 반환하며, 최초 저장은 HTTP `201`이다. `clientClickedAt`은 브라우저
+보조 정보이고 감사 기준 시각 `acceptedAt`은 서버가 최초 저장할 때 생성한다.
+
+```json
+{
+  "documentCode": "survey-participation-consent",
+  "documentVersion": "v3",
+  "roundId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "clientClickedAt": "2026-09-03T00:00:01Z"
+}
+```
+
+```json
+{
+  "consentReceiptId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+  "acceptedAt": "2026-09-03T00:00:02Z"
+}
+```
+
+서버는 JWT `sub`, 회차, 문서 코드·버전, 불변 본문 snapshot과 SHA-256 hash,
+서버 수락 시각 및 선택적 클라이언트 클릭 시각을 함께 저장한다.
 
 ### 최종 제출
 
@@ -59,6 +87,7 @@ lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전�
 ```json
 {
   "roundId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "consentReceiptId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
   "answers": [
     {
       "questionId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
@@ -92,6 +121,11 @@ lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전�
 `replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을
 반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와
 `replayed=true`를 반환한다.
+
+제출 시 receipt의 존재 여부만 보지 않고 JWT `sub`, `roundId`, 현재 문서
+코드·버전·hash가 모두 일치하는지 검증한다. 정상 제출된 `survey_responses`는 해당
+`consentReceiptId`와 FK로 연결된다. 기존 마이그레이션 이전 응답은 호환을 위해
+연결 값이 `NULL`일 수 있지만 신규 HTTP 제출에는 receipt가 필수다.
 
 ### 로컬 preview 사용자
 
@@ -150,6 +184,7 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `GET` | `/api/v1/admin/survey-rounds` | 전체 회차 조회 |
 | `GET` | `/api/v1/admin/survey-rounds/{id}` | 회차 상세 조회 |
 | `GET` | `/api/v1/admin/survey-rounds/{id}/transitions` | 회차 전환 이력 조회 |
+| `PUT` | `/api/v1/admin/survey-rounds/{id}/consent-document` | 회차의 현재 동의 문서 등록·교체 |
 
 관리자의 개별 사용자 응답 원문 조회 endpoint는 제공하지 않는다.
 
@@ -160,7 +195,10 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `400` | `INVALID_REQUEST` | JSON, path, DTO 형식 오류 |
 | `400` | `INVALID_IDEMPOTENCY_KEY` | 멱등성 key가 UUID가 아님 |
 | `404` | `SURVEY_CONTENT_NOT_FOUND`, `SURVEY_ROUND_NOT_FOUND`, `SURVEY_RESPONSE_NOT_FOUND` | 소유권 범위를 포함해 리소스를 찾을 수 없음 |
+| `404` | `CONSENT_DOCUMENT_NOT_FOUND`, `CONSENT_RECEIPT_NOT_FOUND` | 동의 문서 또는 증적을 찾을 수 없음 |
 | `409` | `IDEMPOTENCY_CONFLICT` | 같은 key를 다른 요청에 재사용 |
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED`, `SURVEY_SUBMISSION_ROUND_CHANGED` | 제출 상태 충돌 |
+| `409` | `CONSENT_DOCUMENT_VERSION_CHANGED` | 조회·동의 후 현재 문서 버전 또는 hash가 변경됨 |
+| `409` | `CONSENT_RECEIPT_INVALID`, `CONSENT_RECEIPT_ROUND_MISMATCH` | receipt의 사용자 또는 회차가 제출 요청과 일치하지 않음 |
 | `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 질문 규칙에 맞지 않는 답변 |
 | `404` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 조회할 활성 회차가 없음 |

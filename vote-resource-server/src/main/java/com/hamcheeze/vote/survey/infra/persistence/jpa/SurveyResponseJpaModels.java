@@ -36,6 +36,9 @@ class SurveyResponseJpaEntity {
     @Column(name = "content_version_id", nullable = false)
     private UUID contentVersionId;
 
+    @Column(name = "consent_receipt_id")
+    private UUID consentReceiptId;
+
     @Column(name = "submitted_at", nullable = false)
     private Instant submittedAt;
 
@@ -62,6 +65,9 @@ class SurveyResponseJpaEntity {
         userId = response.userId().value();
         roundId = response.roundId().value();
         contentVersionId = response.contentVersionId().value();
+        consentReceiptId = response.consentReceiptId()
+                .map(receiptId -> receiptId.value())
+                .orElse(null);
         submittedAt = response.submittedAt();
     }
 
@@ -79,6 +85,10 @@ class SurveyResponseJpaEntity {
 
     UUID contentVersionId() {
         return contentVersionId;
+    }
+
+    UUID consentReceiptId() {
+        return consentReceiptId;
     }
 
     Instant submittedAt() {

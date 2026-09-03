@@ -6,7 +6,9 @@ import com.hamcheeze.vote.persona.application.query.CurrentPersonaQueryService;
 import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyBootstrapService;
+import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyConsentFixture;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService.SubmitSurveyResponseCommand;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService.SubmissionExecution;
@@ -46,6 +48,7 @@ public class LocalTaskPersonaBootstrapService {
 
     private final LocalSurveyBootstrapService surveys;
     private final SurveyResponseSubmissionService submissions;
+    private final SurveyConsentService consents;
     private final IntegrationOutboxDispatcher outboxDispatcher;
     private final PersonaGenerationWorker personaWorker;
     private final CurrentPersonaQueryService currentPersonas;
@@ -59,6 +62,7 @@ public class LocalTaskPersonaBootstrapService {
     public LocalTaskPersonaBootstrapService(
             LocalSurveyBootstrapService surveys,
             SurveyResponseSubmissionService submissions,
+            SurveyConsentService consents,
             IntegrationOutboxDispatcher outboxDispatcher,
             PersonaGenerationWorker personaWorker,
             CurrentPersonaQueryService currentPersonas,
@@ -71,7 +75,7 @@ public class LocalTaskPersonaBootstrapService {
             @Value("${vote.task.bootstrap.persona-ready-poll-interval:100ms}")
             Duration pollInterval
     ) {
-        this(surveys, submissions, outboxDispatcher, personaWorker,
+        this(surveys, submissions, consents, outboxDispatcher, personaWorker,
                 currentPersonas,
                 resolveUserSubjects(userSubject, configuredUserSubjects),
                 readyTimeout, pollInterval,
@@ -81,6 +85,7 @@ public class LocalTaskPersonaBootstrapService {
     LocalTaskPersonaBootstrapService(
             LocalSurveyBootstrapService surveys,
             SurveyResponseSubmissionService submissions,
+            SurveyConsentService consents,
             IntegrationOutboxDispatcher outboxDispatcher,
             PersonaGenerationWorker personaWorker,
             CurrentPersonaQueryService currentPersonas,
@@ -90,7 +95,7 @@ public class LocalTaskPersonaBootstrapService {
             LongSupplier nanoTime,
             PollSleeper pollSleeper
     ) {
-        this(surveys, submissions, outboxDispatcher, personaWorker,
+        this(surveys, submissions, consents, outboxDispatcher, personaWorker,
                 currentPersonas, List.of(requiredSubject(userSubject)),
                 readyTimeout, pollInterval, nanoTime, pollSleeper);
     }
@@ -98,6 +103,7 @@ public class LocalTaskPersonaBootstrapService {
     LocalTaskPersonaBootstrapService(
             LocalSurveyBootstrapService surveys,
             SurveyResponseSubmissionService submissions,
+            SurveyConsentService consents,
             IntegrationOutboxDispatcher outboxDispatcher,
             PersonaGenerationWorker personaWorker,
             CurrentPersonaQueryService currentPersonas,
@@ -110,6 +116,7 @@ public class LocalTaskPersonaBootstrapService {
         this.surveys = Objects.requireNonNull(surveys, "surveys");
         this.submissions = Objects.requireNonNull(
                 submissions, "submissions");
+        this.consents = Objects.requireNonNull(consents, "consents");
         this.outboxDispatcher = Objects.requireNonNull(
                 outboxDispatcher, "outboxDispatcher");
         this.personaWorker = Objects.requireNonNull(
@@ -167,11 +174,20 @@ public class LocalTaskPersonaBootstrapService {
     }
 
     private void submitSurvey(String userSubject) {
+        SurveyConsentService.Acceptance acceptance = consents.accept(
+                new SurveyUserId(userSubject),
+                LocalTaskPersonaFixture.CONSENT_IDEMPOTENCY_KEY,
+                new SurveyConsentService.AcceptConsentCommand(
+                        LocalSurveyConsentFixture.DOCUMENT_CODE,
+                        LocalSurveyConsentFixture.DOCUMENT_VERSION,
+                        LocalSurveyFixture.ROUND_ID,
+                        null));
         SubmissionExecution execution = submissions.submit(
                 new SurveyUserId(userSubject),
                 LocalTaskPersonaFixture.SURVEY_IDEMPOTENCY_KEY,
                 new SubmitSurveyResponseCommand(
                         LocalSurveyFixture.ROUND_ID,
+                        acceptance.receipt().id(),
                         LocalTaskPersonaFixture.answers()));
         if (!execution.outcome().succeeded()) {
             throw new LocalTaskPersonaBootstrapException(

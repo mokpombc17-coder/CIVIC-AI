@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.persona.application.port.out.PersonaSurveySourceQueryPort;
@@ -92,6 +94,9 @@ class SurveyApplicationUseCaseIntegrationTest {
     private SurveyResponseSubmissionService submissionService;
 
     @Autowired
+    private SurveyConsentService consents;
+
+    @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @BeforeEach
@@ -134,6 +139,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         var command = new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 active.id(),
+                SurveyConsentTestFixture.accept(consents, active.id(), USER),
                 List.of(new ShortTextAnswer(
                         content.question().id(), "  차분하고 탐구적  ")));
         var submitted = submissionService.submit(
@@ -398,6 +404,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         var command = new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 active.id(),
+                SurveyConsentTestFixture.accept(consents, active.id(), USER),
                 List.of(new ShortTextAnswer(
                         content.question().id(), "동일한 최종 답변")));
         CountDownLatch start = new CountDownLatch(1);
@@ -469,6 +476,8 @@ class SurveyApplicationUseCaseIntegrationTest {
                         new SurveyResponseSubmissionService
                                 .SubmitSurveyResponseCommand(
                                 round.id(),
+                                SurveyConsentTestFixture.accept(
+                                        consents, round.id(), USER),
                                 List.of(new ShortTextAnswer(
                                         content.question().id(), "답변"))))
                 .outcome();

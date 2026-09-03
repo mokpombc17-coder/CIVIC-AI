@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.infra.persistence.jpa;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
@@ -53,6 +54,10 @@ final class SurveyResponseJpaMapper {
                 new SurveyRoundNumber(Math.toIntExact(
                         response.round().roundNumber())),
                 new SurveyContentVersionId(response.contentVersionId()),
+                response.consentReceiptId() == null
+                        ? null
+                        : new ConsentReceiptId(
+                                response.consentReceiptId()),
                 response.submittedAt(),
                 domainAnswers);
     }

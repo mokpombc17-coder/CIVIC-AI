@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.survey.infra.bootstrap;
 
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyBootstrapService;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import org.junit.jupiter.api.Test;
@@ -20,6 +21,9 @@ class LocalSurveyBootstrapConfigurationTest {
                     .withBean(
                             SurveyRoundRepository.class,
                             () -> mock(SurveyRoundRepository.class))
+                    .withBean(
+                            SurveyConsentService.class,
+                            () -> mock(SurveyConsentService.class))
                     .withUserConfiguration(
                             LocalSurveyBootstrapService.class,
                             LocalSurveyBootstrapConfiguration.class);

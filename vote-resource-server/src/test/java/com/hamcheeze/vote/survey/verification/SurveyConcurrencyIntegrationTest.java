@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.survey.verification;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
@@ -59,6 +61,9 @@ class SurveyConcurrencyIntegrationTest {
 
     @Autowired
     private SurveyResponseSubmissionService submissionService;
+
+    @Autowired
+    private SurveyConsentService consents;
 
     @Autowired
     private MySurveyResponseQueryService responseQuery;
@@ -248,6 +253,7 @@ class SurveyConcurrencyIntegrationTest {
         SurveyRound oldRound = roundService.startPublishedContentNow(
                         first.value().id(), "first", ADMIN)
                 .targetRound();
+        var lateCommand = command(oldRound, first, "늦은 답변");
         PublishedContent next = publish("closed-submit-b", "현재 질문");
         roundService.startPublishedContentNow(
                 next.value().id(), "next", ADMIN);
@@ -255,7 +261,7 @@ class SurveyConcurrencyIntegrationTest {
         SurveySubmissionOutcome outcome = submissionService.submit(
                         USER,
                         UUID.randomUUID().toString(),
-                        command(oldRound, first, "늦은 답변"))
+                        lateCommand)
                 .outcome();
 
         assertThat(outcome.code())
@@ -342,6 +348,7 @@ class SurveyConcurrencyIntegrationTest {
         return new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 round.id(),
+                SurveyConsentTestFixture.accept(consents, round.id(), USER),
                 List.of(new ShortTextAnswer(
                         content.question().id(), answer)));
     }

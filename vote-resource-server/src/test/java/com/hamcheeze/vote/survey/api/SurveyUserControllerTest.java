@@ -162,6 +162,7 @@ class SurveyUserControllerTest {
     @Test
     void successfulReplayIsExposedInResponseBody() throws Exception {
         UUID roundId = UUID.randomUUID();
+        UUID consentReceiptId = UUID.randomUUID();
         UUID responseId = UUID.randomUUID();
         UUID contentId = UUID.randomUUID();
         SurveySubmissionOutcome outcome = new SurveySubmissionOutcome(
@@ -181,8 +182,8 @@ class SurveyUserControllerTest {
                         .header("Idempotency-Key", "request-key")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"roundId":"%s","answers":[]}
-                                """.formatted(roundId)))
+                                {"roundId":"%s","consentReceiptId":"%s","answers":[]}
+                                """.formatted(roundId, consentReceiptId)))
                 .andExpect(status().isCreated())
                 .andExpect(jsonPath("$.status").value("SUBMITTED"))
                 .andExpect(jsonPath("$.persisted").value(true))
@@ -197,6 +198,7 @@ class SurveyUserControllerTest {
         SurveyUserId userId = new SurveyUserId("user-a");
         UUID idempotencyKey = UUID.randomUUID();
         UUID roundId = UUID.randomUUID();
+        UUID consentReceiptId = UUID.randomUUID();
         UUID contentId = UUID.randomUUID();
         SurveySubmissionOutcome outcome = new SurveySubmissionOutcome(
                 200,
@@ -217,8 +219,8 @@ class SurveyUserControllerTest {
                         .header("Idempotency-Key", idempotencyKey)
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("""
-                                {"roundId":"%s","answers":[]}
-                                """.formatted(roundId)))
+                                {"roundId":"%s","consentReceiptId":"%s","answers":[]}
+                                """.formatted(roundId, consentReceiptId)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.status")
                         .value("PREVIEW_VALIDATED"))

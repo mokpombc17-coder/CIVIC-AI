@@ -32,6 +32,9 @@ public final class LocalTaskPersonaFixture {
     public static final String SURVEY_IDEMPOTENCY_KEY = UUID.nameUUIDFromBytes(
             "vote-local-task-persona-survey-v1".getBytes(
                     StandardCharsets.UTF_8)).toString();
+    public static final String CONSENT_IDEMPOTENCY_KEY = UUID.nameUUIDFromBytes(
+            "vote-local-task-persona-consent-v1".getBytes(
+                    StandardCharsets.UTF_8)).toString();
 
     private static final String SHORT_TEXT =
             "근거를 비교한 뒤 결정합니다.";

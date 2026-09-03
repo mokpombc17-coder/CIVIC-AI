@@ -9,6 +9,7 @@ import com.hamcheeze.vote.survey.application.preview.SurveyPreviewMode;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import com.hamcheeze.vote.survey.application.response.SurveySubmissionOutcome;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
@@ -89,6 +90,7 @@ final class SurveyUserController {
                 new SurveyResponseSubmissionService
                         .SubmitSurveyResponseCommand(
                         new SurveyRoundId(request.roundId()),
+                        new ConsentReceiptId(request.consentReceiptId()),
                         request.toAnswers());
         SurveyResponseSubmissionService.SubmissionExecution execution =
                 previewMode.enabledFor(userId)

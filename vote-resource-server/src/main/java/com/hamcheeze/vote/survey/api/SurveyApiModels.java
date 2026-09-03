@@ -205,6 +205,7 @@ final class SurveyApiModels {
 
     record SubmitResponseRequest(
             @NotNull UUID roundId,
+            @NotNull UUID consentReceiptId,
             @NotNull List<@Valid AnswerRequest> answers
     ) {
         List<SurveyAnswer> toAnswers() {

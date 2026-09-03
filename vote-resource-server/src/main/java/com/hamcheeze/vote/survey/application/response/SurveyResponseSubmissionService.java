@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.survey.application.response;
 
 import com.hamcheeze.vote.shared.application.UserTransactionLock;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.idempotency.IdempotentSurveySubmissionExecutor;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyCommand;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyExecution;
@@ -12,6 +13,7 @@ import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseSubmittedEventPublisher;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
@@ -42,6 +44,7 @@ public class SurveyResponseSubmissionService {
     private final SurveyResponseRepository responses;
     private final SurveyResponseSubmittedEventPublisher submittedEvents;
     private final UserTransactionLock userTransactions;
+    private final SurveyConsentService consents;
     private final SurveySubmissionRequestHashFactory requestHashFactory =
             new SurveySubmissionRequestHashFactory();
     private final SurveySubmissionPolicy submissionPolicy =
@@ -56,10 +59,12 @@ public class SurveyResponseSubmissionService {
             SurveyContentVersionRepository contents,
             SurveyResponseRepository responses,
             SurveyResponseSubmittedEventPublisher submittedEvents,
-            UserTransactionLock userTransactions
+            UserTransactionLock userTransactions,
+            SurveyConsentService consents
     ) {
         this(idempotency, outcomeCodec, rounds, contents, responses,
-                submittedEvents, userTransactions, Clock.systemUTC());
+                submittedEvents, userTransactions, consents,
+                Clock.systemUTC());
     }
 
     SurveyResponseSubmissionService(
@@ -70,6 +75,7 @@ public class SurveyResponseSubmissionService {
             SurveyResponseRepository responses,
             SurveyResponseSubmittedEventPublisher submittedEvents,
             UserTransactionLock userTransactions,
+            SurveyConsentService consents,
             Clock clock
     ) {
         this.idempotency = Objects.requireNonNull(
@@ -83,6 +89,7 @@ public class SurveyResponseSubmissionService {
                 submittedEvents, "submittedEvents");
         this.userTransactions = Objects.requireNonNull(
                 userTransactions, "userTransactions");
+        this.consents = Objects.requireNonNull(consents, "consents");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -101,7 +108,9 @@ public class SurveyResponseSubmissionService {
                         SurveyIdempotencyOperation.SUBMIT_SURVEY_RESPONSE,
                         parsedKey,
                         requestHashFactory.hash(
-                                command.roundId(), command.answers()),
+                                command.roundId(),
+                                command.consentReceiptId(),
+                                command.answers()),
                         SurveySubmissionOutcomeCodec.SCHEMA_VERSION);
         SurveyIdempotencyExecution<SurveySubmissionOutcome> execution =
                 idempotency.execute(
@@ -144,6 +153,11 @@ public class SurveyResponseSubmissionService {
                             "SURVEY_SUBMISSION_ROUND_CHANGED",
                             "roundId",
                             "requested round is no longer active"));
+        }
+        SurveySubmissionOutcome consentRejection = validateConsent(
+                userId, command);
+        if (consentRejection != null) {
+            return consentRejection;
         }
         SurveyContentVersion content = contents
                 .findById(activeRound.contentVersionId())
@@ -209,6 +223,11 @@ public class SurveyResponseSubmissionService {
                             "roundId",
                             "requested round is no longer active"));
         }
+        SurveySubmissionOutcome consentRejection = validateConsent(
+                userId, command);
+        if (consentRejection != null) {
+            return consentRejection;
+        }
         SurveyContentVersion content = contents
                 .findById(lockedRound.contentVersionId())
                 .orElse(null);
@@ -235,7 +254,8 @@ public class SurveyResponseSubmissionService {
                             existing,
                             command.answers(),
                             persistenceSafeInstant(clock.instant()));
-            responses.insert(result.response());
+            responses.insert(result.response().withConsentReceipt(
+                    command.consentReceiptId()));
             submittedEvents.publish(userId, result.event());
             return SurveySubmissionOutcome.submitted(result.event());
         } catch (SurveyValidationException exception) {
@@ -257,6 +277,28 @@ public class SurveyResponseSubmissionService {
                             violation.message(),
                             violation.details()));
         }
+    }
+
+    private SurveySubmissionOutcome validateConsent(
+            SurveyUserId userId,
+            SubmitSurveyResponseCommand command
+    ) {
+        SurveyConsentService.ReceiptValidation validation =
+                consents.validateReceipt(
+                        command.consentReceiptId(),
+                        userId,
+                        command.roundId());
+        if (validation.valid()) {
+            return null;
+        }
+        return rejection(
+                409,
+                validation.code(),
+                command.roundId(),
+                SurveyViolation.of(
+                        validation.code(),
+                        "consentReceiptId",
+                        validation.message()));
     }
 
     static Instant persistenceSafeInstant(Instant instant) {
@@ -290,10 +332,13 @@ public class SurveyResponseSubmissionService {
 
     public record SubmitSurveyResponseCommand(
             SurveyRoundId roundId,
+            ConsentReceiptId consentReceiptId,
             List<SurveyAnswer> answers
     ) {
         public SubmitSurveyResponseCommand {
             Objects.requireNonNull(roundId, "roundId");
+            Objects.requireNonNull(
+                    consentReceiptId, "consentReceiptId");
             answers = List.copyOf(Objects.requireNonNull(
                     answers, "answers"));
         }

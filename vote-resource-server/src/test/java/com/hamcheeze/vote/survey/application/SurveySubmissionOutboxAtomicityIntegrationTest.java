@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
@@ -52,6 +54,9 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
 
     @Autowired
     private SurveyResponseSubmissionService submissions;
+
+    @Autowired
+    private SurveyConsentService consents;
 
     @MockitoSpyBean
     private IntegrationOutboxRepository outbox;
@@ -157,6 +162,7 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
                 .targetRound();
         return new SurveyResponseSubmissionService.SubmitSurveyResponseCommand(
                 active.id(),
+                SurveyConsentTestFixture.accept(consents, active.id(), USER),
                 List.of(new ShortTextAnswer(question.id(), "answer")));
     }
 

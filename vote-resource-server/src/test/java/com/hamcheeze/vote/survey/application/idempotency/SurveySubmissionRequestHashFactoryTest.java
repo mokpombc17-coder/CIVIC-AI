@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.application.idempotency;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
@@ -74,6 +75,20 @@ class SurveySubmissionRequestHashFactoryTest {
                 List.of(new ShortTextAnswer(questionId, "changed")));
 
         assertThat(changed).isNotEqualTo(original);
+    }
+
+    @Test
+    void consentReceiptIdentityIsPartOfTheRequestHash() {
+        SurveyRoundId roundId = new SurveyRoundId(uuid(20));
+        List<SurveyAnswer> answers = List.of(new ShortTextAnswer(
+                new SurveyQuestionId(uuid(21)), "answer"));
+
+        SurveyRequestHash first = hashFactory.hash(
+                roundId, new ConsentReceiptId(uuid(22)), answers);
+        SurveyRequestHash second = hashFactory.hash(
+                roundId, new ConsentReceiptId(uuid(23)), answers);
+
+        assertThat(second).isNotEqualTo(first);
     }
 
     private static UUID uuid(long value) {

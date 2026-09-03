@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.domain.response;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyQuestionId;
@@ -23,6 +24,7 @@ public final class SurveyResponse {
     private final SurveyRoundId roundId;
     private final SurveyRoundNumber roundNumber;
     private final SurveyContentVersionId contentVersionId;
+    private final ConsentReceiptId consentReceiptId;
     private final Instant submittedAt;
     private final List<SurveyAnswer> answers;
 
@@ -32,6 +34,7 @@ public final class SurveyResponse {
             SurveyRoundId roundId,
             SurveyRoundNumber roundNumber,
             SurveyContentVersionId contentVersionId,
+            ConsentReceiptId consentReceiptId,
             Instant submittedAt,
             List<SurveyAnswer> answers
     ) {
@@ -44,6 +47,7 @@ public final class SurveyResponse {
         this.contentVersionId = Objects.requireNonNull(
                 contentVersionId,
                 "contentVersionId");
+        this.consentReceiptId = consentReceiptId;
         this.submittedAt = Objects.requireNonNull(
                 submittedAt,
                 "submittedAt");
@@ -79,6 +83,7 @@ public final class SurveyResponse {
                 roundId,
                 roundNumber,
                 contentVersionId,
+                null,
                 submittedAt,
                 answers);
     }
@@ -98,6 +103,42 @@ public final class SurveyResponse {
                 roundId,
                 roundNumber,
                 contentVersionId,
+                null,
+                submittedAt,
+                answers);
+    }
+
+    public static SurveyResponse rehydrate(
+            SurveyResponseId id,
+            SurveyUserId userId,
+            SurveyRoundId roundId,
+            SurveyRoundNumber roundNumber,
+            SurveyContentVersionId contentVersionId,
+            ConsentReceiptId consentReceiptId,
+            Instant submittedAt,
+            List<SurveyAnswer> answers
+    ) {
+        return new SurveyResponse(
+                id,
+                userId,
+                roundId,
+                roundNumber,
+                contentVersionId,
+                consentReceiptId,
+                submittedAt,
+                answers);
+    }
+
+    public SurveyResponse withConsentReceipt(
+            ConsentReceiptId receiptId
+    ) {
+        return new SurveyResponse(
+                id,
+                userId,
+                roundId,
+                roundNumber,
+                contentVersionId,
+                Objects.requireNonNull(receiptId, "receiptId"),
                 submittedAt,
                 answers);
     }
@@ -132,6 +173,10 @@ public final class SurveyResponse {
 
     public SurveyContentVersionId contentVersionId() {
         return contentVersionId;
+    }
+
+    public Optional<ConsentReceiptId> consentReceiptId() {
+        return Optional.ofNullable(consentReceiptId);
     }
 
     public Instant submittedAt() {

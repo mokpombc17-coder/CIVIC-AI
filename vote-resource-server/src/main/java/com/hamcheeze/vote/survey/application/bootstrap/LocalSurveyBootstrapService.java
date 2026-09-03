@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.application.bootstrap;
 
+import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
@@ -23,16 +24,19 @@ public class LocalSurveyBootstrapService {
 
     private final SurveyContentVersionRepository contents;
     private final SurveyRoundRepository rounds;
+    private final SurveyConsentService consents;
     private final SurveyRoundTransitionCoordinator coordinator =
             new SurveyRoundTransitionCoordinator(
                     () -> LocalSurveyFixture.TRANSITION_ID);
 
     public LocalSurveyBootstrapService(
             SurveyContentVersionRepository contents,
-            SurveyRoundRepository rounds
+            SurveyRoundRepository rounds,
+            SurveyConsentService consents
     ) {
         this.contents = Objects.requireNonNull(contents, "contents");
         this.rounds = Objects.requireNonNull(rounds, "rounds");
+        this.consents = Objects.requireNonNull(consents, "consents");
     }
 
     @Transactional
@@ -42,11 +46,22 @@ public class LocalSurveyBootstrapService {
                 LocalSurveyFixture.CONTENT_VERSION_ID);
         if (fixtureRoot.isPresent()) {
             validateCompleteFixture(fixtureRoot.get());
+            ensureConsentDocument();
             return LocalSurveyBootstrapResult.ALREADY_PRESENT;
         }
         requireEmptySurveyState();
         createFixture();
+        ensureConsentDocument();
         return LocalSurveyBootstrapResult.CREATED;
+    }
+
+    private void ensureConsentDocument() {
+        consents.publishDocument(
+                LocalSurveyFixture.ROUND_ID,
+                LocalSurveyConsentFixture.DOCUMENT_CODE,
+                LocalSurveyConsentFixture.DOCUMENT_VERSION,
+                LocalSurveyConsentFixture.TITLE,
+                LocalSurveyConsentFixture.CONTENT);
     }
 
     private void requireEmptySurveyState() {

@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.application.idempotency;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.response.LongTextAnswer;
 import com.hamcheeze.vote.survey.domain.response.MatrixScaleAnswer;
@@ -27,9 +28,32 @@ import java.util.UUID;
 public final class SurveySubmissionRequestHashFactory {
 
     private static final String FORMAT_VERSION = "survey-submit-v2";
+    private static final String CONSENT_FORMAT_VERSION = "survey-submit-v3";
 
     public SurveyRequestHash hash(
             SurveyRoundId roundId,
+            List<SurveyAnswer> answers
+    ) {
+        return hash(FORMAT_VERSION, roundId, null, answers);
+    }
+
+    public SurveyRequestHash hash(
+            SurveyRoundId roundId,
+            ConsentReceiptId consentReceiptId,
+            List<SurveyAnswer> answers
+    ) {
+        Objects.requireNonNull(consentReceiptId, "consentReceiptId");
+        return hash(
+                CONSENT_FORMAT_VERSION,
+                roundId,
+                consentReceiptId,
+                answers);
+    }
+
+    private SurveyRequestHash hash(
+            String formatVersion,
+            SurveyRoundId roundId,
+            ConsentReceiptId consentReceiptId,
             List<SurveyAnswer> answers
     ) {
         Objects.requireNonNull(roundId, "roundId");
@@ -44,8 +68,11 @@ public final class SurveySubmissionRequestHashFactory {
                 .sorted(Arrays::compareUnsigned)
                 .toList();
         return SurveyRequestHash.sha256(write(output -> {
-            writeString(output, FORMAT_VERSION);
+            writeString(output, formatVersion);
             writeUuid(output, roundId.value());
+            if (consentReceiptId != null) {
+                writeUuid(output, consentReceiptId.value());
+            }
             output.writeInt(canonicalAnswers.size());
             for (byte[] answer : canonicalAnswers) {
                 writeBytes(output, answer);
