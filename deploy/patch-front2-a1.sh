@@ -15,6 +15,7 @@ Options:
   --host-ip IPV4       A1 address (default: 140.238.17.223)
   --ssh-user USER      SSH user (default: ubuntu)
   --public-host HOST   Public HTTPS host (default: civic-ai.co.kr)
+  --force              Redeploy even when this revision is already healthy
   --dry-run            Validate source and inputs, then print the release plan
   --help               Show this help
 EOF
@@ -54,6 +55,7 @@ ssh_key="${CIVIC_A1_SSH_KEY:-${HOME:?HOME is required}/.ssh/civic-ai-dev_ed25519
 host_ip="${CIVIC_A1_HOST_IP:-140.238.17.223}"
 ssh_user="${CIVIC_A1_SSH_USER:-ubuntu}"
 public_host="${CIVIC_A1_PUBLIC_HOST:-civic-ai.co.kr}"
+force=false
 dry_run=false
 
 while (($#)); do
@@ -62,6 +64,7 @@ while (($#)); do
     --host-ip) host_ip="${2:-}"; shift 2 ;;
     --ssh-user) ssh_user="${2:-}"; shift 2 ;;
     --public-host) public_host="${2:-}"; shift 2 ;;
+    --force) force=true; shift ;;
     --dry-run) dry_run=true; shift ;;
     --help|-h) usage; exit 0 ;;
     *) die "unknown option: $1" ;;
@@ -128,6 +131,7 @@ if [[ "$dry_run" == true ]]; then
     'deployment_lock=/var/lock/civic-image-patch.lock' \
     'source_discovery=script-location' \
     'nginx_reload=false' \
+    "force=$force" \
     "target=$target" \
     "public_origin=https://${public_host}"
   exit 0
@@ -136,20 +140,48 @@ fi
 for command in docker gzip shasum ssh scp curl; do
   command -v "$command" >/dev/null 2>&1 || die "required command not found: $command"
 done
+ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$ssh_key")
+
+public_status_is() {
+  local expected="$1" path="$2" actual
+  actual="$(curl --silent --show-error --connect-timeout 10 --max-time 30 \
+    --output /dev/null --write-out '%{http_code}' "https://${public_host}${path}" || true)"
+  [[ "$actual" == "$expected" ]]
+}
+
+remote_state_format='{{index .Config.Labels "org.opencontainers.image.revision"}}|{{index .Config.Labels "org.opencontainers.image.source"}}|{{.Config.User}}|{{.State.Status}}|{{if .State.Health}}{{.State.Health.Status}}{{end}}'
+remote_state="$(ssh "${ssh_options[@]}" "$target" sudo docker inspect civic-a1-dev-web-1 \
+  "--format='$remote_state_format'" \
+  2>/dev/null || true)"
+expected_remote_state="${source_sha}|${source_url}|10001:10001|running|healthy"
+if [[ "$force" == false && "$remote_state" == "$expected_remote_state" ]] \
+  && public_status_is 200 /healthz \
+  && public_status_is 200 /home \
+  && public_status_is 401 /api/v1/auth/me \
+  && public_status_is 401 /api/v1/admin/tasks; then
+  log "${image} is already deployed and healthy; skipping rebuild"
+  printf '%s\n' \
+    'status=unchanged' \
+    "source_sha=$source_sha" \
+    "image=$image" \
+    'container_health=healthy' \
+    'public_status_smoke=passed'
+  exit 0
+fi
+
 docker buildx version >/dev/null 2>&1 || die "Docker Buildx is required"
 case "${DOCKER_HOST:-}" in
   ""|unix://*) ;;
   *) die "remote Docker endpoints are forbidden; use the local Docker daemon" ;;
 esac
 docker version >/dev/null 2>&1 || die "local Docker daemon is unavailable"
-builder_details="$(docker buildx inspect default --bootstrap 2>/dev/null)" \
-  || die "Docker Buildx default builder is unavailable"
+builder_details="$(docker buildx inspect --bootstrap 2>/dev/null)" \
+  || die "the current Docker Buildx builder is unavailable"
 [[ "$builder_details" == *"linux/arm64"* ]] \
-  || die "Docker Buildx default builder does not support linux/arm64"
+  || die "the current Docker Buildx builder does not support linux/arm64"
 
 workdir="$(mktemp -d "${TMPDIR:-/tmp}/civic-front2-a1-patch.XXXXXX")"
 remote_stage=""
-ssh_options=(-o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=accept-new -i "$ssh_key")
 
 cleanup() {
   local status=$?
@@ -166,7 +198,7 @@ trap 'exit 130' INT
 trap 'exit 143' TERM
 
 log "building ${image} from origin/main without repository tests"
-docker buildx build --builder default --platform linux/arm64 --target runtime --load \
+docker buildx build --platform linux/arm64 --target runtime --load \
   --label "org.opencontainers.image.revision=${source_sha}" \
   --label "org.opencontainers.image.source=${source_url}" \
   --tag "$image" \
@@ -251,6 +283,7 @@ wait_healthy() {
 require_status() {
   local expected="$1" path="$2" actual
   actual="$(curl --silent --show-error --output /dev/null --write-out '%{http_code}' \
+    --connect-timeout 10 --max-time 30 \
     "https://${public_host}${path}" || true)"
   [[ "$actual" == "$expected" ]] \
     || die "${path} expected HTTP ${expected}, got ${actual:-request-failed}"
@@ -260,7 +293,8 @@ smoke_public() {
   local home_html assets_file asset result status content_type asset_count
   home_html="$(mktemp /tmp/civic-front2-home.XXXXXX)"
   assets_file="$(mktemp /tmp/civic-front2-assets.XXXXXX)"
-  if ! curl --silent --show-error --fail "https://${public_host}/home" > "$home_html"; then
+  if ! curl --silent --show-error --fail --connect-timeout 10 --max-time 30 \
+    "https://${public_host}/home" > "$home_html"; then
     rm -f -- "$home_html" "$assets_file"
     return 1
   fi
@@ -307,6 +341,7 @@ PY
   while IFS= read -r asset; do
     [[ -n "$asset" ]] || continue
     result="$(curl --silent --show-error --output /dev/null \
+      --connect-timeout 10 --max-time 30 \
       --write-out '%{http_code} %{content_type}' "https://${public_host}${asset}" || true)"
     status="${result%% *}"
     content_type="${result#* }"
