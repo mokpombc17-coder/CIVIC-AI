@@ -5,6 +5,8 @@ import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.RateLimitExceededException;
 import ai.civic.mainauth.auth.RefreshTokenConflictException;
+import ai.civic.mainauth.consent.ConsentAcceptanceConflictException;
+import ai.civic.mainauth.consent.ConsentAcceptanceValidationException;
 import ai.civic.mainauth.signup.SignupConflictException;
 import ai.civic.mainauth.signup.SignupValidationException;
 import ai.civic.mainauth.admin.AdminPolicyException;
@@ -22,7 +24,11 @@ import org.springframework.web.bind.MissingRequestCookieException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    @ExceptionHandler({SignupValidationException.class, BrowserRequestRejectedException.class})
+    @ExceptionHandler({
+        SignupValidationException.class,
+        BrowserRequestRejectedException.class,
+        ConsentAcceptanceValidationException.class
+    })
     ProblemDetail badRequest(RuntimeException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Request rejected", exception.getMessage());
     }
@@ -42,8 +48,8 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Authentication cookie is missing");
     }
 
-    @ExceptionHandler(SignupConflictException.class)
-    ProblemDetail conflict(SignupConflictException exception) {
+    @ExceptionHandler({SignupConflictException.class, ConsentAcceptanceConflictException.class})
+    ProblemDetail conflict(RuntimeException exception) {
         return problem(HttpStatus.CONFLICT, "Request conflict", exception.getMessage());
     }
 
