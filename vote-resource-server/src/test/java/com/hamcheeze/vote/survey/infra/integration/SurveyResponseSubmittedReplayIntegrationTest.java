@@ -2,7 +2,6 @@ package com.hamcheeze.vote.survey.infra.integration;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
-import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.persona.application.integration.PersonaSurveyResponseSubmittedConsumer;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDeliveryService;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxMessage;
@@ -61,9 +60,6 @@ class SurveyResponseSubmittedReplayIntegrationTest {
 
     @Autowired
     private SurveyResponseSubmissionService submissions;
-
-    @Autowired
-    private SurveyConsentService consents;
 
     @Autowired
     private SurveyResponseSubmittedReplayService replays;
@@ -329,8 +325,7 @@ class SurveyResponseSubmittedReplayIntegrationTest {
                 new SurveyResponseSubmissionService
                         .SubmitSurveyResponseCommand(
                         active.id(),
-                        SurveyConsentTestFixture.accept(
-                                consents, active.id(), USER),
+                        SurveyConsentTestFixture.externalReceipt(),
                         List.of(new ShortTextAnswer(
                                 question.id(), "answer"))))
                 .outcome();

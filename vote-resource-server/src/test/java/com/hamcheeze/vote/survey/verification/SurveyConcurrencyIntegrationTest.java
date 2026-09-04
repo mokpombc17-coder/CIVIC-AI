@@ -2,7 +2,6 @@ package com.hamcheeze.vote.survey.verification;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
-import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
@@ -61,9 +60,6 @@ class SurveyConcurrencyIntegrationTest {
 
     @Autowired
     private SurveyResponseSubmissionService submissionService;
-
-    @Autowired
-    private SurveyConsentService consents;
 
     @Autowired
     private MySurveyResponseQueryService responseQuery;
@@ -348,7 +344,7 @@ class SurveyConcurrencyIntegrationTest {
         return new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 round.id(),
-                SurveyConsentTestFixture.accept(consents, round.id(), USER),
+                SurveyConsentTestFixture.externalReceipt(),
                 List.of(new ShortTextAnswer(
                         content.question().id(), answer)));
     }

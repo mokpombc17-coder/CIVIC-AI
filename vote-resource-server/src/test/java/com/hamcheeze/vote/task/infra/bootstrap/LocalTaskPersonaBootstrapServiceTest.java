@@ -7,7 +7,6 @@ import com.hamcheeze.vote.persona.domain.PersonaId;
 import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyBootstrapService;
-import com.hamcheeze.vote.survey.application.consent.SurveyConsentService;
 import com.hamcheeze.vote.survey.application.response.SurveyResponseSubmissionService;
 import org.junit.jupiter.api.Test;
 
@@ -98,13 +97,12 @@ class LocalTaskPersonaBootstrapServiceTest {
     void preservesInterruptWhenPollingIsInterrupted() {
         var surveys = mock(LocalSurveyBootstrapService.class);
         var submissions = mock(SurveyResponseSubmissionService.class);
-        var consents = mock(SurveyConsentService.class);
         var outbox = mock(IntegrationOutboxDispatcher.class);
         var worker = mock(PersonaGenerationWorker.class);
         var current = mock(CurrentPersonaQueryService.class);
         when(current.findCurrent(any())).thenReturn(processing());
         var service = new LocalTaskPersonaBootstrapService(
-                surveys, submissions, consents, outbox, worker, current,
+                surveys, submissions, outbox, worker, current,
                 SUBJECT,
                 Duration.ofSeconds(1), Duration.ofMillis(100),
                 () -> 0L,
@@ -130,13 +128,12 @@ class LocalTaskPersonaBootstrapServiceTest {
     ) {
         var surveys = mock(LocalSurveyBootstrapService.class);
         var submissions = mock(SurveyResponseSubmissionService.class);
-        var consents = mock(SurveyConsentService.class);
         var outbox = mock(IntegrationOutboxDispatcher.class);
         var worker = mock(PersonaGenerationWorker.class);
         var current = mock(CurrentPersonaQueryService.class);
         var nanoTime = new AtomicLong();
         var service = new LocalTaskPersonaBootstrapService(
-                surveys, submissions, consents, outbox, worker, current,
+                surveys, submissions, outbox, worker, current,
                 SUBJECT,
                 timeout, pollInterval, nanoTime::get, nanoTime::addAndGet);
         return new Fixture(

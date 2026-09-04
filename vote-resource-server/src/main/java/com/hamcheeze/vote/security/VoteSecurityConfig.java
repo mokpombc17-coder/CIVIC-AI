@@ -118,8 +118,6 @@ public class VoteSecurityConfig {
                                 HttpMethod.GET,
                                 "/api/v1/me/surveys",
                                 "/api/v1/me/surveys/**",
-                                "/api/v1/me/survey-consent-documents",
-                                "/api/v1/me/survey-consent-documents/**",
                                 "/api/v1/me/survey-responses",
                                 "/api/v1/me/survey-responses/**",
                                 "/api/v1/me/service-eligibility")
@@ -127,8 +125,6 @@ public class VoteSecurityConfig {
                                 VoteScopes.SURVEYS_READ))
                         .requestMatchers(
                                 HttpMethod.POST,
-                                "/api/v1/me/survey-consents",
-                                "/api/v1/me/survey-consents/**",
                                 "/api/v1/me/survey-responses",
                                 "/api/v1/me/survey-responses/**")
                         .hasAuthority(VoteScopes.authority(

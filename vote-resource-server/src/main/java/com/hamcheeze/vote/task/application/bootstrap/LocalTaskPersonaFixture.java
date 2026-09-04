@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.application.bootstrap;
 
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.content.MultipleChoiceRule;
 import com.hamcheeze.vote.survey.domain.content.MatrixScaleRule;
 import com.hamcheeze.vote.survey.domain.content.NumberRule;
@@ -32,16 +33,18 @@ public final class LocalTaskPersonaFixture {
     public static final String SURVEY_IDEMPOTENCY_KEY = UUID.nameUUIDFromBytes(
             "vote-local-task-persona-survey-v1".getBytes(
                     StandardCharsets.UTF_8)).toString();
-    public static final String CONSENT_IDEMPOTENCY_KEY = UUID.nameUUIDFromBytes(
-            "vote-local-task-persona-consent-v1".getBytes(
-                    StandardCharsets.UTF_8)).toString();
-
     private static final String SHORT_TEXT =
             "근거를 비교한 뒤 결정합니다.";
     private static final String LONG_TEXT =
             "여러 관점과 근거를 비교한 뒤 실행 가능한 결론을 정리합니다.";
 
     private LocalTaskPersonaFixture() {
+    }
+
+    public static ConsentReceiptId consentReceiptId(String userSubject) {
+        return new ConsentReceiptId(UUID.nameUUIDFromBytes(
+                ("vote-local-task-persona-consent-v1:" + userSubject)
+                        .getBytes(StandardCharsets.UTF_8)));
     }
 
     public static List<SurveyAnswer> answers() {

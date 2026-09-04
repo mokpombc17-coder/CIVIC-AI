@@ -1,6 +1,5 @@
 package com.hamcheeze.vote.survey.api;
 
-import com.hamcheeze.vote.survey.application.consent.SurveyConsentException;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyException;
 import com.hamcheeze.vote.survey.application.integration.SurveyResponseSubmittedReplayException;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
@@ -43,19 +42,6 @@ final class SurveyApiExceptionHandler {
                 HttpStatus.valueOf(exception.httpStatus()),
                 exception.code().name(), exception.getMessage(),
                 request, List.of());
-    }
-
-    @ExceptionHandler(SurveyConsentException.class)
-    ResponseEntity<ProblemDetail> consent(
-            SurveyConsentException exception,
-            HttpServletRequest request
-    ) {
-        return response(
-                HttpStatus.valueOf(exception.httpStatus()),
-                exception.code(),
-                exception.getMessage(),
-                request,
-                List.of());
     }
 
     @ExceptionHandler(SurveyResponseSubmittedReplayException.class)
