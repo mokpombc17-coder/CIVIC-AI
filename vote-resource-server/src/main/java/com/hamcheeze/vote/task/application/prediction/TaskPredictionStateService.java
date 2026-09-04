@@ -292,7 +292,7 @@ public class TaskPredictionStateService {
                         "next retry would start after task deadline"), now);
             }
         } else {
-            prediction.failPermanently(error, now);
+            prediction.failPermanently(error, failure.runtimeStatus(), now);
         }
         TaskPredictionAttempt completed = attempt.complete(
                 failure.outcome(),
@@ -314,6 +314,44 @@ public class TaskPredictionStateService {
                 }
             });
         }
+        return true;
+    }
+
+    @Transactional
+    public boolean completeRemoteProcessing(
+            TaskPredictionDispatchClaim claim,
+            PredictionRemoteProcessingException deferred
+    ) {
+        Objects.requireNonNull(claim, "claim");
+        Objects.requireNonNull(deferred, "deferred");
+        Instant now = clock.instant();
+        TaskPrediction prediction = requirePredictionForUpdate(
+                claim.predictionId());
+        TaskPredictionAttempt attempt = requireAttempt(claim);
+        if (!isActiveClaim(prediction, attempt, claim)) {
+            recordIgnored(
+                    prediction,
+                    attempt,
+                    deferred.httpStatus(),
+                    deferred.responsePayload(),
+                    deferred.runtimeStatus().code(),
+                    deferred.runtimeStatus().detail());
+            return false;
+        }
+
+        prediction.markRemoteProcessing(
+                deferred.runtimeStatus(),
+                policy.retryPolicy().retryDelay(),
+                now);
+        TaskPredictionAttempt completed = attempt.complete(
+                TaskPredictionAttemptOutcome.REMOTE_PROCESSING,
+                deferred.httpStatus(),
+                deferred.responsePayload(),
+                deferred.runtimeStatus().code(),
+                deferred.runtimeStatus().detail(),
+                now);
+        predictions.save(prediction);
+        predictions.saveAttempt(completed);
         return true;
     }
 

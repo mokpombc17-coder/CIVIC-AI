@@ -15,6 +15,7 @@ import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -140,6 +141,7 @@ public class TaskPredictionQueryService {
         NOT_REQUESTED,
         PENDING,
         PROCESSING,
+        REMOTE_PROCESSING,
         RETRY_WAIT,
         SUCCEEDED,
         FAILED
@@ -166,7 +168,8 @@ public class TaskPredictionQueryService {
             TaskSubmissionId submissionId,
             Instant nextRetryAt,
             Instant completedAt,
-            String failureCode
+            String failureCode,
+            TaskPredictionRuntimeStatus runtimeStatus
     ) {
         public TaskPredictionView {
             Objects.requireNonNull(taskId, "taskId");
@@ -204,7 +207,7 @@ public class TaskPredictionQueryService {
                     directAnswerAllowed,
                     predictionStatus == TaskPredictionStatus.RETRY_WAIT,
                     allowedReasonSources, submissionId, nextRetryAt,
-                    completedAt, failureCode);
+                    completedAt, failureCode, null);
         }
 
         static TaskPredictionView unavailable(
@@ -216,7 +219,7 @@ public class TaskPredictionQueryService {
                     null, null, List.of(), predictionFeatureEnabled,
                     false, false,
                     null, false, false, false, false, false, List.of(), null,
-                    null, null, null);
+                    null, null, null, null);
         }
 
         static TaskPredictionView submitted(
@@ -229,7 +232,7 @@ public class TaskPredictionQueryService {
                     predictionFeatureEnabled,
                     false, false, null, false, false, false, false, false,
                     List.of(),
-                    submissionId, null, null, null);
+                    submissionId, null, null, null, null);
         }
 
         static TaskPredictionView notRequested(
@@ -244,7 +247,7 @@ public class TaskPredictionQueryService {
                     predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
                     false, false, false, false, false,
                     List.of(), null,
-                    null, null, null);
+                    null, null, null, null);
         }
 
         static TaskPredictionView from(
@@ -254,10 +257,15 @@ public class TaskPredictionQueryService {
                 boolean predictionFeatureEnabled
         ) {
             TaskPredictionStatus status = prediction.status();
+            TaskPredictionViewState viewState =
+                    status == TaskPredictionStatus.PENDING
+                            && prediction.runtimeStatus() != null
+                            ? TaskPredictionViewState.REMOTE_PROCESSING
+                            : TaskPredictionViewState.valueOf(status.name());
             if (!predictionFeatureEnabled) {
                 return base(
                         taskId,
-                        TaskPredictionViewState.valueOf(status.name()),
+                        viewState,
                         persona.generationId(),
                         persona.personaId(),
                         prediction.id(),
@@ -277,7 +285,8 @@ public class TaskPredictionQueryService {
                         null,
                         prediction.completedAt(),
                         prediction.lastError() == null
-                                ? null : prediction.lastError().code());
+                                ? null : prediction.lastError().code(),
+                        prediction.runtimeStatus());
             }
             boolean succeeded = status == TaskPredictionStatus.SUCCEEDED;
             boolean waiting = !status.terminal();
@@ -287,7 +296,7 @@ public class TaskPredictionQueryService {
                     : List.of();
             return base(
                     taskId,
-                    TaskPredictionViewState.valueOf(status.name()),
+                    viewState,
                     persona.generationId(),
                     persona.personaId(),
                     prediction.id(),
@@ -301,13 +310,16 @@ public class TaskPredictionQueryService {
                     succeeded,
                     succeeded,
                     succeeded,
-                    status == TaskPredictionStatus.RETRY_WAIT,
+                    prediction.runtimeStatus() == null
+                            ? status == TaskPredictionStatus.RETRY_WAIT
+                            : prediction.runtimeStatus().retryable(),
                     sources,
                     null,
                     prediction.nextRetryAt(),
                     prediction.completedAt(),
                     prediction.lastError() == null
-                            ? null : prediction.lastError().code());
+                            ? null : prediction.lastError().code(),
+                    prediction.runtimeStatus());
         }
 
         private static TaskPredictionView base(
@@ -331,7 +343,8 @@ public class TaskPredictionQueryService {
                 TaskSubmissionId submissionId,
                 Instant nextRetryAt,
                 Instant completedAt,
-                String failureCode
+                String failureCode,
+                TaskPredictionRuntimeStatus runtimeStatus
         ) {
             return new TaskPredictionView(
                     taskId, state, personaGenerationId,
@@ -341,7 +354,7 @@ public class TaskPredictionQueryService {
                     submissionAllowed, predictedAnswerAllowed,
                     aiAcceptanceAllowed, directAnswerAllowed, retryable,
                     allowedReasonSources, submissionId, nextRetryAt,
-                    completedAt, failureCode);
+                    completedAt, failureCode, runtimeStatus);
         }
     }
 }

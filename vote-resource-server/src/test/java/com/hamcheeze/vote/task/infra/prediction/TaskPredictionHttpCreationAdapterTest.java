@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.infra.prediction;
 
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
+import com.hamcheeze.vote.task.application.prediction.PredictionRemoteProcessingException;
 import com.hamcheeze.vote.task.application.prediction.TaskPredictionInputSnapshot;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
@@ -154,6 +155,86 @@ class TaskPredictionHttpCreationAdapterTest {
                 "AI_PREDICTION_SERVER_ERROR",
                 true,
                 503);
+    }
+
+    @Test
+    void preservesRuntimeStatusWhenPredictionIsStillProcessing() {
+        server.createContext("/custom/task-predictions", exchange ->
+                respond(exchange, 202, """
+                        {
+                          "code": "PREDICTION_NOT_READY",
+                          "detail": "AI 예상 이유를 준비 중입니다.",
+                          "retryable": true,
+                          "maxWaitMinutes": 10
+                        }
+                        """));
+
+        assertThatThrownBy(() -> adapter().create(
+                command(Duration.ofSeconds(1))))
+                .isInstanceOfSatisfying(
+                        PredictionRemoteProcessingException.class,
+                        exception -> {
+                            assertThat(exception.httpStatus()).isEqualTo(202);
+                            assertThat(exception.runtimeStatus().code())
+                                    .isEqualTo("PREDICTION_NOT_READY");
+                            assertThat(exception.runtimeStatus().detail())
+                                    .isEqualTo("AI 예상 이유를 준비 중입니다.");
+                            assertThat(exception.runtimeStatus().retryable())
+                                    .isTrue();
+                            assertThat(exception.runtimeStatus()
+                                    .maxWaitMinutes()).isEqualTo(10);
+                        });
+    }
+
+    @Test
+    void preservesRuntimeStatusWhenPredictionIsUnavailable() {
+        server.createContext("/custom/task-predictions", exchange ->
+                respond(exchange, 402, """
+                        {
+                          "code": "PREDICTION_UNAVAILABLE",
+                          "detail": "현재 개인별 AI 예상 이유를 제공할 수 없습니다.",
+                          "retryable": false,
+                          "maxWaitMinutes": 0
+                        }
+                        """));
+
+        assertThatThrownBy(() -> adapter().create(
+                command(Duration.ofSeconds(1))))
+                .isInstanceOfSatisfying(
+                        PredictionCreationException.class,
+                        exception -> {
+                            assertThat(exception.httpStatus()).isEqualTo(402);
+                            assertThat(exception.errorCode())
+                                    .isEqualTo("PREDICTION_UNAVAILABLE");
+                            assertThat(exception.getMessage()).isEqualTo(
+                                    "현재 개인별 AI 예상 이유를 제공할 수 없습니다.");
+                            assertThat(exception.retryable()).isFalse();
+                            assertThat(exception.runtimeStatus())
+                                    .isNotNull();
+                            assertThat(exception.runtimeStatus().detail())
+                                    .isEqualTo(
+                                            "현재 개인별 AI 예상 이유를 제공할 수 없습니다.");
+                        });
+    }
+
+    @Test
+    void rejectsMalformedRuntimeStatusAsPermanentInvalidResponse() {
+        server.createContext("/custom/task-predictions", exchange ->
+                respond(exchange, 202, """
+                        {
+                          "code": "PREDICTION_NOT_READY",
+                          "detail": "AI 예상 이유를 준비 중입니다.",
+                          "retryable": false,
+                          "maxWaitMinutes": 10
+                        }
+                        """));
+
+        assertFailure(
+                () -> adapter().create(command(Duration.ofSeconds(1))),
+                TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                "AI_PREDICTION_INVALID_ERROR_RESPONSE",
+                false,
+                202);
     }
 
     @Test

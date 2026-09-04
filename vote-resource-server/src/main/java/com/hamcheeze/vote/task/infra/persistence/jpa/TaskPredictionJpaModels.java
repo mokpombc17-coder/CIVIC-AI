@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.EnumType;
@@ -60,6 +61,18 @@ class TaskPredictionJpaEntity {
     @Column(name = "last_error_message", length = 2000)
     private String lastErrorMessage;
 
+    @Column(name = "runtime_status_code", length = 200)
+    private String runtimeStatusCode;
+
+    @Column(name = "runtime_status_detail", length = 2000)
+    private String runtimeStatusDetail;
+
+    @Column(name = "runtime_status_retryable")
+    private Boolean runtimeStatusRetryable;
+
+    @Column(name = "runtime_status_max_wait_minutes")
+    private Integer runtimeStatusMaxWaitMinutes;
+
     @Column(name = "created_at", nullable = false)
     private Instant createdAt;
 
@@ -101,6 +114,14 @@ class TaskPredictionJpaEntity {
                 ? null : prediction.lastError().code();
         lastErrorMessage = prediction.lastError() == null
                 ? null : prediction.lastError().message();
+        TaskPredictionRuntimeStatus runtimeStatus = prediction.runtimeStatus();
+        runtimeStatusCode = runtimeStatus == null ? null : runtimeStatus.code();
+        runtimeStatusDetail = runtimeStatus == null
+                ? null : runtimeStatus.detail();
+        runtimeStatusRetryable = runtimeStatus == null
+                ? null : runtimeStatus.retryable();
+        runtimeStatusMaxWaitMinutes = runtimeStatus == null
+                ? null : runtimeStatus.maxWaitMinutes();
         startedAt = prediction.startedAt();
         completedAt = prediction.completedAt();
         activeAttemptId = prediction.activeAttemptId() == null
@@ -121,6 +142,12 @@ class TaskPredictionJpaEntity {
     Instant nextRetryAt() { return nextRetryAt; }
     String lastErrorCode() { return lastErrorCode; }
     String lastErrorMessage() { return lastErrorMessage; }
+    String runtimeStatusCode() { return runtimeStatusCode; }
+    String runtimeStatusDetail() { return runtimeStatusDetail; }
+    Boolean runtimeStatusRetryable() { return runtimeStatusRetryable; }
+    Integer runtimeStatusMaxWaitMinutes() {
+        return runtimeStatusMaxWaitMinutes;
+    }
     Instant createdAt() { return createdAt; }
     Instant startedAt() { return startedAt; }
     Instant completedAt() { return completedAt; }

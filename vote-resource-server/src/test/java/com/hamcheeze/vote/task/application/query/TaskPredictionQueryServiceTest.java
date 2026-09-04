@@ -10,6 +10,7 @@ import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.submission.TaskSubmission;
 import com.hamcheeze.vote.task.domain.task.Task;
@@ -30,6 +31,7 @@ import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryServi
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.NOT_REQUESTED;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.PENDING;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.PERSONA_NOT_READY;
+import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.REMOTE_PROCESSING;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.SUCCEEDED;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.TASK_CLOSED;
 import static com.hamcheeze.vote.task.application.query.TaskPredictionQueryService.TaskPredictionViewState.TASK_UNPUBLISHED;
@@ -109,6 +111,69 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.directAnswerAllowed()).isFalse();
         assertThat(view.allowedReasonSources()).isEmpty();
         assertThat(view.predictedReasons()).isEmpty();
+    }
+
+    @Test
+    void remoteProcessingExposesProviderStatusWithoutAllowingSubmission() {
+        availableTaskAndPersona();
+        TaskPrediction prediction = TaskQueryFixtures.pendingPrediction(task);
+        TaskPredictionRetryPolicy retryPolicy = new TaskPredictionRetryPolicy(
+                Duration.ofSeconds(5), 2, Duration.ofSeconds(30));
+        prediction.startProcessing(
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                retryPolicy, Duration.ofSeconds(30), NOW.minusSeconds(30));
+        prediction.markRemoteProcessing(
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.", true, 10),
+                Duration.ofSeconds(30), NOW.minusSeconds(20));
+        when(predictions.findByIdentity(USER, task.id(), GENERATION))
+                .thenReturn(Optional.of(prediction));
+
+        var view = service.findCurrent(USER, task.id());
+
+        assertThat(view.state()).isEqualTo(REMOTE_PROCESSING);
+        assertThat(view.waiting()).isTrue();
+        assertThat(view.submissionAllowed()).isFalse();
+        assertThat(view.predictedAnswerAllowed()).isFalse();
+        assertThat(view.directAnswerAllowed()).isFalse();
+        assertThat(view.runtimeStatus().code())
+                .isEqualTo("PREDICTION_NOT_READY");
+        assertThat(view.runtimeStatus().detail())
+                .isEqualTo("AI 예상 이유를 준비 중입니다.");
+        assertThat(view.runtimeStatus().retryable()).isTrue();
+        assertThat(view.runtimeStatus().maxWaitMinutes()).isEqualTo(10);
+    }
+
+    @Test
+    void unavailableFailureExposesNonRetryableProviderStatus() {
+        availableTaskAndPersona();
+        TaskPrediction prediction = TaskQueryFixtures.pendingPrediction(task);
+        TaskPredictionRetryPolicy retryPolicy = new TaskPredictionRetryPolicy(
+                Duration.ofSeconds(5), 2, Duration.ofSeconds(30));
+        prediction.startProcessing(
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                retryPolicy, Duration.ofSeconds(30), NOW.minusSeconds(30));
+        TaskPredictionRuntimeStatus runtimeStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_UNAVAILABLE",
+                        "현재 개인별 AI 예상 이유를 제공할 수 없습니다.",
+                        false, 0);
+        prediction.failPermanently(
+                new TaskPredictionError(
+                        runtimeStatus.code(), runtimeStatus.detail()),
+                runtimeStatus,
+                NOW.minusSeconds(20));
+        when(predictions.findByIdentity(USER, task.id(), GENERATION))
+                .thenReturn(Optional.of(prediction));
+
+        var view = service.findCurrent(USER, task.id());
+
+        assertThat(view.state()).isEqualTo(FAILED);
+        assertThat(view.waiting()).isFalse();
+        assertThat(view.retryable()).isFalse();
+        assertThat(view.runtimeStatus()).isEqualTo(runtimeStatus);
+        assertThat(view.failureCode()).isEqualTo("PREDICTION_UNAVAILABLE");
     }
 
     @Test

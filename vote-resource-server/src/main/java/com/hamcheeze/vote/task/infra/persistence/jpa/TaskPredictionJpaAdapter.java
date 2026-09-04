@@ -202,7 +202,8 @@ public class TaskPredictionJpaAdapter implements TaskPredictionRepository {
                 FROM task_predictions prediction
                 JOIN tasks task ON task.task_id = prediction.task_id
                 WHERE prediction.status IN (
-                    'PENDING', 'PROCESSING', 'RETRY_WAIT')
+                    'PENDING', 'PROCESSING', 'REMOTE_PROCESSING',
+                    'RETRY_WAIT')
                   AND (task.status = 'CLOSED'
                        OR task.scheduled_close_at <= :now)
                 ORDER BY CASE WHEN task.status = 'CLOSED' THEN 0 ELSE 1 END,

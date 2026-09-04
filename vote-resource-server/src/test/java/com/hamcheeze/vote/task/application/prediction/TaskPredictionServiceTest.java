@@ -10,7 +10,11 @@ import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -193,6 +197,48 @@ class TaskPredictionServiceTest {
     }
 
     @Test
+    void existingRemoteProcessingPredictionIsRequeuedWhenDue() {
+        TaskPrediction remote = remoteProcessingPrediction(
+                NOW.plusSeconds(12));
+        when(predictions.findByIdentity(
+                userId(), taskId(), personaGenerationId()))
+                .thenReturn(Optional.of(remote));
+        when(predictions.findByIdentityForUpdate(
+                userId(), taskId(), personaGenerationId()))
+                .thenReturn(Optional.of(remote));
+        when(predictions.save(any(TaskPrediction.class)))
+                .thenAnswer(invocation -> invocation.getArgument(0));
+
+        EnsureTaskPredictionResult result =
+                service.ensureTaskPrediction(userId(), taskId());
+
+        assertThat(result.created()).isFalse();
+        assertThat(result.prediction().status())
+                .isEqualTo(TaskPredictionStatus.PENDING);
+        assertThat(result.prediction().runtimeStatus()).isNotNull();
+        verify(predictions).save(remote);
+    }
+
+    @Test
+    void remoteProcessingPredictionIsNotRequeuedBeforeCooldown() {
+        TaskPrediction remote = remoteProcessingPrediction(
+                NOW.plusSeconds(30));
+        when(predictions.findByIdentity(
+                userId(), taskId(), personaGenerationId()))
+                .thenReturn(Optional.of(remote));
+        when(predictions.findByIdentityForUpdate(
+                userId(), taskId(), personaGenerationId()))
+                .thenReturn(Optional.of(remote));
+
+        EnsureTaskPredictionResult result =
+                service.ensureTaskPrediction(userId(), taskId());
+
+        assertThat(result.prediction().status())
+                .isEqualTo(TaskPredictionStatus.REMOTE_PROCESSING);
+        verify(predictions, never()).save(any());
+    }
+
+    @Test
     void exposesOnlyPredictionForTheCurrentPersonaGeneration() {
         TaskPersonaGenerationId nextGeneration =
                 new TaskPersonaGenerationId(UUID.randomUUID());
@@ -229,5 +275,27 @@ class TaskPredictionServiceTest {
                                 .violation().code())
                         .isEqualTo("TASK_CURRENT_PERSONA_NOT_READY"));
         verify(predictions, never()).insertPendingIfAbsent(any());
+    }
+
+    private static TaskPrediction remoteProcessingPrediction(
+            java.time.Instant nextRecheckAt
+    ) {
+        TaskPrediction prediction = TaskPrediction.pending(
+                new TaskPredictionId(UUID.randomUUID()),
+                userId(), taskId(), personaGenerationId(), personaId(),
+                "candidate-policy-v1", NOW);
+        TaskPredictionRetryPolicy retryPolicy =
+                new TaskPredictionRetryPolicy(
+                        Duration.ofSeconds(60), 2, Duration.ofSeconds(30));
+        prediction.startProcessing(
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                retryPolicy, Duration.ofSeconds(90), NOW.plusSeconds(1));
+        prediction.markRemoteProcessing(
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.", true, 10),
+                Duration.between(NOW.plusSeconds(2), nextRecheckAt),
+                NOW.plusSeconds(2));
+        return prediction;
     }
 }

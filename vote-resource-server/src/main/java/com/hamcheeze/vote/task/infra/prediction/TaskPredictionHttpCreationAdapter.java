@@ -4,8 +4,10 @@ import com.hamcheeze.vote.task.application.port.out.PredictionCreationPort;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationCommand;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationException;
 import com.hamcheeze.vote.task.application.prediction.PredictionCreationResult;
+import com.hamcheeze.vote.task.application.prediction.PredictionRemoteProcessingException;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
 import org.springframework.stereotype.Component;
@@ -145,6 +147,25 @@ public class TaskPredictionHttpCreationAdapter
         }
         SanitizedTaskPredictionPayload payload = auditPayload(
                 status, response.body());
+        if (status == 202) {
+            TaskPredictionRuntimeStatus runtimeStatus = runtimeStatus(
+                    response.body(), status, "PREDICTION_NOT_READY", true);
+            throw new PredictionRemoteProcessingException(
+                    status, runtimeStatus, payload);
+        }
+        if (status == 402) {
+            TaskPredictionRuntimeStatus runtimeStatus = runtimeStatus(
+                    response.body(), status, "PREDICTION_UNAVAILABLE", false);
+            throw new PredictionCreationException(
+                    TaskPredictionAttemptOutcome.HTTP_ERROR,
+                    false,
+                    status,
+                    runtimeStatus.code(),
+                    runtimeStatus.detail(),
+                    payload,
+                    runtimeStatus,
+                    null);
+        }
         if (status == 408 || status == 429
                 || (status >= 500 && status <= 599)) {
             throw failure(
@@ -189,6 +210,53 @@ public class TaskPredictionHttpCreationAdapter
                     TaskPredictionHttpModels.ProviderError.class).code();
         } catch (RuntimeException exception) {
             return null;
+        }
+    }
+
+    private TaskPredictionRuntimeStatus runtimeStatus(
+            String body,
+            int httpStatus,
+            String expectedCode,
+            boolean expectedRetryable
+    ) {
+        try {
+            TaskPredictionHttpModels.ProviderError error =
+                    objectMapper.readValue(
+                            body,
+                            TaskPredictionHttpModels.ProviderError.class);
+            if (!expectedCode.equals(error.code())) {
+                throw new IllegalArgumentException(
+                        "provider error code does not match HTTP status");
+            }
+            if (error.retryable() == null
+                    || error.retryable() != expectedRetryable) {
+                throw new IllegalArgumentException(
+                        "provider retryable does not match HTTP status");
+            }
+            if (error.maxWaitMinutes() == null) {
+                throw new IllegalArgumentException(
+                        "provider maxWaitMinutes is required");
+            }
+            if (httpStatus == 402 && error.maxWaitMinutes() != 0) {
+                throw new IllegalArgumentException(
+                        "402 maxWaitMinutes must be 0");
+            }
+            return new TaskPredictionRuntimeStatus(
+                    error.code(),
+                    error.detail(),
+                    error.retryable(),
+                    error.maxWaitMinutes());
+        } catch (PredictionCreationException exception) {
+            throw exception;
+        } catch (RuntimeException exception) {
+            throw failure(
+                    TaskPredictionAttemptOutcome.INVALID_RESPONSE,
+                    false,
+                    httpStatus,
+                    "AI_PREDICTION_INVALID_ERROR_RESPONSE",
+                    "task prediction error response is invalid",
+                    auditPayload(httpStatus, body),
+                    exception);
         }
     }
 

@@ -22,13 +22,16 @@ import com.hamcheeze.vote.task.domain.common.TaskPersonaGenerationId;
 import com.hamcheeze.vote.task.domain.common.TaskPersonaId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictedReasonId;
 import com.hamcheeze.vote.task.domain.common.TaskQuestionId;
+import com.hamcheeze.vote.task.domain.common.TaskPredictionAttemptId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.submission.AcceptTaskPredictedReason;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.SingleChoiceConstraint;
@@ -49,8 +52,9 @@ import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
-import java.time.Clock;
 import java.sql.Timestamp;
+import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
@@ -223,6 +227,50 @@ class TaskPredictionApplicationIntegrationTest {
                 .singleElement()
                 .extracting(TaskPredictionAttempt::outcome)
                 .isEqualTo(TaskPredictionAttemptOutcome.SUCCEEDED);
+    }
+
+    @Test
+    void persistsRuntimeProcessingStatusAndRequeuesItOnUserDemand() {
+        Task task = persistOpenTask();
+        TaskUserId userId = new TaskUserId(
+                "task-remote-processing-" + UUID.randomUUID());
+        insertSucceededPersona(userId.value());
+        TaskPrediction prediction = predictionService.ensureTaskPrediction(
+                        userId, task.id())
+                .prediction();
+        Instant processingAt = prediction.createdAt();
+        prediction.startProcessing(
+                new TaskPredictionAttemptId(UUID.randomUUID()),
+                policy.retryPolicy(), policy.processingLeaseDuration(),
+                processingAt);
+        TaskPredictionRuntimeStatus runtimeStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.", true, 10);
+        prediction.markRemoteProcessing(
+                runtimeStatus, Duration.ZERO,
+                processingAt);
+        predictions.save(prediction);
+
+        assertThat(predictions.findById(prediction.id())).get().satisfies(
+                stored -> {
+                    assertThat(stored.status()).isEqualTo(
+                            TaskPredictionStatus.REMOTE_PROCESSING);
+                    assertThat(stored.runtimeStatus()).isEqualTo(runtimeStatus);
+                });
+
+        assertThat(predictionService.requestRemoteRecheckIfDue(
+                userId, task.id())).isTrue();
+        TaskPrediction requeued = predictions.findById(prediction.id())
+                .orElseThrow();
+        assertThat(requeued.status()).isEqualTo(TaskPredictionStatus.PENDING);
+        assertThat(requeued.runtimeStatus()).isEqualTo(runtimeStatus);
+
+        requeued.failDeadline(
+                new TaskPredictionError(
+                        "TEST_CLEANUP", "terminalize integration fixture"),
+                Instant.now().plusSeconds(1));
+        predictions.save(requeued);
     }
 
     @Test

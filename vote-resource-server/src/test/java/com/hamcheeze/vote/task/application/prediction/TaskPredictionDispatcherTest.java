@@ -13,6 +13,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRetryPolicy;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -188,6 +189,61 @@ class TaskPredictionDispatcherTest {
                 .containsExactly(
                         TaskPredictionAttemptOutcome.TIMEOUT,
                         TaskPredictionAttemptOutcome.TIMEOUT);
+    }
+
+    @Test
+    void acceptedRemoteWorkBecomesDemandDrivenProcessingState() {
+        TaskPredictionRuntimeStatus runtimeStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.", true, 10);
+        PredictionCreationPort port = command -> {
+            throw new PredictionRemoteProcessingException(
+                    202, runtimeStatus, responsePayload());
+        };
+        TaskPredictionDispatcher dispatcher =
+                new TaskPredictionDispatcher(states, port, policy);
+
+        assertThat(dispatcher.dispatchAvailable()).isEqualTo(1);
+
+        assertThat(prediction.status())
+                .isEqualTo(TaskPredictionStatus.REMOTE_PROCESSING);
+        assertThat(prediction.runtimeStatus()).isEqualTo(runtimeStatus);
+        assertThat(prediction.lastError()).isNull();
+        assertThat(attempts.values())
+                .singleElement()
+                .extracting(TaskPredictionAttempt::outcome)
+                .isEqualTo(TaskPredictionAttemptOutcome.REMOTE_PROCESSING);
+    }
+
+    @Test
+    void unavailableRemotePredictionBecomesTerminalWithRuntimeStatus() {
+        TaskPredictionRuntimeStatus runtimeStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_UNAVAILABLE",
+                        "현재 개인별 AI 예상 이유를 제공할 수 없습니다.",
+                        false, 0);
+        PredictionCreationPort port = command -> {
+            throw new PredictionCreationException(
+                    TaskPredictionAttemptOutcome.HTTP_ERROR,
+                    false,
+                    402,
+                    runtimeStatus.code(),
+                    runtimeStatus.detail(),
+                    responsePayload(),
+                    runtimeStatus,
+                    null);
+        };
+        TaskPredictionDispatcher dispatcher =
+                new TaskPredictionDispatcher(states, port, policy);
+
+        assertThat(dispatcher.dispatchAvailable()).isEqualTo(1);
+
+        assertThat(prediction.status())
+                .isEqualTo(TaskPredictionStatus.FAILED);
+        assertThat(prediction.runtimeStatus()).isEqualTo(runtimeStatus);
+        assertThat(prediction.lastError().code())
+                .isEqualTo("PREDICTION_UNAVAILABLE");
     }
 
     @Test

@@ -571,6 +571,7 @@ type TaskPredictionViewState =
   | "NOT_REQUESTED"
   | "PENDING"
   | "PROCESSING"
+  | "REMOTE_PROCESSING"
   | "RETRY_WAIT"
   | "SUCCEEDED"
   | "FAILED";
@@ -604,6 +605,12 @@ type TaskPredictionView = {
   nextRetryAt: string | null;
   completedAt: string | null;
   failureCode: string | null;
+  runtimeStatus: {
+    code: string;
+    detail: string;
+    retryable: boolean;
+    maxWaitMinutes: number;
+  } | null;
 };
 ```
 
@@ -630,6 +637,7 @@ UI 활성화 여부는 enum을 추론해서 계산하지 말고 Backend boolean�
 | `NOT_REQUESTED` | Persona 준비, prediction 미생성 | boolean에 따라 prediction 생성. 제출 불가 |
 | `PENDING` | prediction 대기열 | polling. 제출 불가 |
 | `PROCESSING` | prediction 처리 중 | polling. 제출 불가 |
+| `REMOTE_PROCESSING` | 개인별 예상 이유 생성 중 | `runtimeStatus.detail`과 예상 대기시간 표시. polling 유지. 제출 불가 |
 | `RETRY_WAIT` | Backend 자동 재시도 대기 | `nextRetryAt`까지 polling 간격 조정. POST 반복 호출 금지 |
 | `SUCCEEDED` | 예상 이유 준비 완료 | 선택지별 예상 이유 또는 직접 작성 제공 |
 | `FAILED` | prediction 최종 실패 | 제출 불가 및 실패 안내 |
@@ -637,6 +645,11 @@ UI 활성화 여부는 enum을 추론해서 계산하지 말고 Backend boolean�
 권장 polling은 화면이 visible할 때만 `1s -> 2s -> 5s`의 bounded backoff를 사용하고
 `waiting=false`, `ALREADY_SUBMITTED`, Task 종료 상태 또는 route 이탈 시 중단한다. 이 polling 간격은
 Frontend 정책이며 Backend 계약값은 아니다.
+
+`REMOTE_PROCESSING` 조회가 재확인 가능 시점에 도달하면 Backend가 동일 prediction을 비동기로 다시 큐에
+넣는다. Frontend는 별도 Runtime API나 추가 command를 호출하지 않는다. `runtimeStatus.detail`은 전달된
+사용자 안내 문구를 그대로 표시하고 HTML로 해석하지 않는다. `FAILED`이면서
+`runtimeStatus.code === "PREDICTION_UNAVAILABLE"`이면 재시도하지 않는다.
 
 ## 6.5 Prediction 생성
 

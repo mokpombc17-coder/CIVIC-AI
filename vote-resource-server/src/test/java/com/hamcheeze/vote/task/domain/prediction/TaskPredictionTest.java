@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
+import java.time.Duration;
 import java.util.List;
 
 import static com.hamcheeze.vote.task.TaskTestFixtures.NOW;
@@ -156,6 +157,39 @@ class TaskPredictionTest {
         assertThatThrownBy(() -> prediction.startProcessing(
                 RETRY_POLICY, NOW.plusSeconds(200)))
                 .isInstanceOf(TaskDomainException.class);
+    }
+
+    @Test
+    void remoteProcessingWaitsForDemandAndDoesNotConsumeFailureRetryBudget() {
+        TaskPrediction prediction = pendingPrediction();
+        TaskPredictionRuntimeStatus remoteStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.",
+                        true,
+                        10);
+
+        prediction.startProcessing(RETRY_POLICY, NOW.plusSeconds(12));
+        prediction.markRemoteProcessing(
+                remoteStatus, Duration.ofSeconds(30), NOW.plusSeconds(20));
+
+        assertThat(prediction.status())
+                .isEqualTo(TaskPredictionStatus.REMOTE_PROCESSING);
+        assertThat(prediction.runtimeStatus()).isEqualTo(remoteStatus);
+        assertThat(prediction.requestRemoteRecheck(NOW.plusSeconds(49)))
+                .isFalse();
+        assertThat(prediction.requestRemoteRecheck(NOW.plusSeconds(50)))
+                .isTrue();
+
+        prediction.startProcessing(RETRY_POLICY, NOW.plusSeconds(50));
+        prediction.markRemoteProcessing(
+                remoteStatus, Duration.ZERO, NOW.plusSeconds(51));
+        assertThat(prediction.requestRemoteRecheck(NOW.plusSeconds(51)))
+                .isTrue();
+
+        assertThat(prediction.startProcessing(
+                RETRY_POLICY, NOW.plusSeconds(51))).isEqualTo(3);
+        assertThat(prediction.runtimeStatus()).isNull();
     }
 
     @Test

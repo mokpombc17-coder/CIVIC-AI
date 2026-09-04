@@ -299,7 +299,7 @@ network 오류, timeout 또는 retryable HTTP 오류가 발생하면 Resource Se
 Runtime은 같은 `requestId`와 동일 payload를 다시 받으면 다음 중 하나로 응답한다.
 
 - 최초 결과가 있으면 동일한 성공 결과를 `200 OK`로 재전달한다.
-- 아직 처리 중이라면 합의된 retryable 응답을 반환한다.
+- 아직 처리 중이라면 `202 PREDICTION_NOT_READY`를 반환한다.
 
 재전달 성공 결과의 `candidateId`, 선택지, 순서와 문구는 최초 결과와 동일해야 한다.
 
@@ -316,7 +316,9 @@ Content-Type: application/json
 ```json
 {
   "code": "IDEMPOTENCY_CONFLICT",
-  "detail": "requestId was already used with different immutable input"
+  "detail": "requestId was already used with different immutable input",
+  "retryable": false,
+  "maxWaitMinutes": 0
 }
 ```
 
@@ -325,25 +327,47 @@ Resource Server는 이 응답을 재시도하지 않는 영구 실패로 처리�
 Runtime은 `requestId`와 함께 원본 요청의 canonical hash 또는 동등한 멱등성
 판별 정보를 보관하는 것을 권장한다.
 
-## 6. 오류 응답과 재시도
+## 6. 대기 및 오류 응답과 재시도
 
-오류 응답 body는 최소한 다음 형식을 사용한다.
+대기 및 오류 응답 body는 최소한 다음 형식을 사용한다.
 
 ```json
 {
   "code": "ERROR_CODE",
-  "detail": "Human-readable error detail."
+  "detail": "사용자에게 노출 가능한 설명",
+  "retryable": false,
+  "maxWaitMinutes": 0
 }
 ```
 
 - `code`는 기계 판별용 문자열이다.
-- `detail`은 운영자가 원인을 파악할 수 있는 설명이다.
+- `detail`은 Resource Server가 사용자 API에 그대로 전달할 수 있는 설명이다.
+- `retryable`은 Resource Server의 재시도 가능 여부를 나타낸다.
+- `maxWaitMinutes`는 사용자에게 안내할 최대 예상 대기시간이며 처리 deadline이 아니다.
 - `detail`에는 인증 token이나 Persona 원문 데이터가 포함되지 않아야 한다.
+
+개인별 예상 이유가 아직 생성 중이면 다음과 같이 응답한다.
+
+```http
+HTTP/1.1 202 Accepted
+Content-Type: application/json
+```
+
+```json
+{
+  "code": "PREDICTION_NOT_READY",
+  "detail": "AI 예상 이유를 준비 중입니다.",
+  "retryable": true,
+  "maxWaitMinutes": 10
+}
+```
 
 | HTTP 상태 | 대표 `code` | Resource Server 처리 |
 |---|---|---|
+| `202 Accepted` | `PREDICTION_NOT_READY` | `REMOTE_PROCESSING`으로 저장하고 사용자 요청 시 재확인 |
 | `400 Bad Request` | `INVALID_REQUEST` | 영구 실패 |
 | `401 Unauthorized` | `UNAUTHORIZED` | 영구 실패, 인증 설정 점검 |
+| `402 Payment Required` | `PREDICTION_UNAVAILABLE` | 영구 실패, 자동 재시도하지 않음 |
 | `403 Forbidden` | `FORBIDDEN` | 영구 실패, 권한 설정 점검 |
 | `408 Request Timeout` | `TIMEOUT` | 동일 요청 재시도 |
 | `409 Conflict` | `IDEMPOTENCY_CONFLICT` | 영구 실패 |
@@ -355,6 +379,8 @@ Runtime은 `requestId`와 함께 원본 요청의 canonical hash 또는 동등�
 | `503 Service Unavailable` | `SERVICE_UNAVAILABLE` | 동일 요청 재시도 |
 
 - `408`, `429`, 모든 `5xx`, network 오류와 호출 timeout은 재시도 대상이다.
+- `202`는 오류 재시도 횟수를 소모하지 않는다. 사용자 prediction 조회·진입이 재확인 수요를 만든다.
+- `402`의 `detail`은 사용자 API에 그대로 전달하고 `retryable=false`, `maxWaitMinutes=0`으로 보존한다.
 - 그 밖의 `4xx`는 재시도하지 않는 영구 실패다.
 - 성공 HTTP 상태라도 body가 계약을 만족하지 않으면 영구 실패다.
 - 현재 호출자 기본 설정은 최대 2회 시도, 재시도 간격 30초다.

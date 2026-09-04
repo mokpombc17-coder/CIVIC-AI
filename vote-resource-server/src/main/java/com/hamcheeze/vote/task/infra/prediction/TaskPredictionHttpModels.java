@@ -285,7 +285,12 @@ final class TaskPredictionHttpModels {
     record ErrorPayload(int httpStatus, String responseBody) {
     }
 
-    record ProviderError(String code, String detail) {
+    record ProviderError(
+            String code,
+            String detail,
+            Boolean retryable,
+            Integer maxWaitMinutes
+    ) {
     }
 
     private static void require(boolean condition, String message) {

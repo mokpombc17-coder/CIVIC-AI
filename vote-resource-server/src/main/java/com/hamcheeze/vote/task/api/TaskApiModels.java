@@ -739,7 +739,8 @@ final class TaskApiModels {
             List<PredictedReasonResponse> predictedReasons,
             Instant nextRetryAt,
             Instant completedAt,
-            String failureCode
+            String failureCode,
+            PredictionRuntimeStatusResponse runtimeStatus
     ) {
         static EnsurePredictionResponse from(
                 EnsureTaskPredictionResult result
@@ -756,7 +757,9 @@ final class TaskApiModels {
                             .map(PredictedReasonResponse::from).toList(),
                     prediction.nextRetryAt(), prediction.completedAt(),
                     prediction.lastError() == null
-                            ? null : prediction.lastError().code());
+                            ? null : prediction.lastError().code(),
+                    PredictionRuntimeStatusResponse.from(
+                            prediction.runtimeStatus()));
         }
     }
 
@@ -781,7 +784,8 @@ final class TaskApiModels {
             UUID submissionId,
             Instant nextRetryAt,
             Instant completedAt,
-            String failureCode
+            String failureCode,
+            PredictionRuntimeStatusResponse runtimeStatus
     ) {
         static PredictionViewResponse from(
                 TaskPredictionQueryService.TaskPredictionView view
@@ -806,7 +810,26 @@ final class TaskApiModels {
                     view.submissionId() == null ? null
                             : view.submissionId().value(),
                     view.nextRetryAt(),
-                    view.completedAt(), view.failureCode());
+                    view.completedAt(), view.failureCode(),
+                    PredictionRuntimeStatusResponse.from(
+                            view.runtimeStatus()));
+        }
+    }
+
+    record PredictionRuntimeStatusResponse(
+            String code,
+            String detail,
+            boolean retryable,
+            int maxWaitMinutes
+    ) {
+        static PredictionRuntimeStatusResponse from(
+                com.hamcheeze.vote.task.domain.prediction
+                        .TaskPredictionRuntimeStatus status
+        ) {
+            return status == null ? null
+                    : new PredictionRuntimeStatusResponse(
+                            status.code(), status.detail(),
+                            status.retryable(), status.maxWaitMinutes());
         }
     }
 

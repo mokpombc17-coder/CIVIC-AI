@@ -47,6 +47,12 @@ public class TaskPredictionWorker {
             PredictionCreationResult result = predictionCreation.create(
                     claim.command());
             states.completeSuccess(claim, result);
+        } catch (PredictionRemoteProcessingException exception) {
+            states.completeRemoteProcessing(claim, exception);
+            log.info(
+                    "Task prediction is still processing remotely: predictionId={}, attemptId={}, attemptNumber={}, code={}",
+                    claim.predictionId().value(), claim.attemptId().value(),
+                    claim.attemptNumber(), exception.runtimeStatus().code());
         } catch (PredictionCreationException exception) {
             states.completeFailure(claim, exception);
             log.warn(

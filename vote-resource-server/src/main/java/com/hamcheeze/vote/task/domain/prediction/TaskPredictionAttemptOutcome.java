@@ -3,6 +3,7 @@ package com.hamcheeze.vote.task.domain.prediction;
 public enum TaskPredictionAttemptOutcome {
     IN_PROGRESS,
     SUCCEEDED,
+    REMOTE_PROCESSING,
     TIMEOUT,
     NETWORK_ERROR,
     HTTP_ERROR,

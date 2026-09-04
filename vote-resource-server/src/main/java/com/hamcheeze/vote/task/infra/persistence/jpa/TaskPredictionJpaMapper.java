@@ -11,6 +11,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttempt;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictedReason;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionError;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import jakarta.persistence.EntityManager;
 
@@ -52,6 +53,14 @@ final class TaskPredictionJpaMapper {
                 ? null
                 : new TaskPredictionError(
                         entity.lastErrorCode(), entity.lastErrorMessage());
+        TaskPredictionRuntimeStatus runtimeStatus =
+                entity.runtimeStatusCode() == null
+                        ? null
+                        : new TaskPredictionRuntimeStatus(
+                                entity.runtimeStatusCode(),
+                                entity.runtimeStatusDetail(),
+                                entity.runtimeStatusRetryable(),
+                                entity.runtimeStatusMaxWaitMinutes());
         return TaskPrediction.restore(
                 new TaskPredictionId(entity.id()),
                 new TaskUserId(entity.userId()),
@@ -64,6 +73,7 @@ final class TaskPredictionJpaMapper {
                 predictedReasons,
                 entity.nextRetryAt(),
                 lastError,
+                runtimeStatus,
                 entity.createdAt(),
                 entity.startedAt(),
                 entity.completedAt(),

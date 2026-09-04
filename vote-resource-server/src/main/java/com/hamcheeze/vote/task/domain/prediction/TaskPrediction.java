@@ -38,6 +38,7 @@ public final class TaskPrediction {
     private List<TaskPredictedReason> predictedReasons;
     private Instant nextRetryAt;
     private TaskPredictionError lastError;
+    private TaskPredictionRuntimeStatus runtimeStatus;
     private final Instant createdAt;
     private Instant startedAt;
     private Instant completedAt;
@@ -57,6 +58,7 @@ public final class TaskPrediction {
             List<TaskPredictedReason> predictedReasons,
             Instant nextRetryAt,
             TaskPredictionError lastError,
+            TaskPredictionRuntimeStatus runtimeStatus,
             Instant createdAt,
             Instant startedAt,
             Instant completedAt,
@@ -86,6 +88,7 @@ public final class TaskPrediction {
         this.predictedReasons = immutablePredictedReasons(predictedReasons);
         this.nextRetryAt = nextRetryAt;
         this.lastError = lastError;
+        this.runtimeStatus = runtimeStatus;
         this.createdAt = Objects.requireNonNull(createdAt, "createdAt");
         this.startedAt = startedAt;
         this.completedAt = completedAt;
@@ -109,7 +112,7 @@ public final class TaskPrediction {
                 personaId,
                 candidatePolicyVersion,
                 TaskPredictionStatus.PENDING, 0, List.of(), null, null,
-                createdAt, null, null, null, null, null);
+                null, createdAt, null, null, null, null, null);
     }
 
     public static TaskPrediction restore(
@@ -131,13 +134,40 @@ public final class TaskPrediction {
             Instant processingStartedAt,
             Instant leaseExpiresAt
     ) {
+        return restore(id, userId, task, personaGenerationId, personaId,
+                candidatePolicyVersion, status, attemptCount,
+                predictedReasons, nextRetryAt, lastError, null, createdAt,
+                startedAt, completedAt, activeAttemptId,
+                processingStartedAt, leaseExpiresAt);
+    }
+
+    public static TaskPrediction restore(
+            TaskPredictionId id,
+            TaskUserId userId,
+            Task task,
+            TaskPersonaGenerationId personaGenerationId,
+            TaskPersonaId personaId,
+            String candidatePolicyVersion,
+            TaskPredictionStatus status,
+            int attemptCount,
+            List<TaskPredictedReason> predictedReasons,
+            Instant nextRetryAt,
+            TaskPredictionError lastError,
+            TaskPredictionRuntimeStatus runtimeStatus,
+            Instant createdAt,
+            Instant startedAt,
+            Instant completedAt,
+            TaskPredictionAttemptId activeAttemptId,
+            Instant processingStartedAt,
+            Instant leaseExpiresAt
+    ) {
         Objects.requireNonNull(task, "task");
         TaskPrediction restored = new TaskPrediction(
                 id, userId, task.id(), personaGenerationId,
                 personaId,
                 candidatePolicyVersion, status,
                 attemptCount, predictedReasons, nextRetryAt, lastError,
-                createdAt, startedAt, completedAt,
+                runtimeStatus, createdAt, startedAt, completedAt,
                 activeAttemptId, processingStartedAt, leaseExpiresAt);
         if (status == TaskPredictionStatus.SUCCEEDED) {
             restored.predictedReasons = restored.validatePredictedReasons(
@@ -173,7 +203,10 @@ public final class TaskPrediction {
                     "occurredAt",
                     "retry wait has not elapsed");
         }
-        if (attemptCount >= retryPolicy.maximumAttempts()) {
+        boolean remoteRecheck = status == TaskPredictionStatus.PENDING
+                && runtimeStatus != null;
+        if (attemptCount >= retryPolicy.maximumAttempts()
+                && !remoteRecheck) {
             throw TaskDomainException.invariant(
                     "TASK_PREDICTION_ATTEMPTS_EXHAUSTED",
                     "attemptCount",
@@ -186,6 +219,7 @@ public final class TaskPrediction {
         }
         nextRetryAt = null;
         lastError = null;
+        runtimeStatus = null;
         activeAttemptId = attemptId;
         processingStartedAt = occurredAt;
         leaseExpiresAt = occurredAt.plus(processingLeaseDuration);
@@ -245,6 +279,7 @@ public final class TaskPrediction {
         Objects.requireNonNull(retryPolicy, "retryPolicy");
         requireTime(occurredAt);
         lastError = error;
+        runtimeStatus = null;
         if (attemptCount < retryPolicy.maximumAttempts()) {
             status = TaskPredictionStatus.RETRY_WAIT;
             nextRetryAt = occurredAt.plus(retryPolicy.retryDelay());
@@ -261,14 +296,56 @@ public final class TaskPrediction {
             TaskPredictionError error,
             Instant occurredAt
     ) {
+        failPermanently(error, null, occurredAt);
+    }
+
+    public void failPermanently(
+            TaskPredictionError error,
+            TaskPredictionRuntimeStatus runtimeStatus,
+            Instant occurredAt
+    ) {
         requireStatus(TaskPredictionStatus.PROCESSING, "fail permanently");
         Objects.requireNonNull(error, "error");
         requireTime(occurredAt);
         status = TaskPredictionStatus.FAILED;
         lastError = error;
+        this.runtimeStatus = runtimeStatus;
         nextRetryAt = null;
         completedAt = occurredAt;
         clearActiveAttempt();
+    }
+
+    public void markRemoteProcessing(
+            TaskPredictionRuntimeStatus runtimeStatus,
+            Duration recheckDelay,
+            Instant occurredAt
+    ) {
+        requireStatus(TaskPredictionStatus.PROCESSING,
+                "mark remote processing");
+        Objects.requireNonNull(runtimeStatus, "runtimeStatus");
+        Objects.requireNonNull(recheckDelay, "recheckDelay");
+        if (recheckDelay.isNegative()) {
+            throw new IllegalArgumentException(
+                    "recheckDelay must not be negative");
+        }
+        requireTime(occurredAt);
+        status = TaskPredictionStatus.REMOTE_PROCESSING;
+        this.runtimeStatus = runtimeStatus;
+        lastError = null;
+        nextRetryAt = occurredAt.plus(recheckDelay);
+        completedAt = null;
+        clearActiveAttempt();
+    }
+
+    public boolean requestRemoteRecheck(Instant occurredAt) {
+        requireTime(occurredAt);
+        if (status != TaskPredictionStatus.REMOTE_PROCESSING
+                || occurredAt.isBefore(nextRetryAt)) {
+            return false;
+        }
+        status = TaskPredictionStatus.PENDING;
+        nextRetryAt = null;
+        return true;
     }
 
     public void succeed(
@@ -291,6 +368,7 @@ public final class TaskPrediction {
         status = TaskPredictionStatus.SUCCEEDED;
         nextRetryAt = null;
         lastError = null;
+        runtimeStatus = null;
         completedAt = occurredAt;
         clearActiveAttempt();
     }
@@ -306,6 +384,7 @@ public final class TaskPrediction {
         requireTime(occurredAt);
         status = TaskPredictionStatus.FAILED;
         lastError = error;
+        runtimeStatus = null;
         nextRetryAt = null;
         if (startedAt == null) {
             startedAt = occurredAt;
@@ -385,6 +464,7 @@ public final class TaskPrediction {
     public List<TaskPredictedReason> predictedReasons() { return predictedReasons; }
     public Instant nextRetryAt() { return nextRetryAt; }
     public TaskPredictionError lastError() { return lastError; }
+    public TaskPredictionRuntimeStatus runtimeStatus() { return runtimeStatus; }
     public Instant createdAt() { return createdAt; }
     public Instant startedAt() { return startedAt; }
     public Instant completedAt() { return completedAt; }
@@ -501,7 +581,12 @@ public final class TaskPrediction {
         }
         switch (status) {
             case PENDING -> {
-                if (attemptCount != 0 || startedAt != null
+                boolean initial = attemptCount == 0 && startedAt == null
+                        && runtimeStatus == null;
+                boolean remoteRecheck = attemptCount > 0
+                        && startedAt != null && runtimeStatus != null
+                        && runtimeStatus.retryable();
+                if ((!initial && !remoteRecheck)
                         || completedAt != null || nextRetryAt != null
                         || lastError != null || !predictedReasons.isEmpty()) {
                     throw inconsistent("pending fields are inconsistent");
@@ -514,27 +599,42 @@ public final class TaskPrediction {
                         || activeAttemptId == null
                         || processingStartedAt == null
                         || leaseExpiresAt == null
+                        || runtimeStatus != null
                         || !leaseExpiresAt.isAfter(processingStartedAt)) {
                     throw inconsistent("processing fields are inconsistent");
+                }
+            }
+            case REMOTE_PROCESSING -> {
+                requireStarted();
+                if (completedAt != null || nextRetryAt == null
+                        || lastError != null || runtimeStatus == null
+                        || !runtimeStatus.retryable()
+                        || !predictedReasons.isEmpty()) {
+                    throw inconsistent(
+                            "remote processing fields are inconsistent");
                 }
             }
             case RETRY_WAIT -> {
                 requireStarted();
                 if (completedAt != null || nextRetryAt == null
-                        || lastError == null || !predictedReasons.isEmpty()) {
+                        || lastError == null || runtimeStatus != null
+                        || !predictedReasons.isEmpty()) {
                     throw inconsistent("retry wait fields are inconsistent");
                 }
             }
             case SUCCEEDED -> {
                 requireStarted();
                 if (completedAt == null || nextRetryAt != null
-                        || lastError != null || predictedReasons.isEmpty()) {
+                        || lastError != null || runtimeStatus != null
+                        || predictedReasons.isEmpty()) {
                     throw inconsistent("succeeded fields are inconsistent");
                 }
             }
             case FAILED -> {
                 if (completedAt == null || nextRetryAt != null
-                        || lastError == null || !predictedReasons.isEmpty()) {
+                        || lastError == null || !predictedReasons.isEmpty()
+                        || (runtimeStatus != null
+                        && runtimeStatus.retryable())) {
                     throw inconsistent("failed fields are inconsistent");
                 }
             }

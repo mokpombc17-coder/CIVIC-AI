@@ -168,13 +168,14 @@ type PredictionView = {
     | "NOT_REQUESTED"
     | "PENDING"
     | "PROCESSING"
+    | "REMOTE_PROCESSING"
     | "RETRY_WAIT"
     | "SUCCEEDED"
     | "FAILED";
   personaGenerationId: string | null;
   personaId: string | null;
   predictionId: string | null;
-  predictionStatus: "PENDING" | "PROCESSING" | "RETRY_WAIT" | "SUCCEEDED" | "FAILED" | null;
+  predictionStatus: "PENDING" | "PROCESSING" | "REMOTE_PROCESSING" | "RETRY_WAIT" | "SUCCEEDED" | "FAILED" | null;
   predictedReasons: Array<{
     id: string;
     optionId: string;
@@ -195,6 +196,12 @@ type PredictionView = {
   nextRetryAt: string | null;
   completedAt: string | null;
   failureCode: string | null;
+  runtimeStatus: {
+    code: string;
+    detail: string;
+    retryable: boolean;
+    maxWaitMinutes: number;
+  } | null;
 };
 ```
 
@@ -209,6 +216,13 @@ Frontend는 enum을 조합해 참여 가능 여부를 추론하지 말고 아래
 | `directAnswerAllowed` | 직접 작성 가능 여부 |
 | `allowedReasonSources` | 허용된 제출 방식 |
 | `retryable` | prediction 실패 후 재요청 가능 여부 |
+
+`REMOTE_PROCESSING`은 개인별 AI 예상 이유가 아직 생성 중인 상태다. 이때 모든 제출 관련 capability는
+`false`이고, `runtimeStatus.detail`은 서버에서 전달받은 문구를 그대로 사용자에게 표시할 수 있다.
+`runtimeStatus.maxWaitMinutes`는 예상 대기시간 안내값이며 polling deadline이 아니다.
+
+`FAILED`이면서 `runtimeStatus.code === "PREDICTION_UNAVAILABLE"`이면 현재 생성할 수 없는 최종 상태다.
+`runtimeStatus.detail`을 표시하고 자동 또는 수동 재시도 버튼을 제공하지 않는다.
 
 `PERSONA_NOT_READY`이면 Task prediction과 제출에 필요한 Persona가 아직 준비되지 않은 상태다.
 
@@ -231,7 +245,7 @@ type EnsurePredictionResponse = {
   predictionId: string;
   personaGenerationId: string;
   personaId: string;
-  status: "PENDING" | "PROCESSING" | "RETRY_WAIT" | "SUCCEEDED" | "FAILED";
+  status: "PENDING" | "PROCESSING" | "REMOTE_PROCESSING" | "RETRY_WAIT" | "SUCCEEDED" | "FAILED";
   created: boolean;
   waiting: boolean;
   predictedAnswerAllowed: boolean;
@@ -245,6 +259,12 @@ type EnsurePredictionResponse = {
   nextRetryAt: string | null;
   completedAt: string | null;
   failureCode: string | null;
+  runtimeStatus: {
+    code: string;
+    detail: string;
+    retryable: boolean;
+    maxWaitMinutes: number;
+  } | null;
 };
 ```
 
@@ -254,6 +274,9 @@ type EnsurePredictionResponse = {
 2. `predictionRequestAllowed=true`이면 `POST /prediction` 한 번
 3. POST 성공 후 `GET /prediction` 재조회
 4. `waiting=true`인 동안만 polling
+
+`REMOTE_PROCESSING`의 재확인은 사용자 요청에 의해 수행한다. 기존 GET polling이 재확인 가능 시점에
+도달하면 Backend가 동일 prediction 요청을 비동기로 다시 큐에 넣으므로 새 endpoint를 호출할 필요가 없다.
 
 권장 polling 간격은 `1초 → 2초 → 5초`이며 이후 5초를 유지한다. 페이지 이탈, component unmount, hidden tab에서는 polling을 멈춘다.
 

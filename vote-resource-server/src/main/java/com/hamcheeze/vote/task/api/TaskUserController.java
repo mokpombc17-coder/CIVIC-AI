@@ -144,9 +144,15 @@ final class TaskUserController {
             Authentication authentication,
             @PathVariable UUID taskId
     ) {
-        return TaskApiModels.PredictionViewResponse.from(
-                predictionQueries.findCurrent(
-                        user(authentication), id(taskId)));
+        TaskUserId userId = user(authentication);
+        TaskId resolvedTaskId = id(taskId);
+        var view = predictionQueries.findCurrent(userId, resolvedTaskId);
+        if (view.state()
+                == TaskPredictionQueryService.TaskPredictionViewState
+                .REMOTE_PROCESSING) {
+            predictions.requestRemoteRecheckIfDue(userId, resolvedTaskId);
+        }
+        return TaskApiModels.PredictionViewResponse.from(view);
     }
 
     private TaskUserId user(Authentication authentication) {

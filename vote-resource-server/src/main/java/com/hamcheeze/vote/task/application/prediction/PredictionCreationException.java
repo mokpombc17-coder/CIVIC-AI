@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.prediction;
 
 import com.hamcheeze.vote.task.domain.prediction.SanitizedTaskPredictionPayload;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionAttemptOutcome;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 
 import java.util.Objects;
 
@@ -12,6 +13,7 @@ public final class PredictionCreationException extends RuntimeException {
     private final Integer httpStatus;
     private final String errorCode;
     private final SanitizedTaskPredictionPayload responsePayload;
+    private final TaskPredictionRuntimeStatus runtimeStatus;
 
     public PredictionCreationException(
             TaskPredictionAttemptOutcome outcome,
@@ -20,6 +22,20 @@ public final class PredictionCreationException extends RuntimeException {
             String errorCode,
             String message,
             SanitizedTaskPredictionPayload responsePayload,
+            Throwable cause
+    ) {
+        this(outcome, retryable, httpStatus, errorCode, message,
+                responsePayload, null, cause);
+    }
+
+    public PredictionCreationException(
+            TaskPredictionAttemptOutcome outcome,
+            boolean retryable,
+            Integer httpStatus,
+            String errorCode,
+            String message,
+            SanitizedTaskPredictionPayload responsePayload,
+            TaskPredictionRuntimeStatus runtimeStatus,
             Throwable cause
     ) {
         super(message, cause);
@@ -35,6 +51,7 @@ public final class PredictionCreationException extends RuntimeException {
         }
         this.errorCode = errorCode.trim();
         this.responsePayload = responsePayload;
+        this.runtimeStatus = runtimeStatus;
     }
 
     public TaskPredictionAttemptOutcome outcome() {
@@ -55,6 +72,10 @@ public final class PredictionCreationException extends RuntimeException {
 
     public SanitizedTaskPredictionPayload responsePayload() {
         return responsePayload;
+    }
+
+    public TaskPredictionRuntimeStatus runtimeStatus() {
+        return runtimeStatus;
     }
 
     private static TaskPredictionAttemptOutcome requireFailureOutcome(

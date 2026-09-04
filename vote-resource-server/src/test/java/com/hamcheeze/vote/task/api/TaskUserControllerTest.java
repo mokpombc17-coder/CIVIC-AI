@@ -23,6 +23,8 @@ import com.hamcheeze.vote.task.domain.common.TaskSubmissionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.common.TaskViolation;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
 import org.junit.jupiter.api.BeforeEach;
@@ -406,6 +408,49 @@ class TaskUserControllerTest {
                 .andExpect(jsonPath("$.waiting").value(true))
                 .andExpect(jsonPath("$.predictionRequestAllowed")
                         .value(false));
+    }
+
+    @Test
+    void remoteProcessingStatusPassesThroughProviderDetailAndRequestsRecheck()
+            throws Exception {
+        TaskPredictionRuntimeStatus runtimeStatus =
+                new TaskPredictionRuntimeStatus(
+                        "PREDICTION_NOT_READY",
+                        "AI 예상 이유를 준비 중입니다.", true, 10);
+        TaskPredictionQueryService.TaskPredictionView view =
+                new TaskPredictionQueryService.TaskPredictionView(
+                        taskId(),
+                        TaskPredictionQueryService.TaskPredictionViewState
+                                .REMOTE_PROCESSING,
+                        personaGenerationId(),
+                        new com.hamcheeze.vote.task.domain.common
+                                .TaskPersonaId("persona-a"),
+                        predictionId(),
+                        TaskPredictionStatus.REMOTE_PROCESSING,
+                        List.of(), true, true, false, null,
+                        false, false, false, false, true,
+                        List.of(), null, NOW.plusSeconds(30),
+                        null, null, runtimeStatus);
+        when(predictionQueries.findCurrent(any(), any())).thenReturn(view);
+
+        mockMvc.perform(get(
+                        "/api/v1/me/tasks/{taskId}/prediction",
+                        taskId().value()).principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.state")
+                        .value("REMOTE_PROCESSING"))
+                .andExpect(jsonPath("$.submissionAllowed").value(false))
+                .andExpect(jsonPath("$.runtimeStatus.code")
+                        .value("PREDICTION_NOT_READY"))
+                .andExpect(jsonPath("$.runtimeStatus.detail")
+                        .value("AI 예상 이유를 준비 중입니다."))
+                .andExpect(jsonPath("$.runtimeStatus.retryable")
+                        .value(true))
+                .andExpect(jsonPath("$.runtimeStatus.maxWaitMinutes")
+                        .value(10));
+
+        verify(predictions).requestRemoteRecheckIfDue(
+                eq(userId()), eq(taskId()));
     }
 
     @Test

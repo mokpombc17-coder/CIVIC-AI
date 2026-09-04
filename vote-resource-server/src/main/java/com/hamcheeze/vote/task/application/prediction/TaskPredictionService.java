@@ -11,6 +11,7 @@ import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskPredictionId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import com.hamcheeze.vote.task.domain.prediction.TaskPrediction;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import com.hamcheeze.vote.task.domain.task.TaskAvailability;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -137,6 +138,17 @@ public class TaskPredictionService {
         if (existing.isPresent()) {
             TaskPrediction value = existing.orElseThrow();
             requireInput(value);
+            if (value.status() == TaskPredictionStatus.REMOTE_PROCESSING) {
+                TaskPrediction locked = predictions.findByIdentityForUpdate(
+                                userId, task.id(), persona.generationId())
+                        .orElseThrow(() -> new IllegalStateException(
+                                "TaskPrediction disappeared while locking"));
+                if (locked.requestRemoteRecheck(now)) {
+                    value = predictions.save(locked);
+                } else {
+                    value = locked;
+                }
+            }
             return EnsureTaskPredictionResult.of(value, false);
         }
 
@@ -161,6 +173,34 @@ public class TaskPredictionService {
                                 + "ON CONFLICT DO NOTHING"));
         requireInput(concurrentWinner);
         return EnsureTaskPredictionResult.of(concurrentWinner, false);
+    }
+
+    @Transactional
+    public boolean requestRemoteRecheckIfDue(
+            TaskUserId userId,
+            TaskId taskId
+    ) {
+        Objects.requireNonNull(userId, "userId");
+        Objects.requireNonNull(taskId, "taskId");
+        if (!availability.enabled()) {
+            return false;
+        }
+        CurrentTaskPersona persona = currentPersonas
+                .findCurrentUsable(userId)
+                .orElse(null);
+        if (persona == null) {
+            return false;
+        }
+        TaskPrediction prediction = predictions.findByIdentityForUpdate(
+                        userId, taskId, persona.generationId())
+                .orElse(null);
+        if (prediction == null
+                || !prediction.requestRemoteRecheck(clock.instant())) {
+            return false;
+        }
+        requireInput(prediction);
+        predictions.save(prediction);
+        return true;
     }
 
     private TaskPredictionApplicationPolicy requirePolicy() {
