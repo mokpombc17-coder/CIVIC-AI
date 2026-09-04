@@ -278,9 +278,11 @@ main {
 }
 
 @media (display-mode: standalone) {
+  html,
   body,
   .app-shell,
   .app-route-content {
+    height: 100%;
     min-height: 0;
   }
 }
