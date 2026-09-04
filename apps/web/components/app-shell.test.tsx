@@ -3,10 +3,6 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { AppShell } from "./app-shell";
 
-vi.mock("@/components/app-install-banner", () => ({
-  AppInstallBanner: () => null,
-}));
-
 vi.mock("@/components/app-update-gate", () => ({
   AppUpdateGate: ({ children }: { children: ReactNode }) => children,
 }));
