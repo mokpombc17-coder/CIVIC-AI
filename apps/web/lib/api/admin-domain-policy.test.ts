@@ -15,6 +15,16 @@ const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const roomId = "4a52affd-77e8-4bee-86c1-8b74c2ea45ae";
 
 describe("admin domain route allowlist", () => {
+  it("allows only GET with the admin scope for task progress summaries", () => {
+    expect(matchVoteTaskAdminRoute("GET", [taskId, "progress-summary"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/progress-summary`,
+      scope: "vote:tasks:admin",
+    });
+    expect(matchVoteTaskAdminRoute("POST", [taskId, "progress-summary"])).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
+    });
+  });
   it("allows only the documented Chat approval methods", () => {
     expect(matchChatAdminRoute("GET", [])).toEqual({
       path: "/api/v1/admin/room-creation-requests",

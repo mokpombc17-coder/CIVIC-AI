@@ -140,7 +140,7 @@ export function matchVoteTaskAdminRoute(
           ? ["PUT"]
           : ["open-now", "start-now", "close", "cancel"].includes(action)
             ? ["POST"]
-            : ["result-summary", "result-view"].includes(action)
+            : ["progress-summary", "result-summary", "result-view"].includes(action)
               ? ["GET"]
               : [];
   return methods.length > 0
