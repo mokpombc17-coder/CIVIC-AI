@@ -5,6 +5,8 @@ import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.RateLimitExceededException;
 import ai.civic.mainauth.auth.RefreshTokenConflictException;
+import ai.civic.mainauth.consent.ConsentAcceptanceConflictException;
+import ai.civic.mainauth.consent.ConsentAcceptanceValidationException;
 import ai.civic.mainauth.signup.SignupConflictException;
 import ai.civic.mainauth.signup.SignupValidationException;
 import ai.civic.mainauth.admin.AdminPolicyException;
@@ -16,13 +18,21 @@ import ai.civic.mainauth.privacy.PrivacyOperationNotFoundException;
 import java.net.URI;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.converter.HttpMessageNotReadableException;
+import org.springframework.web.HttpMediaTypeNotSupportedException;
+import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestCookieException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
-import org.springframework.web.bind.MissingRequestCookieException;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
-    @ExceptionHandler({SignupValidationException.class, BrowserRequestRejectedException.class})
+    @ExceptionHandler({
+        SignupValidationException.class,
+        BrowserRequestRejectedException.class,
+        ConsentAcceptanceValidationException.class
+    })
     ProblemDetail badRequest(RuntimeException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Request rejected", exception.getMessage());
     }
@@ -42,8 +52,28 @@ public class ApiExceptionHandler {
         return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", "Authentication cookie is missing");
     }
 
-    @ExceptionHandler(SignupConflictException.class)
-    ProblemDetail conflict(SignupConflictException exception) {
+    @ExceptionHandler(MissingRequestHeaderException.class)
+    ProblemDetail missingRequiredHeader(MissingRequestHeaderException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Request rejected", "Required request header is missing");
+    }
+
+    @ExceptionHandler(MethodArgumentNotValidException.class)
+    ProblemDetail invalidRequestBody(MethodArgumentNotValidException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Request rejected", "Request body validation failed");
+    }
+
+    @ExceptionHandler(HttpMessageNotReadableException.class)
+    ProblemDetail malformedRequestBody(HttpMessageNotReadableException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Request rejected", "Request body is malformed");
+    }
+
+    @ExceptionHandler(HttpMediaTypeNotSupportedException.class)
+    ProblemDetail unsupportedContentType(HttpMediaTypeNotSupportedException exception) {
+        return problem(HttpStatus.BAD_REQUEST, "Request rejected", "Content-Type is not allowed");
+    }
+
+    @ExceptionHandler({SignupConflictException.class, ConsentAcceptanceConflictException.class})
+    ProblemDetail conflict(RuntimeException exception) {
         return problem(HttpStatus.CONFLICT, "Request conflict", exception.getMessage());
     }
 

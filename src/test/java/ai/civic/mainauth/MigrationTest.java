@@ -54,7 +54,8 @@ class MigrationTest {
                 "questionnaire_responses", "consent_evidence", "refresh_tokens",
                 "pwa_refresh_sessions", "pwa_refresh_tokens", "auth_challenges",
                 "notification_outbox", "audit_outbox", "audit_events", "feature_gates",
-                "account_state_outbox", "pre_session_rate_limits");
+                "account_state_outbox", "pre_session_rate_limits",
+                "consent_acceptance_policies", "consent_acceptances");
 
         try (var connection = DriverManager.getConnection(
                         POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
@@ -146,6 +147,38 @@ class MigrationTest {
                     assertThat(rows.getString("path")).isEqualTo("/legal/terms/3");
                     assertThat(rows.getBoolean("requires_acceptance")).isTrue();
                     assertThat(rows.next()).isFalse();
+                }
+            }
+
+            try (var policy = connection.prepareStatement("""
+                    select document_code, document_version
+                    from consent_acceptance_policies
+                    where active
+                    order by document_code, document_version
+                    """)) {
+                try (var rows = policy.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_code"))
+                            .isEqualTo("SENSITIVE_INFORMATION_CONSENT");
+                    assertThat(rows.getString("document_version")).isEqualTo("2026-09-04");
+                    assertThat(rows.next()).isFalse();
+                }
+            }
+
+            try (var constraints = connection.prepareStatement("""
+                    select pg_get_constraintdef(oid) as definition
+                    from pg_constraint
+                    where conrelid = 'consent_acceptances'::regclass
+                    order by conname
+                    """)) {
+                try (var rows = constraints.executeQuery()) {
+                    var definitions = new java.util.ArrayList<String>();
+                    while (rows.next()) definitions.add(rows.getString("definition"));
+                    assertThat(definitions).anyMatch(definition -> definition.contains(
+                            "FOREIGN KEY (document_code, document_version) REFERENCES "
+                                    + "consent_acceptance_policies(document_code, document_version)"));
+                    assertThat(definitions).anyMatch(definition -> definition.equals(
+                            "UNIQUE (user_id, idempotency_key)"));
                 }
             }
         }
