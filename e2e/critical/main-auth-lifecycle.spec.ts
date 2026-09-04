@@ -13,6 +13,7 @@ let lastReactivationRequest: Record<string, unknown> | null = null;
 let lastPasswordResetRequest: Record<string, unknown> | null = null;
 let lastPasswordResetCompletion: Record<string, unknown> | null = null;
 let lastSignupCompletion: Record<string, unknown> | null = null;
+let signupFlowRequestCount = 0;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -20,6 +21,7 @@ test.beforeAll(async () => {
     const body = await readBody(request);
 
     if (url.pathname === "/api/v1/signup/flows") {
+      signupFlowRequestCount += 1;
       if (body.email === "registered-active@example.com") {
         return json(
           response,
@@ -217,6 +219,28 @@ test("회원가입은 계정 정보, 이메일 인증, 약관 동의와 필수�
     },
   });
   expect(lastSignupCompletion).not.toHaveProperty("privacy_evidence");
+});
+
+test("비밀번호 규칙 오류는 계정 정보 단계에서 다음 단계 이동과 API 요청을 막는다", async ({
+  page,
+}) => {
+  const requestCountBeforeSubmit = signupFlowRequestCount;
+
+  await page.goto("/signup/account");
+  await page.getByLabel("이메일").fill("invalid-password@example.com");
+  await page.getByLabel("비밀번호", { exact: true }).fill("Invalid123?");
+  await page.getByLabel("비밀번호 확인").fill("Invalid123?");
+  await page.getByLabel("만 14세 이상입니다").check();
+  await page.getByRole("button", { name: "인증 코드 받기" }).click();
+
+  await expect(page).toHaveURL(/\/signup\/account$/u);
+  await expect(page.getByRole("navigation", { name: "회원가입 단계" })).toContainText(
+    "1/3계정 정보",
+  );
+  await expect(page.getByRole("status")).toContainText(
+    "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+  );
+  expect(signupFlowRequestCount).toBe(requestCountBeforeSubmit);
 });
 
 test("이미 가입된 이메일은 계정 상태에 따라 로그인 또는 재활성화로 안내한다", async ({ page }) => {

@@ -51,6 +51,10 @@ const defaultSignupPreferences = Object.freeze({
 });
 const passwordResetEmailKey = "civic:password-reset:email";
 const passwordResetCodeKey = "civic:password-reset:code";
+const signupPasswordPattern =
+  /^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=])[A-Za-z0-9!@#$%^&*()_+\-=]{8,1024}$/u;
+const signupPasswordPolicyMessage =
+  "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.";
 
 export function signupStepFromHistory(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("civicSignupStep" in value)) return null;
@@ -160,9 +164,8 @@ export function AuthFunctionalScreen({
         });
         await completeLogin(response);
       } else if (activeId === "AUTH-002") {
-        if (draft.password !== draft.passwordConfirmation) {
-          throw new Error("비밀번호 확인이 일치하지 않습니다.");
-        }
+        const passwordProblem = signupPasswordProblem(draft.password, draft.passwordConfirmation);
+        if (passwordProblem) throw new Error(passwordProblem);
         if (!draft.ageConfirmed) throw new Error("만 14세 이상 여부를 확인해 주세요.");
         const response = await api("/api/v1/signup/flows", { email: draft.email });
         const body = (await response.json()) as {
@@ -936,6 +939,12 @@ function Field({
 
 export function isPasswordResetEmail(value: string): boolean {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/u.test(value.trim());
+}
+
+export function signupPasswordProblem(password: string, confirmation: string): string | null {
+  if (!signupPasswordPattern.test(password)) return signupPasswordPolicyMessage;
+  if (password !== confirmation) return "비밀번호 확인이 일치하지 않습니다.";
+  return null;
 }
 
 export function passwordResetCodeFromSearch(search: string): string | null {

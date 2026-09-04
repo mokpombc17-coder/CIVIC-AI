@@ -62,6 +62,7 @@ import {
   safeReturnTarget,
   readSignupAcceptanceControls,
   SignupDuplicateEmailNotice,
+  signupPasswordProblem,
   signupRecovery,
   signupCompletionPath,
   signupStepForScreen,
@@ -111,6 +112,33 @@ describe("signup consent evidence", () => {
     expect(readSignupAcceptanceControls(undefined)).toEqual(["TERMS", "ACCOUNT_RAG_PRIVACY"]);
     expect(() => readSignupAcceptanceControls(["ACCOUNT_RAG_PRIVACY"])).toThrow(
       "필수 이용약관 동의 항목을 불러오지 못했습니다.",
+    );
+  });
+});
+
+describe("signup password validation", () => {
+  it("accepts the same password boundary as Main/Auth", () => {
+    expect(signupPasswordProblem("Abcdef1!", "Abcdef1!")).toBeNull();
+    expect(signupPasswordProblem(`${"A".repeat(1022)}1!`, `${"A".repeat(1022)}1!`)).toBeNull();
+  });
+
+  it.each([
+    ["minimum length", "Short1!"],
+    ["required digit", "onlyletters!"],
+    ["required symbol", "NoSymbol123"],
+    ["whitespace", "Whitespace 1!"],
+    ["unsupported symbol", "Invalid123?"],
+    ["non-ASCII characters", "한글Pass123!"],
+    ["maximum length", `${"A".repeat(1023)}1!`],
+  ])("rejects a password outside the Main/Auth policy: %s", (_case, password) => {
+    expect(signupPasswordProblem(password, password)).toBe(
+      "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+    );
+  });
+
+  it("rejects a confirmation that does not match", () => {
+    expect(signupPasswordProblem("Valid123!", "Different123!")).toBe(
+      "비밀번호 확인이 일치하지 않습니다.",
     );
   });
 });
