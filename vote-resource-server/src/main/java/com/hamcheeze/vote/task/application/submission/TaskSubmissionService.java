@@ -194,8 +194,7 @@ public class TaskSubmissionService {
                             "user already submitted this task"));
         }
 
-        if (command.reasonSource() == TaskReasonSource.AI_ACCEPTED
-                && !predictionAvailability.enabled()) {
+        if (!predictionAvailability.enabled()) {
             return rejection(
                     409,
                     "TASK_PREDICTION_DISABLED",
@@ -203,13 +202,14 @@ public class TaskSubmissionService {
                     TaskViolation.of(
                             "TASK_PREDICTION_DISABLED",
                             "reasonSource",
-                            "AI_ACCEPTED is unavailable while prediction is disabled"));
+                            "submission is unavailable while prediction is disabled"));
         }
 
         TaskPrediction currentPrediction = predictions.findByIdentity(
                 userId, task.id(), currentPersona.generationId()).orElse(null);
-        if (command.reasonSource() == TaskReasonSource.AI_ACCEPTED
-                && currentPrediction == null) {
+        if (currentPrediction == null
+                || currentPrediction.status()
+                != TaskPredictionStatus.SUCCEEDED) {
             return rejection(
                     409,
                     "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
@@ -217,15 +217,10 @@ public class TaskSubmissionService {
                     TaskViolation.of(
                             "TASK_SUBMISSION_PREDICTION_UNAVAILABLE",
                             "predictedReasonId",
-                            "current prediction is unavailable for submission"));
+                            "a succeeded current prediction is required for submission"));
         }
 
-        TaskPrediction submissionPrediction =
-                command.reasonSource() == TaskReasonSource.AI_ACCEPTED
-                        || currentPrediction != null
-                        && currentPrediction.status()
-                        == TaskPredictionStatus.SUCCEEDED
-                        ? currentPrediction : null;
+        TaskPrediction submissionPrediction = currentPrediction;
 
         try {
             TaskSubmissionAnswerCommand answer = command.toAnswer(

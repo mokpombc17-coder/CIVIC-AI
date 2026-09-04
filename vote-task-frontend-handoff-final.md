@@ -312,8 +312,8 @@ Idempotency-Key: <canonical UUID>
 - `allowedReasonSources`에 `USER_WRITTEN` 포함
 
 직접 작성 이유는 trim 후 1~500자다. `predictedReasonId`는 보내지 않는다.
-Prediction이 없거나 `PENDING`, `PROCESSING`, `RETRY_WAIT`, `FAILED`여도
-`directAnswerAllowed=true`이면 직접 제출할 수 있다.
+현재 Prediction이 `SUCCEEDED`이고 `directAnswerAllowed=true`일 때만 직접
+제출할 수 있다.
 
 ## 7.3 서버가 결정하는 식별자
 
@@ -324,9 +324,9 @@ Frontend는 아래 식별자를 제출 요청에 보내지 않는다.
 - `predictionId`: 현재 `(userId, taskId, personaGenerationId)` Prediction에서 결정
 - `questionId`: Task에 저장된 단일 Question에서 결정
 
-`USER_WRITTEN` 제출 시 현재 Prediction이 `SUCCEEDED`라면 Backend가 그
-`predictionId`를 provenance로 자동 연결한다. 현재 Prediction이 없거나 성공 전·실패 상태라면
-제출은 허용하되 저장된 `predictionId`는 `null`이다.
+`USER_WRITTEN` 제출 시 Backend가 현재 `SUCCEEDED` Prediction의
+`predictionId`를 provenance로 자동 연결한다. Prediction이 없거나
+`PENDING`, `PROCESSING`, `RETRY_WAIT`, `FAILED`이면 제출을 `409`로 거절한다.
 
 `AI_ACCEPTED`는 제출 시점에도 현재 Prediction이 `SUCCEEDED`인지 다시 검증한다.
 화면에 이유가 보였더라도 Persona 전환이나 Prediction 상태 변경으로 조건이 달라지면 `409`로
@@ -429,7 +429,7 @@ type MySubmission = {
 3. GET /me/tasks/{taskId}/prediction
 4. predictionRequestAllowed=true이면 POST /prediction
 5. waiting=true이면 GET /prediction polling
-6. AI_ACCEPTED 또는 USER_WRITTEN으로 POST /submission
+6. submissionAllowed=true이면 AI_ACCEPTED 또는 USER_WRITTEN으로 POST /submission
 7. GET /me/submissions?taskId=...로 제출 확인
 ```
 

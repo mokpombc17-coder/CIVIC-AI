@@ -154,7 +154,7 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 .isEqualTo(1);
         assertThat(count(
                 "SELECT count(*) FROM task_predictions WHERE user_id = ?",
-                subject)).isZero();
+                subject)).isEqualTo(2);
         assertThat(count(
                 "SELECT count(*) FROM task_submissions WHERE user_id = ?",
                 subject)).isEqualTo(2);
@@ -174,7 +174,7 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 userId, firstTask.id()).orElseThrow();
 
         assertThat(submission.taskId()).isEqualTo(firstTask.id());
-        assertThat(submission.predictionId()).isNull();
+        assertThat(submission.predictionId()).isNotNull();
         assertThat(submission.reasonSource())
                 .isEqualTo(TaskReasonSource.USER_WRITTEN);
         assertThat(submission.finalReason())
@@ -261,10 +261,9 @@ class LocalTaskPersonaBootstrapIntegrationTest {
                 .isEqualTo(TaskPredictionViewState.NOT_REQUESTED);
         assertThat(availablePrediction.personaGenerationId()).isNotNull();
         assertThat(availablePrediction.predictionId()).isNull();
-        assertThat(availablePrediction.submissionAllowed()).isTrue();
-        assertThat(availablePrediction.directAnswerAllowed()).isTrue();
-        assertThat(availablePrediction.allowedReasonSources())
-                .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(availablePrediction.submissionAllowed()).isFalse();
+        assertThat(availablePrediction.directAnswerAllowed()).isFalse();
+        assertThat(availablePrediction.allowedReasonSources()).isEmpty();
     }
 
     private int count(String sql, Object argument) {

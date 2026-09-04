@@ -5,7 +5,10 @@ import com.hamcheeze.vote.task.application.bootstrap.LocalTaskParticipationFixtu
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionWorker;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
 import org.springframework.beans.factory.annotation.Value;
@@ -15,7 +18,7 @@ import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 
-/** Prepares one submitted and one available open Task for the local frontend. */
+/** Prepares one predicted-and-submitted and one available local open Task. */
 @Service
 @Profile("local")
 @ConditionalOnExpression(
@@ -25,12 +28,16 @@ import java.util.Objects;
                 + "'${vote.survey.bootstrap.enabled:false}' == 'true' and "
                 + "'${vote.integration.outbox.dispatcher-enabled:false}' == 'true' and "
                 + "'${vote.persona.enabled:false}' == 'true' and "
-                + "'${vote.persona.provider:http}' == 'fake'")
+                + "'${vote.persona.provider:http}' == 'fake' and "
+                + "'${vote.task.prediction.enabled:false}' == 'true' and "
+                + "'${vote.task.prediction.provider:http}' == 'fake'")
 public class LocalTaskParticipationBootstrapService {
 
     private final TaskRepository tasks;
     private final TaskSubmissionRepository submissions;
     private final CurrentTaskPersonaQueryPort currentPersonas;
+    private final TaskPredictionService predictions;
+    private final TaskPredictionWorker predictionWorker;
     private final TaskSubmissionService submissionService;
     private final String userSubject;
 
@@ -38,6 +45,8 @@ public class LocalTaskParticipationBootstrapService {
             TaskRepository tasks,
             TaskSubmissionRepository submissions,
             CurrentTaskPersonaQueryPort currentPersonas,
+            TaskPredictionService predictions,
+            TaskPredictionWorker predictionWorker,
             TaskSubmissionService submissionService,
             @Value("${vote.task.bootstrap.persona-subject:local-user-1}")
             String userSubject
@@ -47,6 +56,9 @@ public class LocalTaskParticipationBootstrapService {
                 submissions, "submissions");
         this.currentPersonas = Objects.requireNonNull(
                 currentPersonas, "currentPersonas");
+        this.predictions = Objects.requireNonNull(predictions, "predictions");
+        this.predictionWorker = Objects.requireNonNull(
+                predictionWorker, "predictionWorker");
         this.submissionService = Objects.requireNonNull(
                 submissionService, "submissionService");
         if (userSubject == null || userSubject.isBlank()) {
@@ -68,6 +80,18 @@ public class LocalTaskParticipationBootstrapService {
                         "the first local Task does not exist"));
         currentPersonas.findCurrentUsable(userId).orElseThrow(() -> failure(
                 "a ready local Persona does not exist"));
+        var prediction = predictions.ensureTaskPrediction(
+                userId, task.id()).prediction();
+        if (!prediction.status().terminal()) {
+            predictionWorker.executeOne();
+            prediction = predictions.findCurrentPrediction(userId, task.id())
+                    .orElseThrow(() -> failure(
+                            "the local Task prediction disappeared"));
+        }
+        if (prediction.status() != TaskPredictionStatus.SUCCEEDED) {
+            throw failure("Task prediction failed with status "
+                    + prediction.status());
+        }
         var answer = LocalTaskParticipationFixture.answer(task);
         var execution = submissionService.submit(
                 userId,

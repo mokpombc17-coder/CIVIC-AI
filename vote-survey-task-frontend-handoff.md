@@ -627,12 +627,12 @@ UI 활성화 여부는 enum을 추론해서 계산하지 말고 Backend boolean�
 | `TASK_CLOSED` | 마감됨 | 제출 중단. 사용자 결과 화면은 이번 범위 밖 |
 | `ALREADY_SUBMITTED` | 이미 제출됨 | `submissionId`로 내 제출 조회 |
 | `PERSONA_NOT_READY` | Survey 기반 Persona 생성 대기 | prediction POST 금지. page visible 동안 bounded polling |
-| `NOT_REQUESTED` | Persona 준비, prediction 미생성 | boolean에 따라 prediction 생성 또는 직접 작성 |
-| `PENDING` | prediction 대기열 | polling. 직접 작성이 허용되면 사용자는 기다리지 않아도 됨 |
-| `PROCESSING` | prediction 처리 중 | polling. 직접 작성 가능 여부는 boolean 기준 |
+| `NOT_REQUESTED` | Persona 준비, prediction 미생성 | boolean에 따라 prediction 생성. 제출 불가 |
+| `PENDING` | prediction 대기열 | polling. 제출 불가 |
+| `PROCESSING` | prediction 처리 중 | polling. 제출 불가 |
 | `RETRY_WAIT` | Backend 자동 재시도 대기 | `nextRetryAt`까지 polling 간격 조정. POST 반복 호출 금지 |
 | `SUCCEEDED` | 예상 이유 준비 완료 | 선택지별 예상 이유 또는 직접 작성 제공 |
-| `FAILED` | prediction 최종 실패 | AI 이유 비활성화, 직접 작성 가능 여부는 boolean 기준 |
+| `FAILED` | prediction 최종 실패 | 제출 불가 및 실패 안내 |
 
 권장 polling은 화면이 visible할 때만 `1s -> 2s -> 5s`의 bounded backoff를 사용하고
 `waiting=false`, `ALREADY_SUBMITTED`, Task 종료 상태 또는 route 이탈 시 중단한다. 이 polling 간격은
@@ -656,8 +656,7 @@ predictionView.predictionRequestAllowed === true
 POST 응답을 장기 UI state의 기준으로 사용하지 않는다. 성공 뒤
 `GET /api/v1/me/tasks/{taskId}/prediction`을 다시 조회하고 이후에는 GET 응답으로 polling한다.
 
-`TASK_PREDICTION_DISABLED`이면 prediction은 만들 수 없지만 GET 응답에서 직접 작성이 허용될 수 있다.
-Feature 비활성화 자체를 Task 전체 참여 불가로 해석하지 않는다.
+`TASK_PREDICTION_DISABLED`이면 prediction과 Task 제출 모두 이용할 수 없다.
 
 ## 6.6 Task 최종 제출
 
@@ -710,9 +709,9 @@ Backend가 해당 이유의 당시 문구를 `finalReason` snapshot으로 보존
 }
 ```
 
-`predictedReasonId`는 보내지 않는다. 현재 Prediction이 없거나 아직 성공하지 않았어도
-`directAnswerAllowed=true`이면 직접 제출할 수 있다. 현재 Prediction이 `SUCCEEDED`이면 Backend가
-그 `predictionId`를 provenance로 자동 연결하고, 그 외에는 제출의 `predictionId`를 `null`로 저장한다.
+`predictedReasonId`는 보내지 않는다. 현재 Prediction이 `SUCCEEDED`이고
+`directAnswerAllowed=true`일 때만 직접 제출할 수 있다. Backend는 현재
+Prediction의 `predictionId`를 provenance로 자동 연결한다.
 
 AI 채택은 제출 시점에도 현재 Persona의 현재 Prediction이 `SUCCEEDED`인지 다시 검증한다.
 Persona 전환 등으로 화면 상태가 오래되었다면 제출을 거절하므로 Prediction View를 다시 조회한다.
@@ -803,11 +802,10 @@ ENTER TASK
   -> GET prediction view
      -> PERSONA_NOT_READY: GET polling only
      -> NOT_REQUESTED:
-          -> predictionRequestAllowed: POST prediction -> GET polling
-          -> directAnswerAllowed: 직접 작성 가능
-     -> PENDING/PROCESSING/RETRY_WAIT: GET polling, 직접 작성은 boolean 기준
-     -> SUCCEEDED: AI_ACCEPTED 또는 USER_WRITTEN
-     -> FAILED: 직접 작성 가능 여부는 boolean 기준
+           -> predictionRequestAllowed: POST prediction -> GET polling
+      -> PENDING/PROCESSING/RETRY_WAIT: GET polling, 제출 불가
+      -> SUCCEEDED: AI_ACCEPTED 또는 USER_WRITTEN
+      -> FAILED: 제출 불가 및 실패 안내
      -> ALREADY_SUBMITTED: GET submission
 
 SUBMIT
@@ -895,7 +893,7 @@ SUBMIT
 - `NOT_REQUESTED` prediction 생성
 - `PENDING/PROCESSING/RETRY_WAIT` polling 중단 조건
 - `SUCCEEDED`에서 option별 reason 필터링
-- `FAILED`/prediction disabled에서 직접 작성 fallback
+- `FAILED`/prediction disabled에서 제출 비활성화
 - AI_ACCEPTED와 USER_WRITTEN payload 상호 배타성
 - 이미 제출 `409` 복구
 - stale Persona/prediction `409` 뒤 전체 상태 refresh

@@ -4,11 +4,14 @@ import com.hamcheeze.vote.task.application.bootstrap.LocalCompletedTaskFixture;
 import com.hamcheeze.vote.task.application.port.out.CurrentTaskPersonaQueryPort;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskSubmissionRepository;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
+import com.hamcheeze.vote.task.application.prediction.TaskPredictionWorker;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.application.task.TaskAdministrationService;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
+import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnExpression;
@@ -29,12 +32,16 @@ import java.util.Objects;
                 + "'${vote.survey.bootstrap.enabled:false}' == 'true' and "
                 + "'${vote.integration.outbox.dispatcher-enabled:false}' == 'true' and "
                 + "'${vote.persona.enabled:false}' == 'true' and "
-                + "'${vote.persona.provider:http}' == 'fake'")
+                + "'${vote.persona.provider:http}' == 'fake' and "
+                + "'${vote.task.prediction.enabled:false}' == 'true' and "
+                + "'${vote.task.prediction.provider:http}' == 'fake'")
 public class LocalCompletedTaskBootstrapService {
 
     private final TaskRepository tasks;
     private final TaskSubmissionRepository submissions;
     private final CurrentTaskPersonaQueryPort currentPersonas;
+    private final TaskPredictionService predictions;
+    private final TaskPredictionWorker predictionWorker;
     private final TaskSubmissionService submissionService;
     private final TaskAdministrationService administrationService;
     private final MyTaskResultQueryService taskResults;
@@ -44,6 +51,8 @@ public class LocalCompletedTaskBootstrapService {
             TaskRepository tasks,
             TaskSubmissionRepository submissions,
             CurrentTaskPersonaQueryPort currentPersonas,
+            TaskPredictionService predictions,
+            TaskPredictionWorker predictionWorker,
             TaskSubmissionService submissionService,
             TaskAdministrationService administrationService,
             MyTaskResultQueryService taskResults,
@@ -55,6 +64,9 @@ public class LocalCompletedTaskBootstrapService {
                 submissions, "submissions");
         this.currentPersonas = Objects.requireNonNull(
                 currentPersonas, "currentPersonas");
+        this.predictions = Objects.requireNonNull(predictions, "predictions");
+        this.predictionWorker = Objects.requireNonNull(
+                predictionWorker, "predictionWorker");
         this.submissionService = Objects.requireNonNull(
                 submissionService, "submissionService");
         this.administrationService = Objects.requireNonNull(
@@ -83,6 +95,18 @@ public class LocalCompletedTaskBootstrapService {
 
         currentPersonas.findCurrentUsable(userId).orElseThrow(() -> failure(
                 "a ready local Persona does not exist"));
+        var prediction = predictions.ensureTaskPrediction(
+                userId, task.id()).prediction();
+        if (!prediction.status().terminal()) {
+            predictionWorker.executeOne();
+            prediction = predictions.findCurrentPrediction(userId, task.id())
+                    .orElseThrow(() -> failure(
+                            "the local completed Task prediction disappeared"));
+        }
+        if (prediction.status() != TaskPredictionStatus.SUCCEEDED) {
+            throw failure("Task prediction failed with status "
+                    + prediction.status());
+        }
         var answer = LocalCompletedTaskFixture.answer(task);
         var execution = submissionService.submit(
                 userId,

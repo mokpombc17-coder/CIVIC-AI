@@ -133,7 +133,7 @@ class TaskPredictionServiceTest {
 
         assertThat(result.created()).isTrue();
         assertThat(result.predictedAnswerAllowed()).isFalse();
-        assertThat(result.directAnswerAllowed()).isTrue();
+        assertThat(result.directAnswerAllowed()).isFalse();
         assertThat(result.prediction().requestId())
                 .isEqualTo(result.prediction().id());
         assertThat(result.prediction().personaGenerationId())
@@ -161,7 +161,7 @@ class TaskPredictionServiceTest {
     }
 
     @Test
-    void returnsTerminalFailureAsDirectAnswerFallbackWithoutRerun() {
+    void returnsTerminalFailureAsUnavailableWithoutRerun() {
         TaskPrediction failed = failedPrediction();
         when(predictions.findByIdentity(
                 userId(), taskId(), personaGenerationId()))
@@ -171,7 +171,7 @@ class TaskPredictionServiceTest {
                 service.ensureTaskPrediction(userId(), taskId());
 
         assertThat(result.created()).isFalse();
-        assertThat(result.directAnswerAllowed()).isTrue();
+        assertThat(result.directAnswerAllowed()).isFalse();
         assertThat(result.predictedAnswerAllowed()).isFalse();
         verify(predictions, never()).insertPendingIfAbsent(any());
     }

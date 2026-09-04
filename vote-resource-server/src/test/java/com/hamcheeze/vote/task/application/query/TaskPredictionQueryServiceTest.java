@@ -105,10 +105,9 @@ class TaskPredictionQueryServiceTest {
 
         assertThat(view.state()).isEqualTo(PENDING);
         assertThat(view.waiting()).isTrue();
-        assertThat(view.submissionAllowed()).isTrue();
-        assertThat(view.directAnswerAllowed()).isTrue();
-        assertThat(view.allowedReasonSources())
-                .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(view.submissionAllowed()).isFalse();
+        assertThat(view.directAnswerAllowed()).isFalse();
+        assertThat(view.allowedReasonSources()).isEmpty();
         assertThat(view.predictedReasons()).isEmpty();
     }
 
@@ -134,7 +133,7 @@ class TaskPredictionQueryServiceTest {
     }
 
     @Test
-    void finalFailureIsDirectAnswerReadyRatherThanWaiting() {
+    void finalFailureDoesNotAllowSubmission() {
         availableTaskAndPersona();
         TaskPrediction prediction = TaskQueryFixtures.failedPrediction(task);
         when(predictions.findByIdentity(USER, task.id(), GENERATION))
@@ -144,11 +143,10 @@ class TaskPredictionQueryServiceTest {
 
         assertThat(view.state()).isEqualTo(FAILED);
         assertThat(view.waiting()).isFalse();
-        assertThat(view.submissionAllowed()).isTrue();
+        assertThat(view.submissionAllowed()).isFalse();
         assertThat(view.predictedAnswerAllowed()).isFalse();
-        assertThat(view.directAnswerAllowed()).isTrue();
-        assertThat(view.allowedReasonSources())
-                .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(view.directAnswerAllowed()).isFalse();
+        assertThat(view.allowedReasonSources()).isEmpty();
         assertThat(view.failureCode()).isEqualTo("AI_TIMEOUT");
     }
 
@@ -204,9 +202,8 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.waiting()).isFalse();
         assertThat(view.aiAcceptanceAllowed()).isFalse();
         assertThat(view.predictedAnswerAllowed()).isFalse();
-        assertThat(view.directAnswerAllowed()).isTrue();
-        assertThat(view.allowedReasonSources())
-                .containsExactly(TaskReasonSource.USER_WRITTEN);
+        assertThat(view.directAnswerAllowed()).isFalse();
+        assertThat(view.allowedReasonSources()).isEmpty();
         assertThat(view.predictedReasons()).isEmpty();
     }
 
@@ -230,8 +227,8 @@ class TaskPredictionQueryServiceTest {
         assertThat(view.waiting()).isFalse();
         assertThat(view.nextRetryAt()).isNull();
         assertThat(view.retryable()).isFalse();
-        assertThat(view.submissionAllowed()).isTrue();
-        assertThat(view.directAnswerAllowed()).isTrue();
+        assertThat(view.submissionAllowed()).isFalse();
+        assertThat(view.directAnswerAllowed()).isFalse();
     }
 
     @Test

@@ -24,10 +24,12 @@ public record EnsureTaskPredictionResult(
             TaskPrediction prediction,
             boolean created
     ) {
+        boolean succeeded = prediction.status()
+                == TaskPredictionStatus.SUCCEEDED;
         return new EnsureTaskPredictionResult(
                 prediction,
                 created,
-                prediction.status() == TaskPredictionStatus.SUCCEEDED,
-                true);
+                succeeded,
+                succeeded);
     }
 }

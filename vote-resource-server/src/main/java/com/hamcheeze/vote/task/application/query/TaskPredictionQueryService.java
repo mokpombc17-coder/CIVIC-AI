@@ -242,8 +242,8 @@ public class TaskPredictionQueryService {
                     null, null, List.of(), predictionFeatureEnabled, false,
                     predictionFeatureEnabled,
                     predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
-                    true, false, false, true, false,
-                    List.of(TaskReasonSource.USER_WRITTEN), null,
+                    false, false, false, false, false,
+                    List.of(), null,
                     null, null, null);
         }
 
@@ -267,12 +267,12 @@ public class TaskPredictionQueryService {
                         false,
                         false,
                         "TASK_PREDICTION_DISABLED",
-                        true,
                         false,
                         false,
-                        true,
                         false,
-                        List.of(TaskReasonSource.USER_WRITTEN),
+                        false,
+                        false,
+                        List.of(),
                         null,
                         null,
                         prediction.completedAt(),
@@ -284,7 +284,7 @@ public class TaskPredictionQueryService {
             List<TaskReasonSource> sources = succeeded
                     ? List.of(TaskReasonSource.AI_ACCEPTED,
                     TaskReasonSource.USER_WRITTEN)
-                    : List.of(TaskReasonSource.USER_WRITTEN);
+                    : List.of();
             return base(
                     taskId,
                     TaskPredictionViewState.valueOf(status.name()),
@@ -297,10 +297,10 @@ public class TaskPredictionQueryService {
                     waiting,
                     false,
                     predictionFeatureEnabled ? null : "TASK_PREDICTION_DISABLED",
-                    true,
                     succeeded,
                     succeeded,
-                    true,
+                    succeeded,
+                    succeeded,
                     status == TaskPredictionStatus.RETRY_WAIT,
                     sources,
                     null,
