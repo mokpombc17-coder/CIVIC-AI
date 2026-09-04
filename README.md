@@ -152,6 +152,45 @@ Edge/Nginx는 `Cookie`와 `Authorization`을 임의로 재작성하지 않고 �
 
 ## 운영 설정
 
+### Persona 서비스 토큰
+
+`POST /api/v1/auth/service-token`은 브라우저 로그인과 별도인 단일 서비스 클라이언트
+발급 경로입니다. 기본값은 비활성화이며, 배포 시 `CIVIC_SERVICE_TOKEN_ENABLED=true`와
+`CIVIC_PERSONA_SERVICE_CLIENT_SECRET`을 함께 공급해야 활성화됩니다. 활성화했는데
+비밀값이 누락되었거나 32자 미만·4096자 초과 또는 개발/자리표시자 값이면 시작을
+거부합니다. 운영 비밀값은 서버의 env/config tree로 공급하고 이미지에 포함하지 않습니다.
+config tree를 쓸 경우 `civic.service-token.enabled`와
+`civic.service-token.persona-client-secret` 속성을 사용할 수 있습니다.
+
+클라이언트 ID는 `individual-persona-runtime`으로 고정합니다. HTTP Basic 인증에는
+RFC 6749 §2.3.1에 따라 ID와 비밀값을 각각 form URL 인코딩한 뒤 `:`로 연결하여
+Base64 인코딩합니다. 임의 생성한 64자리 hex 비밀값을 권장합니다.
+요청 Content-Type은 `application/x-www-form-urlencoded`이며 본문은 다음과 같습니다.
+
+```text
+grant_type=client_credentials&scope=vote%3Atasks%3Aadmin
+```
+
+쿼리 파라미터, 중복/추가 본문 필드, 다른 grant 또는 scope는 거부합니다.
+인증 헤더는 6144자, 본문은 1024바이트까지만 읽습니다. 잘못된 인증은
+`401 invalid_client`, 지원하지 않는 grant는 `400 unsupported_grant_type`, 허용하지
+않는 scope는 `400 invalid_scope`, 잘못된 요청은 `400 invalid_request`를 반환하며
+성공과 오류 응답 모두 `Cache-Control: no-store`를 설정합니다.
+
+성공 응답은 `access_token`, `token_type=Bearer`, `expires_in=900`,
+`scope=vote:tasks:admin`입니다. 기존 Auth 키/JWKS와 issuer로 서명한 RS256 JWT이며
+`aud=["civic-ai-api"]`, `sub=d2e3c201-7b81-4c94-a832-88acbe72b106`,
+`email=individual-persona-runtime@services.civic.invalid`, `account_state_version=0`,
+`must_change_password=false`, `token_use=service`, `client_id=individual-persona-runtime`을
+포함합니다. `jti`는 발급마다 새로운 UUID이며 `exp-iat`는 정확히 900초입니다.
+`sub`는 사용자 계정 행이 없는 고정 기술 주체로 예약하며 사용자 계정에 재사용하지
+않습니다. 일반 사용자 권한, 쿠키, refresh token은 발급하지 않습니다.
+
+Persona는 이 Bearer 토큰으로 기존 Vote `GET /api/v1/admin/tasks`를 호출합니다.
+이 발급 경로가 Vote의 scope 의미나 라우트 권한을 변경하지는 않으므로 토큰은
+서버에서만 보관해야 합니다. 이 설정만으로 Persona 연동이나 공개 프록시 라우팅이
+완료되지는 않으며 함께 배포하고 공개 origin에서 별도 검증해야 합니다.
+
 `prod` 프로필은 기본적으로 `/run/secrets/civic/main/`의 config tree를 읽습니다. 다음 값은
 개발 기본값으로 운영을 시작할 수 없으며 외부에서 공급해야 합니다.
 

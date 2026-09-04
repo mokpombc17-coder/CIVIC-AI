@@ -23,6 +23,9 @@ import org.springframework.stereotype.Service;
 public final class AccessTokenService {
     public static final String AUDIENCE = "civic-ai-api";
     public static final Duration LIFETIME = Duration.ofMinutes(15);
+    public static final String PERSONA_CLIENT_ID = "individual-persona-runtime";
+    public static final String PERSONA_SERVICE_SCOPE = "vote:tasks:admin";
+    private static final UUID PERSONA_SERVICE_SUBJECT = UUID.fromString("d2e3c201-7b81-4c94-a832-88acbe72b106");
 
     // Every active authenticated user starts with these scopes. Administrator roles add
     // permission scopes to this set; they never replace the ordinary user capabilities.
@@ -111,6 +114,35 @@ public final class AccessTokenService {
                     .claim("account_state_version", accountStateVersion)
                     .claim("must_change_password", mustChangePassword)
                     .build();
+            return sign(claims, expiresAt);
+        } catch (Exception exception) {
+            throw new IllegalStateException("Could not issue RS256 access token", exception);
+        }
+    }
+
+    /** A dedicated non-user identity; never invokes human permission or account issuance. */
+    public IssuedAccessToken issuePersonaServiceToken() {
+        var now = clock.instant().truncatedTo(java.time.temporal.ChronoUnit.SECONDS);
+        var expiresAt = now.plus(LIFETIME);
+        var claims = new JWTClaimsSet.Builder()
+                .issuer(issuer)
+                .audience(List.of(AUDIENCE))
+                .subject(PERSONA_SERVICE_SUBJECT.toString())
+                .issueTime(Date.from(now))
+                .expirationTime(Date.from(expiresAt))
+                .jwtID(UUID.randomUUID().toString())
+                .claim("email", "individual-persona-runtime@services.civic.invalid")
+                .claim("scope", PERSONA_SERVICE_SCOPE)
+                .claim("account_state_version", 0L)
+                .claim("must_change_password", false)
+                .claim("token_use", "service")
+                .claim("client_id", PERSONA_CLIENT_ID)
+                .build();
+        return sign(claims, expiresAt);
+    }
+
+    private IssuedAccessToken sign(JWTClaimsSet claims, Instant expiresAt) {
+        try {
             var header = new JWSHeader.Builder(JWSAlgorithm.RS256)
                     .type(JOSEObjectType.JWT)
                     .keyID(keyRing.active().getKeyID())

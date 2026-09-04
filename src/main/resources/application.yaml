@@ -18,6 +18,9 @@ spring:
     host: ${CIVIC_SMTP_HOST:localhost}
     port: ${CIVIC_SMTP_PORT:1025}
 civic:
+  service-token:
+    enabled: ${CIVIC_SERVICE_TOKEN_ENABLED:false}
+    persona-client-secret: ${CIVIC_PERSONA_SERVICE_CLIENT_SECRET:}
   notification:
     sender-email: ${CIVIC_NOTIFICATION_SENDER_EMAIL:no-reply@civic.local}
   runtime:
