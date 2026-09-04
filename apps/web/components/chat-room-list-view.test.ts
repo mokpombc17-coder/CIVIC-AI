@@ -26,6 +26,8 @@ describe("chat room list publishing layout", () => {
     const availableRoomsIndex = html.indexOf(">참여 가능한 방</h2>");
 
     expect(html).toContain(">토론방</h1>");
+    expect(html).toMatch(/aria-label="홈으로" class="[^"]+" data-state="enabled" href="\/home"/);
+    expect(html).not.toContain('data-state="disabled"');
     expect(html).toContain('aria-label="참여한 방 필터와 토론방 생성"');
     expect(html).toContain('aria-label="참여 가능한 토론방 검색과 목록"');
     expect(html).toContain('aria-label="참여한 방 필터"');

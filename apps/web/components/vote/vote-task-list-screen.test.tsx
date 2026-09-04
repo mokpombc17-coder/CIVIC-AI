@@ -29,8 +29,8 @@ describe("VoteTaskListScreen", () => {
     expect(html).toContain(">주제 검색</label>");
     expect(html).toContain('placeholder="투표 주제를 검색해 주세요."');
     expect(html).toContain("진행 중인 투표가 없습니다.");
-    expect(html).toContain('aria-label="뒤로 가기"');
-    expect(html).toContain('data-state="disabled" disabled=""');
+    expect(html).toMatch(/aria-label="홈으로" class="[^"]+" data-state="enabled" href="\/home"/);
+    expect(html).not.toContain('data-state="disabled"');
     expect(html).not.toContain("과업 검색");
     expect(html).not.toContain('placeholder="과업을 검색해 주세요."');
     expect(html).not.toContain("진행 중인 과업이 없습니다.");

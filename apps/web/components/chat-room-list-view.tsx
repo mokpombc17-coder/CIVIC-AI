@@ -85,7 +85,7 @@ export function ChatRoomListView({
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
       contentInert={isOverlayOpen}
       contentClassName="chat-room-list"
-      header={<PlatformHeader title="토론방" />}
+      header={<PlatformHeader backAction={{ ariaLabel: "홈으로", href: "/home" }} title="토론방" />}
       headerSize="compact"
       overlay={overlay}
     >

@@ -88,7 +88,13 @@ export function VoteTaskListScreen() {
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
       contentClassName={styles.voteContent!}
-      header={<PlatformHeader className={styles.voteHeader!} title="투표" />}
+      header={
+        <PlatformHeader
+          backAction={{ ariaLabel: "홈으로", href: "/home" }}
+          className={styles.voteHeader!}
+          title="투표"
+        />
+      }
       headerSize="compact"
     >
       <div className={`${styles.surface} ${styles.listSurface}`}>
