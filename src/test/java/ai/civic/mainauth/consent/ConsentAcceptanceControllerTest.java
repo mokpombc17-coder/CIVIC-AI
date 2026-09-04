@@ -72,6 +72,22 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void loggedInSameOriginRequestDoesNotRequireCsrfHeader() throws Exception {
+        var credential = createCredential();
+
+        mvc.perform(post(PATH)
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isCreated());
+        assertThat(receiptCount()).isOne();
+    }
+
+    @Test
     void matchingRetryReturnsTheExactOriginalResponseAndOneRow() throws Exception {
         var credential = createCredential();
         var key = UUID.randomUUID();
@@ -194,22 +210,11 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void invalidCsrfAndCrossSiteRequestsReturnBadRequestWithoutPersistence() throws Exception {
+    void crossSiteRequestWithoutCsrfHeaderReturnsBadRequestWithoutPersistence() throws Exception {
         var credential = createCredential();
         mvc.perform(post(PATH)
                         .cookie(new Cookie(
                                 AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
-                        .header("X-CSRF-Token", "invalid")
-                        .header("Idempotency-Key", UUID.randomUUID())
-                        .header("Origin", "https://localhost")
-                        .header("Sec-Fetch-Site", "same-origin")
-                        .contentType(MediaType.APPLICATION_JSON)
-                        .content(BODY))
-                .andExpect(status().isBadRequest());
-        mvc.perform(post(PATH)
-                        .cookie(new Cookie(
-                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
-                        .header("X-CSRF-Token", credential.csrfToken())
                         .header("Idempotency-Key", UUID.randomUUID())
                         .header("Origin", "https://evil.example")
                         .header("Sec-Fetch-Site", "cross-site")

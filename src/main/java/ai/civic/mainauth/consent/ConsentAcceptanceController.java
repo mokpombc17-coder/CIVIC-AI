@@ -3,8 +3,6 @@ package ai.civic.mainauth.consent;
 import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.auth.AuthenticatedUserService;
 import ai.civic.mainauth.auth.BrowserRequestPolicy;
-import ai.civic.mainauth.auth.BrowserRequestRejectedException;
-import ai.civic.mainauth.auth.CsrfService;
 import com.fasterxml.jackson.annotation.JsonProperty;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -26,17 +24,14 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api/v1/me/consent-acceptances")
 public class ConsentAcceptanceController {
     private final AuthenticatedUserService authenticatedUsers;
-    private final CsrfService csrf;
     private final BrowserRequestPolicy browser;
     private final ConsentAcceptanceService acceptances;
 
     public ConsentAcceptanceController(
             AuthenticatedUserService authenticatedUsers,
-            CsrfService csrf,
             BrowserRequestPolicy browser,
             ConsentAcceptanceService acceptances) {
         this.authenticatedUsers = authenticatedUsers;
-        this.csrf = csrf;
         this.browser = browser;
         this.acceptances = acceptances;
     }
@@ -44,18 +39,14 @@ public class ConsentAcceptanceController {
     @PostMapping
     ResponseEntity<CreateResponse> create(
             @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
-            @RequestHeader("X-CSRF-Token") String csrfToken,
             @RequestHeader("Idempotency-Key") String rawIdempotencyKey,
             @Valid @RequestBody CreateRequest body,
             HttpServletRequest request) {
         var user = authenticatedUsers.require(accessToken);
-        if (!csrf.matches(user, csrfToken)) {
-            throw new BrowserRequestRejectedException("CSRF token is invalid");
-        }
-        browser.requireAuthenticatedMutation(new BrowserRequestPolicy.RequestMetadata(
+        browser.requirePreSessionMutation(new BrowserRequestPolicy.RequestMetadata(
                 request.getMethod(), request.getHeader(HttpHeaders.ORIGIN),
                 request.getHeader("Sec-Fetch-Site"), request.getContentType(),
-                request.getHeader(HttpHeaders.AUTHORIZATION)), csrfToken, csrfToken);
+                request.getHeader(HttpHeaders.AUTHORIZATION)));
         var idempotencyKey = canonicalUuid(rawIdempotencyKey);
         var receipt = acceptances.accept(user.userId(), idempotencyKey,
                 new ConsentAcceptanceService.AcceptanceRequest(
