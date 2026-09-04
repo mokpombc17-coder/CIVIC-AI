@@ -73,6 +73,14 @@ pre {
   width: 100%;
 }
 
+@media (display-mode: standalone) {
+  body,
+  .app-shell,
+  .app-route-content {
+    min-height: 0;
+  }
+}
+
 .page-stack {
   display: grid;
   gap: 1rem;

@@ -163,12 +163,13 @@ modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 �
 설정하면 header, content와 navigation surface가 모두 비활성화된다.
 
 채팅 composer처럼 모바일 키보드에 맞춰 실제 shell 높이를 보정해야 하면 `shellRef`를 사용한다.
-일반 화면은 shell이 제공하는 `100dvh`와 safe area를 그대로 사용하고 별도의 `100dvh` wrapper를
-추가하지 않는다.
+일반 브라우저와 데스크톱은 기존 `100dvh` 규칙을 유지한다. PWA standalone에서는
+`PlatformShell` stage 하나만 `100dvh`를 계산하고 내부 shell은 stage의 `100%`를 채운다.
+route나 도메인 화면에 별도의 `100dvh` wrapper를 추가하지 않는다.
 
 데스크톱에서는 반응형 desktop layout으로 넓어지지 않고 최대 393px surface가 가운데 표시되며
-12px radius와 shadow로 모바일 프레임을 구분한다. shell 높이는 피그마 프레임의 852px로 제한하지
-않고 항상 실제 viewport의 `100dvh`를 사용한다. 480px 이하의 모바일 viewport에서는 최대 너비
+12px radius와 shadow로 모바일 프레임을 구분한다. shell 프레임 높이는 피그마의 852px로
+제한하지 않고 실제 viewport의 `100dvh`를 기준으로 삼는다. 480px 이하의 모바일 viewport에서는 최대 너비
 제한과 외부 app shell padding, radius, shadow를 제거해 가용 너비를 모두 사용한다. 실제 기기의 화면
 모서리와 safe area는 운영체제와 기존 safe-area padding이 담당한다. shell 내부 글자나 여백에
 브라우저 전체 너비 기준의 큰 `vw` 값을 사용하지 않는다.
