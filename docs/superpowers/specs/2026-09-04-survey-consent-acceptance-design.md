@@ -150,7 +150,7 @@ Implementation follows red-green-refactor. Tests must demonstrate:
 
 ## Delivery and Deployment
 
-Repository delivery follows `civic-main-auth/AGENTS.md`: update the current `main` checkout, preserve unrelated `.DS_Store`, commit, and push directly to `origin/main` without a temporary branch or pull request.
+Repository delivery follows the user's explicit PR request: preserve unrelated `.DS_Store`, publish the feature branch, complete an independent PR review, and merge only after the reviewed head passes the full suite.
 
 Deployment follows the workspace immutable-image standard:
 

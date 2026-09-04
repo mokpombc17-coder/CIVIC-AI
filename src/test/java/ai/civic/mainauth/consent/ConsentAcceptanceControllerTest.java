@@ -2,6 +2,7 @@ package ai.civic.mainauth.consent;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -117,7 +118,12 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
     void missingMalformedAndNoncanonicalIdempotencyKeysReturnBadRequest() throws Exception {
         var credential = createCredential();
         mvc.perform(authenticatedRequest(credential).content(BODY))
-                .andExpect(status().isBadRequest());
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://civic.example/problems/400"))
+                .andExpect(jsonPath("$.title").value("Request rejected"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("Required request header is missing"));
         mvc.perform(authenticatedRequest(credential)
                         .header("Idempotency-Key", "not-a-uuid")
                         .content(BODY))
@@ -126,6 +132,51 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
                         .header("Idempotency-Key", "AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA")
                         .content(BODY))
                 .andExpect(status().isBadRequest());
+        assertThat(receiptCount()).isZero();
+    }
+
+    @Test
+    void malformedAndInvalidBodiesReturnSanitizedProblemDetails() throws Exception {
+        var credential = createCredential();
+
+        mvc.perform(validRequest(credential, UUID.randomUUID(), "{"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://civic.example/problems/400"))
+                .andExpect(jsonPath("$.title").value("Request rejected"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("Request body is malformed"));
+
+        mvc.perform(validRequest(credential, UUID.randomUUID(),
+                        BODY.replace("\"documentCode\":\"SENSITIVE_INFORMATION_CONSENT\",", "")))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://civic.example/problems/400"))
+                .andExpect(jsonPath("$.title").value("Request rejected"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("Request body validation failed"));
+        assertThat(receiptCount()).isZero();
+    }
+
+    @Test
+    void unsupportedContentTypeReturnsBadRequestProblemDetails() throws Exception {
+        var credential = createCredential();
+
+        mvc.perform(post(PATH)
+                        .cookie(new Cookie(
+                                AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                        .header("X-CSRF-Token", credential.csrfToken())
+                        .header("Idempotency-Key", UUID.randomUUID())
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content(BODY))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().contentTypeCompatibleWith(MediaType.APPLICATION_PROBLEM_JSON))
+                .andExpect(jsonPath("$.type").value("https://civic.example/problems/400"))
+                .andExpect(jsonPath("$.title").value("Request rejected"))
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.detail").value("Content-Type is not allowed"));
         assertThat(receiptCount()).isZero();
     }
 
@@ -169,6 +220,46 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void browserSecurityBoundariesAreIndependentlyEnforced() throws Exception {
+        var credential = createCredential();
+        var key = UUID.randomUUID();
+
+        mvc.perform(boundaryRequest(
+                        credential, key, "https://evil.example", "same-origin", null))
+                .andExpect(status().isBadRequest());
+        mvc.perform(boundaryRequest(
+                        credential, key, "https://localhost", "cross-site", null))
+                .andExpect(status().isBadRequest());
+        mvc.perform(boundaryRequest(
+                        credential, key, "https://localhost", "same-origin",
+                        "Bearer rejected-on-public-route"))
+                .andExpect(status().isBadRequest());
+        mvc.perform(post(PATH)
+                        .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, "invalid"))
+                        .header("X-CSRF-Token", "invalid")
+                        .header("Idempotency-Key", key)
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(BODY))
+                .andExpect(status().isUnauthorized());
+        assertThat(receiptCount()).isZero();
+    }
+
+    @Test
+    void inactiveTokenSubjectIsRejected() throws Exception {
+        var credential = createCredential();
+        jdbc.update("""
+                update users set state = 'DEACTIVATED', deactivated_at = now()
+                where id = ?
+                """, credential.user().userId());
+
+        mvc.perform(validRequest(credential, UUID.randomUUID(), BODY))
+                .andExpect(status().isUnauthorized());
+        assertThat(receiptCount()).isZero();
+    }
+
+    @Test
     void snakeCaseRequestPropertiesAreRejected() throws Exception {
         var credential = createCredential();
         var snakeCase = """
@@ -203,6 +294,25 @@ class ConsentAcceptanceControllerTest extends PostgresIntegrationTest {
                 .header("Origin", "https://localhost")
                 .header("Sec-Fetch-Site", "same-origin")
                 .contentType(MediaType.APPLICATION_JSON);
+    }
+
+    private MockHttpServletRequestBuilder boundaryRequest(
+            AccessCredentialTestFactory.IssuedCredential credential,
+            UUID idempotencyKey,
+            String origin,
+            String fetchSite,
+            String authorization) {
+        var request = post(PATH)
+                .cookie(new Cookie(
+                        AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                .header("X-CSRF-Token", credential.csrfToken())
+                .header("Idempotency-Key", idempotencyKey)
+                .header("Origin", origin)
+                .header("Sec-Fetch-Site", fetchSite)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(BODY);
+        if (authorization != null) request.header("Authorization", authorization);
+        return request;
     }
 
     private AccessCredentialTestFactory.IssuedCredential createCredential() {

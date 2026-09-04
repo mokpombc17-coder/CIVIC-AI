@@ -7,6 +7,7 @@ import ai.civic.mainauth.support.PostgresIntegrationTest;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.BeforeEach;
@@ -92,6 +93,56 @@ class ConsentAcceptanceServiceTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void changedDocumentCodeWithTheSameUserKeyIsConflictEvenWhenUnknown() {
+        var userId = createUser();
+        var idempotencyKey = UUID.randomUUID();
+        service.accept(userId, idempotencyKey, validRequest());
+        var changed = new ConsentAcceptanceService.AcceptanceRequest(
+                "OTHER_CONSENT", "2026-09-04", ROUND_ID, CLIENT_CLICKED_AT);
+
+        assertConflict(userId, idempotencyKey, changed);
+    }
+
+    @Test
+    void changedDocumentVersionWithTheSameUserKeyIsConflictEvenWhenUnknown() {
+        var userId = createUser();
+        var idempotencyKey = UUID.randomUUID();
+        service.accept(userId, idempotencyKey, validRequest());
+        var changed = new ConsentAcceptanceService.AcceptanceRequest(
+                "SENSITIVE_INFORMATION_CONSENT", "2026-09-05", ROUND_ID, CLIENT_CLICKED_AT);
+
+        assertConflict(userId, idempotencyKey, changed);
+    }
+
+    @Test
+    void changedClientTimeWithTheSameUserKeyIsRejected() {
+        var userId = createUser();
+        var idempotencyKey = UUID.randomUUID();
+        service.accept(userId, idempotencyKey, validRequest());
+        var changed = new ConsentAcceptanceService.AcceptanceRequest(
+                "SENSITIVE_INFORMATION_CONSENT", "2026-09-04", ROUND_ID,
+                CLIENT_CLICKED_AT.plusMillis(1));
+
+        assertConflict(userId, idempotencyKey, changed);
+    }
+
+    @Test
+    void matchingRetryReturnsTheOriginalReceiptAfterPolicyDeactivation() {
+        var userId = createUser();
+        var idempotencyKey = UUID.randomUUID();
+        var first = service.accept(userId, idempotencyKey, validRequest());
+        jdbc.update("""
+                update consent_acceptance_policies
+                set active = false, deactivated_at = now()
+                where document_code = 'SENSITIVE_INFORMATION_CONSENT'
+                  and document_version = '2026-09-04'
+                """);
+
+        assertThat(service.accept(userId, idempotencyKey, validRequest())).isEqualTo(first);
+        assertThat(receiptCount(userId)).isOne();
+    }
+
+    @Test
     void unknownPolicyPairIsRejectedWithoutPersistence() {
         var userId = createUser();
         var request = new ConsentAcceptanceService.AcceptanceRequest(
@@ -160,6 +211,46 @@ class ConsentAcceptanceServiceTest extends PostgresIntegrationTest {
         assertThat(receiptCount(userId)).isOne();
     }
 
+    @Test
+    void concurrentDifferentRequestsWithTheSameUserKeyCreateOneAndConflictOne()
+            throws Exception {
+        var userId = createUser();
+        var idempotencyKey = UUID.randomUUID();
+        var changed = new ConsentAcceptanceService.AcceptanceRequest(
+                "SENSITIVE_INFORMATION_CONSENT", "2026-09-04",
+                UUID.fromString("00000000-0000-0000-0000-000000000099"),
+                CLIENT_CLICKED_AT);
+        var ready = new CountDownLatch(2);
+        var start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            var first = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return service.accept(userId, idempotencyKey, validRequest());
+            });
+            var second = executor.submit(() -> {
+                ready.countDown();
+                start.await();
+                return service.accept(userId, idempotencyKey, changed);
+            });
+            assertThat(ready.await(5, TimeUnit.SECONDS)).isTrue();
+            start.countDown();
+
+            var firstFailure = executionFailure(first);
+            var secondFailure = executionFailure(second);
+            assertThat(java.util.stream.Stream.of(firstFailure, secondFailure)
+                            .filter(ConsentAcceptanceConflictException.class::isInstance)
+                            .count())
+                    .isOne();
+            assertThat(java.util.stream.Stream.of(firstFailure, secondFailure)
+                            .filter(java.util.Objects::isNull)
+                            .count())
+                    .isOne();
+        }
+        assertThat(receiptCount(userId)).isOne();
+    }
+
     private ConsentAcceptanceService.AcceptanceRequest validRequest() {
         return new ConsentAcceptanceService.AcceptanceRequest(
                 "SENSITIVE_INFORMATION_CONSENT", "2026-09-04", ROUND_ID, CLIENT_CLICKED_AT);
@@ -178,5 +269,24 @@ class ConsentAcceptanceServiceTest extends PostgresIntegrationTest {
         return jdbc.queryForObject(
                 "select count(*) from consent_acceptances where user_id = ?",
                 Integer.class, userId);
+    }
+
+    private void assertConflict(
+            UUID userId,
+            UUID idempotencyKey,
+            ConsentAcceptanceService.AcceptanceRequest changed) {
+        assertThatThrownBy(() -> service.accept(userId, idempotencyKey, changed))
+                .isInstanceOf(ConsentAcceptanceConflictException.class)
+                .hasMessage("Idempotency-Key was already used for a different consent request");
+        assertThat(receiptCount(userId)).isOne();
+    }
+
+    private Throwable executionFailure(java.util.concurrent.Future<?> future) throws Exception {
+        try {
+            future.get(10, TimeUnit.SECONDS);
+            return null;
+        } catch (ExecutionException exception) {
+            return exception.getCause();
+        }
     }
 }

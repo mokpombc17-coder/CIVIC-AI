@@ -6,6 +6,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.HexFormat;
+import java.util.Optional;
 import java.util.UUID;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.jdbc.core.JdbcTemplate;
@@ -30,24 +31,38 @@ public class ConsentAcceptanceService {
     @Transactional
     public ConsentReceipt accept(
             UUID userId, UUID idempotencyKey, AcceptanceRequest request) {
-        requireActivePolicy(request.documentCode(), request.documentVersion());
         var requestSha256 = fingerprint(request);
+        var existing = findExisting(userId, idempotencyKey);
+        if (existing.isPresent()) return resolve(existing.get(), requestSha256);
+
         var candidate = new ConsentReceipt(
                 UUID.randomUUID(), clock.instant().truncatedTo(ChronoUnit.MICROS));
         var inserted = jdbc.update("""
                 insert into consent_acceptances(
                     consent_receipt_id, user_id, document_code, document_version,
                     round_id, client_clicked_at, accepted_at, idempotency_key, request_sha256
-                ) values (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                )
+                select ?, ?, ?, ?, ?, ?, ?, ?, ?
+                where exists(
+                    select 1 from consent_acceptance_policies
+                    where document_code = ? and document_version = ? and active
+                )
                 on conflict (user_id, idempotency_key) do nothing
                 """,
                 candidate.consentReceiptId(), userId,
                 request.documentCode(), request.documentVersion(), request.roundId(),
                 java.sql.Timestamp.from(request.clientClickedAt()),
-                java.sql.Timestamp.from(candidate.acceptedAt()), idempotencyKey, requestSha256);
+                java.sql.Timestamp.from(candidate.acceptedAt()), idempotencyKey, requestSha256,
+                request.documentCode(), request.documentVersion());
         if (inserted == 1) return candidate;
 
-        var existing = findExisting(userId, idempotencyKey);
+        existing = findExisting(userId, idempotencyKey);
+        if (existing.isPresent()) return resolve(existing.get(), requestSha256);
+        throw new ConsentAcceptanceValidationException(
+                "Consent document code and version are not active");
+    }
+
+    private ConsentReceipt resolve(ExistingReceipt existing, String requestSha256) {
         if (!existing.requestSha256().equals(requestSha256)) {
             throw new ConsentAcceptanceConflictException(
                     "Idempotency-Key was already used for a different consent request");
@@ -55,20 +70,7 @@ public class ConsentAcceptanceService {
         return new ConsentReceipt(existing.consentReceiptId(), existing.acceptedAt());
     }
 
-    private void requireActivePolicy(String documentCode, String documentVersion) {
-        var active = jdbc.queryForObject("""
-                select exists(
-                    select 1 from consent_acceptance_policies
-                    where document_code = ? and document_version = ? and active
-                )
-                """, Boolean.class, documentCode, documentVersion);
-        if (!Boolean.TRUE.equals(active)) {
-            throw new ConsentAcceptanceValidationException(
-                    "Consent document code and version are not active");
-        }
-    }
-
-    private ExistingReceipt findExisting(UUID userId, UUID idempotencyKey) {
+    private Optional<ExistingReceipt> findExisting(UUID userId, UUID idempotencyKey) {
         var rows = jdbc.query("""
                 select consent_receipt_id, accepted_at, request_sha256
                 from consent_acceptances
@@ -77,10 +79,8 @@ public class ConsentAcceptanceService {
                 rs.getObject("consent_receipt_id", UUID.class),
                 rs.getTimestamp("accepted_at").toInstant(),
                 rs.getString("request_sha256")), userId, idempotencyKey);
-        if (rows.size() != 1) {
-            throw new IllegalStateException("Idempotent consent receipt could not be loaded");
-        }
-        return rows.getFirst();
+        if (rows.size() > 1) throw new IllegalStateException("Multiple consent receipts found");
+        return rows.stream().findFirst();
     }
 
     private String fingerprint(AcceptanceRequest request) {
