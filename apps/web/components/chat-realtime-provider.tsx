@@ -14,9 +14,11 @@ import {
   observeAccessTokenRefreshed,
   observeAuthenticationSucceeded,
 } from "@/lib/auth/authentication-session-events";
+import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
 import { ChatRealtimeDiagnosticsPanel } from "@/components/chat-realtime-diagnostics-panel";
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
+import { attachChatAuthenticationRecovery } from "@/lib/chat/realtime/chat-authentication-recovery";
 import { createChatRealtimeTransport } from "@/lib/chat/realtime/create-chat-realtime-transport";
 import { attachChatRealtimeDiagnosticsDevtools } from "@/lib/chat/realtime/diagnostics/chat-realtime-diagnostics-devtools";
 import {
@@ -30,6 +32,10 @@ import type {
   ChatRealtimeTransport,
   ChatRoomSessionSnapshot,
 } from "@/lib/chat/realtime/chat-realtime-transport";
+import {
+  clearChatAuthenticationRequired,
+  reportChatAuthenticationRequired,
+} from "@/lib/chat/chat-authentication-required";
 import { ChatRoomInboxRuntime } from "@/components/chat-room-inbox-runtime";
 
 type ChatRealtimeContextValue = Readonly<{
@@ -57,17 +63,38 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const { outbox, transport } = realtime;
 
   useEffect(() => {
+    const handleAuthenticationSucceeded = () => {
+      clearChatAuthenticationRequired();
+      transport.reconnect("authentication-succeeded");
+    };
+    const handleAccessTokenRefreshed = () => {
+      clearChatAuthenticationRequired();
+
+      if (transport.getSnapshot().status !== "authentication-required") {
+        transport.reconnect("authentication-succeeded");
+      }
+    };
     const detachOutbox = outbox.attach();
     const detachRealtime = attachChatRealtimePageLifecycle(transport, window);
     const detachDiagnostics = attachChatRealtimeDiagnosticsDevtools(transport, window);
-    const detachAuthentication = observeAuthenticationSucceeded(window, () => {
-      transport.reconnect("authentication-succeeded");
-    });
-    const detachAccessTokenRefresh = observeAccessTokenRefreshed(window, () => {
-      transport.reconnect("authentication-succeeded");
+    const detachAuthentication = observeAuthenticationSucceeded(
+      window,
+      handleAuthenticationSucceeded,
+    );
+    const detachAccessTokenRefresh = observeAccessTokenRefreshed(
+      window,
+      handleAccessTokenRefreshed,
+    );
+    const detachAuthenticationRecovery = attachChatAuthenticationRecovery(transport, {
+      ensureAccessToken,
+      onAuthenticationRecovered: clearChatAuthenticationRequired,
+      onAuthenticationRequired: () => {
+        reportChatAuthenticationRequired({ status: 401 });
+      },
     });
 
     return () => {
+      detachAuthenticationRecovery();
       detachAccessTokenRefresh();
       detachAuthentication();
       detachDiagnostics();
