@@ -10,20 +10,22 @@ const platformShellStyles = readFileSync(
 );
 
 describe("standalone PWA shell sizing", () => {
-  it("removes viewport minimums from the document wrappers", () => {
+  it("anchors the document wrapper height chain without viewport minimums", () => {
     expect(globalStyles).toContain(`@media (display-mode: standalone) {
+  html,
   body,
   .app-shell,
   .app-route-content {
+    height: 100%;
     min-height: 0;
   }
 }`);
   });
 
-  it("lets the stage own the dynamic viewport height", () => {
+  it("lets the stage and shell fill their parent height", () => {
     expect(platformShellStyles).toContain(`@media (display-mode: standalone) {
   .stage {
-    height: 100dvh;
+    height: 100%;
     min-height: 0;
   }
 
