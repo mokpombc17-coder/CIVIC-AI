@@ -86,7 +86,7 @@ describe("Vote Task participation", () => {
     });
   });
 
-  it("Backend capability가 허용하면 Prediction identity 없이 직접 응답 작성을 시작한다", () => {
+  it("submissionAllowed만을 투표 참여 가능 여부의 기준으로 사용한다", () => {
     expect(canStartTaskResponse(view)).toBe(true);
     expect(
       canStartTaskResponse({
@@ -95,17 +95,25 @@ describe("Vote Task participation", () => {
         predictionId: null,
         predictedReasons: [],
         aiAcceptanceAllowed: false,
-        directAnswerAllowed: true,
-        allowedReasonSources: ["USER_WRITTEN"],
+        directAnswerAllowed: false,
+        allowedReasonSources: [],
       }),
     ).toBe(true);
     expect(
       canStartTaskResponse({
         ...view,
-        aiAcceptanceAllowed: false,
-        directAnswerAllowed: false,
-        allowedReasonSources: [],
+        state: "FAILED",
+        submissionAllowed: false,
       }),
     ).toBe(false);
+    expect(
+      canStartTaskResponse({
+        ...view,
+        state: "NOT_REQUESTED",
+        predictionRequestAllowed: true,
+        submissionAllowed: false,
+      }),
+    ).toBe(false);
+    expect(canStartTaskResponse(undefined)).toBe(false);
   });
 });

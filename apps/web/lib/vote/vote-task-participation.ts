@@ -28,15 +28,7 @@ export function getPredictedReasonsForOption(
 }
 
 export function canStartTaskResponse(view: TaskPredictionView | undefined): boolean {
-  if (!view?.submissionAllowed) return false;
-
-  const aiAvailable =
-    view.aiAcceptanceAllowed &&
-    view.allowedReasonSources.includes("AI_ACCEPTED") &&
-    view.predictedReasons.length > 0;
-  const directAvailable =
-    view.directAnswerAllowed && view.allowedReasonSources.includes("USER_WRITTEN");
-  return aiAvailable || directAvailable;
+  return view?.submissionAllowed === true;
 }
 
 export function canWriteTaskReason(view: TaskPredictionView | undefined): boolean {

@@ -88,6 +88,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const selectedOption = options.find(({ id }) => id === selectedOptionId);
   const predictionView = predictionQuery.data;
   const participationReady = canStartTaskResponse(predictionView);
+  const predictionFailed = predictionView?.state === "FAILED";
   const predictedReasons = getPredictedReasonsForOption(predictionView, selectedOptionId);
   const selectedPredictedReason = predictedReasons.find(
     (reason) =>
@@ -291,6 +292,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onContinue={() => setStep(2)}
             onRetryPreparation={retryPredictionPreparation}
             preparationMessage={preparationMessage}
+            showParticipationAction={!predictionFailed}
           />
         ) : null}
         {taskDetail && step === 2 ? (
@@ -328,6 +330,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         ) : null}
         {taskDetail && step === 3 ? (
           <ResponseConfirmation
+            canSubmit={participationReady}
             errorMessage={submissionError}
             isSubmitting={submissionMutation.isPending}
             option={selectedOption?.content ?? ""}
@@ -493,11 +496,14 @@ function getPredictionPreparationMessage({
   if (predictionError || ensureError) {
     return "투표 참여 정보를 준비하지 못했습니다. 잠시 후 다시 접속해 주세요.";
   }
+  if (view?.state === "FAILED") {
+    return "AI 예상 답변을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (canStartTaskResponse(view)) return null;
   if (!view || ensurePending || view.state === "PERSONA_NOT_READY" || !view.predictionId) {
     return "과업 참여를 준비하는 중입니다.";
   }
-  if (!canStartTaskResponse(view)) return "현재 응답을 작성할 수 없습니다.";
-  return null;
+  return "현재 응답을 작성할 수 없습니다.";
 }
 
 function VoteProgress({ step }: { step: VoteStep }) {
@@ -537,6 +543,7 @@ function TaskOverview({
   onContinue,
   onRetryPreparation,
   preparationMessage,
+  showParticipationAction,
 }: {
   canContinue: boolean;
   canRetryPreparation: boolean;
@@ -544,6 +551,7 @@ function TaskOverview({
   onContinue: () => void;
   onRetryPreparation: () => void;
   preparationMessage: string | null;
+  showParticipationAction: boolean;
 }) {
   const options = sortTaskOptions(detail.task.question.options);
   return (
@@ -572,14 +580,16 @@ function TaskOverview({
           {preparationMessage}
         </p>
       ) : null}
-      <button
-        className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
-        disabled={!canContinue && !canRetryPreparation}
-        onClick={canRetryPreparation ? onRetryPreparation : onContinue}
-        type="button"
-      >
-        {canRetryPreparation ? "다시 시도" : canContinue ? "참여하기" : "준비 중…"}
-      </button>
+      {showParticipationAction ? (
+        <button
+          className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
+          disabled={!canContinue && !canRetryPreparation}
+          onClick={canRetryPreparation ? onRetryPreparation : onContinue}
+          type="button"
+        >
+          {canRetryPreparation ? "다시 시도" : canContinue ? "참여하기" : "준비 중…"}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -850,12 +860,14 @@ function ResponseComposer(props: ComposerProps) {
 }
 
 function ResponseConfirmation({
+  canSubmit,
   errorMessage,
   isSubmitting,
   option,
   onSubmit,
   reason,
 }: {
+  canSubmit: boolean;
   errorMessage: string | null;
   isSubmitting: boolean;
   option: string;
@@ -881,7 +893,7 @@ function ResponseConfirmation({
       <button
         aria-busy={isSubmitting}
         className={`${styles.compactPrimaryButton} ${styles.confirmationSubmitButton}`}
-        disabled={isSubmitting}
+        disabled={isSubmitting || !canSubmit}
         onClick={onSubmit}
         type="button"
       >
