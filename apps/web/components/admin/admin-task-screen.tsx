@@ -18,23 +18,21 @@ import {
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import {
   adminFieldError,
-  canReadTaskResult,
   formatAdminProblem,
   readAdminProblem,
   readTask,
   readTaskDetail,
   readTaskPreparationStartResponse,
-  readTaskResultSummary,
   readTaskSummaries,
   type Task,
   type AdminProblem,
   type TaskCapabilities,
   type TaskDetail,
   type TaskPreparationView,
-  type TaskResultSummary,
   type TaskStatus,
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
+import { canViewTaskResults, loadTaskResults, type TaskResults } from "@/lib/admin/task-results";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 
@@ -183,7 +181,7 @@ function AdminTaskWorkspace({
     syncTaskUrl({ editing: true, taskId, tab });
   }
 
-  const resultsLocked = selectedSummary !== null && !canReadTaskResult(selectedSummary);
+  const resultsLocked = selectedSummary !== null && !canViewTaskResults(selectedSummary);
   const tabs: readonly ConsoleTabItem[] = [
     { id: "overview", label: "개요" },
     { id: "results", label: "결과", disabled: resultsLocked && tab !== "results" },
@@ -809,7 +807,7 @@ function TaskOverviewTab({
                 조기 종료
               </button>
             ) : null}
-            {canReadTaskResult(task) ? (
+            {canViewTaskResults(task) ? (
               <button
                 className="wf-button wf-button-secondary civic-task-results-action"
                 onClick={onOpenResults}
@@ -1095,50 +1093,74 @@ function preparationActionLabel(
 }
 
 function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
-  const [task, setTask] = useState<Task | null>(null);
-  const [summary, setSummary] = useState<TaskResultSummary | null>(null);
+  const [result, setResult] = useState<TaskResults | null>(null);
   const [message, setMessage] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [revision, setRevision] = useState(0);
 
   useEffect(() => {
+    const controller = new AbortController();
     const timer = window.setTimeout(() => {
+      setLoading(true);
+      setResult(null);
+      setMessage("");
       void (async () => {
-        const detail = await requestTaskDetail(taskId);
-        if (!detail) return setMessage("과업 상세를 불러오지 못했습니다.");
-        setTask(detail.task);
-        if (!canReadTaskResult(detail.task)) {
-          return setMessage("정상 마감 또는 조기 종료된 과업만 결과를 조회할 수 있습니다.");
-        }
         try {
-          const response = await authenticatedFetch(
-            `/api/v1/admin/tasks/${encodeURIComponent(taskId)}/result-summary`,
-            { cache: "no-store" },
-          );
-          if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
-          const result = readTaskResultSummary(await response.json());
-          if (!result) return setMessage("서버의 결과 응답 형식을 확인해야 합니다.");
-          setSummary(result);
-          setMessage("");
-        } catch {
-          setMessage("네트워크 오류로 결과를 불러오지 못했습니다.");
+          const next = await loadTaskResults(taskId, authenticatedFetch, controller.signal);
+          if (!controller.signal.aborted) setResult(next);
+        } catch (error) {
+          if (!controller.signal.aborted) {
+            setMessage(
+              error instanceof Error && !(error instanceof TypeError)
+                ? error.message
+                : "네트워크 오류로 결과를 불러오지 못했습니다.",
+            );
+          }
+        } finally {
+          if (!controller.signal.aborted) setLoading(false);
         }
       })();
     }, 0);
-    return () => window.clearTimeout(timer);
-  }, [taskId]);
+    return () => {
+      window.clearTimeout(timer);
+      controller.abort();
+    };
+  }, [taskId, revision]);
 
-  if (!task || !summary)
-    return <ConsoleStatus>{message || "확정된 결과를 불러오는 중입니다."}</ConsoleStatus>;
+  if (!result)
+    return (
+      <>
+        <ConsoleStatus>{message || "결과를 불러오는 중입니다."}</ConsoleStatus>
+        {!loading ? (
+          <button
+            className="wf-button wf-button-secondary"
+            onClick={() => setRevision((value) => value + 1)}
+            type="button"
+          >
+            다시 시도
+          </button>
+        ) : null}
+      </>
+    );
+  const { task, observedAt } = result;
+  const inProgress = observedAt !== null;
   return (
     <section className="civic-domain-result">
       <header>
-        <span>실제 참여자 응답</span>
+        <span>{inProgress ? "진행 중 투표 집계" : "실제 참여자 응답"}</span>
         <h2>{task.title}</h2>
-        <strong>전체 {summary.responseCount.toLocaleString("ko-KR")}건</strong>
+        <strong>전체 {result.responseCount.toLocaleString("ko-KR")}건</strong>
+        {observedAt ? (
+          <p>
+            집계 시각: <time dateTime={observedAt}>{formatDate(observedAt)}</time> · 진행 중인
+            투표로 결과가 변경될 수 있습니다.
+          </p>
+        ) : null}
       </header>
+      {result.responseCount === 0 ? <p>아직 제출된 응답이 없습니다.</p> : null}
       <ol className="civic-result-bars">
-        {summary.options.map((option) => {
-          const percent =
-            summary.responseCount === 0 ? 0 : (option.count / summary.responseCount) * 100;
+        {result.options.map((option) => {
+          const percent = option.rate * 100;
           return (
             <li key={option.key}>
               <div>
@@ -1147,7 +1169,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
                   {option.count.toLocaleString("ko-KR")}건 · {percent.toFixed(1)}%
                 </span>
               </div>
-              <progress max={100} value={percent}>
+              <progress aria-label={`${option.content} 득표 비율`} max={100} value={percent}>
                 {percent.toFixed(1)}%
               </progress>
             </li>
@@ -1155,12 +1177,23 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
         })}
       </ol>
       <div className="civic-form-actions">
-        <AuthenticatedDownloadLink
-          className="civic-primary-action"
-          href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
-        >
-          결과 다운로드
-        </AuthenticatedDownloadLink>
+        {inProgress ? (
+          <button
+            className="wf-button wf-button-secondary"
+            disabled={loading}
+            onClick={() => setRevision((value) => value + 1)}
+            type="button"
+          >
+            현황 새로고침
+          </button>
+        ) : (
+          <AuthenticatedDownloadLink
+            className="civic-primary-action"
+            href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
+          >
+            결과 다운로드
+          </AuthenticatedDownloadLink>
+        )}
       </div>
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </section>

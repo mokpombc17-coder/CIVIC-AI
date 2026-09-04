@@ -25,6 +25,8 @@ let closeRoomBody = "";
 let createdTaskIdempotencyKey: string | null = null;
 let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
 let simulationResultQueries: string[] = [];
+let progressSubmissionCount = 3;
+let progressRequests = 0;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -196,7 +198,40 @@ test.beforeAll(async () => {
       return json(response, task, 201, { location: `/api/v1/admin/tasks/${taskId}` });
     }
     if (url.pathname === `/api/v1/admin/tasks/${taskId}` && request.method === "GET") {
-      return json(response, { task, lifecycleHistory: lifecycleHistory(task.status) });
+      return json(response, {
+        task,
+        lifecycleHistory: lifecycleHistory(task.status),
+        preparation: null,
+        capabilities: {
+          canEditContent: task.status === "DRAFT",
+          canStartPreparation: task.status === "DRAFT",
+          canSchedule: false,
+          canOpenNow: false,
+        },
+      });
+    }
+    if (
+      url.pathname === `/api/v1/admin/tasks/${taskId}/progress-summary` &&
+      request.method === "GET"
+    ) {
+      progressRequests += 1;
+      return json(
+        response,
+        {
+          taskId,
+          status: "OPEN",
+          observedAt: "2026-09-03T01:00:00Z",
+          submissionCount: progressSubmissionCount,
+          options: task.question.options.map((option, index) => ({
+            optionId: option.id,
+            content: option.content,
+            count: progressSubmissionCount === 0 ? 0 : index === 0 ? 2 : 1,
+            rate: progressSubmissionCount === 0 ? 0 : index === 0 ? 2 / 3 : 1 / 3,
+          })),
+        },
+        200,
+        { "Cache-Control": "no-store" },
+      );
     }
     if (url.pathname === `/api/v1/admin/tasks/${taskId}/open-now` && request.method === "POST") {
       task = {
@@ -229,9 +264,48 @@ test.beforeEach(() => {
   createdTaskIdempotencyKey = null;
   latestSimulationState = null;
   simulationResultQueries = [];
+  progressSubmissionCount = 3;
+  progressRequests = 0;
 });
 
 test.afterAll(async () => close(server));
+
+for (const width of [394, 1440]) {
+  test(`관리자 결과 탭에서 진행 중 집계를 조회하고 새로고침한다 (${width}px)`, async ({
+    context,
+    page,
+  }) => {
+    await authenticate(context);
+    await page.setViewportSize({ width, height: 900 });
+    task = taskFixture("OPEN");
+    await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
+    await expect(page.getByRole("button", { name: "결과 보기", exact: true })).toBeVisible();
+    await page.getByRole("tab", { name: "결과", exact: true }).click();
+    await expect(page.getByText("진행 중 투표 집계", { exact: true })).toBeVisible();
+    await expect(page.getByText("전체 3건", { exact: true })).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "A안 득표 비율" })).toHaveAttribute(
+      "value",
+      /66\.6/,
+    );
+    await expect(page.getByText("2건 · 66.7%", { exact: true })).toBeVisible();
+    await expect(page.getByText(/집계 시각:/)).toBeVisible();
+    await expect(page.getByText("결과 다운로드", { exact: true })).toHaveCount(0);
+    expect(progressRequests).toBe(1);
+    progressSubmissionCount = 0;
+    await page.getByRole("button", { name: "현황 새로고침" }).click();
+    await expect(page.getByText("전체 0건", { exact: true })).toBeVisible();
+    await expect(page.getByText("아직 제출된 응답이 없습니다.")).toBeVisible();
+    await expect(page.getByRole("progressbar", { name: "A안 득표 비율" })).toHaveAttribute(
+      "value",
+      "0",
+    );
+    expect(progressRequests).toBe(2);
+    await page.screenshot({
+      path: `e2e/.artifacts/wireflow-results/task-progress-${width}.png`,
+      fullPage: true,
+    });
+  });
+}
 
 test("채팅 관리자는 신청자 이메일을 확인하고 신청을 승인한다", async ({ context, page }) => {
   await authenticate(context);
