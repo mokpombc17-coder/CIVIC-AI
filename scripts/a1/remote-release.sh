@@ -157,6 +157,68 @@ smoke() {
     "https://${PUBLIC_HOST}${PROTECTED_PATH}" || true)"
   [[ "$public_status" =~ ^(200|301|302|303|307|308|401)$ ]] \
     || die "public smoke failed: HTTP $public_status"
+
+  python3 - "$PUBLIC_ORIGIN" <<'PY' || die "public Front asset smoke failed"
+from html.parser import HTMLParser
+import sys
+from urllib.parse import urljoin, urlsplit
+from urllib.request import Request, urlopen
+
+
+class AssetParser(HTMLParser):
+    def __init__(self):
+        super().__init__()
+        self.assets = set()
+
+    def handle_starttag(self, tag, attrs):
+        attributes = dict(attrs)
+        value = attributes.get("src") if tag == "script" else attributes.get("href")
+        if not value:
+            return
+        path = urlsplit(value).path
+        if path.startswith("/_next/static/") and path.endswith((".css", ".js")):
+            self.assets.add(path)
+
+
+def fetch(url):
+    request = Request(
+        url,
+        headers={
+            "Cache-Control": "no-cache",
+            "User-Agent": "civic-front-deploy-smoke/1.0",
+        },
+    )
+    return urlopen(request, timeout=15)
+
+
+origin = sys.argv[1].rstrip("/")
+room_path = "/chat/00000000-0000-0000-0000-000000000000"
+with fetch(origin + room_path) as response:
+    if response.status != 200:
+        raise SystemExit(f"chat detail smoke returned HTTP {response.status}")
+    parser = AssetParser()
+    parser.feed(response.read().decode(response.headers.get_content_charset() or "utf-8"))
+
+if not parser.assets:
+    raise SystemExit("chat detail smoke found no Next static assets")
+
+for asset in sorted(parser.assets):
+    with fetch(urljoin(origin, asset)) as response:
+        content_type = response.headers.get_content_type()
+        expected_type = "text/css" if asset.endswith(".css") else "application/javascript"
+        valid_javascript_type = asset.endswith(".js") and content_type in {
+            "application/javascript",
+            "text/javascript",
+        }
+        if response.status != 200:
+            raise SystemExit(f"asset smoke returned HTTP {response.status}: {asset}")
+        if content_type != expected_type and not valid_javascript_type:
+            raise SystemExit(
+                f"asset smoke returned {content_type}, expected {expected_type}: {asset}"
+            )
+
+print(f"validated {len(parser.assets)} chat detail static assets")
+PY
 }
 
 activate_release() {

@@ -30,6 +30,7 @@ if (!assets.some((asset) => asset.startsWith("/_next/static/"))) {
   fail("asset manifest has no exact Next static paths");
 }
 
+const publicAssets = assets.filter((asset) => !asset.startsWith("/_next/static/"));
 const images = assets.filter((asset) => /\.(?:avif|gif|jpe?g|png|svg|webp)$/iu.test(asset));
 const ownerMap = lines.some((line) =>
   /^\s*map\s+\$arg_url\s+\$civic_next_image_owner\s*\{/u.test(line),
@@ -86,7 +87,14 @@ const block = [
   "    location ^~ /survey/ {",
   `        ${frontProxy}`,
   "    }",
-  ...assets.flatMap((asset) => [`    location = ${asset} {`, `        ${frontProxy}`, "    }"]),
+  "    location ^~ /_next/static/ {",
+  `        ${frontProxy}`,
+  "    }",
+  ...publicAssets.flatMap((asset) => [
+    `    location = ${asset} {`,
+    `        ${frontProxy}`,
+    "    }",
+  ]),
   "    location = /_next/image {",
   ...(ownerMap
     ? [
