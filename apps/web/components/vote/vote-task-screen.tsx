@@ -31,6 +31,7 @@ import {
   getPredictedReasonsForOption,
   type VoteReasonSelection,
 } from "@/lib/vote/vote-task-participation";
+import { formatPredictionRuntimeStatus } from "@/lib/vote/vote-task-prediction-presentation";
 import {
   sortTaskOptions,
   type PredictedReason,
@@ -89,6 +90,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const predictionView = predictionQuery.data;
   const participationReady = canStartTaskResponse(predictionView);
   const predictionFailed = predictionView?.state === "FAILED";
+  const predictionInProgress = predictionView?.state === "REMOTE_PROCESSING";
   const predictedReasons = getPredictedReasonsForOption(predictionView, selectedOptionId);
   const selectedPredictedReason = predictedReasons.find(
     (reason) =>
@@ -291,6 +293,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             detail={taskDetail}
             onContinue={() => setStep(2)}
             onRetryPreparation={retryPredictionPreparation}
+            preparationLoading={predictionInProgress}
             preparationMessage={preparationMessage}
             showParticipationAction={!predictionFailed}
           />
@@ -496,11 +499,19 @@ function getPredictionPreparationMessage({
   if (predictionError || ensureError) {
     return "투표 참여 정보를 준비하지 못했습니다. 잠시 후 다시 접속해 주세요.";
   }
+  const runtimeStatusMessage = formatPredictionRuntimeStatus(view?.runtimeStatus ?? null);
+  if (runtimeStatusMessage) return runtimeStatusMessage;
   if (view?.state === "FAILED") {
     return "AI 예상 답변을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   }
   if (canStartTaskResponse(view)) return null;
-  if (!view || ensurePending || view.state === "PERSONA_NOT_READY" || !view.predictionId) {
+  if (
+    !view ||
+    ensurePending ||
+    view.waiting ||
+    view.state === "PERSONA_NOT_READY" ||
+    !view.predictionId
+  ) {
     return "과업 참여를 준비하는 중입니다.";
   }
   return "현재 응답을 작성할 수 없습니다.";
@@ -542,6 +553,7 @@ function TaskOverview({
   detail,
   onContinue,
   onRetryPreparation,
+  preparationLoading,
   preparationMessage,
   showParticipationAction,
 }: {
@@ -550,6 +562,7 @@ function TaskOverview({
   detail: UserTaskDetail;
   onContinue: () => void;
   onRetryPreparation: () => void;
+  preparationLoading: boolean;
   preparationMessage: string | null;
   showParticipationAction: boolean;
 }) {
@@ -576,8 +589,15 @@ function TaskOverview({
         </div>
       </section>
       {preparationMessage ? (
-        <p aria-live="polite" className={styles.predictionNotice}>
-          {preparationMessage}
+        <p
+          aria-busy={preparationLoading || undefined}
+          aria-live="polite"
+          className={`${styles.predictionNotice} ${preparationLoading ? styles.predictionNoticeLoading : ""}`}
+        >
+          {preparationLoading ? (
+            <span aria-hidden="true" className={styles.loadingSpinner} />
+          ) : null}
+          <span>{preparationMessage}</span>
         </p>
       ) : null}
       {showParticipationAction ? (

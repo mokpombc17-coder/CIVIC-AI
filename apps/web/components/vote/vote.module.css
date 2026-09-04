@@ -573,6 +573,19 @@
   line-height: 20px;
 }
 
+.predictionNoticeLoading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.predictionNoticeLoading .loadingSpinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border-width: 2px;
+}
+
 .recoveryPanel {
   display: grid;
   gap: 6px;

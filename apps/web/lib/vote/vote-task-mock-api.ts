@@ -94,6 +94,7 @@ const predictionFixture = taskPredictionViewSchema.parse({
   nextRetryAt: null,
   completedAt: "2026-08-27T03:50:00Z",
   failureCode: null,
+  runtimeStatus: null,
 });
 
 export function createMockVoteTaskApi(delayMs = 80): VoteTaskApi {

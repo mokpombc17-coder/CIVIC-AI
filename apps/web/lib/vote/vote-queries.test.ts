@@ -22,13 +22,16 @@ describe("Vote query policies", () => {
   });
 
   it("waiting과 PERSONA_NOT_READY만 visible 화면에서 bounded polling한다", () => {
-    const base = { waiting: true, state: "PENDING" } as Parameters<
-      typeof getPredictionPollingInterval
-    >[0];
+    const base = { waiting: true, state: "PENDING" } satisfies NonNullable<
+      Parameters<typeof getPredictionPollingInterval>[0]
+    >;
     expect(getPredictionPollingInterval(base, 1, true)).toBe(1_000);
     expect(getPredictionPollingInterval(base, 2, true)).toBe(2_000);
     expect(getPredictionPollingInterval(base, 9, true)).toBe(5_000);
     expect(getPredictionPollingInterval(base, 9, false)).toBe(false);
+    expect(getPredictionPollingInterval({ ...base, state: "REMOTE_PROCESSING" }, 9, true)).toBe(
+      5_000,
+    );
     expect(
       getPredictionPollingInterval({ ...base, waiting: false, state: "SUCCEEDED" }, 9, true),
     ).toBe(false);

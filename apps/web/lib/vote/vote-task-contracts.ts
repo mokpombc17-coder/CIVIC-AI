@@ -80,6 +80,7 @@ export const predictionViewStateSchema = z.enum([
   "NOT_REQUESTED",
   "PENDING",
   "PROCESSING",
+  "REMOTE_PROCESSING",
   "RETRY_WAIT",
   "SUCCEEDED",
   "FAILED",
@@ -92,6 +93,13 @@ export const predictionStatusSchema = z.enum([
   "SUCCEEDED",
   "FAILED",
 ]);
+
+export const predictionRuntimeStatusSchema = z.object({
+  code: z.string(),
+  detail: z.string(),
+  retryable: z.boolean(),
+  maxWaitMinutes: z.number(),
+});
 
 export const taskPredictionViewSchema = z.object({
   taskId: uuidSchema,
@@ -115,6 +123,7 @@ export const taskPredictionViewSchema = z.object({
   nextRetryAt: timestampSchema.nullable(),
   completedAt: timestampSchema.nullable(),
   failureCode: z.string().nullable(),
+  runtimeStatus: predictionRuntimeStatusSchema.nullable(),
 });
 
 export const ensurePredictionResponseSchema = z.object({
@@ -183,6 +192,7 @@ export const myTaskSubmissionSchema = z.object({
 export type UserTaskSummary = z.infer<typeof userTaskSummarySchema>;
 export type UserTaskDetail = z.infer<typeof userTaskDetailSchema>;
 export type TaskPredictionView = z.infer<typeof taskPredictionViewSchema>;
+export type PredictionRuntimeStatus = z.infer<typeof predictionRuntimeStatusSchema>;
 export type EnsurePredictionResponse = z.infer<typeof ensurePredictionResponseSchema>;
 export type PredictedReason = z.infer<typeof predictedReasonSchema>;
 export type TaskReasonSource = z.infer<typeof taskReasonSourceSchema>;

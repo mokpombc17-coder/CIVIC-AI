@@ -48,6 +48,7 @@ const view: TaskPredictionView = {
   nextRetryAt: null,
   completedAt: "2026-08-28T00:00:00Z",
   failureCode: null,
+  runtimeStatus: null,
 };
 
 describe("Vote Task participation", () => {

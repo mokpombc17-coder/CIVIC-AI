@@ -143,6 +143,7 @@ describe("Vote Task contracts", () => {
       nextRetryAt: null,
       completedAt: null,
       failureCode: null,
+      runtimeStatus: null,
     };
     for (const state of [
       "TASK_NOT_FOUND",
@@ -153,12 +154,33 @@ describe("Vote Task contracts", () => {
       "NOT_REQUESTED",
       "PENDING",
       "PROCESSING",
+      "REMOTE_PROCESSING",
       "RETRY_WAIT",
       "SUCCEEDED",
       "FAILED",
     ] as const) {
       expect(taskPredictionViewSchema.parse({ ...base, state }).state).toBe(state);
     }
+
+    expect(
+      taskPredictionViewSchema.parse({
+        ...base,
+        state: "REMOTE_PROCESSING",
+        waiting: true,
+        retryable: true,
+        runtimeStatus: {
+          code: "PREDICTION_NOT_READY",
+          detail: "AI 예상 이유를 준비 중입니다.",
+          retryable: true,
+          maxWaitMinutes: 10,
+        },
+      }).runtimeStatus,
+    ).toEqual({
+      code: "PREDICTION_NOT_READY",
+      detail: "AI 예상 이유를 준비 중입니다.",
+      retryable: true,
+      maxWaitMinutes: 10,
+    });
   });
 
   it("선택지와 예상 이유를 display 순서로 정렬하면서 원본을 변경하지 않는다", () => {
