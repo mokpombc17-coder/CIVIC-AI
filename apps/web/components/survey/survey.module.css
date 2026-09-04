@@ -1279,38 +1279,6 @@ textarea.textControl {
   line-height: 19.5px;
 }
 
-.confirmationDocument {
-  max-height: 220px;
-  overflow-y: auto;
-  white-space: pre-line;
-}
-
-.confirmationError {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-top: 6px;
-}
-
-.confirmationError p {
-  margin-top: 0;
-  color: #ba1c1c;
-}
-
-.confirmationError button {
-  flex: 0 0 auto;
-  padding: 0;
-  border: 0;
-  background: transparent;
-  color: var(--platform-shell-color-primary);
-  cursor: pointer;
-  font: inherit;
-  font-size: 13px;
-  font-weight: 700;
-  text-decoration: underline;
-  text-underline-offset: 2px;
-}
-
 .confirmation .actions {
   margin-top: auto;
 }

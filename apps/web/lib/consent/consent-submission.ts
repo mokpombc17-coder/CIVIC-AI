@@ -1,8 +1,11 @@
 import type {
   AcceptSensitiveSurveyConsentRequest,
   AcceptSensitiveSurveyConsentResponse,
-  SensitiveSurveyConsentDocument,
 } from "./consent-contracts";
+
+type ConsentDocumentReference = Readonly<
+  Pick<AcceptSensitiveSurveyConsentRequest, "documentCode" | "documentVersion">
+>;
 
 export type PendingConsentAcceptance = Readonly<{
   idempotencyKey: string;
@@ -12,13 +15,14 @@ export type PendingConsentAcceptance = Readonly<{
 }>;
 
 export function prepareConsentAcceptance(
-  document: SensitiveSurveyConsentDocument,
+  document: ConsentDocumentReference,
   roundId: string,
+  clientClickedAt: string,
   previous: PendingConsentAcceptance | null,
   createKey: () => string = () => crypto.randomUUID(),
-  createClickedAt: () => string = () => new Date().toISOString(),
 ): PendingConsentAcceptance {
   const fingerprint = JSON.stringify({
+    clientClickedAt,
     documentCode: document.documentCode,
     documentVersion: document.documentVersion,
     roundId,
@@ -31,7 +35,7 @@ export function prepareConsentAcceptance(
       documentCode: document.documentCode,
       documentVersion: document.documentVersion,
       roundId,
-      clientClickedAt: createClickedAt(),
+      clientClickedAt,
     },
     fingerprint,
     receipt: null,

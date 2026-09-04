@@ -6,22 +6,6 @@ const RECEIPT_ID = "22222222-2222-4222-8222-222222222222";
 const IDEMPOTENCY_KEY = "33333333-3333-4333-8333-333333333333";
 
 describe("consent api", () => {
-  it("현재 민감정보 동의 문서를 조회한다", async () => {
-    const request = vi.fn().mockResolvedValue({
-      documentCode: "SENSITIVE_INFORMATION_CONSENT",
-      documentVersion: "2026-09-03",
-      content: "민감정보 수집·이용에 동의합니다.",
-    });
-
-    await expect(
-      createConsentApi(request).getCurrentSensitiveSurveyDocument(),
-    ).resolves.toMatchObject({ documentVersion: "2026-09-03" });
-    expect(request).toHaveBeenCalledWith(
-      "/api/v1/me/consent-documents/sensitive-survey/current",
-      {},
-    );
-  });
-
   it("동의 payload와 별도 Idempotency-Key를 전달한다", async () => {
     const request = vi.fn().mockResolvedValue({
       consentReceiptId: RECEIPT_ID,

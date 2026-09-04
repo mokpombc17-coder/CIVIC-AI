@@ -4,20 +4,15 @@ import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   acceptSensitiveSurveyConsentRequestSchema,
   acceptSensitiveSurveyConsentResponseSchema,
-  sensitiveSurveyConsentDocumentSchema,
   type AcceptSensitiveSurveyConsentRequest,
   type AcceptSensitiveSurveyConsentResponse,
-  type SensitiveSurveyConsentDocument,
 } from "./consent-contracts";
 
-const CURRENT_SENSITIVE_SURVEY_CONSENT_PATH =
-  "/api/v1/me/consent-documents/sensitive-survey/current";
 const CONSENT_ACCEPTANCES_PATH = "/api/v1/me/consent-acceptances";
 
 type ConsentRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 
 export type ConsentApi = Readonly<{
-  getCurrentSensitiveSurveyDocument(signal?: AbortSignal): Promise<SensitiveSurveyConsentDocument>;
   acceptSensitiveSurveyConsent(
     command: AcceptSensitiveSurveyConsentRequest,
     idempotencyKey: string,
@@ -39,11 +34,6 @@ export class ConsentApiError extends Error {
 
 export function createConsentApi(request: ConsentRequest = consentRequest): ConsentApi {
   return {
-    async getCurrentSensitiveSurveyDocument(signal) {
-      return sensitiveSurveyConsentDocumentSchema.parse(
-        await request(CURRENT_SENSITIVE_SURVEY_CONSENT_PATH, signal ? { signal } : {}),
-      );
-    },
     async acceptSensitiveSurveyConsent(command, idempotencyKey, signal) {
       const payload = acceptSensitiveSurveyConsentRequestSchema.parse(command);
       const key =
