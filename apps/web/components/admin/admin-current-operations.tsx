@@ -15,6 +15,7 @@ import { taskPreparationPresentation } from "@/lib/admin/task-preparation";
 
 const CURRENT_OPERATION_LIMIT = 6;
 const CURRENT_OPERATION_POLL_MS = 10_000;
+const TASK_PREPARATION_SCAN_TIMEOUT_MS = 8_000;
 const ACTIVE_RAG_STATES = new Set(["PENDING", "PROCESSING", "QUEUED", "RUNNING", "RETRY_WAIT"]);
 
 type OperationKind = "document" | "simulation" | "prediction";
@@ -454,6 +455,36 @@ async function loadCurrentTaskPreparations(
   request: typeof fetch,
   signal?: AbortSignal,
 ): Promise<OperationSourceResult> {
+  const controller = new AbortController();
+  const items: AdminCurrentOperation[] = [];
+  const cancel = () => controller.abort();
+  let onAbort: () => void = () => undefined;
+  const aborted = new Promise<OperationSourceResult>((resolve) => {
+    onAbort = () =>
+      resolve({ status: "ready", items: [...items], total: items.length, warning: true });
+    controller.signal.addEventListener("abort", onAbort, { once: true });
+  });
+  signal?.addEventListener("abort", cancel, { once: true });
+  if (signal?.aborted) cancel();
+  const timer = setTimeout(cancel, TASK_PREPARATION_SCAN_TIMEOUT_MS);
+  try {
+    // 인증 갱신처럼 fetch 자체의 취소와 별개인 대기도 전체 현황을 막지 않는다.
+    return await Promise.race([
+      scanCurrentTaskPreparations(request, controller.signal, items),
+      aborted,
+    ]);
+  } finally {
+    clearTimeout(timer);
+    signal?.removeEventListener("abort", cancel);
+    controller.signal.removeEventListener("abort", onAbort);
+  }
+}
+
+async function scanCurrentTaskPreparations(
+  request: typeof fetch,
+  signal: AbortSignal,
+  items: AdminCurrentOperation[],
+): Promise<OperationSourceResult> {
   try {
     signal?.throwIfAborted();
     const response = await request("/api/v1/admin/tasks", {
@@ -462,9 +493,9 @@ async function loadCurrentTaskPreparations(
     });
     if (!response.ok) return { status: "unavailable" };
     const tasks = readTaskSummaries(await response.json());
+    signal.throwIfAborted();
     if (!tasks) return { status: "unavailable" };
     const drafts = tasks.filter((task) => task.status === "DRAFT");
-    const items: AdminCurrentOperation[] = [];
     let nextIndex = 0;
     let warning = false;
     await Promise.all(
@@ -478,6 +509,7 @@ async function loadCurrentTaskPreparations(
               { cache: "no-store", ...(signal ? { signal } : {}) },
             );
             const detail = detailResponse.ok ? readTaskDetail(await detailResponse.json()) : null;
+            signal.throwIfAborted();
             if (!detail || detail.task.id !== task.taskId) {
               warning = true;
               continue;

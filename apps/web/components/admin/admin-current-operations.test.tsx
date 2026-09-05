@@ -300,3 +300,39 @@ it("홈 조회 취소 후에는 대기 중인 초안 상세 조회를 시작하�
   });
   expect(detailRequests).toBe(1);
 });
+
+it("투표 상세가 멈춰도 제한 시간 안에 확인된 투표와 다른 소스의 작업을 표시한다", async () => {
+  vi.useFakeTimers();
+  try {
+    const detail = voteDetail("vote-ready", "PROCESSING");
+    const signals: AbortSignal[] = [];
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/admin/simulation-tasks")
+        return Response.json([simulationTask("RUNNING", 68)]);
+      if (url === "/api/v1/admin/tasks")
+        return Response.json([
+          { ...detail.task, taskId: "vote-ready" },
+          { ...detail.task, taskId: "vote-stalled" },
+        ]);
+      if (url.endsWith("/vote-ready")) return Response.json(detail);
+      if (init?.signal) signals.push(init.signal);
+      return new Promise<Response>(() => undefined);
+    });
+    let result: Awaited<ReturnType<typeof loadAdminCurrentOperations>> | undefined;
+    void loadAdminCurrentOperations({
+      canManageVote: true,
+      canManageSimulation: true,
+      canReadRag: false,
+      request,
+    }).then((value) => {
+      result = value;
+    });
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(result).toMatchObject({ total: 2, unavailableSources: ["투표 AI 일부"] });
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});
