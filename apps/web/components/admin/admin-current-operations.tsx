@@ -10,12 +10,14 @@ import {
   type SimulationState,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { readTaskDetail, readTaskSummaries } from "@/lib/admin/domain-contracts";
+import { taskPreparationPresentation } from "@/lib/admin/task-preparation";
 
 const CURRENT_OPERATION_LIMIT = 6;
 const CURRENT_OPERATION_POLL_MS = 10_000;
 const ACTIVE_RAG_STATES = new Set(["PENDING", "PROCESSING", "QUEUED", "RUNNING", "RETRY_WAIT"]);
 
-type OperationKind = "document" | "simulation";
+type OperationKind = "document" | "simulation" | "prediction";
 
 export type AdminCurrentOperation = Readonly<{
   href: string;
@@ -49,42 +51,54 @@ type OperationSourceResult =
 export function AdminCurrentOperations({
   canManageSimulation,
   canReadRag,
-}: Readonly<{ canManageSimulation: boolean; canReadRag: boolean }>) {
+  canManageVote = false,
+}: Readonly<{ canManageSimulation: boolean; canReadRag: boolean; canManageVote?: boolean }>) {
   const [state, setState] = useState<AdminCurrentOperationsState>({ status: "loading" });
-  const enabled = canManageSimulation || canReadRag;
+  const enabled = canManageSimulation || canReadRag || canManageVote;
 
   useEffect(() => {
     if (!enabled) return;
     let disposed = false;
     let inFlight = false;
+    let controller: AbortController | null = null;
 
     const refresh = async () => {
       if (inFlight || document.hidden) return;
       inFlight = true;
+      const currentController = new AbortController();
+      controller = currentController;
       try {
-        const next = await loadAdminCurrentOperations({ canManageSimulation, canReadRag });
-        if (!disposed) setState(next);
+        const next = await loadAdminCurrentOperations({
+          canManageSimulation,
+          canReadRag,
+          canManageVote,
+          signal: currentController.signal,
+        });
+        if (!disposed && !currentController.signal.aborted) setState(next);
       } finally {
         inFlight = false;
       }
     };
     const onVisibilityChange = () => {
-      if (!document.hidden) void refresh();
+      if (document.hidden) controller?.abort();
+      else void refresh();
     };
     const initial = window.setTimeout(() => void refresh(), 0);
     const timer = window.setInterval(() => void refresh(), CURRENT_OPERATION_POLL_MS);
     document.addEventListener("visibilitychange", onVisibilityChange);
     return () => {
       disposed = true;
+      controller?.abort();
       window.clearTimeout(initial);
       window.clearInterval(timer);
       document.removeEventListener("visibilitychange", onVisibilityChange);
     };
-  }, [canManageSimulation, canReadRag, enabled]);
+  }, [canManageSimulation, canReadRag, canManageVote, enabled]);
 
   if (!enabled) return null;
-  // 홈은 요약 화면이므로 확인 중이거나 진행 작업이 없으면 영역 자체를 숨긴다.
-  if (state.status !== "ready" || state.total === 0) return null;
+  // 조회 실패를 작업 없음으로 오해하지 않도록 경고는 유지한다.
+  if (state.status !== "ready" || (state.total === 0 && !state.unavailableSources.length))
+    return null;
   return <AdminCurrentOperationsView state={state} />;
 }
 
@@ -117,7 +131,11 @@ export function AdminCurrentOperationsView({
           {items.map((item) => (
             <li key={item.id}>
               <span className={`civic-operation-kind is-${item.kind}`}>
-                {item.kind === "simulation" ? "시뮬레이션" : "문서 처리"}
+                {item.kind === "prediction"
+                  ? "투표 AI"
+                  : item.kind === "simulation"
+                    ? "시뮬레이션"
+                    : "문서 처리"}
               </span>
               <div className="civic-operation-copy">
                 <strong>{item.title}</strong>
@@ -126,14 +144,22 @@ export function AdminCurrentOperationsView({
                 </span>
               </div>
               <div className="civic-operation-progress">
-                <span>
-                  {item.progressPercent === null ? "진행률 확인 중" : `${item.progressPercent}%`}
-                </span>
-                <progress
-                  aria-label={`${item.title} 진행률`}
-                  max={100}
-                  {...(item.progressPercent === null ? {} : { value: item.progressPercent })}
-                />
+                {item.kind === "prediction" ? (
+                  <strong className="civic-preparation-badge">작업중</strong>
+                ) : (
+                  <>
+                    <span>
+                      {item.progressPercent === null
+                        ? "진행률 확인 중"
+                        : `${item.progressPercent}%`}
+                    </span>
+                    <progress
+                      aria-label={`${item.title} 진행률`}
+                      max={100}
+                      {...(item.progressPercent === null ? {} : { value: item.progressPercent })}
+                    />
+                  </>
+                )}
               </div>
               <Link
                 aria-label={`${item.title} 처리 상세보기`}
@@ -166,15 +192,20 @@ export function AdminCurrentOperationsView({
 export async function loadAdminCurrentOperations({
   canManageSimulation,
   canReadRag,
+  canManageVote = false,
   request = authenticatedFetch,
+  signal,
 }: Readonly<{
   canManageSimulation: boolean;
   canReadRag: boolean;
+  canManageVote?: boolean;
   request?: typeof fetch;
+  signal?: AbortSignal;
 }>): Promise<Extract<AdminCurrentOperationsState, { status: "ready" }>> {
-  const [rag, simulation] = await Promise.all([
+  const [rag, simulation, prediction] = await Promise.all([
     canReadRag ? loadCurrentRagOperations(request) : Promise.resolve(null),
     canManageSimulation ? loadCurrentSimulationOperations(request) : Promise.resolve(null),
+    canManageVote ? loadCurrentTaskPreparations(request, signal) : Promise.resolve(null),
   ]);
   const unavailableSources: string[] = [];
   const items: AdminCurrentOperation[] = [];
@@ -182,6 +213,7 @@ export async function loadAdminCurrentOperations({
 
   collectSource("문서", rag, unavailableSources, items, (count) => (total += count));
   collectSource("시뮬레이션", simulation, unavailableSources, items, (count) => (total += count));
+  collectSource("투표 AI", prediction, unavailableSources, items, (count) => (total += count));
 
   return {
     status: "ready",
@@ -415,4 +447,67 @@ function simulationOperationMeta(
     timeZone: "Asia/Seoul",
   }).format(timestamp);
   return `${count} · 완료 예상 ${time}`;
+}
+
+// 목록 API에는 준비 상태가 없다. 발행 전 초안만 상세 조회하고 동시 요청 수를 제한한다.
+async function loadCurrentTaskPreparations(
+  request: typeof fetch,
+  signal?: AbortSignal,
+): Promise<OperationSourceResult> {
+  try {
+    signal?.throwIfAborted();
+    const response = await request("/api/v1/admin/tasks", {
+      cache: "no-store",
+      ...(signal ? { signal } : {}),
+    });
+    if (!response.ok) return { status: "unavailable" };
+    const tasks = readTaskSummaries(await response.json());
+    if (!tasks) return { status: "unavailable" };
+    const drafts = tasks.filter((task) => task.status === "DRAFT");
+    const items: AdminCurrentOperation[] = [];
+    let nextIndex = 0;
+    let warning = false;
+    await Promise.all(
+      Array.from({ length: Math.min(4, drafts.length) }, async () => {
+        while (nextIndex < drafts.length && !signal?.aborted) {
+          const task = drafts[nextIndex++];
+          if (!task) return;
+          try {
+            const detailResponse = await request(
+              `/api/v1/admin/tasks/${encodeURIComponent(task.taskId)}`,
+              { cache: "no-store", ...(signal ? { signal } : {}) },
+            );
+            const detail = detailResponse.ok ? readTaskDetail(await detailResponse.json()) : null;
+            if (!detail || detail.task.id !== task.taskId) {
+              warning = true;
+              continue;
+            }
+            const preparation = detail.preparation;
+            if (
+              detail.task.status !== "DRAFT" ||
+              !preparation ||
+              !["PROCESSING", "FAILED"].includes(preparation.status)
+            )
+              continue;
+            const presentation = taskPreparationPresentation(preparation, detail.capabilities);
+            items.push({
+              id: `prediction:${task.taskId}`,
+              kind: "prediction",
+              href: `/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}`,
+              title: detail.task.title,
+              stage: presentation.label,
+              meta: `AI 예상 답변 · ${preparation.attemptCount.toLocaleString("ko-KR")}회 시도`,
+              progressPercent: null,
+              sortTimestamp: validTimestamp(preparation.updatedAt),
+            });
+          } catch {
+            warning = true;
+          }
+        }
+      }),
+    );
+    return { status: "ready", items, total: items.length, warning };
+  } catch {
+    return { status: "unavailable" };
+  }
 }

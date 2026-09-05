@@ -175,6 +175,7 @@ export function AdminFunctionalScreen({
           activeTaskSummary={activeTaskSummary}
           attentionSimulations={attentionSimulations}
           canManageSimulation={canManageSimulation}
+          canManageVote={canManageVote}
           canReadRag={canReadRag}
           chatRequestSummary={chatRequestSummary}
           dueSoonTaskSummary={dueSoonTaskSummary}
@@ -193,6 +194,7 @@ export function AdminHome({
   activeTaskSummary,
   attentionSimulations,
   canManageSimulation,
+  canManageVote = false,
   canReadRag,
   ragJobSummary,
   chatRequestSummary,
@@ -205,6 +207,7 @@ export function AdminHome({
   activeTaskSummary: AdminDomainMetricState;
   attentionSimulations: HomeAttentionSimulationState;
   canManageSimulation: boolean;
+  canManageVote?: boolean;
   canReadRag: boolean;
   ragJobSummary: RagJobSummaryState;
   chatRequestSummary: ChatRequestSummaryState;
@@ -359,7 +362,11 @@ export function AdminHome({
             ))}
           </HomeSection>
         ) : null}
-        <AdminCurrentOperations canManageSimulation={canManageSimulation} canReadRag={canReadRag} />
+        <AdminCurrentOperations
+          canManageSimulation={canManageSimulation}
+          canReadRag={canReadRag}
+          canManageVote={canManageVote}
+        />
       </div>
     </div>
   );

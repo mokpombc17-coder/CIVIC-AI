@@ -32,6 +32,7 @@ import {
   type TaskStatus,
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
+import { taskPreparationPresentation } from "@/lib/admin/task-preparation";
 import { canViewTaskResults, loadTaskResults, type TaskResults } from "@/lib/admin/task-results";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
@@ -1030,31 +1031,50 @@ export function TaskPreparationPanel({
   pending: boolean;
   onStart: () => void;
 }>) {
-  const statusLabel = preparationStatusLabel(preparation);
-  const actionLabel = preparationActionLabel(preparation, capabilities, pending);
+  const presentation = taskPreparationPresentation(preparation, capabilities);
+  const actionLabel = pending ? "생성 요청 중…" : presentation.action;
   return (
-    <section aria-label="AI 답변 준비" className="civic-domain-action-panel">
-      <h2>AI 답변 준비</h2>
-      <p className="console-status" role="status">
-        {statusLabel}
-      </p>
+    <section
+      aria-label="AI 예상 답변 생성"
+      className={`civic-domain-action-panel civic-task-preparation is-${presentation.tone}`}
+    >
+      <header className="civic-preparation-heading">
+        <h2>AI 예상 답변 생성</h2>
+        <span className="civic-preparation-badge" role="status">
+          {pending ? "요청 중…" : presentation.label}
+        </span>
+      </header>
+      <p className="civic-preparation-description">{presentation.description}</p>
       {preparation ? (
-        <dl className="civic-domain-impact-list">
+        <dl className="civic-domain-impact-list civic-preparation-metadata">
           <div>
-            <dt>시도 횟수</dt>
-            <dd>{preparation.attemptCount.toLocaleString("ko-KR")}</dd>
+            <dt>생성 시도</dt>
+            <dd>{preparation.attemptCount.toLocaleString("ko-KR")}회</dd>
           </div>
+          {preparation.processingStartedAt ? (
+            <div>
+              <dt>생성 시작</dt>
+              <dd>{formatDate(preparation.processingStartedAt)}</dd>
+            </div>
+          ) : null}
+          {preparation.preparedAt ? (
+            <div>
+              <dt>생성 완료</dt>
+              <dd>{formatDate(preparation.preparedAt)}</dd>
+            </div>
+          ) : null}
           <div>
-            <dt>최근 확인</dt>
+            <dt>상태 변경</dt>
             <dd>{formatDate(preparation.updatedAt)}</dd>
           </div>
         </dl>
       ) : null}
       {preparation?.lastError ? (
-        <div className="civic-form-alert" role="alert">
-          <strong>{preparation.lastError.code}</strong>
+        <details className="civic-preparation-error">
+          <summary>오류 상세 보기</summary>
           <p>{preparation.lastError.detail}</p>
-        </div>
+          <code>{preparation.lastError.code}</code>
+        </details>
       ) : null}
       {actionLabel ? (
         <button
@@ -1068,28 +1088,6 @@ export function TaskPreparationPanel({
       ) : null}
     </section>
   );
-}
-
-function preparationStatusLabel(preparation: TaskPreparationView | null): string {
-  if (!preparation) return "AI 예상 답변을 만들기 위한 공통 준비를 시작할 수 있습니다.";
-  if (preparation.status === "PROCESSING") return "AI 답변 준비 중";
-  if (preparation.status === "READY") return "AI 답변 준비 완료";
-  if (preparation.status === "FAILED") return "AI 답변 준비 실패";
-  return "AI 답변 준비 거절됨";
-}
-
-function preparationActionLabel(
-  preparation: TaskPreparationView | null,
-  capabilities: TaskCapabilities,
-  pending: boolean,
-): string | null {
-  if (pending) return "AI 답변 준비 요청 중…";
-  if (!preparation) return "답변 생성 시작";
-  if (preparation.status === "FAILED") return "답변 생성 다시 시도";
-  if (preparation.status === "PROCESSING") {
-    return capabilities.canStartPreparation ? "답변 생성 다시 요청" : "AI 답변 준비 중…";
-  }
-  return null;
 }
 
 function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
