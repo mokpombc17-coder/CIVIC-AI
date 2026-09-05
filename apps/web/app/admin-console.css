@@ -801,6 +801,7 @@
 
 /* 진행 중 작업 블록도 동일한 카드 톤으로 맞춘다. */
 .civic-admin-home .civic-current-operations {
+  grid-column: 1 / -1;
   background: #fff;
   border: 1px solid var(--wf-line);
   border-radius: var(--wf-radius);
@@ -1138,4 +1139,90 @@
     height: auto;
     max-height: none;
   }
+}
+
+/* 투표 생성 상태: 실제 진행률 없이 상태와 다음 행동을 함께 보여준다. */
+[data-wireflow-shell="admin"] .civic-task-preparation {
+  border-left: 3px solid #94a3b8;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-running {
+  border-left-color: #2563eb;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-attention {
+  border-left-color: #d97706;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-completed {
+  border-left-color: #15803d;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-badge {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .is-attention .civic-preparation-badge {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+[data-wireflow-shell="admin"] .is-completed .civic-preparation-badge {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+[data-wireflow-shell="admin"] .is-idle .civic-preparation-badge {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-description {
+  color: var(--civic-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-metadata {
+  margin: 0;
+  font-size: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error {
+  border-top: 1px solid var(--civic-line);
+  padding-top: 10px;
+  color: #92400e;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error p {
+  padding-block: 10px;
+  line-height: 1.6;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-kind.is-prediction {
+  background: #eef2ff;
+  color: #3730a3;
 }

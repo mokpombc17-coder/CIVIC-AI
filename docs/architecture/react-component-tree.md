@@ -109,7 +109,7 @@ AdminCatchAllPage [Server Route]
 └── AdminShell
     ├── MainFunctionalScreen [Main/Auth]
     │   └── AdminFunctionalScreen [A-HOME·A-USER]
-    │       ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation 진행 상태 통합 폴링]
+    │       ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation·Vote AI 예상 답변 작업 통합 폴링; VOTE_ADMIN 권한으로 초안 상세를 최대 4개 동시 조회]
     │       └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen

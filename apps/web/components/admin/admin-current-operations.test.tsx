@@ -179,3 +179,160 @@ function ragDocument(id: string, filename: string, status: string, progress: num
     },
   };
 }
+
+function voteDetail(id: string, status: "PROCESSING" | "FAILED" | "READY" | "REJECTED" | null) {
+  return {
+    task: { ...simulationTask("COMPLETED", 100), id, status: "DRAFT", question: null },
+    lifecycleHistory: [],
+    capabilities: {
+      canEditContent: true,
+      canStartPreparation: status === "FAILED",
+      canSchedule: status === "READY",
+      canOpenNow: status === "READY",
+    },
+    preparation: status
+      ? {
+          requestId: `request-${id}`,
+          status,
+          contentFingerprint: `sha256:${"a".repeat(64)}`,
+          attemptCount: 2,
+          processingStartedAt: status === "PROCESSING" ? "2026-09-05T01:00:00Z" : null,
+          preparedAt: status === "READY" ? "2026-09-05T01:01:00Z" : null,
+          updatedAt: "2026-09-05T01:01:00Z",
+          lastError:
+            status === "FAILED" || status === "REJECTED"
+              ? {
+                  code: "UNAVAILABLE",
+                  detail: "모델 응답을 확인해 주세요.",
+                  retryable: status === "FAILED",
+                }
+              : null,
+        }
+      : null,
+  };
+}
+
+describe("투표 AI 생성 작업", () => {
+  it("생성 중과 재시도 필요만 작업중으로 표시하며 완료·미시작·거절은 제외한다", async () => {
+    const states = ["PROCESSING", "FAILED", "READY", "REJECTED", null] as const;
+    const details = states.map((status, index) => voteDetail(`vote-${index}`, status));
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/v1/admin/tasks")
+        return Response.json(details.map(({ task }) => ({ ...task, taskId: task.id })));
+      return Response.json(details.find(({ task }) => url.endsWith(`/${task.id}`)));
+    });
+    const result = await loadAdminCurrentOperations({
+      canManageVote: true,
+      canManageSimulation: false,
+      canReadRag: false,
+      request,
+    });
+    expect(result.total).toBe(2);
+    expect(result.items.map((item) => item.stage)).toEqual(["생성 중", "재시도 필요"]);
+    expect(result.items[1]).toMatchObject({
+      kind: "prediction",
+      href: "/admin/tasks/detail?taskId=vote-1",
+      progressPercent: null,
+    });
+    const html = renderToStaticMarkup(createElement(AdminCurrentOperationsView, { state: result }));
+    expect(html).toContain("작업중");
+    expect(html).toContain("투표 AI");
+    expect(html).not.toContain("<progress");
+  });
+
+  it("일부 상세 실패는 누락으로 알리고 다른 투표의 생성 작업을 유지한다", async () => {
+    const detail = voteDetail("vote-active", "PROCESSING");
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/v1/admin/tasks")
+        return Response.json([
+          { ...detail.task, taskId: "vote-active" },
+          { ...detail.task, taskId: "vote-error" },
+          { ...detail.task, taskId: "vote-open", status: "OPEN" },
+        ]);
+      if (url.endsWith("/vote-active")) return Response.json(detail);
+      return new Response(null, { status: 503 });
+    });
+    const result = await loadAdminCurrentOperations({
+      canManageVote: true,
+      canManageSimulation: false,
+      canReadRag: false,
+      request,
+    });
+    expect(result.total).toBe(1);
+    expect(result.unavailableSources).toEqual(["투표 AI 일부"]);
+    expect(request.mock.calls.some(([url]) => String(url).endsWith("/vote-open"))).toBe(false);
+  });
+
+  it("투표 관리 권한이 없으면 투표 API를 조회하지 않는다", async () => {
+    const request = vi.fn();
+    const result = await loadAdminCurrentOperations({
+      canManageVote: false,
+      canManageSimulation: false,
+      canReadRag: false,
+      request,
+    });
+    expect(result.total).toBe(0);
+    expect(request).not.toHaveBeenCalled();
+  });
+});
+
+it("홈 조회 취소 후에는 대기 중인 초안 상세 조회를 시작하지 않는다", async () => {
+  const controller = new AbortController();
+  const detail = voteDetail("vote-0", "PROCESSING");
+  let detailRequests = 0;
+  const request = vi.fn(async (input: RequestInfo | URL) => {
+    if (String(input) === "/api/v1/admin/tasks")
+      return Response.json(
+        Array.from({ length: 12 }, (_, i) => ({ ...detail.task, taskId: `vote-${i}` })),
+      );
+    detailRequests += 1;
+    controller.abort();
+    return Response.json(detail);
+  });
+  await loadAdminCurrentOperations({
+    canManageVote: true,
+    canManageSimulation: false,
+    canReadRag: false,
+    request,
+    signal: controller.signal,
+  });
+  expect(detailRequests).toBe(1);
+});
+
+it("투표 상세가 멈춰도 제한 시간 안에 확인된 투표와 다른 소스의 작업을 표시한다", async () => {
+  vi.useFakeTimers();
+  try {
+    const detail = voteDetail("vote-ready", "PROCESSING");
+    const signals: AbortSignal[] = [];
+    const request = vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const url = String(input);
+      if (url === "/api/v1/admin/simulation-tasks")
+        return Response.json([simulationTask("RUNNING", 68)]);
+      if (url === "/api/v1/admin/tasks")
+        return Response.json([
+          { ...detail.task, taskId: "vote-ready" },
+          { ...detail.task, taskId: "vote-stalled" },
+        ]);
+      if (url.endsWith("/vote-ready")) return Response.json(detail);
+      if (init?.signal) signals.push(init.signal);
+      return new Promise<Response>(() => undefined);
+    });
+    let result: Awaited<ReturnType<typeof loadAdminCurrentOperations>> | undefined;
+    void loadAdminCurrentOperations({
+      canManageVote: true,
+      canManageSimulation: true,
+      canReadRag: false,
+      request,
+    }).then((value) => {
+      result = value;
+    });
+    await vi.advanceTimersByTimeAsync(8_000);
+    expect(result).toMatchObject({ total: 2, unavailableSources: ["투표 AI 일부"] });
+    expect(signals).toHaveLength(1);
+    expect(signals[0]?.aborted).toBe(true);
+  } finally {
+    vi.useRealTimers();
+  }
+});

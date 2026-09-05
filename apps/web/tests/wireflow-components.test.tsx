@@ -272,7 +272,7 @@ describe("latest Wire Flow shared product UI", () => {
       />,
     );
 
-    expect(html).toContain("AI 답변 준비");
+    expect(html).toContain("AI 예상 답변 생성");
     expect(html).toContain(">답변 생성 시작</button>");
     expect(html).not.toContain("disabled");
     expect(lifecycleActionEnabled("open-now", capabilities)).toBe(false);
@@ -309,7 +309,7 @@ describe("latest Wire Flow shared product UI", () => {
       />,
     );
 
-    expect(html).toContain("AI 답변 준비 실패");
+    expect(html).toContain("재시도 필요");
     expect(html).toContain("AI 모델을 일시적으로 사용할 수 없습니다.");
     expect(html).toContain(">답변 생성 다시 시도</button>");
   });

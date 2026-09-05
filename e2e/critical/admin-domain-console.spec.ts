@@ -27,6 +27,8 @@ let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
 let simulationResultQueries: string[] = [];
 let progressSubmissionCount = 3;
 let progressRequests = 0;
+let preparationStatus: "PROCESSING" | "READY" | "FAILED" | null = null;
+let preparationRequests = 0;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -197,16 +199,23 @@ test.beforeAll(async () => {
       task = taskFixture("DRAFT", createdTaskBody.title as string);
       return json(response, task, 201, { location: `/api/v1/admin/tasks/${taskId}` });
     }
+    if (url.pathname === `/api/v1/admin/tasks/${taskId}/preparation` && request.method === "POST") {
+      preparationRequests += 1;
+      preparationStatus = "PROCESSING";
+      return json(response, { taskId, preparation: preparationFixture(), replayed: false }, 202);
+    }
     if (url.pathname === `/api/v1/admin/tasks/${taskId}` && request.method === "GET") {
       return json(response, {
         task,
         lifecycleHistory: lifecycleHistory(task.status),
-        preparation: null,
+        preparation: preparationFixture(),
         capabilities: {
-          canEditContent: task.status === "DRAFT",
-          canStartPreparation: task.status === "DRAFT",
-          canSchedule: false,
-          canOpenNow: false,
+          canEditContent:
+            task.status === "DRAFT" && (!preparationStatus || preparationStatus === "FAILED"),
+          canStartPreparation:
+            task.status === "DRAFT" && (!preparationStatus || preparationStatus === "FAILED"),
+          canSchedule: preparationStatus === "READY",
+          canOpenNow: preparationStatus === "READY",
         },
       });
     }
@@ -266,6 +275,8 @@ test.beforeEach(() => {
   simulationResultQueries = [];
   progressSubmissionCount = 3;
   progressRequests = 0;
+  preparationStatus = null;
+  preparationRequests = 0;
 });
 
 test.afterAll(async () => close(server));
@@ -1254,5 +1265,78 @@ function listen(value: Server): Promise<void> {
 function close(value: Server): Promise<void> {
   return new Promise((resolve, reject) => {
     value.close((error) => (error ? reject(error) : resolve()));
+  });
+}
+
+function preparationFixture() {
+  if (!preparationStatus) return null;
+  return {
+    requestId: "preparation-1",
+    status: preparationStatus,
+    contentFingerprint: `sha256:${"a".repeat(64)}`,
+    attemptCount: Math.max(1, preparationRequests),
+    processingStartedAt: "2026-09-05T01:00:00Z",
+    preparedAt: preparationStatus === "READY" ? "2026-09-05T01:01:00Z" : null,
+    updatedAt: "2026-09-05T01:01:00Z",
+    lastError:
+      preparationStatus === "FAILED"
+        ? {
+            code: "MODEL_UNAVAILABLE",
+            detail: "AI 모델을 일시적으로 사용할 수 없습니다.",
+            retryable: true,
+          }
+        : null,
+  };
+}
+
+for (const width of [394, 1440]) {
+  test(`AI 예상 답변 생성·재시도·완료를 관리자 메인과 상세에서 확인한다 (${width}px)`, async ({
+    context,
+    page,
+  }) => {
+    await authenticate(context);
+    await page.setViewportSize({ width, height: 1000 });
+    await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
+    const panel = page.getByRole("region", { name: "AI 예상 답변 생성", exact: true });
+    await panel.getByRole("button", { name: "답변 생성 시작", exact: true }).click();
+    await expect(panel.getByRole("status")).toHaveText("생성 중");
+    await expect(panel.getByRole("button")).toHaveCount(0);
+    expect(preparationRequests).toBe(1);
+    await page.goto("/admin");
+    const operations = page.getByRole("region", { name: "현재 처리 중" });
+    const vote = operations.getByRole("listitem").filter({ hasText: "투표 AI" });
+    await expect(vote).toContainText("작업중");
+    await expect(vote).toContainText("생성 중");
+    const operationBounds = await operations.boundingBox();
+    const actionBounds = await vote.getByRole("link", { name: /처리 상세보기/ }).boundingBox();
+    expect(operationBounds).not.toBeNull();
+    expect(actionBounds).not.toBeNull();
+    expect(actionBounds!.x + actionBounds!.width).toBeLessThanOrEqual(
+      operationBounds!.x + operationBounds!.width,
+    );
+    await page.screenshot({
+      path: `e2e/.artifacts/wireflow-results/ai-preparation-home-${width}.png`,
+      fullPage: true,
+    });
+    preparationStatus = "FAILED";
+    await expect(vote).toContainText("재시도 필요");
+    await vote.getByRole("link", { name: /처리 상세보기/ }).click();
+    await expect(panel.getByRole("status")).toHaveText("재시도 필요");
+    await panel.getByText("오류 상세 보기", { exact: true }).click();
+    await expect(
+      panel.getByText("AI 모델을 일시적으로 사용할 수 없습니다.", { exact: true }),
+    ).toBeVisible();
+    await panel.screenshot({
+      path: `e2e/.artifacts/wireflow-results/ai-preparation-retry-${width}.png`,
+    });
+    await panel.getByRole("button", { name: "답변 생성 다시 시도", exact: true }).click();
+    await expect(panel.getByRole("status")).toHaveText("생성 중");
+    expect(preparationRequests).toBe(2);
+    preparationStatus = "READY";
+    await expect(panel.getByRole("status")).toHaveText("생성 완료");
+    await expect(panel).toContainText("바로 시작하거나 예약");
+    await page.goto("/admin");
+    await expect(operations).toContainText("현재 확인된 진행 작업은 없습니다.");
+    await expect(vote).toHaveCount(0);
   });
 }
