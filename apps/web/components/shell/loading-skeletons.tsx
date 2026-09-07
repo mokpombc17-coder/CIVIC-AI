@@ -109,9 +109,14 @@ function ParticipantLoadingContent({ screen }: Readonly<{ screen: ScreenDefiniti
 
 function HomeLoadingSurface() {
   const actions = [
-    ["AI", "무엇이 궁금한가요?", "주제와 관련된 자료를 바탕으로 AI가 답변해 드려요.", "질문하기"],
-    ["토론방", "함께 나누는 의견", "다른 참여자와 편하게 의견을 나눠보세요.", "토론하기"],
-    ["투표", "내 생각을 더하는 한 표", "선택지를 고르고 그 이유를 제출해 보세요.", "참여하기"],
+    ["AI", "어떤 점부터 짚어볼까요?", "AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.", "질문하기"],
+    ["토론방", "서로 오가는 이야기", "관심 있는 주제를 골라 자유롭게 참여해 보세요.", "토론하기"],
+    [
+      "투표",
+      "논의에 보태는 내 의견",
+      "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
+      "투표하기",
+    ],
   ] as const;
 
   return (
@@ -122,9 +127,9 @@ function HomeLoadingSurface() {
     >
       <section className="wf-card wf-home-welcome">
         <WireflowBadge>참여 안내</WireflowBadge>
-        <h2>배우고, 함께 토론하고, 결정합니다.</h2>
+        <h2>배우고, 토론하고, 함께 결정합니다.</h2>
         <p>
-          CIVIC.AI와 함께 문서로 정보를 확인하고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로
+          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로
           남겨보세요.
         </p>
       </section>
