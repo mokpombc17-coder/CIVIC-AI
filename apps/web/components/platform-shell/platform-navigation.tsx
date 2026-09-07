@@ -1,4 +1,3 @@
-import type { Route } from "next";
 import type { CSSProperties } from "react";
 import {
   PlatformBottomNavigation,
@@ -39,27 +38,47 @@ export type PlatformNavigationProps = Readonly<{
   requiresLoginForProtectedLinks?: boolean;
 }>;
 
+type PlatformNavigationHref = (typeof PLATFORM_NAVIGATION_ITEMS)[number]["href"];
+
+export function resolvePlatformNavigationTarget(
+  href: PlatformNavigationHref,
+  requiresLogin: boolean,
+): Readonly<{ href: string; navigationMode: "client" | "document" }> {
+  if (requiresLogin && href !== "/home") {
+    return {
+      href: `/login?returnTo=${encodeURIComponent(href)}`,
+      navigationMode: "client",
+    };
+  }
+
+  return {
+    href,
+    navigationMode: href === "/chat" || href === "/vote" ? "document" : "client",
+  };
+}
+
 export function PlatformNavigation({
   currentPathname,
   requiresLoginForProtectedLinks = false,
 }: PlatformNavigationProps) {
   return (
     <PlatformBottomNavigation>
-      {PLATFORM_NAVIGATION_ITEMS.map((item) => (
-        <PlatformBottomNavigationItem
-          aria-current={
-            isPlatformNavigationItemActive(currentPathname, item.href) ? "page" : undefined
-          }
-          href={
-            requiresLoginForProtectedLinks && item.href !== "/home"
-              ? (`/login?returnTo=${encodeURIComponent(item.href)}` as Route)
-              : item.href
-          }
-          icon={<PlatformNavigationIcon src={item.iconSrc} />}
-          key={item.href}
-          label={item.label}
-        />
-      ))}
+      {PLATFORM_NAVIGATION_ITEMS.map((item) => {
+        const target = resolvePlatformNavigationTarget(item.href, requiresLoginForProtectedLinks);
+
+        return (
+          <PlatformBottomNavigationItem
+            aria-current={
+              isPlatformNavigationItemActive(currentPathname, item.href) ? "page" : undefined
+            }
+            href={target.href}
+            icon={<PlatformNavigationIcon src={item.iconSrc} />}
+            key={item.href}
+            label={item.label}
+            navigationMode={target.navigationMode}
+          />
+        );
+      })}
     </PlatformBottomNavigation>
   );
 }

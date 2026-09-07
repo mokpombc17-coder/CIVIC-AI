@@ -1,6 +1,6 @@
 import Link from "next/link";
 import type { Route } from "next";
-import type { ComponentPropsWithoutRef, ReactNode } from "react";
+import type { AriaAttributes, ReactNode } from "react";
 import styles from "./platform-shell.module.css";
 
 export type PlatformBottomNavigationProps = Readonly<{
@@ -24,31 +24,44 @@ export function PlatformBottomNavigation({
   );
 }
 
-export type PlatformBottomNavigationItemProps = Readonly<
-  Omit<ComponentPropsWithoutRef<typeof Link>, "children" | "href"> & {
-    href: string;
-    icon: ReactNode;
-    label: ReactNode;
-  }
->;
+export type PlatformBottomNavigationItemProps = Readonly<{
+  "aria-current"?: AriaAttributes["aria-current"];
+  className?: string;
+  href: string;
+  icon: ReactNode;
+  label: ReactNode;
+  navigationMode?: "client" | "document";
+}>;
 
 export function PlatformBottomNavigationItem({
   className,
   href,
   icon,
   label,
+  navigationMode = "client",
   ...linkProps
 }: PlatformBottomNavigationItemProps) {
-  return (
-    <Link
-      {...linkProps}
-      className={[styles.bottomNavigationItem, className].filter(Boolean).join(" ")}
-      href={href as Route}
-    >
+  const content = (
+    <>
       <span aria-hidden="true" className={styles.bottomNavigationIcon}>
         {icon}
       </span>
       <span className={styles.bottomNavigationLabel}>{label}</span>
+    </>
+  );
+  const classNames = [styles.bottomNavigationItem, className].filter(Boolean).join(" ");
+
+  if (navigationMode === "document") {
+    return (
+      <a {...linkProps} className={classNames} href={href}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <Link {...linkProps} className={classNames} href={href as Route}>
+      {content}
     </Link>
   );
 }
