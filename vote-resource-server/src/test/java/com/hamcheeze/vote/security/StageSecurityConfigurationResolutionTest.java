@@ -14,6 +14,10 @@ class StageSecurityConfigurationResolutionTest {
                             new ConfigDataApplicationContextInitializer())
                     .withPropertyValues(
                             "spring.profiles.active=stage,auth-main",
+                            "VOTE_DB_URL="
+                                    + "jdbc:postgresql://vote-db:5432/vote",
+                            "VOTE_DB_USERNAME=stage-vote",
+                            "VOTE_DB_PASSWORD=stage-vote-secret",
                             "VOTE_AI_RUNTIME_AUTH_TOKEN="
                                     + "stage-shared-runtime-token");
 
@@ -26,6 +30,16 @@ class StageSecurityConfigurationResolutionTest {
             assertThat(context.getEnvironment().getProperty(
                     "server.port", Integer.class))
                     .isEqualTo(8082);
+            assertThat(context.getEnvironment().getProperty(
+                    "spring.datasource.url"))
+                    .isEqualTo(
+                            "jdbc:postgresql://vote-db:5432/vote");
+            assertThat(context.getEnvironment().getProperty(
+                    "spring.datasource.username"))
+                    .isEqualTo("stage-vote");
+            assertThat(context.getEnvironment().getProperty(
+                    "spring.datasource.password"))
+                    .isEqualTo("stage-vote-secret");
             assertThat(context.getEnvironment().getProperty(
                     "civic.auth.issuer"))
                     .isEqualTo("https://140-238-17-223.sslip.io");

@@ -1,8 +1,6 @@
 spring:
   datasource:
     url: ${VOTE_DB_URL:jdbc:postgresql://vote-db:5432/vote}
-    username: ${VOTE_DB_USERNAME}
-    password: ${VOTE_DB_PASSWORD}
 
 civic:
   auth:

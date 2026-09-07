@@ -1,6 +1,10 @@
 spring:
   application:
     name: vote-resource-server
+  datasource:
+    url: ${VOTE_DB_URL}
+    username: ${VOTE_DB_USERNAME}
+    password: ${VOTE_DB_PASSWORD}
   flyway:
     enabled: true
   jpa:
