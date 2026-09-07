@@ -841,6 +841,20 @@ test("참여자 Platform Shell 헤더는 자격 확인 전후와 주요 경로�
   expect(await headerHeight()).toBe(64);
 });
 
+test("RAG와 계정 루트 헤더의 뒤로 가기는 홈으로 이동한다", async ({ context, page }) => {
+  await authenticate(context, "participant.payload.signature");
+
+  for (const route of ["/rag", "/mypage"]) {
+    await page.goto(route);
+    const back = page.getByRole("link", { name: "이전 화면으로 돌아가기" });
+    await expect(back).toBeVisible();
+    await expect(back).toHaveAttribute("href", "/home");
+    await back.click();
+    await expect(page).toHaveURL(/\/home$/u);
+    await expect(page.locator('[data-wireflow-layout="participant-home"]')).toBeVisible();
+  }
+});
+
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
   twoFactorEnabled = false;
   await authenticate(context, "participant.payload.signature");

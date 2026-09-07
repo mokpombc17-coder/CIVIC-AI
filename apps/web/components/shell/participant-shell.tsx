@@ -83,7 +83,11 @@ function participantSection(
               : { root: "/home" as Route, title: "홈" };
 
   const normalizedRoute = activeRoute.replace(/^\/account(?=\/|$)/u, "/mypage");
-  return normalizedRoute === section.root
-    ? { ...(section.root === "/home" ? {} : { backDisabled: true }), title: section.title }
-    : { title: section.title, backHref: section.root };
+  if (normalizedRoute !== section.root) {
+    return { title: section.title, backHref: section.root };
+  }
+  if (/^\/(?:rag|mypage)$/u.test(normalizedRoute)) {
+    return { title: section.title, backHref: "/home" as Route };
+  }
+  return { ...(section.root === "/home" ? {} : { backDisabled: true }), title: section.title };
 }
