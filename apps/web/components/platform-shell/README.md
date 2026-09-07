@@ -12,8 +12,8 @@ Figma의 참여자 모바일 화면 규격을 코드로 옮긴 공통 레이아�
 - bottom navigation: 기본 `64px` + bottom safe-area
 - 일반 화면은 기본값인 `scroll="self"`로 공통 content 영역이 스크롤한다.
 - 가상화처럼 scroll element를 직접 제어하는 화면은 `scroll="child"`로 도메인 자식이 스크롤을 소유한다.
-- bottom navigation은 route를 추론하지 않는다. 호출자가 anchor와 `aria-current="page"`를 제공한다.
-- `PlatformNavigation`은 표준 `/home`, `/rag`, `/chat`, `/vote`, `/mypage` anchor와 Figma export icon을 조립하고, 호출자가 전달한 `currentPathname`으로 active 항목을 표시한다.
+- bottom navigation은 route를 추론하지 않는다. 호출자가 Next Link 목적지와 `aria-current="page"`를 제공한다.
+- `PlatformNavigation`은 표준 `/home`, `/rag`, `/chat`, `/vote`, `/mypage` Next Link와 Figma export icon을 조립하고, 호출자가 전달한 `currentPathname`으로 active 항목을 표시한다.
 - Next.js route와 연결하는 앱 레벨 adapter는 상위 `platform-navigation-client.tsx`, 일반 route의 기본 조합은 상위 `platform-page-shell.tsx`에 둔다.
 - 키보드처럼 도메인별 viewport 보정이 필요하면 `shellRef`로 실제 shell element에 접근한다.
 - modal은 `overlay` slot에 전달하고 `contentInert`로 header·content·navigation surface를 함께 비활성화한다.

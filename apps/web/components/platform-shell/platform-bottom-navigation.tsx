@@ -1,3 +1,4 @@
+import Link from "next/link";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import styles from "./platform-shell.module.css";
 
@@ -23,7 +24,7 @@ export function PlatformBottomNavigation({
 }
 
 export type PlatformBottomNavigationItemProps = Readonly<
-  Omit<ComponentPropsWithoutRef<"a">, "children" | "href"> & {
+  Omit<ComponentPropsWithoutRef<typeof Link>, "children" | "href"> & {
     href: string;
     icon: ReactNode;
     label: ReactNode;
@@ -32,19 +33,21 @@ export type PlatformBottomNavigationItemProps = Readonly<
 
 export function PlatformBottomNavigationItem({
   className,
+  href,
   icon,
   label,
-  ...anchorProps
+  ...linkProps
 }: PlatformBottomNavigationItemProps) {
   return (
-    <a
-      {...anchorProps}
+    <Link
+      {...linkProps}
       className={[styles.bottomNavigationItem, className].filter(Boolean).join(" ")}
+      href={{ pathname: href }}
     >
       <span aria-hidden="true" className={styles.bottomNavigationIcon}>
         {icon}
       </span>
       <span className={styles.bottomNavigationLabel}>{label}</span>
-    </a>
+    </Link>
   );
 }
