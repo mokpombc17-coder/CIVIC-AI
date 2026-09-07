@@ -7,7 +7,15 @@ import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room
 import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatRoomListDetailSelection } from "./chat-room-list-detail";
 import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
-import { ChatRoomListView, MyRoomCard, PublicRoomCard } from "./chat-room-list-view";
+import {
+  ChatRoomListView,
+  findFirstNewPublicRoomIndex,
+  LoadMoreButton,
+  MyRoomCard,
+  PublicRoomCard,
+  scrollPublicRoomIntoView,
+  shouldShowPublicRoomBottomGradient,
+} from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
@@ -78,6 +86,87 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain("검색 결과가 없어요");
     expect(html).not.toContain("현재 참여 가능한 방이 없어요");
     expect(html).not.toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
+  });
+
+  it("더 보기 버튼은 로딩 문구가 바뀌어도 같은 폭을 유지하고 마지막 상태를 안내한다", () => {
+    const idleHtml = renderToStaticMarkup(
+      createElement(LoadMoreButton, {
+        hasNextPage: true,
+        isFetching: false,
+        label: "공개 방 더 보기",
+        onClick: vi.fn(),
+      }),
+    );
+    const loadingHtml = renderToStaticMarkup(
+      createElement(LoadMoreButton, {
+        hasNextPage: true,
+        isFetching: true,
+        label: "공개 방 더 보기",
+        onClick: vi.fn(),
+      }),
+    );
+    const exhaustedHtml = renderToStaticMarkup(
+      createElement(LoadMoreButton, {
+        exhaustedLabel: "모든 토론방을 확인했어요.",
+        hasNextPage: false,
+        isFetching: false,
+        label: "공개 방 더 보기",
+        onClick: vi.fn(),
+      }),
+    );
+
+    for (const html of [idleHtml, loadingHtml]) {
+      expect(html).toContain("공개 방 더 보기");
+      expect(html).toContain("불러오는 중…");
+      expect(html).toContain("grid whitespace-nowrap");
+      expect(html.match(/col-start-1 row-start-1/g)).toHaveLength(2);
+    }
+    expect(loadingHtml).toContain('aria-busy="true"');
+    expect(loadingHtml).toContain("disabled");
+    expect(exhaustedHtml).toContain('role="status"');
+    expect(exhaustedHtml).toContain("모든 토론방을 확인했어요.");
+  });
+
+  it("새로 추가된 첫 공개 방을 찾아 모션 설정에 맞게 목록 안으로 이동한다", () => {
+    const nextRoom = { ...PUBLIC_ROOM, roomId: "room-next" };
+    const scrollIntoView = vi.fn();
+
+    expect(
+      findFirstNewPublicRoomIndex(new Set([PUBLIC_ROOM.roomId]), [PUBLIC_ROOM, nextRoom]),
+    ).toBe(1);
+    scrollPublicRoomIntoView({ scrollIntoView }, false);
+    scrollPublicRoomIntoView({ scrollIntoView }, true);
+
+    expect(scrollIntoView).toHaveBeenNthCalledWith(1, {
+      behavior: "smooth",
+      block: "start",
+    });
+    expect(scrollIntoView).toHaveBeenNthCalledWith(2, {
+      behavior: "auto",
+      block: "start",
+    });
+  });
+
+  it("공개 방 목록 아래에 더 볼 내용이 있을 때 하단 gradient만 표시한다", () => {
+    const html = renderChatRoomListView("ALL", false, "empty", null, undefined, [PUBLIC_ROOM]);
+    const indicatorClassName = /class="([^"]+)" data-public-room-scroll-indicator="down"/.exec(
+      html,
+    )?.[1];
+
+    expect(html).toContain('data-public-room-scroll-indicator="down"');
+    expect(html).not.toContain('data-public-room-scroll-indicator="up"');
+    expect(html).toMatch(/data-public-room-scroll-indicator="down"><\/div>/);
+    expect(indicatorClassName).toContain("h-6");
+    expect(indicatorClassName).not.toContain("h-8");
+    expect(
+      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 0 }),
+    ).toBe(true);
+    expect(
+      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 200 }),
+    ).toBe(true);
+    expect(
+      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 416 }),
+    ).toBe(false);
   });
 
   it("목록 조회 오류는 상태 카드로, 각 목록 로딩은 실제 개수의 skeleton으로 표시한다", () => {
@@ -228,6 +317,7 @@ describe("chat room list cards", () => {
   it("참여 가능 Room card는 제목, 정원과 상세 action만 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(PublicRoomCard, {
+        highlighted: true,
         isDetailOpen: false,
         onOpenDetails: vi.fn(),
         room: PUBLIC_ROOM,
@@ -241,6 +331,9 @@ describe("chat room list cards", () => {
     expect(html).toContain("자세히 보기");
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
+    expect(html).toContain('data-new-public-room="true"');
+    expect(html).toContain("motion-safe:transition-colors");
+    expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html.match(/cursor-pointer/g)).toHaveLength(1);
     expect(cardTriggerClass).toContain("absolute -inset-px");
     expect(cardTriggerClass).toContain("hover:border-[var(--chat-publishing-color-primary)]");
@@ -309,6 +402,7 @@ function renderChatRoomListView(
   listStatus: "authentication-error" | "empty" | "error" | "loading" = "empty",
   roomDetailSelection: ChatRoomListDetailSelection | null = null,
   appliedPublicRoomQuery?: string,
+  publicRoomItems: readonly PublicRoomListItem[] = [],
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -343,7 +437,7 @@ function renderChatRoomListView(
         participatingRoomFilter: { select: vi.fn(), value: filter },
         participatingRooms: emptyListState,
         publicRoomSearch: createPublicRoomSearchController(appliedPublicRoomQuery),
-        publicRooms: emptyListState,
+        publicRooms: { ...emptyListState, rooms: publicRoomItems },
         roomDetail: { close: vi.fn(), open: vi.fn(), selection: roomDetailSelection },
         toggleCreateRoomForm: vi.fn(),
       }),
