@@ -153,6 +153,17 @@ describe("PlatformNavigation", () => {
 
     expect(account).toMatch(/aria-current="page"[^>]*href="\/mypage"/);
   });
+
+  it("비로그인 보호 메뉴의 로그인 return target query를 경로와 분리해 유지한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformNavigation currentPathname="/home" requiresLoginForProtectedLinks />,
+    );
+
+    for (const route of ["rag", "chat", "vote", "mypage"]) {
+      expect(markup).toContain(`href="/login?returnTo=%2F${route}"`);
+    }
+    expect(markup).not.toContain("/login%3FreturnTo=");
+  });
 });
 
 function renderShell(scroll?: "self" | "child"): string {
