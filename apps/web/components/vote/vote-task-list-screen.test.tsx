@@ -36,6 +36,16 @@ describe("VoteTaskListScreen", () => {
     expect(html).not.toContain("진행 중인 과업이 없습니다.");
   });
 
+  it("초기 목록 조회 중에는 문구 대신 화면 형태를 유지하는 카드를 표시한다", () => {
+    useOpenTasksQueryMock.mockReturnValue(createQueryState({ isPending: true }));
+
+    const html = renderToStaticMarkup(<VoteTaskListScreen />);
+
+    expect(html).toContain('data-vote-task-list-loading="true"');
+    expect(html.match(/taskSkeletonCard/g)).toHaveLength(3);
+    expect(html).not.toContain("과업 목록을 불러오는 중입니다.");
+  });
+
   it("401 목록 오류는 다시 시도 대신 로그인 action을 제공한다", () => {
     useOpenTasksQueryMock.mockReturnValue(
       createQueryState({

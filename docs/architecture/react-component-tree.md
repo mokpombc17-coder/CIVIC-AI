@@ -234,7 +234,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 View는 공통 `PlatformShell`을 조립해 480px 이하에서는 가용 너비를 사용하고 그 외에는 최대 393px로
 가운데 표시되는 mobile-first surface와 header, 하단 내비게이션을 공유한다. 목록과 채팅방 모두 실제 route로 이동하는 `PlatformNavigationClient`를 하단 slot에
 제공한다. 이 Client adapter는 Next.js의 현재
-pathname을 읽어 router-independent `PlatformNavigation`에 전달하며, 표준 5개 도메인 anchor 중
+pathname을 읽어 router-independent `PlatformNavigation`에 전달하며, 표준 5개 도메인 Next Link 중
 현재 도메인에만 `aria-current="page"`를 설정한다. 목록은 `scroll="self"`로 Shell content가
 스크롤을 소유하고, 채팅방은 `scroll="child"`로 `ChatMessageViewport`에 스크롤 책임을 위임한다.
 일반 플랫폼 화면은 `PlatformPageShell`을 사용하고, 채팅방처럼
@@ -407,8 +407,10 @@ canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 
 ## Route `/vote`, `/vote/[taskId]`, `/vote/[taskId]/result`
 
-`VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공한다. Provider는 Vote 전용
-`QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
+`VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공하고,
+`ServiceEligibilityGuard`의 자격 확인 중에는 `VoteTaskListLoading`을 동일한 화면 fallback으로 유지한다.
+`/vote/loading.tsx`도 같은 fallback을 사용하므로 route 전환, 자격 확인, 목록 조회가 하나의 로딩 표면으로
+이어진다. Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
 `VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드
 view model로 변환한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를
@@ -432,16 +434,20 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
     └── children [slot: App Router가 route child를 제공]
         └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
             └── VoteQueryProvider [Client] [Provider] (apps/web/components/vote/vote-query-provider.tsx)
-                └── children [slot: nested page를 제공]
-                    ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
-                    │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
-                    │       └── PlatformShell [Client graph] [View]
-                    ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
-                    │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
-                    │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
-                    └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
-                        └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
-                            └── PlatformShell [Client graph] [View]
+                └── ServiceEligibilityGuard [Client] [Boundary] (apps/web/components/service-eligibility-guard.tsx)
+                    ├── [eligibility loading] VoteTaskListLoading [Server-compatible] [View] (apps/web/components/vote/vote-task-list-loading.tsx)
+                    └── children [slot: nested page를 제공]
+                        ├── [route segment loading] VoteLoading [Server] [Route] (apps/web/app/vote/loading.tsx)
+                        │   └── VoteTaskListLoading [Server-compatible] [View]
+                        ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
+                        │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
+                        │       └── PlatformShell [Client graph] [View]
+                        ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
+                        │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
+                        │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
+                        └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)
+                            └── VoteTaskResultScreen [Client] [Container] (apps/web/components/vote/vote-task-result-screen.tsx)
+                                └── PlatformShell [Client graph] [View]
 ```
 
 ## App Router special UI

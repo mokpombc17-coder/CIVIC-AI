@@ -18,6 +18,7 @@ import styles from "./service-eligibility-guard.module.css";
 type ServiceEligibilityGuardProps = Readonly<{
   children: ReactNode;
   headerSize?: PlatformPageShellProps["headerSize"];
+  loadingFallback?: ReactNode;
   title: string;
 }>;
 
@@ -27,6 +28,7 @@ const eligibilityLoadingMinimumVisibleMs = 200;
 export function ServiceEligibilityGuard({
   children,
   headerSize,
+  loadingFallback,
   title,
 }: ServiceEligibilityGuardProps) {
   const eligibilityQuery = useQuery(getServiceEligibilityQueryOptions());
@@ -43,6 +45,10 @@ export function ServiceEligibilityGuard({
   }, [surveyRequired]);
 
   if (loading.blockContent) {
+    if (loadingFallback && !surveyRequired) {
+      return loadingFallback;
+    }
+
     return (
       <ServiceEligibilityStatus
         loading

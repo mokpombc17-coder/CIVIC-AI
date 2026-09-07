@@ -1,4 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { ServiceEligibilityGuard, ServiceEligibilityStatus } from "./service-eligibility-guard";
@@ -24,6 +25,16 @@ describe("ServiceEligibilityGuard", () => {
 
     expect(markup).toContain('data-platform-shell="true"');
     expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).not.toContain("protected content");
+  });
+
+  it("route가 전용 fallback을 제공하면 eligibility 확인 중에도 같은 화면을 유지한다", () => {
+    const queryClient = createTestQueryClient();
+
+    const markup = renderGuard(queryClient, <div data-route-loading="vote">투표 목록 자리</div>);
+
+    expect(markup).toContain('data-route-loading="vote"');
+    expect(markup).not.toContain("data-service-eligibility-status");
     expect(markup).not.toContain("protected content");
   });
 
@@ -95,7 +106,7 @@ function createTestQueryClient(): QueryClient {
   });
 }
 
-function renderGuard(queryClient: QueryClient): string {
+function renderGuard(queryClient: QueryClient, loadingFallback?: ReactNode): string {
   const request = vi.fn(() => new Promise<never>(() => {}));
   queryClient.setDefaultOptions({
     queries: {
@@ -107,7 +118,9 @@ function renderGuard(queryClient: QueryClient): string {
 
   return renderToStaticMarkup(
     <QueryClientProvider client={queryClient}>
-      <ServiceEligibilityGuard title="토론방">protected content</ServiceEligibilityGuard>
+      <ServiceEligibilityGuard loadingFallback={loadingFallback} title="토론방">
+        protected content
+      </ServiceEligibilityGuard>
     </QueryClientProvider>,
   );
 }

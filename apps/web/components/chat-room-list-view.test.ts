@@ -76,7 +76,7 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('href="/home"');
     expect(html).toContain('href="/rag"');
-    expect(html).toContain('aria-current="page" href="/chat"');
+    expect(html).toMatch(/aria-current="page"[^>]*href="\/chat"/);
     expect(html).toContain('href="/vote"');
     expect(html).toContain('href="/mypage"');
     expect(html).toContain(">AI</span>");

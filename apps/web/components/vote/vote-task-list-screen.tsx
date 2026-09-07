@@ -20,6 +20,7 @@ import {
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
 import styles from "./vote.module.css";
+import { VoteTaskListLoadingCards } from "./vote-task-list-loading";
 
 type VoteTab = "active" | "completed";
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
@@ -139,11 +140,13 @@ export function VoteTaskListScreen() {
         </form>
 
         {showingBlockingLoading ? (
-          <p className={styles.emptyState}>
-            {tab === "active"
-              ? "과업 목록을 불러오는 중입니다."
-              : "완료한 과업을 불러오는 중입니다."}
-          </p>
+          <VoteTaskListLoadingCards
+            message={
+              tab === "active"
+                ? "진행 중인 투표를 불러오는 중입니다."
+                : "완료한 투표를 불러오는 중입니다."
+            }
+          />
         ) : null}
         {showingBlockingError ? (
           <VoteListFeedback

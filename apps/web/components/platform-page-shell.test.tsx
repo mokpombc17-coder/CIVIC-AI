@@ -17,7 +17,7 @@ describe("PlatformPageShell", () => {
     expect(markup).toContain('data-platform-shell="true"');
     expect(markup.match(/data-scroll="self"/g)).toHaveLength(2);
     expect(markup).toContain('data-state="disabled"');
-    expect(markup).toMatch(/aria-current="page" href="\/home"/);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/home"/);
     expect(markup).toContain("홈 콘텐츠");
   });
 

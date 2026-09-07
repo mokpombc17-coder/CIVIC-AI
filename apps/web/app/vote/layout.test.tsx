@@ -7,10 +7,10 @@ vi.mock("next/navigation", () => ({
 }));
 
 describe("VoteLayout", () => {
-  it("eligibility 확인 전에는 하위 투표 화면을 렌더링하지 않는다", () => {
+  it("eligibility 확인 전에는 투표 목록 fallback을 유지하고 하위 화면을 숨긴다", () => {
     const markup = renderToStaticMarkup(<VoteLayout>protected vote content</VoteLayout>);
 
-    expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup).toContain('data-vote-task-list-loading="true"');
     expect(markup).toContain('data-header-size="compact"');
     expect(markup).not.toContain("protected vote content");
   });
