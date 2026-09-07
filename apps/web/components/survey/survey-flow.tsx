@@ -119,6 +119,15 @@ export function SurveyStepActions({
 
   return (
     <div className={styles.actions}>
+      <button
+        aria-busy={isFinalStep && isSubmitting ? true : undefined}
+        className={`${styles.action} ${styles.primaryAction}`}
+        disabled={isFinalStep ? submitUnavailable : false}
+        onClick={isFinalStep ? onSubmit : onNext}
+        type="button"
+      >
+        {isFinalStep ? (isSubmitting ? "제출 중…" : "제출하기") : "다음으로"}
+      </button>
       {isFirstStep ? (
         <a className={`${styles.action} ${styles.secondaryAction}`} href={cancelHref}>
           취소하기
@@ -132,15 +141,6 @@ export function SurveyStepActions({
           이전으로
         </button>
       )}
-      <button
-        aria-busy={isFinalStep && isSubmitting ? true : undefined}
-        className={`${styles.action} ${styles.primaryAction}`}
-        disabled={isFinalStep ? submitUnavailable : false}
-        onClick={isFinalStep ? onSubmit : onNext}
-        type="button"
-      >
-        {isFinalStep ? (isSubmitting ? "제출 중…" : "제출하기") : "다음으로"}
-      </button>
     </div>
   );
 }

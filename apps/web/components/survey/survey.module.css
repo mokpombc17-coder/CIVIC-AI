@@ -1349,7 +1349,7 @@ textarea.textControl {
 
 .action:focus-visible {
   outline: 2px solid var(--platform-shell-color-primary-emphasis);
-  outline-offset: 2px;
+  outline-offset: -2px;
 }
 
 .action:disabled {

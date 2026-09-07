@@ -60,6 +60,7 @@ describe("SurveyStepActions", () => {
     expect(html).toContain('href="/vote?tab=active"');
     expect(html).toContain(">취소하기</a>");
     expect(html).toContain(">다음으로</button>");
+    expectActionTextOrder(html, "다음으로", "취소하기");
   });
 
   it("중간 단계에는 이전과 다음 action을 제공한다", () => {
@@ -67,6 +68,7 @@ describe("SurveyStepActions", () => {
 
     expect(html).toContain(">이전으로</button>");
     expect(html).toContain(">다음으로</button>");
+    expectActionTextOrder(html, "다음으로", "이전으로");
   });
 
   it("마지막 단계의 제출 action은 연결 전까지 비활성화한다", () => {
@@ -74,8 +76,17 @@ describe("SurveyStepActions", () => {
 
     expect(html).toContain(">이전으로</button>");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>제출하기<\/button>/);
+    expectActionTextOrder(html, "제출하기", "이전으로");
   });
 });
+
+function expectActionTextOrder(html: string, first: string, second: string): void {
+  const firstIndex = html.indexOf(`>${first}<`);
+  const secondIndex = html.indexOf(`>${second}<`);
+
+  expect(firstIndex).toBeGreaterThanOrEqual(0);
+  expect(secondIndex).toBeGreaterThan(firstIndex);
+}
 
 function renderActions({ currentStep }: { currentStep: number }): string {
   return renderToStaticMarkup(
