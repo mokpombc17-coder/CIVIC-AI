@@ -1,6 +1,11 @@
 services:
   mongodb:
     image: mongo:7.0.14
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
     command:
       - mongod
       - --replSet
@@ -39,15 +44,21 @@ services:
             }
             quit(1);
           }"
-      interval: 2s
+      interval: 30s
+      start_interval: 2s
       timeout: 5s
-      retries: 30
-      start_period: 5s
+      retries: 3
+      start_period: 30s
 
   chat-resource-server:
     build:
       context: .
       dockerfile: Dockerfile
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
     init: true
     environment:
       SPRING_PROFILES_ACTIVE: local,auth-fixture
