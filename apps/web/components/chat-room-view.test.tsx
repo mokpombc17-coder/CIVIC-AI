@@ -55,11 +55,25 @@ describe("ChatRoomView platform shell integration", () => {
     expect(markup).not.toContain('data-platform-shell-overlay="true"');
     expect(markup).not.toContain('inert=""');
   });
+
+  it("최초 진입 준비 중에는 변하는 하위 상태 대신 고정된 loading surface만 표시한다", () => {
+    const markup = renderChatRoomView(null, null, true);
+
+    expect(markup).toContain('data-chat-room-entry-state="initializing"');
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain("채팅방을 준비하고 있어요.");
+    expect(markup).toContain("opacity-0");
+    expect(markup).not.toContain('data-message-viewport="true"');
+    expect(markup).not.toContain("세션 안내");
+    expect(markup).not.toContain("메시지 입력");
+    expect(markup).not.toContain("방 정보");
+  });
 });
 
 function renderChatRoomView(
   overlay: ReactNode = null,
   messageSearchPanel: ReactNode = null,
+  initializing = false,
 ): string {
   return renderToStaticMarkup(
     <ChatRoomView
@@ -69,6 +83,7 @@ function renderChatRoomView(
         title: "프로젝트 회의방",
       }}
       headerAction={<button type="button">방 정보</button>}
+      initializing={initializing}
       messageHistory={{} as ChatMessageHistoryViewModel}
       messageSearchPanel={messageSearchPanel}
       overlay={overlay}

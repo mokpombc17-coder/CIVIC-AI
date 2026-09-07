@@ -98,7 +98,7 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
       await candidatePage.goto("/chat");
       const roomCard = await findPublicRoomCard(candidatePage, targetRoom.name);
       await roomCard
-        .getByRole("button", { name: `${targetRoom.name} 자세히 보기`, exact: true })
+        .getByRole("button", { name: `${targetRoom.name} 참여하기`, exact: true })
         .click();
       const roomDetail = candidatePage.getByRole("dialog", {
         name: targetRoom.name,

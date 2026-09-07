@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import {
   ChatRoomScreenHeaderActions,
   ChatRoomScreenMessageSearchPanel,
@@ -30,6 +31,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     liveMessages: realtime.messageHistory.messages,
   });
   const content = useChatRoomContentExperience(roomId, roomQuery, realtime, messageNavigation);
+  const initialEntryPending = useChatRoomInitialEntryPending(
+    roomId,
+    content.roomError === null && realtime.sessionView.kind === "pending",
+  );
   const overlays = useChatRoomOverlayExperience(roomId, {
     generation: session.generation,
     hasMessageActions: content.messageActions.sheet !== null,
@@ -40,8 +45,16 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
 
   return (
     <ChatRoomView
-      header={content.header}
+      header={
+        initialEntryPending
+          ? {
+              ...content.header,
+              title: "채팅방",
+            }
+          : content.header
+      }
       headerAction={<ChatRoomScreenHeaderActions {...overlays.headerActions} />}
+      initializing={initialEntryPending}
       messageHistory={content.messageHistory}
       messageSearchPanel={
         overlays.messageSearchPanel.visible ? (
@@ -78,4 +91,20 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       }
     />
   );
+}
+
+function useChatRoomInitialEntryPending(roomId: string, pending: boolean): boolean {
+  const [completedRoomId, setCompletedRoomId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (pending || completedRoomId === roomId) {
+      return;
+    }
+
+    const timeout = window.setTimeout(() => setCompletedRoomId(roomId), 0);
+
+    return () => window.clearTimeout(timeout);
+  }, [completedRoomId, pending, roomId]);
+
+  return pending && completedRoomId !== roomId;
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import {
   ChatRoomEntryError,
   type ChatRoomEntryErrorViewModel,
@@ -19,6 +19,7 @@ export type ChatMessageHistoryViewModel = Omit<ChatMessageViewportViewModel, "re
 export type ChatRoomViewProps = Readonly<{
   header: ChatRoomHeaderViewModel;
   headerAction: ReactNode;
+  initializing: boolean;
   messageHistory: ChatMessageHistoryViewModel;
   messageSearchPanel: ReactNode;
   overlay: ReactNode;
@@ -32,6 +33,7 @@ export type ChatRoomViewProps = Readonly<{
 export function ChatRoomView({
   header,
   headerAction,
+  initializing,
   messageHistory,
   messageSearchPanel,
   overlay,
@@ -43,7 +45,11 @@ export function ChatRoomView({
 }: ChatRoomViewProps) {
   const chatRoomShellRef = useChatRoomVisualViewportHeight<HTMLDivElement>(0);
   const hasOverlay =
-    roomError === null && overlay !== null && overlay !== undefined && overlay !== false;
+    !initializing &&
+    roomError === null &&
+    overlay !== null &&
+    overlay !== undefined &&
+    overlay !== false;
 
   return (
     <PlatformShell
@@ -52,19 +58,21 @@ export function ChatRoomView({
       contentInert={hasOverlay}
       header={
         <PlatformHeader
-          actions={roomError ? undefined : headerAction}
+          actions={roomError || initializing ? undefined : headerAction}
           backAction={{ ariaLabel: "채팅방 목록으로 돌아가기", href: "/chat" }}
           title={header.title}
         />
       }
       headerSize="compact"
-      overlay={roomError ? null : overlay}
+      overlay={roomError || initializing ? null : overlay}
       scroll="child"
       shellRef={chatRoomShellRef}
     >
       <section className="flex h-full min-h-0 flex-col overflow-hidden" data-chat-room-view="true">
         <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {roomError ? (
+          {initializing ? (
+            <ChatRoomInitialLoading />
+          ) : roomError ? (
             <ChatRoomEntryError error={roomError} />
           ) : (
             <>
@@ -93,5 +101,47 @@ export function ChatRoomView({
         </div>
       </section>
     </PlatformShell>
+  );
+}
+
+const INITIAL_LOADING_MESSAGE_DELAY_MS = 450;
+
+function ChatRoomInitialLoading() {
+  const [showMessage, setShowMessage] = useState(false);
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => setShowMessage(true), INITIAL_LOADING_MESSAGE_DELAY_MS);
+
+    return () => window.clearTimeout(timeout);
+  }, []);
+
+  return (
+    <div
+      aria-busy="true"
+      className="flex min-h-0 flex-1 flex-col bg-white"
+      data-chat-room-entry-state="initializing"
+    >
+      <div aria-hidden="true" className="flex min-h-0 flex-1 flex-col justify-center gap-4 px-5">
+        <span className="h-12 w-3/5 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+        <span className="ml-auto h-16 w-2/3 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-accent-soft)]" />
+        <span className="h-14 w-1/2 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+      </div>
+      <p
+        aria-live="polite"
+        className={`min-h-5 px-5 text-center text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)] ${
+          showMessage ? "opacity-100" : "opacity-0"
+        }`}
+        role="status"
+      >
+        채팅방을 준비하고 있어요.
+      </p>
+      <div
+        aria-hidden="true"
+        className="m-4 mt-2 flex h-[98px] items-end gap-2 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white p-3"
+      >
+        <span className="h-[72px] min-w-0 flex-1 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+        <span className="h-12 w-16 shrink-0 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+      </div>
+    </div>
   );
 }

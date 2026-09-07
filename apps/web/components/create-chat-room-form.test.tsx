@@ -13,12 +13,13 @@ describe("create chat room request bottom sheet", () => {
     expect(html).toContain('role="dialog"');
     expect(html).toContain('data-create-chat-room-sheet="form"');
     expect(html).toContain('data-create-chat-room-view="request"');
-    expect(html).toContain("h-[524px]");
+    expect(html).toContain("h-[540px]");
+    expect(html).not.toContain("h-[524px]");
     expect(html).not.toContain("max-h-[680px]");
-    expect(html).toContain("토론방 생성 요청");
-    expect(html).toContain('aria-label="토론방 생성 요청 화면"');
+    expect(html).toContain("토론방 생성");
+    expect(html).toContain('aria-label="토론방 생성 화면"');
     expect(html).toContain(">요청</button>");
-    expect(html).toContain(">목록</button>");
+    expect(html).toContain(">내역</button>");
     expect(html).toContain(">제목</label>");
     expect(html).toContain('name="name"');
     expect(html).toContain('maxLength="100"');
@@ -51,10 +52,10 @@ describe("create chat room request bottom sheet", () => {
 
     expect(html).toContain('data-create-chat-room-view="history"');
     expect(html).toContain('data-create-chat-room-panel="request" hidden=""');
-    expect(html).toContain('aria-label="토론방 생성 요청 목록"');
+    expect(html).toContain('aria-label="토론방 생성 내역"');
     expect(html).toContain('data-create-chat-room-list-surface="true"');
     expect(html).toContain("min-h-[368px]");
-    expect(html).toContain("h-[524px]");
+    expect(html).toContain("h-[540px]");
     expect(html).toContain("아직 요청 내역이 없어요.");
     expect(html).not.toContain(">요청 내역</h3>");
     expect(html).not.toContain("<hr");

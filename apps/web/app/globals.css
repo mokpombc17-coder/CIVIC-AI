@@ -1,10 +1,11 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-gov-dynamic-subset.css");
+@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-gov-dynamic-subset.css");
 @import "tailwindcss";
 
 :root {
-  --font-pretendard: "Pretendard GOV Variable";
+  --font-pretendard: "Pretendard GOV";
   color-scheme: light;
   font-family:
+    var(--font-pretendard),
     Inter,
     Pretendard,
     ui-sans-serif,
@@ -34,9 +35,11 @@ body {
     radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
 }
 
-button,
-input {
-  font: inherit;
+@layer base {
+  button,
+  input {
+    font: inherit;
+  }
 }
 
 button,

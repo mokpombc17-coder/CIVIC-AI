@@ -131,7 +131,7 @@ export function CreateChatRoomFormView({
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative flex h-[524px] max-h-[calc(100%-1rem)] w-full max-w-[393px] flex-col overflow-hidden rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[var(--chat-publishing-color-text)] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
+        className="relative flex h-[540px] max-h-[calc(100%-1rem)] w-full max-w-[393px] flex-col overflow-hidden rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[var(--chat-publishing-color-text)] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
         data-create-chat-room-sheet={mode}
         data-create-chat-room-view={activeView}
         id={CREATE_CHAT_ROOM_FORM_ID}
@@ -140,10 +140,10 @@ export function CreateChatRoomFormView({
       >
         <div className="flex min-h-11 items-start justify-between gap-4">
           <h2 className="min-w-0 pt-1 text-2xl font-bold leading-[32.4px]" id={titleId}>
-            토론방 생성 요청
+            토론방 생성
           </h2>
           <button
-            aria-label="토론방 생성 요청 닫기"
+            aria-label="토론방 생성 닫기"
             className="flex size-11 shrink-0 items-center justify-center rounded-md transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
             onClick={onCancel}
             type="button"
@@ -152,11 +152,7 @@ export function CreateChatRoomFormView({
           </button>
         </div>
 
-        <div
-          aria-label="토론방 생성 요청 화면"
-          className="mt-3 flex items-center gap-1.5"
-          role="group"
-        >
+        <div aria-label="토론방 생성 화면" className="mt-3 flex items-center gap-1.5" role="group">
           <button
             aria-pressed={activeView === "request"}
             className={getViewButtonClassName(activeView === "request")}
@@ -171,7 +167,7 @@ export function CreateChatRoomFormView({
             onClick={() => onViewChange("history")}
             type="button"
           >
-            목록
+            내역
           </button>
         </div>
 
@@ -278,7 +274,7 @@ export function CreateChatRoomFormView({
         </div>
 
         <div
-          aria-label="토론방 생성 요청 목록"
+          aria-label="토론방 생성 내역"
           className="mt-3 min-h-0 max-w-full flex-1 overflow-x-hidden overflow-y-auto overscroll-contain pr-1 [scrollbar-gutter:stable]"
           data-create-chat-room-panel="history"
           hidden={activeView !== "history"}

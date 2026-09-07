@@ -62,7 +62,7 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
     await candidatePage.goto("/chat");
 
     const roomCard = await findPublicRoomCard(candidatePage, roomName);
-    await roomCard.getByRole("button", { name: `${roomName} 자세히 보기`, exact: true }).click();
+    await roomCard.getByRole("button", { name: `${roomName} 참여하기`, exact: true }).click();
     const roomDetail = candidatePage.getByRole("dialog", { name: roomName, exact: true });
     const joinButton = roomDetail.getByRole("button", { name: "참여하기", exact: true });
 

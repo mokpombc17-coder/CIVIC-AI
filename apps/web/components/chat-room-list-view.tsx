@@ -31,7 +31,7 @@ import {
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto pr-1 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [scrollbar-gutter:stable]";
+  "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
 const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[252px]`;
 const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[384px]`;
 const PARTICIPATING_ROOM_SKELETON_KEYS = ["participating-first", "participating-second"] as const;
@@ -222,14 +222,14 @@ export function ChatRoomListView({
     >
       <div className="grid gap-5 px-4 pb-4 pt-5">
         <section
-          aria-label="참여한 방 필터와 토론방 생성"
+          aria-label="참여한 방 필터와 토론방 생성 요청"
           className="flex items-center justify-between gap-3"
         >
           <ChatRoomInboxFilterControl controller={participatingRoomFilter} />
           <button
             aria-controls={CREATE_CHAT_ROOM_FORM_ID}
             aria-expanded={isCreateRoomOpen}
-            className="inline-flex h-12 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={toggleCreateRoomForm}
             ref={createRoomTriggerRef}
             type="button"
@@ -393,7 +393,7 @@ type RoomListSectionProps = Readonly<{
 function RoomListSection({ children, title }: RoomListSectionProps) {
   return (
     <section className="grid gap-3">
-      <h2 className="text-lg font-bold leading-7 tracking-[-0.02em]">{title}</h2>
+      <h2 className="text-lg font-bold leading-[27px]">{title}</h2>
       {children}
     </section>
   );
@@ -442,13 +442,13 @@ export function MyRoomCard({
         aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
-        aria-label={`${room.name} 자세히 보기`}
-        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        aria-label={`${room.name} 상세 정보 보기`}
+        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >
-        자세히 보기
+        상세보기
       </button>
     </article>
   );
@@ -477,22 +477,22 @@ export function PublicRoomCard({
         aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
-        aria-label={`${room.name} 자세히 보기`}
+        aria-label={`${room.name} 참여하기`}
         className="absolute -inset-px z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] border border-transparent transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >
-        <span className="sr-only">{room.name} 자세히 보기</span>
+        <span className="sr-only">{room.name} 참여하기</span>
       </button>
       <span className="pointer-events-none relative z-[1] min-w-0">
         <RoomSummary room={room} />
       </span>
       <span
         aria-hidden="true"
-        className="pointer-events-none relative z-[1] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)]"
+        className="pointer-events-none relative z-[1] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)]"
       >
-        자세히 보기
+        참여하기
       </span>
     </article>
   );
@@ -699,7 +699,7 @@ export function LoadMoreButton({
     <div className="mt-4 text-center">
       <button
         aria-busy={isFetching || undefined}
-        className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-5 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
+        className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-5 text-sm font-medium text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
         disabled={isFetching}
         onClick={onClick}
         type="button"

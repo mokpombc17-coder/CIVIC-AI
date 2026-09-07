@@ -48,11 +48,38 @@ export function RoomCreationRequestListContent({
       ) : null}
 
       {!isPending && !isError && requests.length === 0 ? (
-        <section className="py-1">
-          <h2 className="text-base font-bold text-slate-950">아직 요청 내역이 없어요.</h2>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            새로운 토론방이 필요하다면 신청해 주세요.
-          </p>
+        <section
+          className="flex min-h-[368px] items-center justify-center rounded-lg border border-[var(--chat-publishing-color-border)] bg-white p-5 text-center"
+          data-room-creation-request-empty="true"
+        >
+          <div className="grid justify-items-center gap-1.5">
+            <span
+              aria-hidden="true"
+              className="mb-2 flex size-10 items-center justify-center rounded-full bg-[var(--chat-publishing-color-primary)] text-white shadow-sm"
+            >
+              <svg className="size-5" fill="none" viewBox="0 0 20 20">
+                <path
+                  d="M6 2.75h5.25L15 6.5v10.75H6a2 2 0 0 1-2-2V4.75a2 2 0 0 1 2-2Z"
+                  stroke="currentColor"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                />
+                <path
+                  d="M11.25 2.75V6.5H15M9.5 9v5M7 11.5h5"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="1.8"
+                />
+              </svg>
+            </span>
+            <h2 className="text-base font-medium leading-6 text-[var(--chat-publishing-color-text)]">
+              아직 요청 내역이 없어요.
+            </h2>
+            <p className="text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
+              새로운 토론방이 필요하다면 신청해 주세요.
+            </p>
+          </div>
         </section>
       ) : null}
 

@@ -7,10 +7,16 @@ import type { PublicRoomSearchController } from "@/components/use-public-room-se
 describe("public Room search form", () => {
   it("버튼 검색만 표시하고 카테고리 필터는 노출하지 않는다", () => {
     const html = renderSearchForm();
+    const labelClass = /<label class="([^"]+)"/.exec(html)?.[1] ?? "";
+    const inputClass = /<input[^>]*class="([^"]+)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="공개 채팅방 검색"');
     expect(html).toContain("토론방 이름 검색");
+    expect(html).toContain('<span class="font-bold">토론방 이름 검색</span>');
+    expect(labelClass).not.toContain("font-bold");
+    expect(inputClass).not.toContain("font-bold");
+    expect(inputClass).not.toContain("font-normal");
     expect(html).toContain("주제를 검색해 보세요");
     expect(html).toContain('type="submit"');
     expect(html).toContain("검색");

@@ -41,11 +41,16 @@ test("채팅방 조회 중 browser history back은 진행 중인 요청을 오�
     await route.continue().catch(() => undefined);
   });
 
-  await roomCard.getByRole("button", { name: /자세히 보기$/ }).click();
+  await roomCard.getByRole("button", { name: /참여하기$/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "참여하기", exact: true }).click();
 
   await roomDetailsStarted;
   await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
+  await expect(page.locator('[data-chat-room-entry-state="initializing"]')).toBeVisible();
+  await expect(page.getByText("실시간 방 구독이 준비되면 최근 메시지를 불러옵니다.")).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("채팅 준비가 끝나면 입력할 수 있습니다.")).toHaveCount(0);
   await startTransientChatAlertRecorder(page);
 
   const backNavigation = page.goBack();
@@ -80,7 +85,7 @@ test("활성 채팅방의 browser history back은 세션 복구 안내를 잠깐
     throw new Error("공개 채팅방 카드에서 roomId를 확인할 수 없습니다.");
   }
 
-  await roomCard.getByRole("button", { name: /자세히 보기$/ }).click();
+  await roomCard.getByRole("button", { name: /참여하기$/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "참여하기", exact: true }).click();
 
   await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
@@ -115,6 +120,15 @@ async function startTransientChatAlertRecorder(page: Page): Promise<void> {
           text.includes("메시지 이력을 불러오지 못했습니다.") ||
           text.includes("참여 중인 방을 불러오지 못했습니다.")
         ) {
+          seen.add(text);
+        }
+      }
+
+      for (const status of document.querySelectorAll(
+        '[data-chat-message-composer-state="disabled"]',
+      )) {
+        const text = status.textContent?.trim() ?? "";
+        if (text.includes("채팅 준비가 끝나면 입력할 수 있습니다.")) {
           seen.add(text);
         }
       }

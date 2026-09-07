@@ -101,10 +101,10 @@ export function ChatRoomListDetailDialog({
         <div className="mt-[18px] flex justify-end">
           {selection.kind === "participating" ? (
             <Link
-              className="inline-flex h-12 w-fit items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+              className="inline-flex h-12 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
               href={`/chat/${room.roomId}`}
             >
-              채팅방 입장
+              입장하기
             </Link>
           ) : (
             <JoinChatRoomControl appearance="sheet" room={room} />

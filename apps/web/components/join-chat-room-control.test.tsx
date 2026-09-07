@@ -29,6 +29,8 @@ describe("JoinChatRoomControl", () => {
     expect(html).toContain("네트워크 연결을 확인해 주세요.");
     expect(html).toContain("같은 요청으로 다시 시도");
     expect(html).toContain("bg-[#fff7e8]");
+    expect(html).toContain("w-full bg-[var(--chat-publishing-color-primary)]");
+    expect(html).not.toContain("w-fit bg-[var(--chat-publishing-color-primary)]");
     expect(html).not.toContain("text-red-700");
   });
 });

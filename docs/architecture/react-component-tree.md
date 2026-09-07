@@ -307,6 +307,10 @@ pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationReque
 `ChatRoomScreen`은 Room detail을 먼저 조회해 화면에 필요한 controller와 ViewModel을 조립하는
 container다. ACTIVE Room은 실시간 session을 시작하고, CLOSED Room은 구독을 시도하지 않은 채
 Message History만 읽기 전용으로 조회한다.
+Room별 최초 진입에서 session view가 아직 `pending`이면 `ChatRoomScreen`은 준비 완료 여부를 기억하고
+`ChatRoomView`에 단일 초기화 상태를 전달한다. View는 이 동안 개별 구독·이력·입력 상태를 노출하지 않고
+고정된 message/composer skeleton을 표시하며, 준비가 길어질 때만 하나의 안내 문구를 보여준다. 한 번
+준비가 끝난 Room은 뒤로가기나 짧은 연결 전환에서 초기화 화면으로 되돌아가지 않는다.
 `useChatRoomRealtimeExperience`는 Room status에 따라 Room session과 Message History의 활성 범위를
 분리하고, Read Receipt snapshot,
 실시간 Query coordinator 및 Room system activity journal을 한 생명주기로 묶는다. Message History
@@ -377,7 +381,8 @@ Room detail 조회가 실패하면 `useChatRoomContentExperience`가 API 오류�
 
 다른 탭 사용이나 연결 오류처럼 조치가 필요한 안내는 `ChatRoomSessionNotice`, snapshot 동기화
 실패와 복구 동작은 `ChatRealtimeSyncStatus`가 담당한다. `ChatRoomSessionControls`는 해석된
-session view와 message draft 동작을 조립하고 `ChatMessageComposer`는 입력·전송 및 키보드 동작을
+session view와 message draft 동작을 조립하되 일시적인 `pending`에는 별도 비활성 문구를 표시하지 않고,
+종료된 Room처럼 지속되는 상태에만 입력 불가 사유를 전달한다. `ChatMessageComposer`는 입력·전송 및 키보드 동작을
 담당한다. 메시지 수정·삭제 lifecycle과 transport command는 `useChatRoomMessageExperience`가 조립하고,
 선택된 메시지의 접근 가능한 modal 동작은 `ChatMessageActionsBottomSheet`가 담당한다.
 `useChatRoomOverlayExperience`는 채팅방 메뉴·메시지 검색 disclosure, trigger focus 복원과

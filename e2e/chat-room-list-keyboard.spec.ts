@@ -91,7 +91,7 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
 
   await page.keyboard.press("Tab");
   const detailButton = roomList.getByRole("button", {
-    name: `${roomName} 자세히 보기`,
+    name: `${roomName} 상세 정보 보기`,
     exact: true,
   });
   await expect(detailButton).toBeFocused();

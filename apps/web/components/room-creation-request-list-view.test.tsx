@@ -39,6 +39,14 @@ describe("RoomCreationRequestListContent", () => {
 
     expect(markup).toContain("아직 요청 내역이 없어요.");
     expect(markup).toContain("새로운 토론방이 필요하다면 신청해 주세요.");
+    expect(markup).toContain('data-room-creation-request-empty="true"');
+    expect(markup).toContain("min-h-[368px]");
+    expect(markup).toContain("rounded-lg border");
+    expect(markup).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(markup).toContain("justify-items-center");
+    expect(markup).toContain("size-10");
+    expect(markup).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(markup).toContain('aria-hidden="true"');
     expect(markup).not.toContain("이전 신청 더 보기");
   });
 });

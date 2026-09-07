@@ -36,13 +36,18 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain(">토론방</h1>");
     expect(html).toMatch(/aria-label="홈으로" class="[^"]+" data-state="enabled" href="\/home"/);
     expect(html).not.toContain('data-state="disabled"');
-    expect(html).toContain('aria-label="참여한 방 필터와 토론방 생성"');
+    expect(html).toContain('aria-label="참여한 방 필터와 토론방 생성 요청"');
     expect(html).toContain('aria-label="참여 가능한 토론방 검색과 목록"');
     expect(html).toContain('aria-label="참여한 방 필터"');
-    expect(html).toContain(">토론방 생성</button>");
-    expect(html).toMatch(/<button[^>]*class="[^"]*cursor-pointer[^"]*"[^>]*>토론방 생성<\/button>/);
-    expect(html).toContain(">참여한 방</h2>");
-    expect(html).toContain(">참여 가능한 방</h2>");
+    expect(html).toContain(">토론방 생성 요청</button>");
+    expect(html).toMatch(
+      /<button[^>]*class="[^"]*cursor-pointer[^"]*"[^>]*>토론방 생성 요청<\/button>/,
+    );
+    expect(html).toMatch(
+      /<button[^>]*class="[^"]*font-bold leading-5[^"]*"[^>]*>토론방 생성 요청<\/button>/,
+    );
+    expect(html).toContain('<h2 class="text-lg font-bold leading-[27px]">참여한 방</h2>');
+    expect(html).toContain('<h2 class="text-lg font-bold leading-[27px]">참여 가능한 방</h2>');
     expect(html).toContain("아직 참여한 토론방이 없어요.");
     expect(html).toContain("관심 있는 주제를 찾아 다른 사람들과 생각을 나눠보세요.");
     expect(html).toContain('data-chat-room-list-empty-variant="no-participating-rooms"');
@@ -119,6 +124,8 @@ describe("chat room list publishing layout", () => {
       expect(html).toContain("공개 방 더 보기");
       expect(html).toContain("불러오는 중…");
       expect(html).toContain("grid whitespace-nowrap");
+      expect(html).toContain("text-sm font-medium");
+      expect(html).not.toContain("text-sm font-bold");
       expect(html.match(/col-start-1 row-start-1/g)).toHaveLength(2);
     }
     expect(loadingHtml).toContain('aria-busy="true"');
@@ -152,12 +159,15 @@ describe("chat room list publishing layout", () => {
     const indicatorClassName = /class="([^"]+)" data-public-room-scroll-indicator="down"/.exec(
       html,
     )?.[1];
+    const roomListClassName = /aria-label="공개 채팅방" class="([^"]+)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain('data-public-room-scroll-indicator="down"');
     expect(html).not.toContain('data-public-room-scroll-indicator="up"');
     expect(html).toMatch(/data-public-room-scroll-indicator="down"><\/div>/);
     expect(indicatorClassName).toContain("h-6");
     expect(indicatorClassName).not.toContain("h-8");
+    expect(` ${roomListClassName} `).not.toContain(" pr-1 ");
+    expect(roomListClassName).not.toContain("scrollbar-gutter");
     expect(
       shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 0 }),
     ).toBe(true);
@@ -249,7 +259,7 @@ describe("chat room list publishing layout", () => {
 describe("chat room list cards", () => {
   it("참여 Room card에 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
-    const detailButtonClass = /aria-label="프로젝트 회의방 자세히 보기" class="([^"]+)"/.exec(
+    const detailButtonClass = /aria-label="프로젝트 회의방 상세 정보 보기" class="([^"]+)"/.exec(
       html,
     )?.[1];
 
@@ -263,13 +273,15 @@ describe("chat room list cards", () => {
     expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명"');
     expect(html).toContain('aria-label="프로젝트 회의방 채팅방 입장"');
     expect(html).toContain('href="/chat/room-01"');
-    expect(html).toContain("자세히 보기");
+    expect(html).toContain("상세보기");
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
     expect(html.match(/cursor-pointer/g)).toHaveLength(2);
     expect(/<article class="([^"]+)"/.exec(html)?.[1]).not.toContain("hover:bg-");
     expect(detailButtonClass).toContain(
       "hover:text-[var(--chat-publishing-color-primary-emphasis)]",
     );
+    expect(detailButtonClass).toContain("font-bold leading-5");
+    expect(detailButtonClass).toContain("text-[var(--chat-publishing-color-primary-emphasis)]");
     expect(detailButtonClass).not.toContain("hover:bg-");
   });
 
@@ -323,12 +335,15 @@ describe("chat room list cards", () => {
         room: PUBLIC_ROOM,
       }),
     );
-    const cardTriggerClass = /aria-label="공개 채팅방 자세히 보기" class="([^"]+)"/.exec(html)?.[1];
+    const cardTriggerClass = /aria-label="공개 채팅방 참여하기" class="([^"]+)"/.exec(html)?.[1];
+    const visualActionClass = /<span aria-hidden="true" class="([^"]+)">참여하기<\/span>/.exec(
+      html,
+    )?.[1];
 
     expect(html).toContain("공개 채팅방");
     expect(html).toContain("3 / 50명");
     expect(html).toContain('aria-label="현재 참여 인원 3명, 최대 50명"');
-    expect(html).toContain("자세히 보기");
+    expect(html).toContain("참여하기");
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
     expect(html).toContain('data-new-public-room="true"');
@@ -338,7 +353,9 @@ describe("chat room list cards", () => {
     expect(cardTriggerClass).toContain("absolute -inset-px");
     expect(cardTriggerClass).toContain("hover:border-[var(--chat-publishing-color-primary)]");
     expect(cardTriggerClass).toContain("hover:bg-[var(--chat-publishing-color-accent-soft)]");
-    expect(html).not.toContain("참여하기");
+    expect(visualActionClass).toContain("font-bold leading-5");
+    expect(visualActionClass).toContain("text-[var(--chat-publishing-color-primary-emphasis)]");
+    expect(html).not.toContain("자세히 보기");
     expect(html).not.toContain("공개 채팅방 설명");
     expect(html).not.toContain("방 ID: room-public");
   });
@@ -373,9 +390,12 @@ describe("chat room list cards", () => {
         selection: { kind: "participating", room: createRoomInboxItem() },
       }),
     );
+    const enterLinkClass = /class="([^"]+)" href="\/chat\/room-01">입장하기<\/a>/.exec(html)?.[1];
 
     expect(html).toContain('href="/chat/room-01"');
-    expect(html).toContain("채팅방 입장");
+    expect(html).toContain("입장하기");
+    expect(enterLinkClass).toContain("w-full");
+    expect(enterLinkClass).not.toContain("w-fit");
     expect(html).toContain('aria-label="카테고리: 지역 현안"');
     expect(html).not.toContain("참여하기");
   });
