@@ -632,17 +632,19 @@
   color: var(--vote-muted);
   font-size: 13px;
   line-height: 20px;
+  white-space: pre-line;
 }
 
 .predictionNoticeLoading {
   display: flex;
   align-items: center;
+  justify-content: center;
   gap: 8px;
 }
 
 .predictionNoticeLoading .loadingSpinner {
-  width: 16px;
-  height: 16px;
+  width: 30px;
+  height: 30px;
   flex: 0 0 auto;
   border-width: 2px;
 }

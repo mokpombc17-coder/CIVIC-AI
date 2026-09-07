@@ -31,7 +31,10 @@ import {
   getPredictedReasonsForOption,
   type VoteReasonSelection,
 } from "@/lib/vote/vote-task-participation";
-import { formatPredictionRuntimeStatus } from "@/lib/vote/vote-task-prediction-presentation";
+import {
+  formatPredictionRuntimeStatus,
+  isPredictionNotReady,
+} from "@/lib/vote/vote-task-prediction-presentation";
 import {
   sortTaskOptions,
   type PredictedReason,
@@ -90,6 +93,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const predictionView = predictionQuery.data;
   const participationReady = canStartTaskResponse(predictionView);
   const predictionFailed = predictionView?.state === "FAILED";
+  const predictionNotReady = isPredictionNotReady(predictionView);
   const predictionInProgress = predictionView?.state === "REMOTE_PROCESSING";
   const predictedReasons = getPredictedReasonsForOption(predictionView, selectedOptionId);
   const selectedPredictedReason = predictedReasons.find(
@@ -295,7 +299,11 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             onRetryPreparation={retryPredictionPreparation}
             preparationLoading={predictionInProgress}
             preparationMessage={preparationMessage}
-            showParticipationAction={!predictionFailed}
+            showParticipationAction={
+              predictionQuery.isError ||
+              ensureMutation.isError ||
+              (!predictionFailed && !predictionNotReady)
+            }
           />
         ) : null}
         {taskDetail && step === 2 ? (
