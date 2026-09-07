@@ -98,6 +98,13 @@ public class VoteSecurityConfig {
                         .requestMatchers("/api/v1/integrations/**")
                         .denyAll()
                         .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/research/tasks/*/exports")
+                        .hasAuthority(VoteScopes.authority(
+                                VoteScopes.RESEARCH_EXPORT))
+                        .requestMatchers("/api/v1/research/**")
+                        .denyAll()
+                        .requestMatchers(
                                 "/api/v1/admin/tasks",
                                 "/api/v1/admin/tasks/**")
                         .hasAuthority(VoteScopes.authority(

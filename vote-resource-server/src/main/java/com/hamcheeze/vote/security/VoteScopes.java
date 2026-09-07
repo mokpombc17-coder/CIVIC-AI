@@ -16,6 +16,8 @@ public final class VoteScopes {
             "vote:tasks:read";
     public static final String TASKS_ADMIN =
             "vote:tasks:admin";
+    public static final String RESEARCH_EXPORT =
+            "vote:research:export";
     public static final String PREDICTIONS_WRITE =
             "vote:predictions:write";
     public static final String SUBMISSIONS_READ =

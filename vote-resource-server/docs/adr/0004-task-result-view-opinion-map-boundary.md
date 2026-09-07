@@ -104,6 +104,28 @@ Content-Type: application/json
 - 계약을 깨는 변경은 기존 필드를 재해석하지 않고 새 `schemaVersion`으로 추가한다.
 - 새 소비자는 OpinionMap 전용 이벤트나 테이블 대신 같은 버전 계약을 사용한다.
 
+### 6. 연구자용 Task 단위 export
+
+연구자용 결과는 기존 익명 `task-result-view/v1` 계약을 변경하지 않고 별도 API로 제공한다.
+
+```text
+POST /api/v1/research/tasks/{taskId}/exports
+Authorization scope: vote:research:export
+Content-Type: application/zip
+```
+
+ZIP은 `metadata.json`, `result-view.jsonl`, `result-summary.json`,
+`predictions.jsonl`을 포함한다. 연구 계약의 응답과 예측에는 Task 안에서만 유효한
+`participantKey`와 함께 `userId`, 제출 당시의 `personaId`를 포함한다.
+`personaGenerationId`, 내부 Submission·Prediction·Candidate ID, 원본 provider payload와
+prompt는 포함하지 않는다.
+
+`predictions.jsonl`은 실제 제출자에게 연결된 AI 예상 답변만 제공한다. 예측이 없으면
+`NOT_AVAILABLE`로 표현하고, 후보는 export 전용 `C1`, `C2`, ... 키를 사용한다.
+
+초기 구현은 메모리에서 동기적으로 ZIP을 생성한다. 영속 export job, 감사 기록, 동시 실행과
+크기 제한, 임시 파일 보존·정리 정책은 운영 정책 확정 후 별도로 추가한다.
+
 ## 폐기한 구성
 
 V27 마이그레이션에서 다음 구형 구성을 제거한다.

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "task-result-summary/v1",
+  "resultVersion": 1,
+  "responseCount": 2,
+  "options": [
+    {
+      "key": "O1",
+      "content": "찬성",
+      "count": 1
+    },
+    {
+      "key": "O2",
+      "content": "반대",
+      "count": 1
+    },
+    {
+      "key": "O3",
+      "content": "잘 모르겠다",
+      "count": 0
+    }
+  ]
+}
