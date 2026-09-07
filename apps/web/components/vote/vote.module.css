@@ -588,6 +588,11 @@
   line-height: 23.8px;
 }
 
+.overviewOption strong.longOptionContent,
+.choiceCard strong.longOptionContent {
+  font-weight: 600;
+}
+
 .compactPrimaryButton,
 .fullPrimaryButton,
 .fullSecondaryButton {
@@ -678,6 +683,10 @@
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 6px;
+}
+
+.choiceList {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .choiceCard {

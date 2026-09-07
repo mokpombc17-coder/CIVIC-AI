@@ -32,6 +32,10 @@ import {
   type VoteReasonSelection,
 } from "@/lib/vote/vote-task-participation";
 import {
+  hasLongVoteOptionContent,
+  isLongVoteOptionContent,
+} from "@/lib/vote/vote-option-presentation";
+import {
   formatPredictionRuntimeStatus,
   isPredictionNotReady,
 } from "@/lib/vote/vote-task-prediction-presentation";
@@ -591,7 +595,11 @@ function TaskOverview({
           {options.map((option) => (
             <div className={styles.overviewOption} key={option.id}>
               <span>응답 선택지 {option.displayOrder}</span>
-              <strong>{option.content}</strong>
+              <strong
+                className={isLongVoteOptionContent(option.content) ? styles.longOptionContent : ""}
+              >
+                {option.content}
+              </strong>
             </div>
           ))}
         </div>
@@ -766,13 +774,17 @@ type ComposerProps = Readonly<{
 
 function ResponseComposer(props: ComposerProps) {
   const hasSelectedOption = Boolean(props.selectedOptionId);
+  const useOptionListLayout = hasLongVoteOptionContent(props.options);
 
   return (
     <div className={styles.flowBody}>
       <div className={styles.responseComposerSections}>
         <section className={styles.flowSection}>
           <h2 className={styles.sectionTitle}>응답 선택지</h2>
-          <div className={styles.choiceGrid}>
+          <div
+            className={`${styles.choiceGrid} ${useOptionListLayout ? styles.choiceList : ""}`}
+            data-choice-layout={useOptionListLayout ? "list" : "grid"}
+          >
             {props.options.map((option) => (
               <button
                 aria-pressed={props.selectedOptionId === option.id}
@@ -782,7 +794,13 @@ function ResponseComposer(props: ComposerProps) {
                 type="button"
               >
                 <span>응답 선택지 {option.displayOrder}</span>
-                <strong>{option.content}</strong>
+                <strong
+                  className={
+                    isLongVoteOptionContent(option.content) ? styles.longOptionContent : ""
+                  }
+                >
+                  {option.content}
+                </strong>
               </button>
             ))}
           </div>
