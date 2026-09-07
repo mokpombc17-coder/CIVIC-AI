@@ -98,7 +98,7 @@ describe("PlatformHeader", () => {
 });
 
 describe("PlatformBottomNavigation", () => {
-  it("anchor와 aria-current를 호출자가 결정하도록 유지한다", () => {
+  it("Next Link 목적지와 aria-current를 호출자가 결정하도록 유지한다", () => {
     const markup = renderToStaticMarkup(
       <PlatformBottomNavigation>
         <PlatformBottomNavigationItem href="/" icon={<span>홈 아이콘</span>} label="홈" />
@@ -142,7 +142,7 @@ describe("PlatformNavigation", () => {
     });
 
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(markup).toMatch(/aria-current="page" href="\/vote"/);
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/vote"/);
     expect(markup).toContain("/assets/platform-navigation/account.png");
   });
 
@@ -151,7 +151,7 @@ describe("PlatformNavigation", () => {
       <PlatformNavigation currentPathname="/account/security" />,
     );
 
-    expect(account).toMatch(/aria-current="page" href="\/mypage"/);
+    expect(account).toMatch(/aria-current="page"[^>]*href="\/mypage"/);
   });
 });
 

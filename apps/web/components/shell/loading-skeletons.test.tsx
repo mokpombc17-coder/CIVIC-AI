@@ -21,7 +21,7 @@ describe("route-aware loading skeletons", () => {
     const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/rag" />);
 
     expect(markup).toMatch(/<h1[^>]*>AI<\/h1>/);
-    expect(markup).toContain('aria-current="page" href="/rag"');
+    expect(markup).toMatch(/aria-current="page"[^>]*href="\/rag"/);
     expect(markup).toContain('placeholder="문서에 대해 질문하세요…"');
     expect(markup).toContain("civic-skeleton-chat-question");
     expect(markup).toContain("civic-skeleton-chat-answer");
