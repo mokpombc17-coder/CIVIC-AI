@@ -109,7 +109,12 @@ function ParticipantLoadingContent({ screen }: Readonly<{ screen: ScreenDefiniti
 
 function HomeLoadingSurface() {
   const actions = [
-    ["AI", "어떤 점부터 짚어볼까요?", "AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.", "질문하기"],
+    [
+      "AI",
+      "어떤 점부터 짚어볼까요?",
+      "AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.",
+      "질문하기",
+    ],
     ["토론방", "서로 오가는 이야기", "관심 있는 주제를 골라 자유롭게 참여해 보세요.", "토론하기"],
     [
       "투표",
@@ -129,8 +134,8 @@ function HomeLoadingSurface() {
         <WireflowBadge>참여 안내</WireflowBadge>
         <h2>배우고, 토론하고, 함께 결정합니다.</h2>
         <p>
-          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로
-          남겨보세요.
+          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
+          투표로 남겨보세요.
         </p>
       </section>
       <div className="wf-participant-home" data-wireflow-layout="participant-home">
