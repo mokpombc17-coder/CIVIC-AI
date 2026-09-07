@@ -12,8 +12,10 @@ CLOSED Room을 모두 지원한다. 기존 `chat:audit:exports` 관리자 Export
 checkpoint에는 영향을 주지 않는다.
 
 출력의 `userId`는 감사 이벤트의 내부 `senderUserId`다. 가명화되지 않은 제한
-데이터이므로 익명 데이터로 취급해서는 안 된다. displayName, membershipId, 역할,
-Membership 상태, 프로필, 연락처와 참여자 목록은 결합하거나 출력하지 않는다.
+데이터이므로 익명 데이터로 취급해서는 안 된다. `metadata.json`의 `participants`는
+capture 시점의 모든 Membership에 대해 `userId`, `status`, `messageCount`를
+제공한다. displayName, membershipId, 역할, 프로필, 연락처와 Membership의
+가입·상태 변경 시각은 결합하거나 출력하지 않는다.
 
 ## Canonical source와 캡처 기준
 

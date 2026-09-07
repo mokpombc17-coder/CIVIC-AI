@@ -15,11 +15,18 @@ import zipfile
 
 
 EXPECTED_ENTRIES = {
-    "manifest.json",
+    "metadata.json",
     "messages.jsonl",
     "message_changes.jsonl",
     "transcript.html",
 }
+METADATA_FIELDS = {"schemaVersion", "capturedAt", "room", "participants"}
+ROOM_FIELDS = {
+    "roomId", "name", "description", "categories", "status",
+    "createdAt", "closedAt",
+}
+CATEGORY_FIELDS = {"categoryId", "name"}
+PARTICIPANT_FIELDS = {"userId", "status", "messageCount"}
 MESSAGE_FIELDS = {
     "messageSequence", "userId", "content", "createdAt", "deleted"
 }
@@ -78,6 +85,91 @@ def json_lines(raw: bytes, expected_fields: set[str]) -> list[dict]:
         if record["content"] is None:
             raise AssertionError("exported content must not be null")
     return records
+
+
+def exact_fields(name: str, value: object, expected: set[str]) -> dict:
+    if not isinstance(value, dict):
+        raise AssertionError(f"{name} must be a JSON object")
+    if set(value) != expected:
+        raise AssertionError(
+            f"unexpected {name} field set: {sorted(value)}"
+        )
+    return value
+
+
+def validate_metadata(
+    raw: bytes,
+    expected_room_id: str,
+    messages: list[dict],
+) -> dict:
+    if raw.startswith(b"\xef\xbb\xbf"):
+        raise AssertionError("metadata.json must not contain a UTF-8 BOM")
+    metadata = exact_fields(
+        "metadata",
+        json.loads(raw.decode("utf-8")),
+        METADATA_FIELDS,
+    )
+    schema_version = metadata["schemaVersion"]
+    if not isinstance(schema_version, int) \
+            or isinstance(schema_version, bool) \
+            or schema_version != 1:
+        raise AssertionError("metadata schemaVersion must be 1")
+    if not isinstance(metadata["capturedAt"], str) \
+            or not metadata["capturedAt"]:
+        raise AssertionError("metadata capturedAt must be a non-empty string")
+
+    room = exact_fields("room", metadata["room"], ROOM_FIELDS)
+    if room["roomId"] != expected_room_id:
+        raise AssertionError("metadata roomId does not match request")
+    if room["status"] not in {"ACTIVE", "CLOSED"}:
+        raise AssertionError("metadata room status is invalid")
+    if room["status"] == "ACTIVE" and room["closedAt"] is not None:
+        raise AssertionError("ACTIVE Room closedAt must be null")
+    if room["status"] == "CLOSED" and not room["closedAt"]:
+        raise AssertionError("CLOSED Room closedAt must be present")
+    if not isinstance(room["categories"], list):
+        raise AssertionError("metadata room categories must be an array")
+    for category in room["categories"]:
+        exact_fields("category", category, CATEGORY_FIELDS)
+
+    participants = metadata["participants"]
+    if not isinstance(participants, list):
+        raise AssertionError("metadata participants must be an array")
+    participant_counts = {}
+    for participant in participants:
+        participant = exact_fields(
+            "participant", participant, PARTICIPANT_FIELDS
+        )
+        user_id = participant["userId"]
+        if not isinstance(user_id, str) or not user_id:
+            raise AssertionError("participant userId must be non-empty")
+        if user_id in participant_counts:
+            raise AssertionError("participant userId must be unique")
+        if participant["status"] not in {"ACTIVE", "LEFT", "BANNED"}:
+            raise AssertionError("participant status is invalid")
+        message_count = participant["messageCount"]
+        if not isinstance(message_count, int) \
+                or isinstance(message_count, bool) \
+                or message_count < 0:
+            raise AssertionError(
+                "participant messageCount must be a non-negative integer"
+            )
+        participant_counts[user_id] = message_count
+
+    actual_counts = {}
+    for message in messages:
+        user_id = message["userId"]
+        actual_counts[user_id] = actual_counts.get(user_id, 0) + 1
+    expected_counts = {
+        user_id: actual_counts.get(user_id, 0)
+        for user_id in participant_counts
+    }
+    if participant_counts != expected_counts \
+            or set(actual_counts) - set(participant_counts):
+        raise AssertionError(
+            "participant messageCount does not match messages.jsonl"
+        )
+    return metadata
 
 
 def main() -> int:
@@ -158,23 +250,14 @@ def main() -> int:
         names = set(archive.namelist())
         if names != EXPECTED_ENTRIES or len(archive.namelist()) != 4:
             raise AssertionError(f"unexpected ZIP entries: {sorted(names)}")
-        manifest = json.loads(archive.read("manifest.json"))
-        descriptors = {item["name"]: item for item in manifest["files"]}
-        expected_descriptors = EXPECTED_ENTRIES - {"manifest.json"}
-        if set(descriptors) != expected_descriptors:
-            raise AssertionError("manifest file descriptors do not match")
-        for name, descriptor in descriptors.items():
-            raw = archive.read(name)
-            if descriptor["sizeBytes"] != len(raw):
-                raise AssertionError(f"size mismatch for {name}")
-            if descriptor["sha256"] != hashlib.sha256(raw).hexdigest():
-                raise AssertionError(f"SHA-256 mismatch for {name}")
-
         messages = json_lines(
             archive.read("messages.jsonl"), MESSAGE_FIELDS
         )
         changes = json_lines(
             archive.read("message_changes.jsonl"), CHANGE_FIELDS
+        )
+        validate_metadata(
+            archive.read("metadata.json"), args.room_id, messages
         )
 
     message_sequences = [item["messageSequence"] for item in messages]
@@ -183,11 +266,6 @@ def main() -> int:
         raise AssertionError("messages are not ordered by messageSequence")
     if change_sequences != sorted(change_sequences):
         raise AssertionError("changes are not ordered by changeSequence")
-    if manifest["counts"]["messages"] != len(messages):
-        raise AssertionError("manifest message count does not match")
-    if manifest["counts"]["changes"] != len(changes):
-        raise AssertionError("manifest change count does not match")
-
     print(
         f"OK exportId={export_id} messages={len(messages)} "
         f"changes={len(changes)} sha256={artifact_hash}"
