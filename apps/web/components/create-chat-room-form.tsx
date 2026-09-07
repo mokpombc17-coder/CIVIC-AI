@@ -5,6 +5,7 @@ import {
   useId,
   useRef,
   useState,
+  type FormEvent,
   type FormEventHandler,
   type KeyboardEvent,
   type ReactNode,
@@ -182,7 +183,7 @@ export function CreateChatRoomFormView({
               onChange={onFormChange}
               onSubmit={onRequestSubmit}
             >
-              <RequestField help="1~100자" id="create-room-name" label="제목">
+              <RequestField id="create-room-name" label="제목" maxLength={100}>
                 <input
                   autoFocus={activeView === "request"}
                   aria-describedby="create-room-name-help"
@@ -197,7 +198,7 @@ export function CreateChatRoomFormView({
                 />
               </RequestField>
 
-              <RequestField help="1~500자" id="create-room-description" label="상세 설명">
+              <RequestField id="create-room-description" label="상세 설명" maxLength={500}>
                 <textarea
                   aria-describedby="create-room-description-help"
                   className={`${INPUT_CLASS_NAME} h-[100px] resize-none py-3`}
@@ -306,17 +307,25 @@ function getViewButtonClassName(isSelected: boolean): string {
 
 function RequestField({
   children,
-  help,
   id,
   label,
+  maxLength,
 }: Readonly<{
   children: ReactNode;
-  help: string;
   id: string;
   label: string;
+  maxLength: number;
 }>) {
+  const [characterCount, setCharacterCount] = useState(0);
+  const help = characterCount === 0 ? `1~${maxLength}자` : `${characterCount} / ${maxLength}자`;
+
+  function handleInput(event: FormEvent<HTMLDivElement>) {
+    const control = event.target as HTMLInputElement | HTMLTextAreaElement;
+    setCharacterCount(control.value.length);
+  }
+
   return (
-    <div className="grid gap-1.5">
+    <div className="grid gap-1.5" onInput={handleInput}>
       <label className="text-[15px] font-bold leading-[22.5px]" htmlFor={id}>
         {label}
       </label>

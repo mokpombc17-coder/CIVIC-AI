@@ -66,6 +66,7 @@ type RoomListState<TItem> = Readonly<{
 type ChatRoomListViewProps = Readonly<{
   closeCreateRoomForm: () => void;
   createRoomTriggerRef: Ref<HTMLButtonElement>;
+  hasReachedActiveRoomLimit: boolean;
   isCreateRoomOpen: boolean;
   participatingRoomFilter: ChatRoomInboxFilterController;
   participatingRooms: RoomListState<RoomInboxListItem>;
@@ -78,6 +79,7 @@ type ChatRoomListViewProps = Readonly<{
 export function ChatRoomListView({
   closeCreateRoomForm,
   createRoomTriggerRef,
+  hasReachedActiveRoomLimit,
   isCreateRoomOpen,
   participatingRoomFilter,
   participatingRooms,
@@ -238,7 +240,12 @@ export function ChatRoomListView({
           </button>
         </section>
 
-        <RoomListSection title="참여한 방">
+        <RoomListSection
+          description={
+            hasReachedActiveRoomLimit ? CHAT_ROOM_PUBLISHING_COPY.activeRoomLimitReached : undefined
+          }
+          title="참여한 방"
+        >
           <QueryFailure
             error={participatingRooms.error}
             onRetry={participatingRooms.retry}
@@ -387,13 +394,21 @@ export function ChatRoomListView({
 
 type RoomListSectionProps = Readonly<{
   children: ReactNode;
+  description?: ReactNode;
   title: string;
 }>;
 
-function RoomListSection({ children, title }: RoomListSectionProps) {
+function RoomListSection({ children, description, title }: RoomListSectionProps) {
   return (
     <section className="grid gap-3">
-      <h2 className="text-lg font-bold leading-[27px]">{title}</h2>
+      <div className="grid gap-1">
+        <h2 className="text-lg font-bold leading-[27px]">{title}</h2>
+        {description ? (
+          <p className="whitespace-nowrap text-[13px] leading-[19.5px] text-[var(--chat-publishing-color-muted)]">
+            {description}
+          </p>
+        ) : null}
+      </div>
       {children}
     </section>
   );

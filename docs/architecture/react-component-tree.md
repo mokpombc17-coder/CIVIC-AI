@@ -272,8 +272,9 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
 `ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
-전체·안읽음 로컬 필터, 생성 요청 sheet disclosure와 Room 상세 selection·trigger focus 복원을 담당하는
-hook을 `ChatRoomListView`에 연결한다. `ChatRoomListView`는 본문의 생성 요청 action을 제공하고,
+전체·안읽음 로컬 필터, 필터 전 inbox 기준 사용자 ACTIVE Room 한도 도달 표현, 생성 요청 sheet
+disclosure와 Room 상세 selection·trigger focus 복원을 담당하는 hook을 `ChatRoomListView`에 연결한다.
+`ChatRoomListView`는 본문의 생성 요청 action을 제공하고,
 생성 요청 sheet와 Room 상세 중 하나를 `PlatformShell`의 overlay slot에 전달하여 overlay가 열린 동안 기존 surface를 inert 처리한다.
 목록 surface는 참여 Room 필터·생성 action, 참여 Room 목록, 공개 Room 검색, 참여 가능한 Room 목록
 순서로 조립하여 검색의 적용 범위가 공개 Room 목록임을 구조로 드러낸다.

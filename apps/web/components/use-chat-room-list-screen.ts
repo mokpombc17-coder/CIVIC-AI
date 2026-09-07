@@ -10,6 +10,7 @@ import {
   type ChatRoomListDetailController,
   type ChatRoomListDetailSelection,
 } from "@/components/chat-room-list-detail";
+import { hasReachedChatUserActiveRoomLimit } from "@/components/chat-room-publishing";
 import { usePublicRoomSearch } from "@/components/use-public-room-search";
 import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
 
@@ -94,6 +95,7 @@ export function useChatRoomListScreen() {
     closeCreateRoomForm,
     createRoomTriggerRef,
     isCreateRoomOpen,
+    hasReachedActiveRoomLimit: hasReachedChatUserActiveRoomLimit(roomInbox.rooms.length),
     participatingRoomFilter: {
       select: setParticipatingRoomFilter,
       value: participatingRoomFilter,

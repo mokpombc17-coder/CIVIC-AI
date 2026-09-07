@@ -93,6 +93,24 @@ describe("chat room list publishing layout", () => {
     expect(html).not.toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
   });
 
+  it("참여 가능한 토론방 한도에 도달했을 때만 참여한 방 제목 아래에 안내한다", () => {
+    const availableHtml = renderChatRoomListView("ALL");
+    const limitReachedHtml = renderChatRoomListView(
+      "ALL",
+      false,
+      "empty",
+      null,
+      undefined,
+      [],
+      true,
+    );
+
+    expect(availableHtml).not.toContain("동시에 최대 20개까지");
+    expect(limitReachedHtml).toContain("토론방은 동시에 최대 20개까지 참여할 수 있어요.");
+    expect(limitReachedHtml).toContain("whitespace-nowrap");
+    expect(limitReachedHtml).toContain("text-[var(--chat-publishing-color-muted)]");
+  });
+
   it("더 보기 버튼은 로딩 문구가 바뀌어도 같은 폭을 유지하고 마지막 상태를 안내한다", () => {
     const idleHtml = renderToStaticMarkup(
       createElement(LoadMoreButton, {
@@ -423,6 +441,7 @@ function renderChatRoomListView(
   roomDetailSelection: ChatRoomListDetailSelection | null = null,
   appliedPublicRoomQuery?: string,
   publicRoomItems: readonly PublicRoomListItem[] = [],
+  hasReachedActiveRoomLimit = false,
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -453,6 +472,7 @@ function renderChatRoomListView(
       createElement(ChatRoomListView, {
         closeCreateRoomForm: vi.fn(),
         createRoomTriggerRef: { current: null },
+        hasReachedActiveRoomLimit,
         isCreateRoomOpen,
         participatingRoomFilter: { select: vi.fn(), value: filter },
         participatingRooms: emptyListState,

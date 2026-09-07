@@ -1,11 +1,27 @@
 export const TEMPORARY_CHAT_ROOM_MEMBER_LIMIT = 50;
+export const TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT = 20;
 
 export const CHAT_ROOM_PUBLISHING_COPY = {
+  activeRoomLimitReached: "토론방은 동시에 최대 20개까지 참여할 수 있어요.",
   createRoom: "토론방 생성 요청",
   noAvailableRooms: "현재 참여 가능한 방이 없어요",
   noAvailableRoomsDescription: "원하는 주제로 토론방 생성을 요청해 보세요.",
   noPublicRoomSearchResults: "검색 결과가 없어요",
 } as const;
+
+/**
+ * Backend가 사용자별 ACTIVE Room quota 상태를 제공하기 전까지 현재 운영 기본값을 사용한다.
+ * 계약에 count/limit 또는 isAtLimit 필드가 추가되면 서버 값을 authoritative하게 사용한다.
+ */
+export function hasReachedChatUserActiveRoomLimit(
+  activeRoomCount: number,
+  activeRoomLimit = TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT,
+): boolean {
+  assertSafeNonnegativeInteger(activeRoomCount, "activeRoomCount");
+  assertSafePositiveInteger(activeRoomLimit, "activeRoomLimit");
+
+  return activeRoomCount >= activeRoomLimit;
+}
 
 export type ChatRoomMemberCountPresentation = Readonly<{
   ariaLabel: string;

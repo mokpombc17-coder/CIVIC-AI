@@ -23,9 +23,11 @@ describe("create chat room request bottom sheet", () => {
     expect(html).toContain(">제목</label>");
     expect(html).toContain('name="name"');
     expect(html).toContain('maxLength="100"');
+    expect(html).toContain('id="create-room-name-help">1~100자</span>');
     expect(html).toContain(">상세 설명</label>");
     expect(html).toContain('name="description"');
     expect(html).toContain('maxLength="500"');
+    expect(html).toContain('id="create-room-description-help">1~500자</span>');
     expect(html).toContain(">요청하기</button>");
     expect(html).not.toContain(">주제</label>");
     expect(html).not.toContain("공개 범위");

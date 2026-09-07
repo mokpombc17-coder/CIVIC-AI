@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   CHAT_ROOM_PUBLISHING_COPY,
+  hasReachedChatUserActiveRoomLimit,
   getChatRoomMemberCountPresentation,
   TEMPORARY_CHAT_ROOM_MEMBER_LIMIT,
+  TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT,
 } from "./chat-room-publishing";
 
 describe("chat room publishing presentation", () => {
@@ -23,11 +25,18 @@ describe("chat room publishing presentation", () => {
 
   it("확정한 목록 화면 문구를 한곳에서 제공한다", () => {
     expect(CHAT_ROOM_PUBLISHING_COPY).toEqual({
+      activeRoomLimitReached: "토론방은 동시에 최대 20개까지 참여할 수 있어요.",
       createRoom: "토론방 생성 요청",
       noAvailableRooms: "현재 참여 가능한 방이 없어요",
       noAvailableRoomsDescription: "원하는 주제로 토론방 생성을 요청해 보세요.",
       noPublicRoomSearchResults: "검색 결과가 없어요",
     });
+  });
+
+  it("현재 운영 기본값인 20개부터 사용자 ACTIVE Room 한도 도달로 판단한다", () => {
+    expect(TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT).toBe(20);
+    expect(hasReachedChatUserActiveRoomLimit(19)).toBe(false);
+    expect(hasReachedChatUserActiveRoomLimit(20)).toBe(true);
   });
 
   it.each([
