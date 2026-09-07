@@ -11,7 +11,7 @@ describe("route-aware loading skeletons", () => {
     const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/home" />);
 
     expect(markup).toContain("CIVIC.AI");
-    expect(markup).toContain("배우고, 함께 토론하고, 결정합니다.");
+    expect(markup).toContain("배우고, 토론하고, 함께 결정합니다.");
     expect(markup).toContain('data-wireflow-layout="participant-home"');
     expect(markup).not.toContain("civic-skeleton-header-title");
     expect(markup).not.toContain("civic-skeleton-card");
