@@ -78,6 +78,9 @@ describe("create chat room request bottom sheet", () => {
     expect(requestErrorHtml).toContain('data-chat-form-feedback="request-error"');
     expect(requestErrorHtml).toContain("같은 요청으로 다시 시도");
     expect(requestErrorHtml).not.toContain("bg-red-50");
+    expect(requestErrorHtml.indexOf('data-chat-form-feedback="request-error"')).toBeLessThan(
+      requestErrorHtml.indexOf('name="name"'),
+    );
   });
 });
 

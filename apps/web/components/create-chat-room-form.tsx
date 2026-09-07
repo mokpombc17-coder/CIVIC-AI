@@ -183,6 +183,25 @@ export function CreateChatRoomFormView({
               onChange={onFormChange}
               onSubmit={onRequestSubmit}
             >
+              {validationError || errorMessage ? (
+                <div
+                  className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-[13px] leading-[19.5px] text-[#7a4b00]"
+                  data-chat-form-feedback={validationError ? "validation-error" : "request-error"}
+                  role="alert"
+                >
+                  <p className="font-semibold">{validationError ?? errorMessage}</p>
+                  {canRetry ? (
+                    <button
+                      className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+                      onClick={onRetry}
+                      type="button"
+                    >
+                      같은 요청으로 다시 시도
+                    </button>
+                  ) : null}
+                </div>
+              ) : null}
+
               <RequestField id="create-room-name" label="제목" maxLength={100}>
                 <input
                   autoFocus={activeView === "request"}
@@ -211,25 +230,6 @@ export function CreateChatRoomFormView({
                   required
                 />
               </RequestField>
-
-              {validationError || errorMessage ? (
-                <div
-                  className="rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-[13px] leading-[19.5px] text-[#7a4b00]"
-                  data-chat-form-feedback={validationError ? "validation-error" : "request-error"}
-                  role="alert"
-                >
-                  <p className="font-semibold">{validationError ?? errorMessage}</p>
-                  {canRetry ? (
-                    <button
-                      className="mt-2 inline-flex min-h-10 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-                      onClick={onRetry}
-                      type="button"
-                    >
-                      같은 요청으로 다시 시도
-                    </button>
-                  ) : null}
-                </div>
-              ) : null}
 
               <button
                 className="mt-auto inline-flex h-12 w-full items-center justify-center rounded-md bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-60"

@@ -25,12 +25,35 @@ export function JoinChatRoomControl({
     );
   }
 
+  const errorFeedback = join.errorMessage ? (
+    <div
+      className={`rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-left text-xs leading-5 text-[#7a4b00] ${
+        isSheet ? "w-full" : "max-w-[140px]"
+      }`}
+      data-chat-form-feedback="request-error"
+      role="alert"
+    >
+      <p className="font-semibold">{join.errorMessage}</p>
+      {join.canRetry ? (
+        <button
+          className="mt-2 font-bold text-[var(--chat-publishing-color-primary-emphasis)] underline underline-offset-2"
+          onClick={join.retry}
+          type="button"
+        >
+          같은 요청으로 다시 시도
+        </button>
+      ) : null}
+    </div>
+  ) : null;
+
   return (
     <div
       className={
         isSheet ? "grid w-full gap-2" : "flex max-w-[140px] shrink-0 flex-col items-end gap-2"
       }
     >
+      {isSheet ? errorFeedback : null}
+
       <button
         className={`inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] px-4 text-base font-bold transition disabled:cursor-not-allowed disabled:opacity-50 ${
           isSheet
@@ -44,26 +67,7 @@ export function JoinChatRoomControl({
         {join.isPending ? "참여 중…" : "참여하기"}
       </button>
 
-      {join.errorMessage ? (
-        <div
-          className={`rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-3 py-2.5 text-left text-xs leading-5 text-[#7a4b00] ${
-            isSheet ? "w-full" : "max-w-[140px]"
-          }`}
-          data-chat-form-feedback="request-error"
-          role="alert"
-        >
-          <p className="font-semibold">{join.errorMessage}</p>
-          {join.canRetry ? (
-            <button
-              className="mt-2 font-bold text-[var(--chat-publishing-color-primary-emphasis)] underline underline-offset-2"
-              onClick={join.retry}
-              type="button"
-            >
-              같은 요청으로 다시 시도
-            </button>
-          ) : null}
-        </div>
-      ) : null}
+      {isSheet ? null : errorFeedback}
     </div>
   );
 }

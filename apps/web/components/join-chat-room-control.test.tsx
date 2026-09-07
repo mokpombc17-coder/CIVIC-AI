@@ -32,6 +32,9 @@ describe("JoinChatRoomControl", () => {
     expect(html).toContain("w-full bg-[var(--chat-publishing-color-primary)]");
     expect(html).not.toContain("w-fit bg-[var(--chat-publishing-color-primary)]");
     expect(html).not.toContain("text-red-700");
+    expect(html.indexOf('data-chat-form-feedback="request-error"')).toBeLessThan(
+      html.indexOf(">참여하기</button>"),
+    );
   });
 });
 
