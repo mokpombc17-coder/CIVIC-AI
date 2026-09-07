@@ -24,8 +24,8 @@ export function ChatRoomInboxFilterControl({
             aria-pressed={isSelected}
             className={
               isSelected
-                ? "inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
-                : "inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[#8a949e] bg-white px-3 text-sm font-medium text-[#1f2124]"
+                ? "inline-flex h-11 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)]"
+                : "inline-flex h-11 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[#8a949e] bg-white px-3 text-sm font-medium text-[#1f2124]"
             }
             key={filter}
             onClick={() => controller.select(filter)}

@@ -18,5 +18,6 @@ describe("ChatRoomInboxFilterControl", () => {
     expect(html).toContain("안읽음");
     expect(html).toContain("rounded-[var(--chat-publishing-radius-pill)]");
     expect(html).toContain("h-11");
+    expect(html.match(/cursor-pointer/g)).toHaveLength(2);
   });
 });

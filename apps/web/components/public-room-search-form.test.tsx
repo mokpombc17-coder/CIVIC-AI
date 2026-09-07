@@ -11,9 +11,10 @@ describe("public Room search form", () => {
     expect(html).toContain('role="search"');
     expect(html).toContain('aria-label="공개 채팅방 검색"');
     expect(html).toContain("토론방 이름 검색");
-    expect(html).toContain("검색어 입력…");
+    expect(html).toContain("주제를 검색해 보세요");
     expect(html).toContain('type="submit"');
     expect(html).toContain("검색");
+    expect(html).toMatch(/<button class="[^"]*cursor-pointer[^"]*" type="submit">검색/);
     expect(html).not.toContain("<select");
     expect(html).not.toContain("카테고리");
     expect(html).toContain("검색 버튼을 누르면 적용");

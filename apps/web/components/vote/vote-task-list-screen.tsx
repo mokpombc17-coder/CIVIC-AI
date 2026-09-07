@@ -108,7 +108,7 @@ export function VoteTaskListScreen() {
               className={styles.searchInput}
               id="vote-task-search"
               onChange={(event) => setSearchInput(event.target.value)}
-              placeholder="투표 주제를 검색해 주세요."
+              placeholder="주제를 검색해 보세요"
               type="search"
               value={searchInput}
             />

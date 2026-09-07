@@ -31,11 +31,12 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain('aria-label="참여한 방 필터와 토론방 생성"');
     expect(html).toContain('aria-label="참여 가능한 토론방 검색과 목록"');
     expect(html).toContain('aria-label="참여한 방 필터"');
-    expect(html).toContain(">토론방 생성 요청</button>");
+    expect(html).toContain(">토론방 생성</button>");
+    expect(html).toMatch(/<button[^>]*class="[^"]*cursor-pointer[^"]*"[^>]*>토론방 생성<\/button>/);
     expect(html).toContain(">참여한 방</h2>");
     expect(html).toContain(">참여 가능한 방</h2>");
-    expect(html).toContain("아직 참여한 방이 없어요");
-    expect(html).toContain("아래에서 관심 있는 방을 찾아 참여해 보세요.");
+    expect(html).toContain("아직 참여한 토론방이 없어요.");
+    expect(html).toContain("관심 있는 주제를 찾아 다른 사람들과 생각을 나눠보세요.");
     expect(html).toContain('data-chat-room-list-empty-variant="no-participating-rooms"');
     expect(html).not.toContain("현재 참여 중인 방이 없습니다.");
     expect(filterIndex).toBeLessThan(participatingRoomsIndex);
@@ -232,9 +233,7 @@ describe("chat room list cards", () => {
         room: PUBLIC_ROOM,
       }),
     );
-    const detailButtonClass = /aria-label="공개 채팅방 자세히 보기" class="([^"]+)"/.exec(
-      html,
-    )?.[1];
+    const cardTriggerClass = /aria-label="공개 채팅방 자세히 보기" class="([^"]+)"/.exec(html)?.[1];
 
     expect(html).toContain("공개 채팅방");
     expect(html).toContain("3 / 50명");
@@ -243,10 +242,9 @@ describe("chat room list cards", () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
     expect(html.match(/cursor-pointer/g)).toHaveLength(1);
-    expect(detailButtonClass).toContain(
-      "hover:text-[var(--chat-publishing-color-primary-emphasis)]",
-    );
-    expect(detailButtonClass).not.toContain("hover:bg-");
+    expect(cardTriggerClass).toContain("absolute -inset-px");
+    expect(cardTriggerClass).toContain("hover:border-[var(--chat-publishing-color-primary)]");
+    expect(cardTriggerClass).toContain("hover:bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain("참여하기");
     expect(html).not.toContain("공개 채팅방 설명");
     expect(html).not.toContain("방 ID: room-public");

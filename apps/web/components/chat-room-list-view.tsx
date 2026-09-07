@@ -98,7 +98,7 @@ export function ChatRoomListView({
           <button
             aria-controls={CREATE_CHAT_ROOM_FORM_ID}
             aria-expanded={isCreateRoomOpen}
-            className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
+            className="inline-flex h-12 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-50"
             onClick={toggleCreateRoomForm}
             ref={createRoomTriggerRef}
             type="button"
@@ -140,8 +140,8 @@ export function ChatRoomListView({
             />
           ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
             <RoomListNotice
-              description="아래에서 관심 있는 방을 찾아 참여해 보세요."
-              message="아직 참여한 방이 없어요"
+              description="관심 있는 주제를 찾아 다른 사람들과 생각을 나눠보세요."
+              message="아직 참여한 토론방이 없어요."
               size="participating"
               variant="no-participating-rooms"
             />
@@ -318,22 +318,30 @@ export function PublicRoomCard({
 }>) {
   return (
     <article
-      className="grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
+      className="relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
       data-room-id={room.roomId}
     >
-      <RoomSummary room={room} />
       <button
         aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 자세히 보기`}
-        className="inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="absolute -inset-px z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] border border-transparent transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >
-        자세히 보기
+        <span className="sr-only">{room.name} 자세히 보기</span>
       </button>
+      <span className="pointer-events-none relative z-[1] min-w-0">
+        <RoomSummary room={room} />
+      </span>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none relative z-[1] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)]"
+      >
+        자세히 보기
+      </span>
     </article>
   );
 }

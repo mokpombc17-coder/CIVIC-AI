@@ -27,7 +27,7 @@ describe("VoteTaskListScreen", () => {
     const html = renderToStaticMarkup(<VoteTaskListScreen />);
 
     expect(html).toContain(">주제 검색</label>");
-    expect(html).toContain('placeholder="투표 주제를 검색해 주세요."');
+    expect(html).toContain('placeholder="주제를 검색해 보세요"');
     expect(html).toContain("진행 중인 투표가 없습니다.");
     expect(html).toMatch(/aria-label="홈으로" class="[^"]+" data-state="enabled" href="\/home"/);
     expect(html).not.toContain('data-state="disabled"');

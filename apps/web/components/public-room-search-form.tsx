@@ -46,12 +46,12 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
             onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
             onCompositionEnd={controller.endComposition}
             onCompositionStart={controller.startComposition}
-            placeholder="검색어 입력…"
+            placeholder="주제를 검색해 보세요"
             type="search"
             value={controller.draftQuery}
           />
           <button
-            className="h-[46px] shrink-0 bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
+            className="h-[46px] shrink-0 cursor-pointer bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
             disabled={controller.isComposing}
             type="submit"
           >
