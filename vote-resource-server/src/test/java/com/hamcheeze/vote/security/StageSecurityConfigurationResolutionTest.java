@@ -13,16 +13,16 @@ class StageSecurityConfigurationResolutionTest {
                     .withInitializer(
                             new ConfigDataApplicationContextInitializer())
                     .withPropertyValues(
-                            "spring.profiles.active=local,stage,auth-main",
+                            "spring.profiles.active=stage,auth-main",
                             "VOTE_AI_RUNTIME_AUTH_TOKEN="
                                     + "stage-shared-runtime-token");
 
     @Test
-    void stageUsesMainAuthWhileKeepingLocalFeatureDefaults() {
+    void stageUsesMainAuthAndSchedulersWithoutLocalFixtures() {
         runner.run(context -> {
             assertThat(context).hasNotFailed();
             assertThat(context.getEnvironment().getActiveProfiles())
-                    .containsExactly("local", "stage", "auth-main");
+                    .containsExactly("stage", "auth-main");
             assertThat(context.getEnvironment().getProperty(
                     "server.port", Integer.class))
                     .isEqualTo(8082);
@@ -45,13 +45,13 @@ class StageSecurityConfigurationResolutionTest {
             assertThat(context.getEnvironment().getProperty(
                     "vote.integration.outbox.dispatcher-enabled",
                     Boolean.class))
-                    .isTrue();
+                    .isFalse();
             assertThat(context.getEnvironment().getProperty(
                     "vote.persona.enabled", Boolean.class))
-                    .isTrue();
+                    .isFalse();
             assertThat(context.getEnvironment().getProperty(
                     "vote.task.prediction.enabled", Boolean.class))
-                    .isTrue();
+                    .isFalse();
             assertThat(context.getEnvironment().getProperty(
                     "vote.ai-runtime.auth-token"))
                     .isEqualTo("stage-shared-runtime-token");
@@ -65,11 +65,17 @@ class StageSecurityConfigurationResolutionTest {
                     "vote.task.prediction.auth-token"))
                     .isEqualTo("stage-shared-runtime-token");
             assertThat(context.getEnvironment().getProperty(
-                    "vote.survey.bootstrap.enabled", Boolean.class))
+                    "vote.task.lifecycle.enabled", Boolean.class))
                     .isTrue();
             assertThat(context.getEnvironment().getProperty(
-                    "vote.task.bootstrap.enabled", Boolean.class))
+                    "vote.survey.round-activation.enabled", Boolean.class))
                     .isTrue();
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.survey.bootstrap.enabled", Boolean.class))
+                    .isFalse();
+            assertThat(context.getEnvironment().getProperty(
+                    "vote.task.bootstrap.enabled", Boolean.class))
+                    .isFalse();
         });
     }
 }

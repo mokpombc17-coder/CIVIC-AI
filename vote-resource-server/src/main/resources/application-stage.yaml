@@ -12,6 +12,8 @@ vote:
   ai-runtime:
     auth-token: ${VOTE_AI_RUNTIME_AUTH_TOKEN:}
   task:
+    lifecycle:
+      enabled: ${VOTE_TASK_LIFECYCLE_ENABLED:true}
     preparation:
       enabled: ${VOTE_TASK_PREPARATION_ENABLED:false}
       provider: ${VOTE_TASK_PREPARATION_PROVIDER:http}
@@ -23,5 +25,8 @@ vote:
       request-timeout: ${VOTE_TASK_PREPARATION_REQUEST_TIMEOUT:30s}
       retry-delay: ${VOTE_TASK_PREPARATION_RETRY_DELAY:30s}
       processing-lease-duration: ${VOTE_TASK_PREPARATION_PROCESSING_LEASE_DURATION:60s}
+  survey:
+    round-activation:
+      enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}
   security:
     local-admin-api-enabled: ${VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED:false}
