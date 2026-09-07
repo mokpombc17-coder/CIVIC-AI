@@ -1,4 +1,5 @@
 import Link from "next/link";
+import type { Route } from "next";
 import type { ComponentPropsWithoutRef, ReactNode } from "react";
 import styles from "./platform-shell.module.css";
 
@@ -42,7 +43,7 @@ export function PlatformBottomNavigationItem({
     <Link
       {...linkProps}
       className={[styles.bottomNavigationItem, className].filter(Boolean).join(" ")}
-      href={{ pathname: href }}
+      href={href as Route}
     >
       <span aria-hidden="true" className={styles.bottomNavigationIcon}>
         {icon}
