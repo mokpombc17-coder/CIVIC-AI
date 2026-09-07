@@ -31,6 +31,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.net.URI;
 import java.util.List;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @RestController
@@ -44,6 +46,8 @@ final class SurveyUserController {
     private final SurveyEligibilityQueryService eligibility;
     private final SurveyContentVersionService contents;
     private final SurveyPreviewMode previewMode;
+    private final Optional<LocalSurveyEligibilityFixture>
+            localEligibilityFixture;
 
     SurveyUserController(
             AuthenticatedUserIdResolver userIds,
@@ -52,7 +56,8 @@ final class SurveyUserController {
             MySurveyResponseQueryService responses,
             SurveyEligibilityQueryService eligibility,
             SurveyContentVersionService contents,
-            SurveyPreviewMode previewMode
+            SurveyPreviewMode previewMode,
+            Optional<LocalSurveyEligibilityFixture> localEligibilityFixture
     ) {
         this.userIds = userIds;
         this.currentSurveys = currentSurveys;
@@ -61,6 +66,8 @@ final class SurveyUserController {
         this.eligibility = eligibility;
         this.contents = contents;
         this.previewMode = previewMode;
+        this.localEligibilityFixture = Objects.requireNonNull(
+                localEligibilityFixture, "localEligibilityFixture");
     }
 
     @GetMapping("/surveys/current")
@@ -164,8 +171,15 @@ final class SurveyUserController {
     SurveyApiModels.EligibilityResponse eligibility(
             Authentication authentication
     ) {
+        SurveyUserId userId = userId(authentication);
         ServiceEligibilityDecision decision = eligibility.evaluate(
-                userId(authentication));
+                userId);
+        Optional<SurveyApiModels.EligibilityResponse> fixtureResponse =
+                localEligibilityFixture.flatMap(fixture ->
+                        fixture.responseFor(userId, decision));
+        if (fixtureResponse.isPresent()) {
+            return fixtureResponse.get();
+        }
         if (decision.surveyRequirement() == SurveyRequirement.UNAVAILABLE) {
             throw activeRoundUnavailable();
         }

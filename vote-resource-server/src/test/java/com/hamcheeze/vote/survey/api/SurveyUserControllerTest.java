@@ -13,6 +13,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
+import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
 import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import org.junit.jupiter.api.BeforeEach;
@@ -69,7 +70,9 @@ class SurveyUserControllerTest {
                         responses,
                         eligibility,
                         contents,
-                        previewMode))
+                        previewMode,
+                        Optional.of(new LocalSurveyEligibilityFixture(
+                                previewMode))))
                 .setControllerAdvice(new SurveyApiExceptionHandler())
                 .build();
     }
@@ -157,6 +160,36 @@ class SurveyUserControllerTest {
                 eq(new com.hamcheeze.vote.survey.domain.common
                         .SurveyUserId("user-a")),
                 eq(new SurveyResponseId(responseId)));
+    }
+
+    @Test
+    void localPreviewUserIsEligibleWithoutPersistedResponse()
+            throws Exception {
+        SurveyUserId userId = new SurveyUserId("user-a");
+        SurveyRoundId roundId = new SurveyRoundId(UUID.randomUUID());
+        Instant evaluatedAt = Instant.parse("2026-09-07T00:00:00Z");
+        ServiceEligibilityDecision decision =
+                mock(ServiceEligibilityDecision.class);
+        when(previewMode.enabledFor(userId)).thenReturn(true);
+        when(eligibility.evaluate(userId)).thenReturn(decision);
+        when(decision.activeRoundId()).thenReturn(Optional.of(roundId));
+        when(decision.evaluatedAt()).thenReturn(evaluatedAt);
+
+        mockMvc.perform(get("/api/v1/me/service-eligibility")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligible").value(true))
+                .andExpect(jsonPath("$.surveyRequirement")
+                        .value("SATISFIED"))
+                .andExpect(jsonPath("$.reason").doesNotExist())
+                .andExpect(jsonPath("$.nextAction").doesNotExist())
+                .andExpect(jsonPath("$.activeRoundId")
+                        .value(roundId.value().toString()))
+                .andExpect(jsonPath("$.evaluatedAt")
+                        .value("2026-09-07T00:00:00Z"))
+                .andExpect(jsonPath("$.capabilities.length()").value(1))
+                .andExpect(jsonPath("$.capabilities[0]")
+                        .value("USE_GENERAL_SERVICE"));
     }
 
     @Test

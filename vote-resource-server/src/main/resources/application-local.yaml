@@ -65,9 +65,7 @@ vote:
         scenario: ${VOTE_TASK_PREDICTION_FAKE_SCENARIO:success}
   survey:
     preview:
-      # Preview submissions are validation-only and are not persisted.
-      # Opt in with explicit user IDs when repeated survey testing is needed.
-      user-ids: ${VOTE_SURVEY_PREVIEW_USER_IDS:}
+      user-ids: ${VOTE_SURVEY_PREVIEW_USER_IDS:local-user-1}
     round-activation:
       enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}
       fixed-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_FIXED_DELAY:5s}
