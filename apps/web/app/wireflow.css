@@ -6686,11 +6686,10 @@ body {
   min-height: 0;
   flex: 1 1 auto;
   gap: 12px;
-  margin-top: 6px;
   overscroll-behavior: contain;
   border: 0;
   background: #fff;
-  padding: 0;
+  padding: 0 0 10px;
   scrollbar-gutter: stable;
 }
 
@@ -6888,7 +6887,7 @@ body {
   align-items: end;
   gap: 8px;
   box-sizing: border-box;
-  margin: 10px 0 0;
+  margin: 0;
   border: 1px solid #ccd1d6;
   border-radius: 12px;
   background: #fff;
