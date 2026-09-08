@@ -188,6 +188,28 @@ describe("본문 인용 마커", () => {
     expect(sourcesHtml).toContain("2026 복지정책 기본계획");
     expect(sourcesHtml).not.toContain("기본계획.txt</span>");
     expect(sourcesHtml.indexOf("p.8")).toBeLessThan(sourcesHtml.indexOf("p.3"));
+    expect(sourcesHtml).not.toContain("<details");
+  });
+
+  it("출처가 2개를 넘으면 나머지를 더보기 영역에 넣는다", () => {
+    const pages = [1, 2, 3, 4];
+    const citations = pages.map((pageNumber) => ({
+      ...citation,
+      page_number: pageNumber,
+      title: `정책 근거 ${pageNumber}.pdf`,
+    }));
+    const answer = pages
+      .map(
+        (pageNumber) => `근거 ${pageNumber} [0d7d9db6-6352-48f3-b2e1-222cd34069c9#${pageNumber}]`,
+      )
+      .join(" ");
+    const html = renderToStaticMarkup(<RagCitationSources answer={answer} citations={citations} />);
+
+    expect(html.match(/class="civic-rag-source-item"/gu)).toHaveLength(4);
+    expect(html).toContain('<details class="civic-rag-source-more">');
+    expect(html).not.toContain('<details class="civic-rag-source-more" open="">');
+    expect(html).toContain("출처 2개 더보기");
+    expect(html).toContain("출처 접기");
   });
 
   it("stripCitationMarkers는 잔여 마커와 이중 공백을 정리한다", () => {

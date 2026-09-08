@@ -5104,7 +5104,7 @@ body {
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-list ol {
   display: grid;
-  gap: 7px;
+  gap: 10px;
   margin: 0;
   list-style: none;
   padding: 0;
@@ -5119,7 +5119,7 @@ body {
   width: 100%;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: center;
+  align-items: start;
   gap: 7px;
   border: 0;
   border-radius: 3px;
@@ -5141,25 +5141,70 @@ body {
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-copy {
   display: grid;
   min-width: 0;
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 8px;
+  gap: 1px;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-title {
+  display: -webkit-box;
   overflow: hidden;
   color: #526475;
   font-size: 13px;
   line-height: 1.5;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-page {
   color: #8793a0;
   font-size: 12px;
   line-height: 1.5;
-  white-space: nowrap;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more {
+  display: grid;
+  min-width: 0;
+  gap: 10px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > ol {
+  order: 1;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > summary {
+  width: fit-content;
+  order: 2;
+  border-radius: 3px;
+  color: #526475;
+  cursor: pointer;
+  font-size: 12.5px;
+  font-weight: 700;
+  line-height: 1.5;
+  list-style: none;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > summary::-webkit-details-marker {
+  display: none;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > summary:hover,
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > summary:focus-visible {
+  color: #1f2124;
+  text-decoration: underline;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more > summary:focus-visible {
+  outline: 2px solid #8db6f8;
+  outline-offset: 2px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-less-label,
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more[open] .civic-rag-source-more-label {
+  display: none;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-more[open] .civic-rag-source-less-label {
+  display: inline;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-item:hover .civic-rag-source-title,
