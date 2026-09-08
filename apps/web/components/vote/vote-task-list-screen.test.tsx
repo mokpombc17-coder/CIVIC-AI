@@ -60,6 +60,7 @@ describe("VoteTaskListScreen", () => {
 
     expect(html).toContain("로그인 후 과업 목록을 확인할 수 있습니다.");
     expect(html).toContain('href="/login?returnTo=%2Fvote"');
+    expect(html).toContain('data-navigation-mode="document"');
     expect(html).toContain(">로그인하기</a>");
     expect(html).not.toContain(">다시 시도</button>");
   });

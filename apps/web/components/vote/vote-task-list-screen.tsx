@@ -24,7 +24,7 @@ import { VoteTaskListLoadingCards } from "./vote-task-list-loading";
 
 type VoteTab = "active" | "completed";
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
-const VOTE_LOGIN_HREF = { pathname: "/login", query: { returnTo: "/vote" } } as const;
+const VOTE_LOGIN_HREF = "/login?returnTo=%2Fvote";
 
 export function VoteTaskListScreen() {
   const [tab, setTab] = useState<VoteTab>("active");
@@ -248,9 +248,13 @@ function VoteListFeedback({
     <div className={className} role="alert">
       <p>{message}</p>
       {isVoteAuthenticationRequired(error) ? (
-        <Link className={styles.listRetryButton!} href={VOTE_LOGIN_HREF}>
+        <a
+          className={styles.listRetryButton!}
+          data-navigation-mode="document"
+          href={VOTE_LOGIN_HREF}
+        >
           로그인하기
-        </Link>
+        </a>
       ) : (
         <button className={styles.listRetryButton} onClick={onRetry} type="button">
           다시 시도

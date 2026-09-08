@@ -10,7 +10,7 @@ describe("ChatLayout", () => {
   it("eligibility 확인 전에는 하위 화면과 realtime provider를 시작하지 않는다", () => {
     const markup = renderToStaticMarkup(<ChatLayout>protected chat content</ChatLayout>);
 
-    expect(markup).toContain('data-eligibility-loading="true"');
+    expect(markup.match(/data-chat-room-list-state="loading"/g)).toHaveLength(2);
     expect(markup).toContain('data-header-size="compact"');
     expect(markup).not.toContain("protected chat content");
     expect(markup).not.toContain("data-chat-realtime-provider");

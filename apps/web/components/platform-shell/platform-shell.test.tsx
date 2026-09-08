@@ -93,15 +93,21 @@ describe("PlatformHeader", () => {
 });
 
 describe("PlatformBottomNavigation", () => {
-  it("Next Link 목적지와 aria-current를 호출자가 결정하도록 유지한다", () => {
+  it("문서 이동과 client 이동 및 aria-current를 호출자가 결정하도록 유지한다", () => {
     const markup = renderToStaticMarkup(
       <PlatformBottomNavigation>
-        <PlatformBottomNavigationItem href="/" icon={<span>홈 아이콘</span>} label="홈" />
+        <PlatformBottomNavigationItem
+          href="/"
+          icon={<span>홈 아이콘</span>}
+          label="홈"
+          navigationMode="document"
+        />
         <PlatformBottomNavigationItem
           aria-current="page"
           href="/account"
           icon={<span>계정 아이콘</span>}
           label="계정"
+          navigationMode="client"
         />
       </PlatformBottomNavigation>,
     );
@@ -110,6 +116,8 @@ describe("PlatformBottomNavigation", () => {
     expect(markup).toContain('href="/"');
     expect(markup).toContain('href="/account"');
     expect(markup).toContain('aria-current="page"');
+    expect(markup.match(/data-navigation-mode="document"/g)).toHaveLength(1);
+    expect(markup.match(/data-navigation-mode="client"/g)).toHaveLength(1);
   });
 });
 
@@ -118,15 +126,17 @@ describe("PlatformNavigation", () => {
     const markup = renderToStaticMarkup(<PlatformNavigation currentPathname="/vote/results" />);
 
     const expectedItems = [
-      ['href="/home"', "홈"],
-      ['href="/rag"', "AI"],
-      ['href="/chat"', "토론방"],
-      ['href="/vote"', "투표"],
-      ['href="/mypage"', "계정"],
+      ["/home", "홈", "document"],
+      ["/rag", "AI", "document"],
+      ["/chat", "토론방", "client"],
+      ["/vote", "투표", "client"],
+      ["/mypage", "계정", "document"],
     ] as const;
 
-    expectedItems.forEach(([href, label], index) => {
-      expect(markup).toContain(href);
+    expectedItems.forEach(([href, label, navigationMode], index) => {
+      const anchor = markup.match(new RegExp(`<a[^>]*href="${href}"[^>]*>`))?.[0];
+
+      expect(anchor).toContain(`data-navigation-mode="${navigationMode}"`);
       expect(markup).toContain(`>${label}</span>`);
 
       const previousItem = expectedItems[index - 1];

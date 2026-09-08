@@ -10,26 +10,31 @@ const PLATFORM_NAVIGATION_ITEMS = [
     href: "/home",
     iconSrc: "/assets/platform-navigation/home.png",
     label: "홈",
+    navigationMode: "document",
   },
   {
     href: "/rag",
     iconSrc: "/assets/platform-navigation/ai.png",
     label: "AI",
+    navigationMode: "document",
   },
   {
     href: "/chat",
     iconSrc: "/assets/platform-navigation/chat.png",
     label: "토론방",
+    navigationMode: "client",
   },
   {
     href: "/vote",
     iconSrc: "/assets/platform-navigation/vote.png",
     label: "투표",
+    navigationMode: "client",
   },
   {
     href: "/mypage",
     iconSrc: "/assets/platform-navigation/account.png",
     label: "계정",
+    navigationMode: "document",
   },
 ] as const;
 
@@ -49,6 +54,7 @@ export function PlatformNavigation({ currentPathname }: PlatformNavigationProps)
           icon={<PlatformNavigationIcon src={item.iconSrc} />}
           key={item.href}
           label={item.label}
+          navigationMode={item.navigationMode}
         />
       ))}
     </PlatformBottomNavigation>

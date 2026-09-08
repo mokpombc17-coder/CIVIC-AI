@@ -14,6 +14,13 @@ import {
   ChatRoomListDetailDialog,
 } from "@/components/chat-room-list-detail-dialog";
 import {
+  ChatRoomListSkeleton,
+  PARTICIPATING_ROOM_LIST_CLASS_NAME,
+  PARTICIPATING_ROOM_SKELETON_KEYS,
+  PUBLIC_ROOM_LIST_CLASS_NAME,
+  PUBLIC_ROOM_SKELETON_KEYS,
+} from "@/components/chat-room-list-loading";
+import {
   CHAT_ROOM_PUBLISHING_COPY,
   getChatRoomMemberCountPresentation,
 } from "@/components/chat-room-publishing";
@@ -30,12 +37,6 @@ import {
 } from "@/lib/chat/chat-authentication-required";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
 
-const SCROLLABLE_ROOM_LIST_CLASS_NAME =
-  "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
-const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[252px]`;
-const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[384px]`;
-const PARTICIPATING_ROOM_SKELETON_KEYS = ["participating-first", "participating-second"] as const;
-const PUBLIC_ROOM_SKELETON_KEYS = ["public-first", "public-second", "public-third"] as const;
 const PUBLIC_ROOM_HIGHLIGHT_DURATION_MS = 1_600;
 const PUBLIC_ROOM_SCROLL_EDGE_TOLERANCE_PX = 2;
 
@@ -254,7 +255,7 @@ export function ChatRoomListView({
           />
 
           {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
-            <RoomListSkeleton
+            <ChatRoomListSkeleton
               ariaLabel="참여 중인 채팅방을 불러오는 중"
               keys={PARTICIPATING_ROOM_SKELETON_KEYS}
               listClassName={PARTICIPATING_ROOM_LIST_CLASS_NAME}
@@ -327,7 +328,7 @@ export function ChatRoomListView({
             />
 
             {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
-              <RoomListSkeleton
+              <ChatRoomListSkeleton
                 ariaLabel="참여 가능한 채팅방을 불러오는 중"
                 keys={PUBLIC_ROOM_SKELETON_KEYS}
                 listClassName={PUBLIC_ROOM_LIST_CLASS_NAME}
@@ -643,46 +644,6 @@ function RoomListNotice({
           {message}
         </p>
       )}
-    </div>
-  );
-}
-
-function RoomListSkeleton({
-  ariaLabel,
-  keys,
-  listClassName,
-  message,
-}: Readonly<{
-  ariaLabel: string;
-  keys: readonly string[];
-  listClassName: string;
-  message: string;
-}>) {
-  return (
-    <div
-      aria-label={ariaLabel}
-      aria-live="polite"
-      data-chat-room-list-state="loading"
-      role="status"
-    >
-      <span className="sr-only">{message}</span>
-      <ul aria-hidden="true" className={listClassName}>
-        {keys.map((key) => (
-          <li key={key}>
-            <article
-              className="grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4 motion-safe:animate-pulse"
-              data-chat-room-card-skeleton="true"
-            >
-              <span className="min-w-0">
-                <span className="block h-5 w-14 rounded-full bg-[var(--chat-publishing-color-neutral-soft)]" />
-                <span className="mt-2 block h-6 w-3/4 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
-                <span className="mt-2 block h-5 w-1/2 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
-              </span>
-              <span className="h-12 min-w-[108px] rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
-            </article>
-          </li>
-        ))}
-      </ul>
     </div>
   );
 }
