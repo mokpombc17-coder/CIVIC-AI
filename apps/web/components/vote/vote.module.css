@@ -689,7 +689,8 @@
 }
 
 .overviewContinueButton {
-  justify-self: end;
+  width: 100%;
+  justify-self: stretch;
 }
 
 .predictionNotice {
