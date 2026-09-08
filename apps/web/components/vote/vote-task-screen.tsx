@@ -36,7 +36,7 @@ import {
   isLongVoteOptionContent,
 } from "@/lib/vote/vote-option-presentation";
 import {
-  formatPredictionRuntimeStatus,
+  formatPredictionWaitingMessage,
   isPredictionNotReady,
 } from "@/lib/vote/vote-task-prediction-presentation";
 import {
@@ -98,7 +98,15 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const participationReady = canStartTaskResponse(predictionView);
   const predictionFailed = predictionView?.state === "FAILED";
   const predictionNotReady = isPredictionNotReady(predictionView);
-  const predictionInProgress = predictionView?.state === "REMOTE_PROCESSING";
+  const predictionWaiting = Boolean(predictionView?.waiting || predictionNotReady);
+  const predictionRequestPending = Boolean(
+    predictionView?.predictionRequestAllowed && !predictionView.predictionId,
+  );
+  const predictionPreparationLoading =
+    predictionQuery.isPending ||
+    ensureMutation.isPending ||
+    predictionWaiting ||
+    predictionRequestPending;
   const predictedReasons = getPredictedReasonsForOption(predictionView, selectedOptionId);
   const selectedPredictedReason = predictedReasons.find(
     (reason) =>
@@ -301,12 +309,12 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
             detail={taskDetail}
             onContinue={() => setStep(2)}
             onRetryPreparation={retryPredictionPreparation}
-            preparationLoading={predictionInProgress}
+            preparationLoading={predictionPreparationLoading}
             preparationMessage={preparationMessage}
             showParticipationAction={
               predictionQuery.isError ||
               ensureMutation.isError ||
-              (!predictionFailed && !predictionNotReady)
+              (!predictionFailed && !predictionPreparationLoading)
             }
           />
         ) : null}
@@ -511,21 +519,14 @@ function getPredictionPreparationMessage({
   if (predictionError || ensureError) {
     return "투표 참여 정보를 준비하지 못했습니다. 잠시 후 다시 접속해 주세요.";
   }
-  const runtimeStatusMessage = formatPredictionRuntimeStatus(view?.runtimeStatus ?? null);
-  if (runtimeStatusMessage) return runtimeStatusMessage;
+  const predictionWaitingMessage = formatPredictionWaitingMessage(view);
+  if (predictionWaitingMessage) return predictionWaitingMessage;
   if (view?.state === "FAILED") {
     return "AI 예상 답변을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   }
   if (canStartTaskResponse(view)) return null;
-  if (
-    !view ||
-    ensurePending ||
-    view.waiting ||
-    view.state === "PERSONA_NOT_READY" ||
-    !view.predictionId
-  ) {
-    return "과업 참여를 준비하는 중입니다.";
-  }
+  if (!view || ensurePending) return null;
+  if (view.predictionRequestAllowed && !view.predictionId) return null;
   return "현재 응답을 작성할 수 없습니다.";
 }
 
@@ -604,7 +605,7 @@ function TaskOverview({
           ))}
         </div>
       </section>
-      {preparationMessage ? (
+      {preparationMessage || preparationLoading ? (
         <p
           aria-busy={preparationLoading || undefined}
           aria-live="polite"
@@ -613,7 +614,7 @@ function TaskOverview({
           {preparationLoading ? (
             <span aria-hidden="true" className={styles.loadingSpinner} />
           ) : null}
-          <span>{preparationMessage}</span>
+          {preparationMessage ? <span>{preparationMessage}</span> : null}
         </p>
       ) : null}
       {showParticipationAction ? (

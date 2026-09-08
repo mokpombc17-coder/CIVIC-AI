@@ -11,6 +11,14 @@ export function formatPredictionRuntimeStatus(
     : `${runtimeStatus.detail} ${waitTime}`;
 }
 
+export function formatPredictionWaitingMessage(
+  view: Pick<TaskPredictionView, "runtimeStatus" | "waiting"> | undefined,
+): string | null {
+  const runtimeStatusMessage = formatPredictionRuntimeStatus(view?.runtimeStatus ?? null);
+  if (runtimeStatusMessage) return runtimeStatusMessage;
+  return view?.waiting ? "AI 예상 이유를 준비 중입니다." : null;
+}
+
 export function isPredictionNotReady(
   view: Pick<TaskPredictionView, "runtimeStatus"> | undefined,
 ): boolean {
