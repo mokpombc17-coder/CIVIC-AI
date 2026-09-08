@@ -5090,7 +5090,7 @@ body {
   gap: 7px;
   margin-top: 2px;
   border-top: 1px solid #d8dde3;
-  padding: 10px 2px 0;
+  padding: 10px 2px 12px;
   color: #526475;
 }
 
@@ -6657,7 +6657,7 @@ body {
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
   border-bottom: 1px solid #d9e2f2;
-  background: #f4f7ff;
+  background: #edf2f7;
   padding: 10px var(--civic-rag-inline-padding);
 }
 
@@ -6854,9 +6854,9 @@ body {
   max-width: none;
   min-height: 49px;
   box-sizing: border-box;
-  border: 1px solid #ccd1d6;
+  border: 1px solid #e1e7ee;
   border-radius: 12px 12px 12px 4px;
-  background: #edf2f7;
+  background: #f7f9fc;
   color: #1f2124;
   padding: 12px;
   font-size: 15px;
