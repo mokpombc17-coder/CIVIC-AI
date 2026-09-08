@@ -170,15 +170,33 @@ export function VoteTaskListScreen() {
               ))}
             </ul>
             {tasks.length === 0 ? (
-              <p className={styles.emptyState}>
-                {source.length === 0
-                  ? tab === "active"
-                    ? "진행 중인 투표가 없습니다."
-                    : voteCompletedApiAvailable
-                      ? "완료된 투표가 없습니다."
+              source.length === 0 && tab === "completed" && voteCompletedApiAvailable ? (
+                <div className={styles.completedEmptyState}>
+                  <span aria-hidden="true" className={styles.completedEmptyStateVisual}>
+                    <svg className={styles.completedEmptyStateIcon} fill="none" viewBox="0 0 20 20">
+                      <path
+                        d="M4.5 15.5v-5m5.5 5v-11m5.5 11v-8"
+                        stroke="currentColor"
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth="1.8"
+                      />
+                    </svg>
+                  </span>
+                  <p className={styles.completedEmptyStateCopy}>
+                    <span>아직 확인할 수 있는 투표 결과가 없어요.</span>
+                    <span>참여한 투표의 결과만 확인할 수 있어요.</span>
+                  </p>
+                </div>
+              ) : (
+                <p className={styles.emptyState}>
+                  {source.length === 0
+                    ? tab === "active"
+                      ? "진행 중인 투표가 없습니다."
                       : "완료한 투표 목록은 아직 준비 중입니다."
-                  : "검색 결과가 없습니다."}
-              </p>
+                    : "검색 결과가 없습니다."}
+                </p>
+              )
             ) : null}
             {tab === "completed" && !voteCompletedApiAvailable && completedTasks.length > 0 ? (
               <p className={styles.listInlineStatus}>

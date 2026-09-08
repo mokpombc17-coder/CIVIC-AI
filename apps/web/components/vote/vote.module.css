@@ -280,6 +280,41 @@
   text-align: center;
 }
 
+.completedEmptyState {
+  display: grid;
+  justify-items: center;
+  gap: 10px;
+  margin: 48px 0;
+  text-align: center;
+}
+
+.completedEmptyStateVisual {
+  display: inline-flex;
+  width: 40px;
+  height: 40px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: var(--vote-primary);
+  color: #fff;
+  box-shadow: 0 1px 2px rgb(18 20 23 / 12%);
+}
+
+.completedEmptyStateIcon {
+  width: 20px;
+  height: 20px;
+}
+
+.completedEmptyStateCopy {
+  display: grid;
+  gap: 2px;
+  margin: 0;
+  color: var(--vote-muted);
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 20px;
+}
+
 .listFeedback {
   display: grid;
   justify-items: center;
