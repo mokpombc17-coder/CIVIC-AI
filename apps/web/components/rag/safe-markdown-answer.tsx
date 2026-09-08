@@ -1,7 +1,7 @@
 import { memo } from "react";
 import Markdown, { defaultUrlTransform } from "react-markdown";
 import remarkGfm from "remark-gfm";
-import type { Citation } from "./participant-rag-screen";
+import type { Citation } from "./rag-conversation-session";
 
 const CITATION_MARKER_PATTERN =
   /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#([1-9][0-9]*)\]/giu;
@@ -9,13 +9,23 @@ const CITATION_REFERENCE_PATTERN =
   /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#([1-9][0-9]*)/giu;
 const CITATION_REFERENCE_GROUP_PATTERN =
   /\[[^\]\r\n]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[1-9][0-9]*[^\]\r\n]*\]/giu;
+const CITATION_REFERENCE_SEQUENCE_PATTERN = new RegExp(
+  `${CITATION_REFERENCE_GROUP_PATTERN.source}(?:(?:[\\t ]*,[\\t ]*|[\\t ]+)${CITATION_REFERENCE_GROUP_PATTERN.source})*`,
+  "giu",
+);
 const CITATION_SEQUENCE_WITH_TRAILING_PERIOD_PATTERN = new RegExp(
-  `([\\t ]+)(${CITATION_REFERENCE_GROUP_PATTERN.source}(?:(?:[\\t ]*,[\\t ]*|[\\t ]+)${CITATION_REFERENCE_GROUP_PATTERN.source})*)\\.`,
+  `([\\t ]+)(${CITATION_REFERENCE_SEQUENCE_PATTERN.source})\\.`,
   "giu",
 );
 const LEGACY_CITATION_MARKER_PATTERN =
   /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/giu;
+const CITATION_TOKEN_PATTERN = new RegExp(
+  `${CITATION_REFERENCE_GROUP_PATTERN.source}|${LEGACY_CITATION_MARKER_PATTERN.source}`,
+  "giu",
+);
 const CIVIC_CITATION_URL_PREFIX = "civic-citation:";
+const DISPLAY_FILE_EXTENSION_PATTERN =
+  /\.(?:bmp|csv|doc|docx|gif|hwp|hwpx|jpe?g|md|ods|pdf|png|ppt|pptx|tiff?|txt|webp|xls|xlsx)$/iu;
 
 /** 답변 본문에 섞여 오는 내부 인용 마커([UUID#page])를 제거한다. */
 export function stripCitationMarkers(answer: string): string {
@@ -58,6 +68,61 @@ export function citationChipLabel(citation: Citation): string {
   return `${citation.title ?? "문서"} p.${citation.page_number}`;
 }
 
+/** 출처 목록에서는 원본 파일 확장자를 숨기되 원본 인용 정보는 변경하지 않는다. */
+export function citationDisplayTitle(citation: Citation): string {
+  const title = citation.title?.trim() || "문서";
+  return title.replace(DISPLAY_FILE_EXTENSION_PATTERN, "").trim() || "문서";
+}
+
+type NumberedCitation = Readonly<{
+  citation: Citation;
+  number: number;
+}>;
+
+function citationKey(citation: Citation): string {
+  return `${citation.document_version_id.toLowerCase()}#${citation.page_number}`;
+}
+
+/** 답변에 처음 등장한 순서대로 출처 번호를 부여하고 같은 문서·페이지는 같은 번호를 쓴다. */
+function numberedCitationsForAnswer(
+  answer: string,
+  citations: readonly Citation[],
+): readonly NumberedCitation[] {
+  const numbered: NumberedCitation[] = [];
+  const seen = new Set<string>();
+
+  const addCitation = (citation: Citation) => {
+    const key = citationKey(citation);
+    if (seen.has(key)) return;
+    seen.add(key);
+    numbered.push({ citation, number: numbered.length + 1 });
+  };
+
+  for (const tokenMatch of answer.matchAll(CITATION_TOKEN_PATTERN)) {
+    const token = tokenMatch[0];
+    const references = Array.from(token.matchAll(CITATION_REFERENCE_PATTERN));
+    if (references.length > 0) {
+      for (const reference of references) {
+        const marker = `[${reference[1]}#${reference[2]}]`;
+        const citation = citationForMarker(citations, marker);
+        if (citation) addCitation(citation);
+      }
+      continue;
+    }
+
+    const legacyMatch = new RegExp(`^${LEGACY_CITATION_MARKER_PATTERN.source}$`, "iu").exec(token);
+    const versionId = legacyMatch?.[1];
+    if (!versionId) continue;
+    const matches = citations.filter(
+      (citation) => citation.document_version_id.toLowerCase() === versionId.toLowerCase(),
+    );
+    const citation = matches.length === 1 ? matches[0] : undefined;
+    if (citation) addCitation(citation);
+  }
+
+  return numbered;
+}
+
 type SafeMarkdownAnswerProps = Readonly<{
   answer: string;
   citations?: readonly Citation[];
@@ -69,9 +134,13 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   citations = [],
   onOpenCitation,
 }: SafeMarkdownAnswerProps) {
+  const numberedCitations = numberedCitationsForAnswer(answer, citations);
+  const citationNumbers = new Map(
+    numberedCitations.map(({ citation, number }) => [citationKey(citation), number] as const),
+  );
   const markdown = normalizeKoreanStrongEmphasis(normalizeCitationPunctuation(answer))
-    .replace(CITATION_REFERENCE_GROUP_PATTERN, (group) =>
-      citationMarkdownLinksForGroup(citations, group),
+    .replace(CITATION_REFERENCE_SEQUENCE_PATTERN, (sequence) =>
+      citationMarkdownLinksForGroup(citations, sequence, citationNumbers),
     )
     .replace(LEGACY_CITATION_MARKER_PATTERN, (marker, versionId: string) => {
       const matches = citations.filter(
@@ -81,6 +150,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
         ? citationMarkdownLink(
             citations,
             `[${matches[0]?.document_version_id}#${matches[0]?.page_number}]`,
+            citationNumbers,
           )
         : "";
     });
@@ -96,17 +166,17 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
               const citation = citationForMarker(citations, marker);
               if (!citation) return null;
               const label = citationChipLabel(citation);
+              const referenceNumber = citationNumbers.get(citationKey(citation));
+              if (!referenceNumber) return null;
               return (
                 <button
-                  aria-label={`출처 ${label} 열기`}
-                  className="civic-citation-chip"
+                  aria-label={`출처 ${referenceNumber}, ${label} 열기`}
+                  className="civic-citation-reference"
                   onClick={onOpenCitation ? () => onOpenCitation(citation) : undefined}
                   title={label}
                   type="button"
                 >
-                  <CitationDocumentIcon />
-                  <span className="civic-citation-chip-title">{citation.title ?? "문서"}</span>
-                  <span>p.{citation.page_number}</span>
+                  [{referenceNumber}]
                 </button>
               );
             }
@@ -137,29 +207,73 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   );
 });
 
-function citationMarkdownLink(citations: readonly Citation[], marker: string): string {
-  if (!citationForMarker(citations, marker)) return "";
+type RagCitationSourcesProps = Readonly<{
+  answer: string;
+  citations: readonly Citation[];
+  onOpenCitation?: (citation: Citation) => void;
+}>;
+
+export const RagCitationSources = memo(function RagCitationSources({
+  answer,
+  citations,
+  onOpenCitation,
+}: RagCitationSourcesProps) {
+  const numberedCitations = numberedCitationsForAnswer(answer, citations);
+  if (numberedCitations.length === 0) return null;
+
+  return (
+    <section aria-label="답변 출처" className="civic-rag-source-list">
+      <h4>출처</h4>
+      <ol>
+        {numberedCitations.map(({ citation, number }) => {
+          const displayTitle = citationDisplayTitle(citation);
+          return (
+            <li key={citationKey(citation)}>
+              <button
+                aria-label={`출처 ${number}, ${displayTitle} p.${citation.page_number} 열기`}
+                className="civic-rag-source-item"
+                onClick={onOpenCitation ? () => onOpenCitation(citation) : undefined}
+                title={citationChipLabel(citation)}
+                type="button"
+              >
+                <span aria-hidden="true" className="civic-rag-source-number">
+                  [{number}]
+                </span>
+                <span className="civic-rag-source-copy">
+                  <span className="civic-rag-source-title">{displayTitle}</span>
+                  <span className="civic-rag-source-page">p.{citation.page_number}</span>
+                </span>
+              </button>
+            </li>
+          );
+        })}
+      </ol>
+    </section>
+  );
+});
+
+function citationMarkdownLink(
+  citations: readonly Citation[],
+  marker: string,
+  citationNumbers: ReadonlyMap<string, number>,
+): string {
+  const citation = citationForMarker(citations, marker);
+  if (!citation || !citationNumbers.has(citationKey(citation))) return "";
   return `[citation](${CIVIC_CITATION_URL_PREFIX}${encodeURIComponent(marker)})`;
 }
 
-function citationMarkdownLinksForGroup(citations: readonly Citation[], group: string): string {
-  const links = Array.from(group.matchAll(CITATION_REFERENCE_PATTERN), (match) =>
-    citationMarkdownLink(citations, `[${match[1]}#${match[2]}]`),
-  ).filter((link, index, all) => link.length > 0 && all.indexOf(link) === index);
-  return links.join(" ");
-}
-
-function CitationDocumentIcon() {
-  return (
-    <svg aria-hidden="true" className="civic-citation-chip-icon" fill="none" viewBox="0 0 16 16">
-      <path
-        d="M4 1.75h5.1L12.75 5.4v8.85H4z"
-        stroke="currentColor"
-        strokeLinejoin="round"
-        strokeWidth="1.3"
-      />
-      <path d="M9 1.75V5.5h3.75" stroke="currentColor" strokeLinejoin="round" strokeWidth="1.3" />
-      <path d="M6 8.4h4.75M6 10.9h4.75" stroke="currentColor" strokeWidth="1.3" />
-    </svg>
-  );
+function citationMarkdownLinksForGroup(
+  citations: readonly Citation[],
+  group: string,
+  citationNumbers: ReadonlyMap<string, number>,
+): string {
+  const seen = new Set<string>();
+  const links = Array.from(group.matchAll(CITATION_REFERENCE_PATTERN), (match) => {
+    const marker = `[${match[1]}#${match[2]}]`;
+    const citation = citationForMarker(citations, marker);
+    if (!citation || seen.has(citationKey(citation))) return "";
+    seen.add(citationKey(citation));
+    return citationMarkdownLink(citations, marker, citationNumbers);
+  }).filter((link) => link.length > 0);
+  return links.join("");
 }

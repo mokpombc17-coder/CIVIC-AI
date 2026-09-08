@@ -9,7 +9,7 @@ import { ragScreenPrimaryActions } from "./rag-screen-actions";
 import { ReadOnlyPdfViewer } from "./read-only-pdf-viewer";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { SafeMarkdownAnswer } from "./safe-markdown-answer";
+import { RagCitationSources, SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
@@ -726,6 +726,13 @@ export function RagMessage({
             />
           ) : null}
         </div>
+        {!liveJob && message.job?.answer ? (
+          <RagCitationSources
+            answer={message.job.answer}
+            citations={citations}
+            onOpenCitation={onOpenCitation}
+          />
+        ) : null}
         {message.job?.suggestions?.length ? (
           <RagSuggestionChips onSelect={onUseSuggestion} suggestions={message.job.suggestions} />
         ) : null}

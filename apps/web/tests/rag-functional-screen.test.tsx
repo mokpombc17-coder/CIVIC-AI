@@ -292,6 +292,42 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain('aria-label="답변 평가"');
   });
 
+  it("완료된 AI 답변의 출처 목록을 답변 말풍선 다음에 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "completed-job-with-citation",
+          question: "정책 근거를 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "completed-job-with-citation",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다 [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3].",
+            citations: [
+              {
+                document_version_id: "0d7d9db6-6352-48f3-b2e1-222cd34069c9",
+                page_number: 3,
+                source_object_sha256: "a".repeat(64),
+                title: "2026 복지정책 기본계획.txt",
+              },
+            ],
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(html).toContain('class="civic-citation-reference"');
+    expect(html).toContain('class="civic-rag-source-list"');
+    expect(html).toContain("2026 복지정책 기본계획");
+    expect(html).not.toContain("기본계획.txt</span>");
+    expect(html.indexOf('class="civic-rag-source-list"')).toBeGreaterThan(
+      html.indexOf('class="civic-rag-answer"'),
+    );
+  });
+
   it("스트리밍 답변은 최종 답변 버블 스타일을 선택한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagMessage, {

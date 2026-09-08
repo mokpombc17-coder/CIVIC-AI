@@ -5054,35 +5054,117 @@ body {
   line-height: 17px;
 }
 
-/* 본문 인용 칩 — iKMS 인용 칩 형태 (연파랑 필 + 문서명 축약 + p.N) */
-.civic-citation-chip {
-  display: inline-flex;
-  max-width: 100%;
-  align-items: center;
-  gap: 4px;
-  margin: 0 2px;
-  border: 1px solid #83c9ff;
-  border-radius: 999px;
-  background: var(--wf-blue-soft);
+/* 본문 인용 번호와 답변 아래의 배경 없는 출처 정보 영역 */
+[data-wireflow-screen^="U-RAG"] .civic-citation-reference {
+  display: inline;
+  margin: 0 1px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
   color: var(--wf-blue-dark);
-  padding: 1px 10px;
+  padding: 0 1px;
   font: inherit;
-  font-size: 12.5px;
-  font-weight: 700;
-  line-height: 1.6;
+  font-size: 0.86em;
+  font-weight: 800;
+  line-height: 1;
   cursor: pointer;
-  vertical-align: middle;
+  vertical-align: baseline;
 }
 
-.civic-citation-chip:hover {
-  background: #dbe9ff;
+[data-wireflow-screen^="U-RAG"] .civic-citation-reference:hover,
+[data-wireflow-screen^="U-RAG"] .civic-citation-reference:focus-visible {
+  background: var(--wf-blue-soft);
+  text-decoration: underline;
 }
 
-.civic-citation-chip-title {
+[data-wireflow-screen^="U-RAG"] .civic-citation-reference:focus-visible,
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-item:focus-visible {
+  outline: 2px solid #8db6f8;
+  outline-offset: 2px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-list {
+  display: grid;
+  width: 100%;
+  box-sizing: border-box;
+  gap: 7px;
+  margin-top: 2px;
+  border-top: 1px solid #d8dde3;
+  padding: 10px 2px 0;
+  color: #526475;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-list h4 {
+  margin: 0;
+  color: #526475;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-list ol {
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  list-style: none;
+  padding: 0;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-list li {
+  min-width: 0;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-item {
+  display: grid;
+  width: 100%;
+  min-width: 0;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 7px;
+  border: 0;
+  border-radius: 3px;
+  background: transparent;
+  color: inherit;
+  padding: 0;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-number {
+  color: var(--wf-blue-dark);
+  font-size: 12.5px;
+  font-weight: 800;
+  line-height: 1.5;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-copy {
+  display: grid;
+  min-width: 0;
+  gap: 1px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-title {
+  display: -webkit-box;
   overflow: hidden;
-  max-width: 9em;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  color: #526475;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-page {
+  color: #8793a0;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-item:hover .civic-rag-source-title,
+[data-wireflow-screen^="U-RAG"] .civic-rag-source-item:focus-visible .civic-rag-source-title {
+  color: #1f2124;
+  text-decoration: underline;
 }
 
 /* ── 스켈레톤 UI (로그인·이동 직후 로딩) ─────────────────────── */
@@ -5407,12 +5489,6 @@ body {
   }
 }
 
-.civic-citation-chip-icon {
-  width: 13px;
-  height: 13px;
-  flex: none;
-}
-
 /* AI 대화: 빈 대화에서도 입력창을 화면 하단에 고정 (Figma 배치) */
 .civic-platform-participant-body:has([data-wireflow-screen^="U-RAG"]) {
   display: flex;
@@ -5563,10 +5639,15 @@ body {
   background: var(--wf-blue-soft);
 }
 
-/* Participant RAG: answer preparation steps become the answer bubble after streaming starts. */
+/* Participant RAG: 답변 준비 단계는 말풍선이 아닌 시스템 상태 행으로 표시한다. */
 [data-wireflow-screen^="U-RAG"] .civic-rag-answer.is-live.is-progress-only {
   width: fit-content;
   max-width: 100%;
+  min-height: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 2px 0;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-live-progress {
