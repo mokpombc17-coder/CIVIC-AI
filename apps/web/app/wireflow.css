@@ -6897,13 +6897,13 @@ body {
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer {
   width: 100%;
   max-width: none;
-  min-height: 0;
+  min-height: 49px;
   box-sizing: border-box;
-  border: 0;
-  border-radius: 0;
+  border: 1px solid transparent;
+  border-radius: 12px 12px 12px 4px;
   background: transparent;
   color: #1f2124;
-  padding: 0;
+  padding: 12px;
   font-size: 15px;
   font-weight: 400;
   line-height: 23.25px;
