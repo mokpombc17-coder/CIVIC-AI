@@ -18,5 +18,12 @@ describe("ChatRoomListLoading", () => {
     expect(markup.match(/data-chat-room-card-skeleton="true"/g)).toHaveLength(5);
     expect(markup).toContain("참여 중인 방을 불러오고 있습니다.");
     expect(markup).toContain("공개 방을 불러오고 있습니다.");
+    expect(markup).toContain("전체");
+    expect(markup).toContain("안읽음");
+    expect(markup).toContain("토론방 생성 요청");
+    expect(markup).toContain("토론방 이름 검색");
+    expect(markup).toContain('placeholder="주제를 검색해 보세요"');
+    expect(markup.match(/disabled=""/g)).toHaveLength(5);
+    expect(markup.match(/animate-pulse/g)).toHaveLength(5);
   });
 });

@@ -1,4 +1,6 @@
+import Image from "next/image";
 import type { ReactNode } from "react";
+import { CHAT_ROOM_PUBLISHING_COPY } from "@/components/chat-room-publishing";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 
@@ -23,10 +25,7 @@ export function ChatRoomListLoading() {
       headerSize="compact"
     >
       <div className="grid gap-5 px-4 pb-4 pt-5">
-        <div aria-hidden="true" className="flex items-center justify-between gap-3">
-          <span className="h-12 w-28 animate-pulse rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
-          <span className="h-12 w-28 animate-pulse rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
-        </div>
+        <ChatRoomListLoadingInboxControls />
 
         <ChatRoomLoadingSection title="참여한 방">
           <ChatRoomListSkeleton
@@ -38,10 +37,7 @@ export function ChatRoomListLoading() {
         </ChatRoomLoadingSection>
 
         <section className="grid gap-5 border-t border-[#8a949e] pt-5">
-          <div aria-hidden="true" className="grid gap-2">
-            <span className="h-5 w-28 animate-pulse rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
-            <span className="h-12 w-full animate-pulse rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
-          </div>
+          <ChatRoomListLoadingSearch />
 
           <ChatRoomLoadingSection title="참여 가능한 방">
             <ChatRoomListSkeleton
@@ -54,6 +50,82 @@ export function ChatRoomListLoading() {
         </section>
       </div>
     </PlatformShell>
+  );
+}
+
+function ChatRoomListLoadingInboxControls() {
+  return (
+    <div
+      aria-label="참여한 방 필터와 토론방 생성 요청"
+      className="flex items-center justify-between gap-3"
+      data-chat-room-list-loading-controls="true"
+    >
+      <div aria-label="참여한 방 필터" className="flex items-center gap-1.5" role="group">
+        <button
+          aria-pressed="true"
+          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled
+          type="button"
+        >
+          전체
+        </button>
+        <button
+          aria-pressed="false"
+          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[#8a949e] bg-white px-3 text-sm font-medium text-[#1f2124] disabled:cursor-not-allowed disabled:opacity-60"
+          disabled
+          type="button"
+        >
+          안읽음
+        </button>
+      </div>
+      <button
+        className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-60"
+        disabled
+        type="button"
+      >
+        {CHAT_ROOM_PUBLISHING_COPY.createRoom}
+      </button>
+    </div>
+  );
+}
+
+function ChatRoomListLoadingSearch() {
+  return (
+    <form
+      aria-label="공개 채팅방 검색"
+      className="grid gap-3"
+      data-chat-room-list-loading-search="true"
+      role="search"
+    >
+      <label className="grid min-w-0 gap-1.5 text-sm text-[var(--chat-publishing-color-text)]">
+        <span className="font-bold">토론방 이름 검색</span>
+        <span className="flex h-12 min-w-0 items-center overflow-hidden rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-muted)] bg-white">
+          <Image
+            alt=""
+            aria-hidden="true"
+            className="ml-3 size-6 shrink-0"
+            height={24}
+            src="/assets/chat/search.png"
+            width={24}
+          />
+          <input
+            autoComplete="off"
+            className="h-full min-w-0 flex-1 border-0 bg-transparent px-2 text-[15px] text-[var(--chat-publishing-color-text)] outline-none placeholder:text-[#757575] disabled:cursor-not-allowed"
+            disabled
+            inputMode="search"
+            placeholder="주제를 검색해 보세요"
+            type="search"
+          />
+          <button
+            className="h-[46px] shrink-0 bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-60"
+            disabled
+            type="submit"
+          >
+            검색
+          </button>
+        </span>
+      </label>
+    </form>
   );
 }
 
