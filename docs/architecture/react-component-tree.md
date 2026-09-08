@@ -152,8 +152,10 @@ motion, overflow 방향 표시와 선택지 행 표현을 일관되게 유지한
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
 그 안에서 `ChatAuthenticationBoundary`가 Chat API의 401 상태를 route segment 범위로 구독한다.
 `ServiceEligibilityGuard`가 자격을 확인하는 동안에는 `ChatRoomListLoading`을 채팅 목록과 같은
-shell fallback으로 유지한다. `/chat/loading.tsx`도 같은 fallback을 사용하므로 route 진입, 자격 확인,
-목록 Query 대기가 빈 콘텐츠 없이 하나의 로딩 표면으로 이어진다.
+shell fallback으로 유지한다. `/chat/loading.tsx`도 같은 fallback을 사용하므로 목록 route 진입, 자격 확인,
+목록 Query 대기가 빈 콘텐츠 없이 하나의 로딩 표면으로 이어진다. `/chat/[roomId]/loading.tsx`는
+상세 route 전환에 `ChatRoomScreenLoading`을 사용하고, `ChatRoomView`의 최초 진입 대기도 같은
+버블 없는 loading content를 재사용한다.
 인증이 유효하면 Boundary는 `ChatRealtimeProvider`, `ChatRoomReadStateProvider`와 nested page를
 조립하고, 401이면 이 하위 트리를 unmount한 뒤 현재 URL을 `returnTo`로 보존한 단일 로그인 필요
 화면으로 교체한다. Read-state Provider는
@@ -206,6 +208,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │       │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
                         │   │       │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
                         │   │       └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
+                        │   │           ├── [route segment loading] ChatRoomLoading [Server] [Route] (apps/web/app/chat/[roomId]/loading.tsx)
+                        │   │           │   └── ChatRoomScreenLoading [Server-compatible] [View]
                         │   │           └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
                         │   │               ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
                         │   │               │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
@@ -417,8 +421,10 @@ canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 
 `VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공하고,
 `ServiceEligibilityGuard`의 자격 확인 중에는 `VoteTaskListLoading`을 동일한 화면 fallback으로 유지한다.
-`/vote/loading.tsx`도 같은 fallback을 사용하므로 route 전환, 자격 확인, 목록 조회가 하나의 로딩 표면으로
-이어진다. Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
+`/vote/loading.tsx`도 같은 fallback을 사용하므로 목록 route 전환, 자격 확인, 목록 조회가 하나의 로딩 표면으로
+이어진다. `/vote/[taskId]/loading.tsx`는 상세 route 전환에 `VoteTaskScreenLoading`을 사용하고,
+`VoteTaskScreen`의 최초 상세 Query 대기도 같은 1/4 구조와 4개 선택지 placeholder를 재사용한다.
+Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
 `VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드
 view model로 변환한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를
@@ -451,6 +457,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
                         │       └── PlatformShell [Client graph] [View]
                         ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
+                        │   ├── [route segment loading] VoteTaskLoading [Server] [Route] (apps/web/app/vote/[taskId]/loading.tsx)
+                        │   │   └── VoteTaskScreenLoading [Server-compatible] [View]
                         │   └── VoteTaskScreen [Client] [Container] (apps/web/components/vote/vote-task-screen.tsx)
                         │       └── PlatformShell [Client graph] [View] [conditional bottom sheet]
                         └── route /vote/[taskId]/result: VoteTaskResultPage [Server] [Route] (apps/web/app/vote/[taskId]/result/page.tsx)

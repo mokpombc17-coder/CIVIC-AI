@@ -24,6 +24,7 @@ describe("ChatRoomListLoading", () => {
     expect(markup).toContain("토론방 이름 검색");
     expect(markup).toContain('placeholder="주제를 검색해 보세요"');
     expect(markup.match(/disabled=""/g)).toHaveLength(5);
+    expect(markup.match(/disabled:opacity-60/g)).toHaveLength(1);
     expect(markup.match(/animate-pulse/g)).toHaveLength(5);
   });
 });

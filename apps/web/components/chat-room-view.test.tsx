@@ -60,9 +60,10 @@ describe("ChatRoomView platform shell integration", () => {
     const markup = renderChatRoomView(null, null, true);
 
     expect(markup).toContain('data-chat-room-entry-state="initializing"');
+    expect(markup).toContain('data-chat-room-screen-loading="true"');
     expect(markup).toContain('aria-busy="true"');
     expect(markup).toContain("채팅방을 준비하고 있어요.");
-    expect(markup).toContain("opacity-0");
+    expect(markup).toContain('data-chat-room-composer-skeleton="true"');
     expect(markup).not.toContain('data-message-viewport="true"');
     expect(markup).not.toContain("세션 안내");
     expect(markup).not.toContain("메시지 입력");

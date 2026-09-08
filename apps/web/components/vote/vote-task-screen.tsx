@@ -46,6 +46,7 @@ import {
   type UserTaskDetail,
   type MyTaskSubmission,
 } from "@/lib/vote/vote-task-contracts";
+import { VoteTaskScreenLoading } from "./vote-task-screen-loading";
 import styles from "./vote.module.css";
 
 type VoteStep = 1 | 2 | 3 | 4;
@@ -248,6 +249,10 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
     ensureMutation.mutate();
   }
 
+  if (taskQuery.isPending) {
+    return <VoteTaskScreenLoading />;
+  }
+
   return (
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
@@ -265,7 +270,6 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       overlay={cancelOpen ? <CancelSheet onClose={() => setCancelOpen(false)} /> : null}
     >
       <div className={`${styles.surface} ${styles.flowSurface}`} data-task-id={taskId}>
-        {taskQuery.isPending ? <TaskFeedback message="과업을 불러오는 중입니다." /> : null}
         {taskQuery.isError ? (
           <TaskFeedback
             message={getTaskDetailErrorMessage(taskQuery.error)}

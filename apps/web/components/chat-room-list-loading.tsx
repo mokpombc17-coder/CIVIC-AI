@@ -63,7 +63,7 @@ function ChatRoomListLoadingInboxControls() {
       <div aria-label="참여한 방 필터" className="flex items-center gap-1.5" role="group">
         <button
           aria-pressed="true"
-          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-3 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed"
           disabled
           type="button"
         >
@@ -71,7 +71,7 @@ function ChatRoomListLoadingInboxControls() {
         </button>
         <button
           aria-pressed="false"
-          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[#8a949e] bg-white px-3 text-sm font-medium text-[#1f2124] disabled:cursor-not-allowed disabled:opacity-60"
+          className="inline-flex h-11 items-center justify-center rounded-[var(--chat-publishing-radius-pill)] border border-[#8a949e] bg-white px-3 text-sm font-medium text-[#1f2124] disabled:cursor-not-allowed"
           disabled
           type="button"
         >
@@ -79,7 +79,7 @@ function ChatRoomListLoadingInboxControls() {
         </button>
       </div>
       <button
-        className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed disabled:opacity-60"
+        className="inline-flex h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)] px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] disabled:cursor-not-allowed"
         disabled
         type="button"
       >

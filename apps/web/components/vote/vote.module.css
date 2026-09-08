@@ -622,6 +622,41 @@
   font-weight: 600;
 }
 
+.taskDetailSkeletonInfoLabel {
+  width: 34px;
+  height: 14px;
+}
+
+.taskDetailSkeletonInfoCopy {
+  width: 58%;
+  height: 18px;
+  margin-top: 5px;
+}
+
+.taskDetailSkeletonInfoCopy[data-size="long"] {
+  width: 82%;
+}
+
+.overviewOption .taskDetailSkeletonOptionCopy {
+  display: block;
+  width: 54%;
+  height: 20px;
+  border-radius: 4px;
+  background: #e9edf1;
+  padding: 0;
+}
+
+.overviewOption .taskDetailSkeletonOptionCopy[data-size="long"] {
+  width: 78%;
+}
+
+.taskDetailSkeletonAction {
+  width: 88px;
+  height: 48px;
+  justify-self: end;
+  border-radius: 6px;
+}
+
 .compactPrimaryButton,
 .fullPrimaryButton,
 .fullSecondaryButton {
