@@ -9,6 +9,7 @@ import {
   PlatformNavigation,
   PlatformShell,
 } from "./index";
+import { resolvePlatformNavigationTarget } from "./platform-navigation";
 
 describe("PlatformShell", () => {
   it("기본적으로 공통 콘텐츠 영역이 스크롤을 소유한다", () => {
@@ -116,6 +117,19 @@ describe("PlatformBottomNavigation", () => {
     expect(markup).toContain('href="/account"');
     expect(markup).toContain('aria-current="page"');
   });
+
+  it("client navigation은 Next Link를, document navigation은 anchor를 사용한다", () => {
+    const clientItem = PlatformBottomNavigationItem({ href: "/home", icon: null, label: "홈" });
+    const documentItem = PlatformBottomNavigationItem({
+      href: "/chat",
+      icon: null,
+      label: "토론방",
+      navigationMode: "document",
+    });
+
+    expect(clientItem.type).toBe(Link);
+    expect(documentItem.type).toBe("a");
+  });
 });
 
 describe("PlatformNavigation", () => {
@@ -159,10 +173,24 @@ describe("PlatformNavigation", () => {
       <PlatformNavigation currentPathname="/home" requiresLoginForProtectedLinks />,
     );
 
-    for (const route of ["rag", "chat", "vote", "mypage"]) {
-      expect(markup).toContain(`href="/login?returnTo=%2F${route}"`);
+    for (const route of ["/rag", "/chat", "/vote", "/mypage"] as const) {
+      expect(resolvePlatformNavigationTarget(route, true)).toEqual({
+        href: `/login?returnTo=${encodeURIComponent(route)}`,
+        navigationMode: "client",
+      });
+      expect(markup).toContain(`href="/login?returnTo=%2F${route.slice(1)}"`);
     }
     expect(markup).not.toContain("/login%3FreturnTo=");
+  });
+
+  it("로그인 상태에서는 frontend2 메뉴만 client navigation을 사용한다", () => {
+    for (const route of ["/home", "/rag", "/mypage"] as const) {
+      expect(resolvePlatformNavigationTarget(route, false).navigationMode).toBe("client");
+    }
+
+    for (const route of ["/chat", "/vote"] as const) {
+      expect(resolvePlatformNavigationTarget(route, false).navigationMode).toBe("document");
+    }
   });
 });
 

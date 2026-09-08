@@ -855,17 +855,20 @@ test("RAG와 계정 루트 헤더의 뒤로 가기는 홈으로 이동한다", a
   }
 });
 
-test("참여자 하단 메뉴는 전체 문서 새로고침 없이 이동한다", async ({ context, page }) => {
+test("참여자 하단 메뉴는 소유 앱에 따라 client/document navigation을 나눈다", async ({
+  context,
+  page,
+}) => {
   await authenticate(context, "participant.payload.signature");
-  await page.goto("/chat");
+  await page.goto("/home");
   await page.evaluate(() => {
     (window as typeof window & { __platformNavigationMarker?: string }).__platformNavigationMarker =
       "preserved";
   });
 
-  await page.getByRole("link", { name: "투표", exact: true }).click();
+  await page.getByRole("link", { name: "AI", exact: true }).click();
 
-  await expect(page).toHaveURL(/\/vote$/u);
+  await expect(page).toHaveURL(/\/rag$/u);
   expect(
     await page.evaluate(
       () =>
@@ -873,6 +876,17 @@ test("참여자 하단 메뉴는 전체 문서 새로고침 없이 이동한다"
           .__platformNavigationMarker,
     ),
   ).toBe("preserved");
+
+  await page.getByRole("link", { name: "토론방", exact: true }).click();
+
+  await expect(page).toHaveURL(/\/chat$/u);
+  expect(
+    await page.evaluate(
+      () =>
+        (window as typeof window & { __platformNavigationMarker?: string })
+          .__platformNavigationMarker,
+    ),
+  ).toBeUndefined();
 });
 
 test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한다", async ({ context, page }) => {
