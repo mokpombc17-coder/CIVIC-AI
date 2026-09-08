@@ -6769,6 +6769,7 @@ body {
   gap: 12px;
   overscroll-behavior: contain;
   border: 0;
+  border-radius: 0 0 4px 4px;
   background: #fff;
   padding: 0 0 10px;
   scrollbar-gutter: stable;

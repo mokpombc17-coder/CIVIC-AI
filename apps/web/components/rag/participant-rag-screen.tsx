@@ -240,6 +240,7 @@ function RagConversation({
   const restoredQueryChecked = useRef(false);
   const queryOperation = useRef(createQueryOperation());
   const messagesRef = useRef<HTMLDivElement>(null);
+  const submittedMessageIdToScroll = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
   const streamedAnswerLength = Object.values(liveJobs).reduce(
     (total, liveJob) => total + liveJob.streamedAnswer.length,
@@ -254,6 +255,23 @@ function RagConversation({
     });
     return () => window.cancelAnimationFrame(frame);
   }, [streamedAnswerLength]);
+
+  useEffect(() => {
+    const messageId = submittedMessageIdToScroll.current;
+    if (!messageId) return;
+    const frame = window.requestAnimationFrame(() => {
+      const messages = messagesRef.current;
+      if (!messages) return;
+      const exchange = Array.from(messages.children).find(
+        (element) => element.getAttribute("data-rag-message-id") === messageId,
+      );
+      const submittedQuestion = exchange?.querySelector<HTMLElement>(".civic-rag-question");
+      if (!submittedQuestion) return;
+      submittedMessageIdToScroll.current = null;
+      scrollRagQuestionIntoView(submittedQuestion);
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [messages]);
 
   useEffect(() => {
     if (!userId) return;
@@ -365,6 +383,7 @@ function RagConversation({
     activePoll.current?.abort();
     activePoll.current = null;
     queryOperation.current.clear();
+    submittedMessageIdToScroll.current = null;
     setCurrentSessionId(null);
     const storage = browserRagConversationStorage();
     if (storage) clearRagConversationSnapshot(storage);
@@ -412,6 +431,7 @@ function RagConversation({
       activeJobId = accepted.job_id;
       if (accepted.session_id) setCurrentSessionId(accepted.session_id);
       startLiveJob(setLiveJobs, accepted.job_id);
+      submittedMessageIdToScroll.current = accepted.job_id;
       setMessages((current) => [
         ...current,
         { askedAt: clockLabel(), id: accepted.job_id, question: submitted },
@@ -695,7 +715,7 @@ export function RagMessage({
   const showStreamingAnswer = Boolean(liveJob?.streamedAnswer);
   const showProgress = Boolean(liveJob && !showStreamingAnswer);
   return (
-    <article className="civic-rag-exchange">
+    <article className="civic-rag-exchange" data-rag-message-id={message.id}>
       <div className="civic-rag-question-row">
         <div className="civic-rag-question-content">
           <p className="civic-rag-question">{message.question}</p>
@@ -742,6 +762,11 @@ export function RagMessage({
 }
 
 type RagMessagesScrollTarget = Pick<HTMLDivElement, "scrollHeight" | "scrollTo">;
+type RagQuestionScrollTarget = Pick<HTMLElement, "scrollIntoView">;
+
+export function scrollRagQuestionIntoView(question: RagQuestionScrollTarget): void {
+  question.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+}
 
 export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): void {
   messages.scrollTo({ behavior: "smooth", top: messages.scrollHeight });
