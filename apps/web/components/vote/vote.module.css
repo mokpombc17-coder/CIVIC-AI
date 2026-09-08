@@ -351,12 +351,6 @@
   margin: 0;
 }
 
-.completedListActions {
-  display: flex;
-  justify-content: center;
-  margin-top: 20px;
-}
-
 .flowSurface {
   padding: 16px 16px 32px;
 }

@@ -14,4 +14,8 @@ export {
   PlatformNavigation,
   type PlatformNavigationProps,
 } from "./platform-navigation";
+export {
+  PlatformLoadMoreButton,
+  type PlatformLoadMoreButtonProps,
+} from "./platform-load-more-button";
 export { PlatformShell, type PlatformShellProps, type PlatformShellScroll } from "./platform-shell";

@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
-import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
+import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
 import {
@@ -196,17 +196,13 @@ export function VoteTaskListScreen() {
                 onRetry={() => void completedTasksQuery.refetch()}
               />
             ) : null}
-            {tab === "completed" && completedTasksQuery.hasNextPage ? (
-              <div className={styles.completedListActions}>
-                <button
-                  className={styles.listRetryButton}
-                  disabled={completedTasksQuery.isFetchingNextPage}
-                  onClick={() => void completedTasksQuery.fetchNextPage()}
-                  type="button"
-                >
-                  {completedTasksQuery.isFetchingNextPage ? "불러오는 중…" : "더 보기"}
-                </button>
-              </div>
+            {tab === "completed" ? (
+              <PlatformLoadMoreButton
+                hasNextPage={completedTasksQuery.hasNextPage}
+                isFetching={completedTasksQuery.isFetchingNextPage}
+                label="더 보기"
+                onClick={() => void completedTasksQuery.fetchNextPage()}
+              />
             ) : null}
           </>
         ) : null}

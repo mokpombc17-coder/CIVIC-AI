@@ -7,10 +7,10 @@ import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room
 import { ChatApiError } from "@/lib/chat/chat-fetch";
 import type { ChatRoomListDetailSelection } from "./chat-room-list-detail";
 import { ChatRoomListDetailDialog } from "./chat-room-list-detail-dialog";
+import { PlatformLoadMoreButton } from "./platform-shell";
 import {
   ChatRoomListView,
   findFirstNewPublicRoomIndex,
-  LoadMoreButton,
   MyRoomCard,
   PublicRoomCard,
   scrollPublicRoomIntoView,
@@ -113,7 +113,7 @@ describe("chat room list publishing layout", () => {
 
   it("더 보기 버튼은 로딩 문구가 바뀌어도 같은 폭을 유지하고 마지막 상태를 안내한다", () => {
     const idleHtml = renderToStaticMarkup(
-      createElement(LoadMoreButton, {
+      createElement(PlatformLoadMoreButton, {
         hasNextPage: true,
         isFetching: false,
         label: "공개 방 더 보기",
@@ -121,7 +121,7 @@ describe("chat room list publishing layout", () => {
       }),
     );
     const loadingHtml = renderToStaticMarkup(
-      createElement(LoadMoreButton, {
+      createElement(PlatformLoadMoreButton, {
         hasNextPage: true,
         isFetching: true,
         label: "공개 방 더 보기",
@@ -129,7 +129,7 @@ describe("chat room list publishing layout", () => {
       }),
     );
     const exhaustedHtml = renderToStaticMarkup(
-      createElement(LoadMoreButton, {
+      createElement(PlatformLoadMoreButton, {
         exhaustedLabel: "모든 토론방을 확인했어요.",
         hasNextPage: false,
         isFetching: false,

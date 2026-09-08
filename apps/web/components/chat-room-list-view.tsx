@@ -27,7 +27,7 @@ import {
 import { CREATE_CHAT_ROOM_FORM_ID, CreateChatRoomForm } from "@/components/create-chat-room-form";
 import { getChatRoomUnreadBadgePresentation } from "@/components/chat-room-unread-badge";
 import { PublicRoomSearchForm } from "@/components/public-room-search-form";
-import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
+import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
@@ -304,7 +304,7 @@ export function ChatRoomListView({
             </ul>
           ) : null}
 
-          <LoadMoreButton
+          <PlatformLoadMoreButton
             hasNextPage={participatingRooms.hasNextPage}
             isFetching={participatingRooms.isFetchingNextPage}
             label="참여 중인 방 더 보기"
@@ -374,7 +374,7 @@ export function ChatRoomListView({
               </div>
             ) : null}
 
-            <LoadMoreButton
+            <PlatformLoadMoreButton
               exhaustedLabel={
                 hasLoadedAdditionalPublicRoomPage ? "모든 토론방을 확인했어요." : undefined
               }
@@ -644,57 +644,6 @@ function RoomListNotice({
           {message}
         </p>
       )}
-    </div>
-  );
-}
-
-export function LoadMoreButton({
-  exhaustedLabel,
-  hasNextPage,
-  isFetching,
-  label,
-  onClick,
-}: {
-  exhaustedLabel?: string | undefined;
-  hasNextPage: boolean;
-  isFetching: boolean;
-  label: string;
-  onClick: () => void;
-}) {
-  if (!hasNextPage) {
-    return exhaustedLabel ? (
-      <div className="mt-4 flex min-h-11 items-center justify-center text-center">
-        <p className="text-sm font-medium text-[var(--chat-publishing-color-muted)]" role="status">
-          {exhaustedLabel}
-        </p>
-      </div>
-    ) : null;
-  }
-
-  return (
-    <div className="mt-4 text-center">
-      <button
-        aria-busy={isFetching || undefined}
-        className="inline-flex min-h-11 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-5 text-sm font-medium text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50"
-        disabled={isFetching}
-        onClick={onClick}
-        type="button"
-      >
-        <span aria-live="polite" className="grid whitespace-nowrap">
-          <span
-            aria-hidden={isFetching}
-            className={`col-start-1 row-start-1 ${isFetching ? "invisible" : ""}`}
-          >
-            {label}
-          </span>
-          <span
-            aria-hidden={!isFetching}
-            className={`col-start-1 row-start-1 ${isFetching ? "" : "invisible"}`}
-          >
-            불러오는 중…
-          </span>
-        </span>
-      </button>
     </div>
   );
 }
