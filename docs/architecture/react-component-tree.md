@@ -50,6 +50,11 @@ PwaStartPage /pwa/start [Server Route, manifest start_url]
         ├── 인증 실패: /login 이동
         └── 네트워크·일시 오류: 로그인 상태를 지우지 않고 재시도
 
+RefreshPage /auth/refresh [Server Route, 안전한 returnTo 기준 대기 surface 선택]
+└── AccessTokenRefresh [Client, Access Token 갱신 후 returnTo로 복귀]
+    ├── /rag 또는 /mypage 계열 갱신 중: ParticipantLoadingView [목적지 PlatformShell 유지]
+    └── 관리자·기타 경로 갱신 중 또는 갱신 실패: FullscreenStatus [route-neutral]
+
 HomePage /home [Server Route]
 ├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 ├── HomeBrandTitle [CIVIC.AI + 고정 권역 광주/전남]
