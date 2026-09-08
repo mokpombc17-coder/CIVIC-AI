@@ -96,6 +96,7 @@ import {
   RagLiveProgress,
   readRagProgress,
   safeExternalSourceUrl,
+  scrollRagQuestionIntoView,
   scrollRagMessagesToLatest,
   waitForStreamedResult,
 } from "@/components/rag/participant-rag-screen";
@@ -355,6 +356,19 @@ describe("9 functional RAG screens", () => {
 
     expect(html).toContain("civic-rag-answer is-live is-streaming-answer");
     expect(html).toContain("실시간 문서 답변");
+    expect(html).toContain('data-rag-message-id="streaming-job"');
+  });
+
+  it("새 사용자 말풍선을 화면 안의 시작 위치로 부드럽게 이동한다", () => {
+    const scrollIntoView = vi.fn();
+
+    scrollRagQuestionIntoView({ scrollIntoView });
+
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "start",
+      inline: "nearest",
+    });
   });
 
   it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {
