@@ -1,5 +1,36 @@
-import { describe, expect, it } from "vitest";
-import { createMockVoteCompletedApi, createVoteCompletedApi } from "./vote-completed-api";
+import { afterEach, describe, expect, it } from "vitest";
+import {
+  createMockVoteCompletedApi,
+  createVoteCompletedApi,
+  getVoteCompletedApiMode,
+} from "./vote-completed-api";
+
+const ORIGINAL_COMPLETED_API_MODE = process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE;
+
+afterEach(() => {
+  if (ORIGINAL_COMPLETED_API_MODE === undefined) {
+    delete process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE;
+    return;
+  }
+  process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE = ORIGINAL_COMPLETED_API_MODE;
+});
+
+describe("getVoteCompletedApiMode", () => {
+  it("환경값이 없으면 실제 완료 API를 사용하는 ready가 기본값이다", () => {
+    delete process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE;
+
+    expect(getVoteCompletedApiMode()).toBe("ready");
+  });
+
+  it.each(["unavailable", "mock", "ready"] as const)(
+    "%s mode를 명시하면 해당 설정을 사용한다",
+    (mode) => {
+      process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE = mode;
+
+      expect(getVoteCompletedApiMode()).toBe(mode);
+    },
+  );
+});
 
 describe("Vote completed API adapters", () => {
   it("미구현 상태에서는 Backend에 요청하지 않고 명시적인 오류를 반환한다", async () => {
