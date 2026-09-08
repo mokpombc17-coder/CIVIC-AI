@@ -6829,7 +6829,7 @@ body {
   display: grid;
   width: 100%;
   justify-items: start;
-  gap: 6px;
+  gap: 0;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer-meta {
@@ -6852,13 +6852,13 @@ body {
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer {
   width: 100%;
   max-width: none;
-  min-height: 49px;
+  min-height: 0;
   box-sizing: border-box;
-  border: 1px solid #e1e7ee;
-  border-radius: 12px 12px 12px 4px;
-  background: #f7f9fc;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
   color: #1f2124;
-  padding: 12px;
+  padding: 0;
   font-size: 15px;
   font-weight: 400;
   line-height: 23.25px;
