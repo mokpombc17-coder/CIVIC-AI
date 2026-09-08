@@ -35,7 +35,7 @@ export function ChatMessageComposer({
     <>
       {validationError ? (
         <div
-          className="mx-4 mt-2 rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-[#7a4b00]"
+          className="mx-4 mb-2 rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-[#7a4b00]"
           data-chat-message-composer-state="validation-error"
           role="alert"
         >
@@ -46,7 +46,7 @@ export function ChatMessageComposer({
       {disabledMessage ? (
         <p
           aria-live="polite"
-          className="mx-4 mt-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-2.5 text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]"
+          className="mx-4 mb-2 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-2.5 text-sm font-medium leading-5 text-[var(--chat-publishing-color-muted)]"
           data-chat-message-composer-state="disabled"
           role="status"
         >
@@ -55,7 +55,7 @@ export function ChatMessageComposer({
       ) : null}
 
       <form
-        className={`m-4 mt-2 flex items-end gap-2 rounded-[var(--chat-publishing-radius-card)] border p-3 transition ${
+        className={`mx-4 mb-4 flex items-end gap-2 rounded-[var(--chat-publishing-radius-card)] border p-3 transition ${
           disabled
             ? "border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)]"
             : "border-[var(--chat-publishing-color-border)] bg-white focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]"

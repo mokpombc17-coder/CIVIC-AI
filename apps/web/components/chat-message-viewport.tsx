@@ -692,7 +692,7 @@ export function ChatMessageViewport({
       <div
         aria-label={history.roomLabel}
         aria-live="off"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-b-[4px] px-4 pt-4 pb-6"
         data-viewport-key={viewportKey}
         onScroll={handleScroll}
         ref={scrollElementRef}

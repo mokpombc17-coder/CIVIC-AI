@@ -32,6 +32,14 @@ describe("ChatMessageComposer", () => {
     expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(html).not.toContain("bg-red-50");
   });
+
+  it("메시지 영역과의 간격을 위한 위쪽 margin을 form에 두지 않는다", () => {
+    const html = renderComposer();
+    const form = html.match(/<form[^>]*>/)?.[0];
+
+    expect(form).toContain("mx-4 mb-4");
+    expect(form).not.toContain("mt-");
+  });
 });
 
 function renderComposer(
