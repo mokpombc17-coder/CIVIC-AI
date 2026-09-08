@@ -152,9 +152,12 @@ motion, overflow 방향 표시와 선택지 행 표현을 일관되게 유지한
 `ChatLayout`은 채팅 route segment의 공통 Query Client를 `ChatQueryProvider`에서 생성하고,
 그 안에서 `ChatAuthenticationBoundary`가 Chat API의 401 상태를 route segment 범위로 구독한다.
 `ServiceEligibilityGuard`가 자격을 확인하는 동안에는 `ChatRoomListLoading`을 채팅 목록과 같은
-shell fallback으로 유지한다. `/chat/loading.tsx`도 같은 fallback을 사용하므로 목록 route 진입, 자격 확인,
-목록 Query 대기가 빈 콘텐츠 없이 하나의 로딩 표면으로 이어진다. `/chat/[roomId]/loading.tsx`는
-상세 route 전환에 `ChatRoomScreenLoading`을 사용하고, `ChatRoomView`는 실시간 session뿐 아니라
+shell fallback으로 유지한다. `/chat/loading.tsx`는 현재 pathname을 구분해 목록 route에서는
+`ChatRoomListScreen`을 cache-aware fallback으로 다시 조립한다. 따라서 캐시가 있으면 기존 방 카드를
+유지한 채 갱신하고, 캐시가 없는 최초 진입에서만 screen 내부 목록 skeleton이 보인다. 채팅방 상세
+route에서는 `ChatRoomScreenLoading`을 선택해 상위 loading boundary가 먼저 활성화되더라도 목록
+skeleton이 끼어들지 않는다. `/chat/[roomId]/loading.tsx`도 같은 상세 loading view를 사용하고,
+`ChatRoomView`는 실시간 session뿐 아니라
 읽음 위치 탐색과 가상 viewport의 최초 위치 보정이 끝날 때까지 같은 버블 없는 loading content를
 유지한다.
 인증이 유효하면 Boundary는 `ChatRealtimeProvider`, `ChatRoomReadStateProvider`와 nested page를
@@ -189,8 +192,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         ├── [authentication valid] ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat-realtime-provider.tsx)
                         │   ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat-room-read-state-provider.tsx)
                         │   │   └── children [slot: nested page를 제공]
-                        │   │       ├── [route segment loading] ChatLoading [Server] [Route] (apps/web/app/chat/loading.tsx)
-                        │   │       │   └── ChatRoomListLoading [Server-compatible] [View]
+                        │   │       ├── [route segment loading] ChatLoading [Client] [Route] [pathname-aware] (apps/web/app/chat/loading.tsx)
+                        │   │       │   ├── [list/non-room path] ChatRoomListScreen [Client] [Container] [cache-aware fallback]
+                        │   │       │   └── [room detail path] ChatRoomScreenLoading [Server-compatible] [View]
                         │   │       ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
                         │   │       │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
                         │   │       │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
@@ -425,9 +429,10 @@ canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 
 `VoteLayout`은 `VoteQueryProvider`를 `/vote` 하위 route 전체에 제공하고,
 `ServiceEligibilityGuard`의 자격 확인 중에는 `VoteTaskListLoading`을 동일한 화면 fallback으로 유지한다.
-`/vote/loading.tsx`도 같은 fallback을 사용하므로 목록 route 전환, 자격 확인, 목록 조회가 하나의 로딩 표면으로
-이어진다. `/vote/[taskId]/loading.tsx`는 상세 route 전환에 `VoteTaskScreenLoading`을 사용하고,
-`VoteTaskScreen`의 최초 상세 Query 대기도 같은 1/4 구조와 4개 선택지 placeholder를 재사용한다.
+`/vote/loading.tsx`는 목록 route에서 `VoteTaskListScreen`을 cache-aware fallback으로 사용해 캐시된
+투표 카드를 유지한 채 갱신하고, 캐시가 없는 최초 진입에서만 screen 내부 목록 skeleton을 표시한다.
+상세 route에서는 `VoteTaskScreenLoading`을 선택하며, `/vote/[taskId]/loading.tsx`도 같은 상세 loading
+view를 사용한다. `VoteTaskScreen`의 최초 상세 Query 대기도 같은 1/4 구조와 4개 선택지 placeholder를 재사용한다.
 Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
 `VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드
@@ -455,8 +460,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 └── ServiceEligibilityGuard [Client] [Boundary] (apps/web/components/service-eligibility-guard.tsx)
                     ├── [eligibility loading] VoteTaskListLoading [Server-compatible] [View] (apps/web/components/vote/vote-task-list-loading.tsx)
                     └── children [slot: nested page를 제공]
-                        ├── [route segment loading] VoteLoading [Server] [Route] (apps/web/app/vote/loading.tsx)
-                        │   └── VoteTaskListLoading [Server-compatible] [View]
+                        ├── [route segment loading] VoteLoading [Client] [Route] [pathname-aware] (apps/web/app/vote/loading.tsx)
+                        │   ├── [list path] VoteTaskListScreen [Client] [Container] [cache-aware fallback]
+                        │   └── [task path] VoteTaskScreenLoading [Server-compatible] [View]
                         ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
                         │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
                         │       └── PlatformShell [Client graph] [View]
@@ -520,8 +526,9 @@ flowchart TD
     ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat-room-read-state-provider.tsx"]
     ChatAuthenticationBoundary["ChatAuthenticationBoundary [Client] [Boundary]<br/>apps/web/components/chat-authentication-boundary.tsx"]
     ServiceEligibilityGuard["ServiceEligibilityGuard [Client] [Boundary]<br/>apps/web/components/service-eligibility-guard.tsx"]
-    ChatLoading["ChatLoading [Server] [Route] [conditional]<br/>apps/web/app/chat/loading.tsx"]
+    ChatLoading["ChatLoading [Client] [Route] [pathname-aware]<br/>apps/web/app/chat/loading.tsx"]
     ChatRoomListLoading["ChatRoomListLoading [Server-compatible] [View]<br/>apps/web/components/chat-room-list-loading.tsx"]
+    ChatRoomScreenLoading["ChatRoomScreenLoading [Server-compatible] [View]<br/>apps/web/components/chat-room-screen-loading.tsx"]
     ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
@@ -620,7 +627,8 @@ flowchart TD
     ChatRealtimeProvider -->|"development only"| ChatRealtimeDiagnosticsPanel
     ChatRoomInboxRuntime -->|"conditional toast"| ChatRoomInboxToastList
     ChatChildrenSlot -. "route segment loading" .-> ChatLoading
-    ChatLoading --> ChatRoomListLoading
+    ChatLoading -->|"list/non-room path; cached data retained"| ChatRoomListScreen
+    ChatLoading -->|"room detail path"| ChatRoomScreenLoading
     ChatRoomListLoading -->|"self scroll"| ChatListPlatformShell
     ChatChildrenSlot -. "route /chat" .-> ChatPage
     ChatChildrenSlot -. "legacy redirect" .-> LegacyRoomCreationRequestsPage
@@ -705,8 +713,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatLoading,ChatRoomListLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyPage,SurveyResponsePage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```
