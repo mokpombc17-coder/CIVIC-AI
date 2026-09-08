@@ -5119,7 +5119,7 @@ body {
   width: 100%;
   min-width: 0;
   grid-template-columns: auto minmax(0, 1fr);
-  align-items: start;
+  align-items: center;
   gap: 7px;
   border: 0;
   border-radius: 3px;
@@ -5141,24 +5141,25 @@ body {
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-copy {
   display: grid;
   min-width: 0;
-  gap: 1px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-title {
-  display: -webkit-box;
   overflow: hidden;
   color: #526475;
   font-size: 13px;
   line-height: 1.5;
-  overflow-wrap: anywhere;
-  -webkit-box-orient: vertical;
-  -webkit-line-clamp: 2;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-page {
   color: #8793a0;
   font-size: 12px;
   line-height: 1.5;
+  white-space: nowrap;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-source-item:hover .civic-rag-source-title,
