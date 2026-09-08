@@ -54,7 +54,7 @@ export function VoteTaskScreenLoadingContent() {
           <h2 className={styles.sectionTitle}>주제</h2>
           <dl className={`${styles.infoCard} ${styles.overviewInfoCard}`}>
             {voteTaskInfoSkeletonKeys.map((key, index) => (
-              <div className={styles.infoRow} key={key}>
+              <div className={styles.infoRow} data-info-row={key} key={key}>
                 <dt>
                   <span
                     className={`${styles.taskSkeletonBlock} ${styles.taskDetailSkeletonInfoLabel}`}
@@ -64,7 +64,15 @@ export function VoteTaskScreenLoadingContent() {
                   <span
                     className={`${styles.taskSkeletonBlock} ${styles.taskDetailSkeletonInfoCopy}`}
                     data-size={index === 1 ? "long" : "default"}
+                    data-vote-task-question-skeleton-line={key === "question" ? "true" : undefined}
                   />
+                  {key === "question" ? (
+                    <span
+                      className={`${styles.taskSkeletonBlock} ${styles.taskDetailSkeletonInfoCopy}`}
+                      data-size="question-tail"
+                      data-vote-task-question-skeleton-line="true"
+                    />
+                  ) : null}
                 </dd>
               </div>
             ))}

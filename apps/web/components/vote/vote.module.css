@@ -588,6 +588,10 @@
   line-height: 18.9px;
 }
 
+.overviewInfoCard .infoRow[data-info-row="question"] {
+  min-height: 80px;
+}
+
 .overviewOptions {
   display: grid;
   gap: 10px;
@@ -660,6 +664,10 @@
 
 .taskDetailSkeletonInfoCopy[data-size="long"] {
   width: 82%;
+}
+
+.taskDetailSkeletonInfoCopy[data-size="question-tail"] {
+  width: 64%;
 }
 
 .overviewOption .taskDetailSkeletonOptionCopy {

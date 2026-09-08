@@ -590,7 +590,7 @@ function TaskOverview({
         <h2 className={styles.sectionTitle}>주제</h2>
         <dl className={`${styles.infoCard} ${styles.overviewInfoCard}`}>
           <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
-          <InfoRow label="질문" value={detail.task.question.content} />
+          <InfoRow field="question" label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
         </dl>
       </section>
@@ -751,9 +751,9 @@ function SubmittedTaskResponse({
   );
 }
 
-function InfoRow({ label, value }: { label: string; value: string }) {
+function InfoRow({ field, label, value }: { field?: "question"; label: string; value: string }) {
   return (
-    <div className={styles.infoRow}>
+    <div className={styles.infoRow} data-info-row={field}>
       <dt>{label}</dt>
       <dd>{value}</dd>
     </div>

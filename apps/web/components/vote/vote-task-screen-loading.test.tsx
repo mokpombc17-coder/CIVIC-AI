@@ -16,6 +16,8 @@ describe("VoteTaskScreenLoading", () => {
     expect(markup).toContain('data-vote-task-screen-loading="true"');
     expect(markup).toContain("1/4");
     expect(markup).toContain("투표 확인");
+    expect(markup).toContain('data-info-row="question"');
+    expect(markup.match(/data-vote-task-question-skeleton-line="true"/g)).toHaveLength(2);
     expect(markup.match(/data-vote-task-option-skeleton="true"/g)).toHaveLength(4);
     expect(markup).toContain('data-vote-task-action-skeleton="true"');
   });
