@@ -6817,7 +6817,7 @@ body {
   border: 0;
   border-radius: 0 0 4px 4px;
   background: #fff;
-  padding: 0 0 10px;
+  padding: 12px 0 10px;
   scrollbar-gutter: stable;
 }
 
