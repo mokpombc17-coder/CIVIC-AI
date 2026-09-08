@@ -293,6 +293,46 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain('aria-label="답변 평가"');
   });
 
+  it("문서 매칭 실패 답변만 별도 상태 스타일로 표시한다", () => {
+    const noMatchHtml = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "no-match-job",
+          question: "관련 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "no-match-job",
+            status: "SUCCEEDED",
+            answer: "제공된 문서에서 매칭되는 정보를 찾지 못했습니다.",
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+    const regularHtml = renderToStaticMarkup(
+      createElement(RagMessage, {
+        message: {
+          id: "regular-job",
+          question: "관련 내용을 알려줘.",
+          askedAt: "11:32",
+          answeredAt: "11:33",
+          job: {
+            job_id: "regular-job",
+            status: "SUCCEEDED",
+            answer: "문서 기반 답변입니다.",
+          },
+        },
+        onOpenCitation: vi.fn(),
+        onUseSuggestion: vi.fn(),
+      }),
+    );
+
+    expect(noMatchHtml).toContain("civic-rag-answer is-no-match");
+    expect(regularHtml).not.toContain("is-no-match");
+  });
+
   it("완료된 AI 답변의 출처 목록을 답변 말풍선 다음에 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(RagMessage, {

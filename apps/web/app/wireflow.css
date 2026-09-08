@@ -5088,8 +5088,8 @@ body {
   width: 100%;
   box-sizing: border-box;
   gap: 7px;
-  margin-top: 2px;
-  border-top: 1px solid #d8dde3;
+  margin-top: 0;
+  border-top: 0;
   padding: 10px 2px 12px;
   color: #526475;
 }
@@ -6817,7 +6817,7 @@ body {
   border: 0;
   border-radius: 0 0 4px 4px;
   background: #fff;
-  padding: 0 0 10px;
+  padding: 12px 0 10px;
   scrollbar-gutter: stable;
 }
 
@@ -6899,9 +6899,11 @@ body {
   max-width: none;
   min-height: 49px;
   box-sizing: border-box;
-  border: 1px solid transparent;
-  border-radius: 12px 12px 12px 4px;
-  background: transparent;
+  border: 0;
+  border-top: 1px solid #e1e7ee;
+  border-bottom: 1px solid #e1e7ee;
+  border-radius: 0;
+  background: #fff;
   color: #1f2124;
   padding: 12px;
   font-size: 15px;
@@ -6915,6 +6917,21 @@ body {
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer h3 {
   font-size: 15px;
   line-height: 23.25px;
+}
+
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer strong {
+  font-weight: 600;
+}
+
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid #d8dde3;
+}
+
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer.is-no-match {
+  background: #f9fafb;
+  color: #59616b;
 }
 
 [data-wireflow-screen="U-RAG-001"] .civic-rag-citations {
