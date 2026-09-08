@@ -49,6 +49,10 @@ describe("route-aware loading skeletons", () => {
     expect(markup).toMatch(/<h1[^>]*>계정<\/h1>/);
     expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
     expect(markup).toContain('href="/mypage"');
+    expect(markup).toContain(
+      "비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다.",
+    );
+    expect(markup).not.toContain("변경하면 모든 기기에서 다시 로그인해야 합니다.");
   });
 
   it("Vote 설문 화면은 실제 클라이언트 로딩 안내를 그대로 사용한다", () => {

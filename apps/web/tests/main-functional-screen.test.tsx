@@ -1203,6 +1203,10 @@ describe("25 functional Main/Auth screens", () => {
     expect(hub).toContain('data-wireflow-layout="account-hub"');
     expect(hub).toContain('data-wireflow-layout="account-management"');
     expect(hub).toContain("비밀번호 변경");
+    expect(hub).toContain(
+      "비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다.",
+    );
+    expect(hub).not.toContain("변경하면 모든 기기에서 다시 로그인해야 합니다.");
     expect(hub).toContain("2단계 인증");
     expect(hub).toContain("계정 비활성화");
     expect(hub).not.toContain(

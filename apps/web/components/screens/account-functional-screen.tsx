@@ -221,7 +221,7 @@ function AccountManagementSurface({
           <SecurityAction
             actionLabel="변경하기"
             disabled={busy || !loaded}
-            description="변경하면 모든 기기에서 다시 로그인해야 합니다."
+            description="비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다."
             onAction={() => onIntent(intent === "password" ? null : "password")}
             title="비밀번호 변경"
           />

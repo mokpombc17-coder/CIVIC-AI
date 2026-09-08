@@ -270,7 +270,7 @@ function AccountDetailLoadingSurface({ screenId }: Readonly<{ screenId: string }
           <article className="wf-account-security-card">
             <div>
               <h3>비밀번호 변경</h3>
-              <p>변경하면 모든 기기에서 다시 로그인해야 합니다.</p>
+              <p>비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다.</p>
             </div>
             <button className="wf-button wf-button-secondary" disabled type="button">
               변경하기
