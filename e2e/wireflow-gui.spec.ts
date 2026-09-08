@@ -1332,7 +1332,12 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await page.goto("/rag");
 
   await expect(page.getByRole("heading", { exact: true, name: "AI" })).toBeVisible();
-  await expect(page.getByText("궁금한 정보를 질문하세요.")).toBeVisible();
+  await expect(page.getByText("궁금한 내용을 AI에게 질문해 보세요.")).toBeVisible();
+  await expect(page.getByText("등록된 자료를 바탕으로 근거와 함께 답변해 드려요.")).toBeVisible();
+  await expect(page.locator(".civic-rag-session-bar")).toHaveCSS(
+    "background-color",
+    "rgb(244, 247, 255)",
+  );
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(shell).toHaveCount(1);
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"] .wf-screen-heading')).toBeHidden();
@@ -1354,7 +1359,7 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   });
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요…")
+    .getByPlaceholder("궁금한 내용을 입력해 주세요")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
 
@@ -1387,7 +1392,7 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요…")
+    .getByPlaceholder("궁금한 내용을 입력해 주세요")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
@@ -1440,7 +1445,7 @@ test("U-RAG-001 새 대화 확인창은 데스크톱에서 platform shell 안에
   await page.goto("/rag");
 
   const shell = page.locator('[data-platform-shell="true"]');
-  await expect(page.getByPlaceholder("문서에 대해 질문하세요…")).toBeEnabled();
+  await expect(page.getByPlaceholder("궁금한 내용을 입력해 주세요")).toBeEnabled();
   await page.getByRole("button", { name: "새 대화" }).click();
 
   const dialog = page.getByRole("alertdialog", { name: "새 대화를 시작할까요?" });
@@ -1483,7 +1488,7 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
   await page.goto("/rag");
 
   await page
-    .getByPlaceholder("문서에 대해 질문하세요…")
+    .getByPlaceholder("궁금한 내용을 입력해 주세요")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByRole("status", { name: "RAG 답변 생성 중" })).toBeVisible();

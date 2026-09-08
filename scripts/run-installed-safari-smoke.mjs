@@ -146,7 +146,7 @@ try {
     const reset = await waitElement(".civic-rag-session-bar button.civic-secondary-action");
     await elementCommand(reset, "POST", "/click", {});
     await waitElement(".civic-form-message");
-    const input = await waitElement('textarea[placeholder="문서에 대해 질문하세요…"]');
+    const input = await waitElement('textarea[placeholder="궁금한 내용을 입력해 주세요"]');
     await elementCommand(input, "POST", "/value", { text: "복지정책 문서의 핵심 내용을 알려줘." });
     const submit = await waitElement('button[type="submit"]');
     await elementCommand(submit, "POST", "/click", {});

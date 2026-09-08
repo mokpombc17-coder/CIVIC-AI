@@ -170,11 +170,9 @@ function RagConversationLoadingSurface() {
       <header className="civic-rag-session-bar">
         <div className="civic-rag-intro-banner">
           <p className="civic-rag-intro">
-            <strong className="civic-rag-intro-title">
-              알고 싶은 내용을 자유롭게 질문해 보세요.
-            </strong>
+            <strong className="civic-rag-intro-title">궁금한 내용을 AI에게 질문해 보세요.</strong>
             <br />
-            AI가 관련 문서를 찾아 답변해 드립니다.
+            등록된 자료를 바탕으로 근거와 함께 답변해 드려요.
           </p>
           <span aria-hidden="true" className="civic-rag-intro-dismiss">
             <svg fill="none" viewBox="0 0 20 20">
@@ -201,7 +199,7 @@ function RagConversationLoadingSurface() {
         <textarea
           disabled
           id="loading-rag-question"
-          placeholder="문서에 대해 질문하세요…"
+          placeholder="궁금한 내용을 입력해 주세요"
           rows={2}
         />
         <button aria-label="질문 전송" disabled type="button">

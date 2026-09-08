@@ -6575,7 +6575,7 @@ body {
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
   border-bottom: 1px solid #d9e2f2;
-  background: #fff;
+  background: #f4f7ff;
   padding: 10px var(--civic-rag-inline-padding);
 }
 

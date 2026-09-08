@@ -24,7 +24,7 @@ describe("installed browser RAG flow", () => {
       "utf8",
     );
 
-    expect(source).toContain('textarea[placeholder="문서에 대해 질문하세요…"]');
+    expect(source).toContain('textarea[placeholder="궁금한 내용을 입력해 주세요"]');
     expect(source).toContain(".civic-rag-session-bar button.civic-secondary-action");
     expect(source).toContain('[data-wireflow-screen="U-RAG-001"]');
     expect(source).toContain('[role="dialog"][aria-label="참조 문서"]');
