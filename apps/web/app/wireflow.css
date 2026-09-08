@@ -6917,6 +6917,10 @@ body {
   line-height: 23.25px;
 }
 
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer strong {
+  font-weight: 600;
+}
+
 [data-wireflow-screen="U-RAG-001"] .civic-rag-citations {
   width: 100%;
   gap: 7px;
