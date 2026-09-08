@@ -4,6 +4,7 @@ import {
   SafeMarkdownAnswer,
   citationChipLabel,
   citationForMarker,
+  normalizeCitationPunctuation,
   stripCitationMarkers,
 } from "@/components/rag/safe-markdown-answer";
 
@@ -16,6 +17,36 @@ const citation = {
 };
 
 describe("본문 인용 마커", () => {
+  it("문장 끝 단일·복수 출처 뒤의 마침표를 출처 묶음 앞으로 옮긴다", () => {
+    expect(
+      normalizeCitationPunctuation("단일 출처입니다 [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3]."),
+    ).toBe("단일 출처입니다. [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3]");
+    expect(
+      normalizeCitationPunctuation(
+        "복수 출처입니다 [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3], " +
+          "[0d7d9db6-6352-48f3-b2e1-222cd34069c9#8].",
+      ),
+    ).toBe(
+      "복수 출처입니다. [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3], " +
+        "[0d7d9db6-6352-48f3-b2e1-222cd34069c9#8]",
+    );
+    expect(
+      normalizeCitationPunctuation(
+        "묶음 출처입니다 [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3, " +
+          "0d7d9db6-6352-48f3-b2e1-222cd34069c9#8].",
+      ),
+    ).toBe(
+      "묶음 출처입니다. [0d7d9db6-6352-48f3-b2e1-222cd34069c9#3, " +
+        "0d7d9db6-6352-48f3-b2e1-222cd34069c9#8]",
+    );
+  });
+
+  it("출처와 무관한 마침표는 변경하지 않는다", () => {
+    expect(normalizeCitationPunctuation("일반 문장입니다. 다음 문장입니다.")).toBe(
+      "일반 문장입니다. 다음 문장입니다.",
+    );
+  });
+
   it("인용 목록과 일치하는 [UUID#page] 마커를 문서 칩으로 치환한다", () => {
     const html = renderToStaticMarkup(
       <SafeMarkdownAnswer
@@ -28,6 +59,9 @@ describe("본문 인용 마커", () => {
     expect(html).toContain("2026 복지정책 기본계획");
     expect(html).toContain("p.3");
     expect(html).toContain("집결 장소는 7번 게이트입니다");
+    expect(html).toContain("게이트입니다.");
+    expect(html.indexOf("게이트입니다.")).toBeLessThan(html.indexOf('class="civic-citation-chip"'));
+    expect(html).not.toContain("</button>.</p>");
   });
 
   it("일치하는 인용이 없는 마커는 본문에 노출하지 않는다", () => {

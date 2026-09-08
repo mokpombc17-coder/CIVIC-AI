@@ -9,6 +9,10 @@ const CITATION_REFERENCE_PATTERN =
   /([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})#([1-9][0-9]*)/giu;
 const CITATION_REFERENCE_GROUP_PATTERN =
   /\[[^\]\r\n]*[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}#[1-9][0-9]*[^\]\r\n]*\]/giu;
+const CITATION_SEQUENCE_WITH_TRAILING_PERIOD_PATTERN = new RegExp(
+  `([\\t ]+)(${CITATION_REFERENCE_GROUP_PATTERN.source}(?:(?:[\\t ]*,[\\t ]*|[\\t ]+)${CITATION_REFERENCE_GROUP_PATTERN.source})*)\\.`,
+  "giu",
+);
 const LEGACY_CITATION_MARKER_PATTERN =
   /\[([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})\]/giu;
 const CIVIC_CITATION_URL_PREFIX = "civic-citation:";
@@ -24,6 +28,14 @@ export function stripCitationMarkers(answer: string): string {
 /** 한글 조사까지 굵게 묶어 CommonMark 닫힘 구분자가 본문에 노출되지 않게 한다. */
 export function normalizeKoreanStrongEmphasis(answer: string): string {
   return answer.replace(/\*\*([^*\r\n]+(?:\)|\]))\*\*([가-힣]+)/gu, "**$1$2**");
+}
+
+/** 문장 끝 출처 묶음 뒤의 마침표를 본문과 출처 사이로 옮긴다. */
+export function normalizeCitationPunctuation(answer: string): string {
+  return answer.replace(
+    CITATION_SEQUENCE_WITH_TRAILING_PERIOD_PATTERN,
+    (_match, spacing: string, citationSequence: string) => `.${spacing}${citationSequence}`,
+  );
 }
 
 /** 마커의 문서 버전과 페이지가 모두 일치하는 인용 정보를 찾는다. */
@@ -57,7 +69,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
   citations = [],
   onOpenCitation,
 }: SafeMarkdownAnswerProps) {
-  const markdown = normalizeKoreanStrongEmphasis(answer)
+  const markdown = normalizeKoreanStrongEmphasis(normalizeCitationPunctuation(answer))
     .replace(CITATION_REFERENCE_GROUP_PATTERN, (group) =>
       citationMarkdownLinksForGroup(citations, group),
     )
