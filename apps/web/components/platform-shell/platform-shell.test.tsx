@@ -77,7 +77,7 @@ describe("PlatformHeader", () => {
     expect(markup).toContain("disabled");
   });
 
-  it("back href가 있으면 활성 anchor로 표현한다", () => {
+  it("내부 back href는 활성 client Link로 표현한다", () => {
     const markup = renderToStaticMarkup(
       <PlatformHeader
         backAction={{ ariaLabel: "목록으로 돌아가기", href: "/chat" }}
@@ -86,9 +86,20 @@ describe("PlatformHeader", () => {
     );
 
     expect(markup).toContain('aria-label="목록으로 돌아가기"');
+    expect(markup).toContain('data-navigation-mode="client"');
     expect(markup).toContain('data-state="enabled"');
     expect(markup).toContain('href="/chat"');
     expect(markup).not.toContain("disabled");
+  });
+
+  it("홈 back href는 문서 이동 anchor로 표현한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformHeader backAction={{ ariaLabel: "홈으로", href: "/home" }} title="토론방" />,
+    );
+
+    expect(markup).toContain('aria-label="홈으로"');
+    expect(markup).toContain('data-navigation-mode="document"');
+    expect(markup).toContain('href="/home"');
   });
 });
 

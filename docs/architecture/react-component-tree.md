@@ -263,6 +263,10 @@ z-index만 책임진다. modal overlay가 열리면 `contentInert`가 header·co
 뒤로 갈 수 있는지는 추론하지 않고 화면이 `backAction`으로 목적지나 동작을 제공한다. 도메인은 route,
 active anchor, 동작과 overlay 상태를 계속 소유한다.
 
+`PlatformHeader`의 href 기반 뒤로가기 control은 3000이 소유하는 `/home`으로 이동할 때만 document
+anchor를 사용하고, `/chat`·`/vote`·`/survey` 하위 route에서는 Next.js `Link`로 client navigation한다.
+각 screen은 목적지나 `onClick` 동작만 소유한다.
+
 `ChatRoomMessageSearchPanel`은 route나 `PlatformShell` overlay를 추가하지 않고 채팅방 content 안에서
 메시지 viewport 위에 조건부로 조립된다. 검색 입력·초기화·누적 결과 위치와 위·아래 이동을 단일
 control bar에 표시하며 별도의 검색 결과 목록이나 내부 scroll 영역을 만들지 않는다. 결과 이동 중에도

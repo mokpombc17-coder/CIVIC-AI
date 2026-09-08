@@ -1,10 +1,12 @@
+import Link from "next/link";
+import type { Route } from "next";
 import type { MouseEventHandler, ReactNode } from "react";
 import styles from "./platform-shell.module.css";
 
 export type PlatformHeaderBackAction =
   | Readonly<{
       ariaLabel?: string;
-      href: string;
+      href: Route;
       onClick?: never;
     }>
   | Readonly<{
@@ -60,16 +62,31 @@ function PlatformHeaderBackControl({ action }: { action: PlatformHeaderBackActio
     );
   }
 
-  if (action.href) {
+  if (action.href && isHomeHref(action.href)) {
     return (
       <a
         aria-label={ariaLabel}
         className={styles.headerBackControl}
+        data-navigation-mode="document"
         data-state="enabled"
         href={action.href}
       >
         {icon}
       </a>
+    );
+  }
+
+  if (action.href) {
+    return (
+      <Link
+        aria-label={ariaLabel}
+        className={styles.headerBackControl}
+        data-navigation-mode="client"
+        data-state="enabled"
+        href={action.href}
+      >
+        {icon}
+      </Link>
     );
   }
 
@@ -84,4 +101,8 @@ function PlatformHeaderBackControl({ action }: { action: PlatformHeaderBackActio
       {icon}
     </button>
   );
+}
+
+function isHomeHref(href: string): boolean {
+  return href === "/home" || href.startsWith("/home?") || href.startsWith("/home#");
 }
