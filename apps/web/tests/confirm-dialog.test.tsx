@@ -37,6 +37,7 @@ describe("ConfirmDialog", () => {
     expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain('data-confirm-dialog="true"');
+    expect(html).toContain('data-dialog-scope="viewport"');
     expect(html).toContain("삭제할까요?");
     expect(html).toContain("삭제 후에는 되돌릴 수 없습니다.");
     expect(html).toContain('class="civic-secondary-action"');
@@ -83,5 +84,21 @@ describe("ConfirmDialog", () => {
     expect(html).toContain('aria-label="종료 확인 문구"');
     expect(html).toContain('class="civic-confirm-dialog-confirmation"');
     expect(html).toContain('class="civic-danger-action" disabled=""');
+  });
+
+  it("platform 범위를 요청하면 대화상자에 전용 scope를 표시한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(ConfirmDialog, {
+        confirmLabel: "새 대화 시작",
+        description: "현재 대화 내용은 저장되지 않습니다.",
+        onCancel: vi.fn(),
+        onConfirm: vi.fn(),
+        open: true,
+        scope: "platform",
+        title: "새 대화를 시작할까요?",
+      }),
+    );
+
+    expect(html).toContain('data-dialog-scope="platform"');
   });
 });

@@ -226,13 +226,9 @@ function AccountManagementSurface({
             title="비밀번호 변경"
           />
           <SecurityAction
-            actionLabel={profile?.two_factor_enabled ? "인증 해제하기" : "인증 설정하기"}
+            actionLabel={profile?.two_factor_enabled ? "해제하기" : "설정하기"}
             disabled={busy || !loaded}
-            description={
-              profile?.two_factor_enabled
-                ? "이메일 코드 인증을 사용하고 있습니다."
-                : "이메일 코드를 활용하여 보안을 강화합니다."
-            }
+            description="로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다."
             onAction={() => onIntent(twoFactorFormOpen ? null : twoFactorIntent)}
             title="2단계 인증"
           />

@@ -1,9 +1,12 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { FullscreenStatus } from "@/components/shell/fullscreen-status";
 
-export function AccessTokenRefresh({ returnTo }: Readonly<{ returnTo: string }>) {
+export function AccessTokenRefresh({
+  loadingFallback,
+  returnTo,
+}: Readonly<{ loadingFallback?: ReactNode; returnTo: string }>) {
   const [failed, setFailed] = useState(false);
 
   useEffect(() => {
@@ -29,6 +32,8 @@ export function AccessTokenRefresh({ returnTo }: Readonly<{ returnTo: string }>)
       active = false;
     };
   }, [returnTo]);
+
+  if (!failed && loadingFallback !== undefined) return loadingFallback;
 
   return (
     <FullscreenStatus

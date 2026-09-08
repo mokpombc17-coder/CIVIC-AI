@@ -1,4 +1,5 @@
 import { AccessTokenRefresh } from "@/components/auth/access-token-refresh";
+import { ParticipantLoadingView } from "@/components/shell/loading-skeletons";
 import { safeReturnTarget } from "@/lib/auth/return-target";
 
 type RefreshPageProps = Readonly<{
@@ -8,5 +9,18 @@ type RefreshPageProps = Readonly<{
 export default async function RefreshPage({ searchParams }: RefreshPageProps) {
   const value = (await searchParams).returnTo;
   const returnTo = safeReturnTarget(typeof value === "string" ? value : "", "/home");
-  return <AccessTokenRefresh returnTo={returnTo} />;
+  const participantPathname = participantRefreshPathname(returnTo);
+  return (
+    <AccessTokenRefresh
+      {...(participantPathname
+        ? { loadingFallback: <ParticipantLoadingView pathname={participantPathname} /> }
+        : {})}
+      returnTo={returnTo}
+    />
+  );
+}
+
+function participantRefreshPathname(returnTo: string): string | null {
+  const pathname = new URL(returnTo, "https://civic.invalid").pathname;
+  return /^\/(?:mypage|rag)(?:\/|$)/u.test(pathname) ? pathname : null;
 }

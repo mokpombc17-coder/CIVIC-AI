@@ -22,9 +22,9 @@ describe("route-aware loading skeletons", () => {
 
     expect(markup).toMatch(/<h1[^>]*>AI<\/h1>/);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/rag"/);
-    expect(markup).toContain('placeholder="문서에 대해 질문하세요…"');
-    expect(markup).toContain("civic-skeleton-chat-question");
-    expect(markup).toContain("civic-skeleton-chat-answer");
+    expect(markup).toContain('placeholder="궁금한 내용을 입력해 주세요"');
+    expect(markup.match(/civic-skeleton-chat-question/gu)).toHaveLength(2);
+    expect(markup.match(/civic-skeleton-chat-answer/gu)).toHaveLength(2);
     expect(markup).not.toContain("civic-skeleton-header-title");
     expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
     expect(markup).toContain('data-state="disabled"');

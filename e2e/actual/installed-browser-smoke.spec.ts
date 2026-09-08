@@ -113,7 +113,7 @@ test("@chrome installed Chrome: 로그인, 홈, RAG 인용·원문 GUI", async (
     .click();
   await expect(page.getByText("새 질문을 시작했습니다.")).toBeVisible();
   await page
-    .getByPlaceholder("문서에 대해 질문하세요…")
+    .getByPlaceholder("궁금한 내용을 입력해 주세요")
     .fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   const progress = page.getByRole("status", { name: "RAG 답변 생성 중" });

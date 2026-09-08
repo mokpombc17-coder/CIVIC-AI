@@ -22,6 +22,7 @@ export type ConfirmDialogProps = Readonly<{
   onCancel: () => void;
   onConfirm: () => void;
   open: boolean;
+  scope?: "platform" | "viewport";
   title: string;
 }>;
 
@@ -41,6 +42,7 @@ function OpenConfirmDialog({
   destructive = false,
   onCancel,
   onConfirm,
+  scope = "viewport",
   title,
 }: ConfirmDialogProps) {
   const titleId = useId();
@@ -100,6 +102,7 @@ function OpenConfirmDialog({
       aria-modal="true"
       className="civic-confirm-dialog"
       data-confirm-dialog="true"
+      data-dialog-scope={scope}
       onCancel={handleCancel}
       onKeyDown={handleKeyDown}
       ref={dialogRef}

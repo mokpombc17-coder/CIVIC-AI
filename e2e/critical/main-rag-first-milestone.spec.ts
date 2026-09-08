@@ -226,7 +226,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     // participant query and citation source
     await participant.goto("/rag");
     await participant
-      .getByPlaceholder("문서에 대해 질문하세요…")
+      .getByPlaceholder("궁금한 내용을 입력해 주세요")
       .fill(`${canaries.rag} 합성 CIVIC 정책 문서의 근거를 알려주세요.`);
     const [queryResponse] = await Promise.all([
       participant.waitForResponse(
