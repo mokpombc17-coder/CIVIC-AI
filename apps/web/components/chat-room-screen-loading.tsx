@@ -1,3 +1,4 @@
+import { ChatRoomLoadingSpinner } from "@/components/chat-room-loading-spinner";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 
@@ -30,10 +31,7 @@ export function ChatRoomScreenLoadingContent() {
     >
       <div className="flex min-h-0 flex-1 items-center justify-center" role="status">
         <span className="sr-only">채팅방을 준비하고 있어요.</span>
-        <span
-          aria-hidden="true"
-          className="size-8 rounded-full border-[3px] border-[var(--chat-publishing-color-accent-soft)] border-t-[var(--chat-publishing-color-primary)] motion-safe:animate-spin"
-        />
+        <ChatRoomLoadingSpinner />
       </div>
       <div
         aria-hidden="true"

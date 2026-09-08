@@ -4,8 +4,18 @@ import { describe, expect, it, vi } from "vitest";
 import { ChatRoomView, type ChatMessageHistoryViewModel } from "./chat-room-view";
 
 vi.mock("@/components/chat-message-viewport", () => ({
-  ChatMessageViewport: ({ history }: { history: { readStatePaused: boolean } }) => (
-    <div data-message-viewport="true" data-read-state-paused={history.readStatePaused} />
+  ChatMessageViewport: ({
+    history,
+    onInitialPositionReady,
+  }: {
+    history: { readStatePaused: boolean };
+    onInitialPositionReady?: (viewportKey: string) => void;
+  }) => (
+    <div
+      data-has-initial-position-callback={typeof onInitialPositionReady === "function"}
+      data-message-viewport="true"
+      data-read-state-paused={history.readStatePaused}
+    />
   ),
 }));
 
@@ -56,17 +66,21 @@ describe("ChatRoomView platform shell integration", () => {
     expect(markup).not.toContain('inert=""');
   });
 
-  it("최초 진입 준비 중에는 변하는 하위 상태 대신 고정된 loading surface만 표시한다", () => {
+  it("최초 위치를 준비하는 동안 실제 viewport를 숨겨 배치하고 loading surface를 표시한다", () => {
     const markup = renderChatRoomView(null, null, true);
 
     expect(markup).toContain('data-chat-room-entry-state="initializing"');
     expect(markup).toContain('data-chat-room-screen-loading="true"');
+    expect(markup).toContain('data-chat-room-content-state="positioning"');
+    expect(markup).toContain('data-message-viewport="true"');
+    expect(markup).toContain('data-read-state-paused="true"');
+    expect(markup).toContain('data-has-initial-position-callback="true"');
+    expect(markup).toContain('aria-hidden="true"');
+    expect(markup).toContain('inert=""');
+    expect(markup).toContain("invisible");
     expect(markup).toContain('aria-busy="true"');
     expect(markup).toContain("채팅방을 준비하고 있어요.");
     expect(markup).toContain('data-chat-room-composer-skeleton="true"');
-    expect(markup).not.toContain('data-message-viewport="true"');
-    expect(markup).not.toContain("세션 안내");
-    expect(markup).not.toContain("메시지 입력");
     expect(markup).not.toContain("방 정보");
   });
 });
@@ -87,6 +101,7 @@ function renderChatRoomView(
       initializing={initializing}
       messageHistory={{} as ChatMessageHistoryViewModel}
       messageSearchPanel={messageSearchPanel}
+      onInitialViewportPositioned={vi.fn()}
       overlay={overlay}
       roomError={null}
       sessionControls={<div>메시지 입력</div>}

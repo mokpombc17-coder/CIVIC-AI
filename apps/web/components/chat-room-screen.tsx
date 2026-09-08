@@ -11,6 +11,7 @@ import {
   ChatRoomSessionIndicator,
   ChatRoomSessionNotice,
 } from "@/components/chat-room-session-status";
+import { shouldHoldChatRoomInitialEntry } from "@/components/chat-room-initial-entry";
 import { ChatRoomView } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
 import { useChatRoomContentExperience } from "@/components/use-chat-room-content-experience";
@@ -20,6 +21,7 @@ import { useRoomMessageNavigation } from "@/components/use-room-message-context"
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
+  const [positionedViewportKey, setPositionedViewportKey] = useState<string | null>(null);
   const roomQuery = useRoomDetailsQuery(roomId);
   const realtime = useChatRoomRealtimeExperience(roomId, {
     roomStatus: roomQuery.data?.status,
@@ -31,9 +33,14 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     liveMessages: realtime.messageHistory.messages,
   });
   const content = useChatRoomContentExperience(roomId, roomQuery, realtime, messageNavigation);
+  const viewportKey = content.messageHistory.viewportKey;
   const initialEntryPending = useChatRoomInitialEntryPending(
     roomId,
-    content.roomError === null && realtime.sessionView.kind === "pending",
+    shouldHoldChatRoomInitialEntry({
+      hasRoomError: content.roomError !== null,
+      sessionKind: realtime.sessionView.kind,
+      viewportPositioned: positionedViewportKey === viewportKey,
+    }),
   );
   const overlays = useChatRoomOverlayExperience(roomId, {
     generation: session.generation,
@@ -56,6 +63,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       headerAction={<ChatRoomScreenHeaderActions {...overlays.headerActions} />}
       initializing={initialEntryPending}
       messageHistory={content.messageHistory}
+      onInitialViewportPositioned={setPositionedViewportKey}
       messageSearchPanel={
         overlays.messageSearchPanel.visible ? (
           <ChatRoomScreenMessageSearchPanel messageSearchPanel={overlays.messageSearchPanel} />

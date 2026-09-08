@@ -23,6 +23,7 @@ export type ChatRoomViewProps = Readonly<{
   initializing: boolean;
   messageHistory: ChatMessageHistoryViewModel;
   messageSearchPanel: ReactNode;
+  onInitialViewportPositioned: (viewportKey: string) => void;
   overlay: ReactNode;
   roomError: ChatRoomEntryErrorViewModel | null;
   sessionIndicator: ReactNode;
@@ -37,6 +38,7 @@ export function ChatRoomView({
   initializing,
   messageHistory,
   messageSearchPanel,
+  onInitialViewportPositioned,
   overlay,
   roomError,
   sessionIndicator,
@@ -70,33 +72,46 @@ export function ChatRoomView({
       shellRef={chatRoomShellRef}
     >
       <section className="flex h-full min-h-0 flex-col overflow-hidden" data-chat-room-view="true">
-        <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
-          {initializing ? (
-            <ChatRoomScreenLoadingContent />
-          ) : roomError ? (
+        <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+          {roomError ? (
             <ChatRoomEntryError error={roomError} />
           ) : (
             <>
-              <div className="shrink-0 bg-white">
-                <div className="sr-only">
-                  <span>{header.statusLabel}</span>
-                  <span>{header.description}</span>
-                  {sessionIndicator}
+              <div
+                aria-hidden={initializing || undefined}
+                className={`flex min-h-0 flex-1 flex-col overflow-hidden ${
+                  initializing ? "invisible" : ""
+                }`}
+                data-chat-room-content-state={initializing ? "positioning" : "ready"}
+                inert={initializing}
+              >
+                <div className="shrink-0 bg-white">
+                  <div className="sr-only">
+                    <span>{header.statusLabel}</span>
+                    <span>{header.description}</span>
+                    {sessionIndicator}
+                  </div>
+                  {sessionNotice}
+                  {syncStatus}
                 </div>
-                {sessionNotice}
-                {syncStatus}
+
+                {messageSearchPanel}
+
+                <ChatMessageViewport
+                  history={{
+                    ...messageHistory,
+                    readStatePaused: hasOverlay || initializing,
+                  }}
+                  onInitialPositionReady={onInitialViewportPositioned}
+                />
+
+                <div className="shrink-0 bg-white">{sessionControls}</div>
               </div>
-
-              {messageSearchPanel}
-
-              <ChatMessageViewport
-                history={{
-                  ...messageHistory,
-                  readStatePaused: hasOverlay,
-                }}
-              />
-
-              <div className="shrink-0 bg-white">{sessionControls}</div>
+              {initializing ? (
+                <div className="absolute inset-0 z-10">
+                  <ChatRoomScreenLoadingContent />
+                </div>
+              ) : null}
             </>
           )}
         </div>

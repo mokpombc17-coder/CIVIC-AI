@@ -154,8 +154,9 @@ motion, overflow 방향 표시와 선택지 행 표현을 일관되게 유지한
 `ServiceEligibilityGuard`가 자격을 확인하는 동안에는 `ChatRoomListLoading`을 채팅 목록과 같은
 shell fallback으로 유지한다. `/chat/loading.tsx`도 같은 fallback을 사용하므로 목록 route 진입, 자격 확인,
 목록 Query 대기가 빈 콘텐츠 없이 하나의 로딩 표면으로 이어진다. `/chat/[roomId]/loading.tsx`는
-상세 route 전환에 `ChatRoomScreenLoading`을 사용하고, `ChatRoomView`의 최초 진입 대기도 같은
-버블 없는 loading content를 재사용한다.
+상세 route 전환에 `ChatRoomScreenLoading`을 사용하고, `ChatRoomView`는 실시간 session뿐 아니라
+읽음 위치 탐색과 가상 viewport의 최초 위치 보정이 끝날 때까지 같은 버블 없는 loading content를
+유지한다.
 인증이 유효하면 Boundary는 `ChatRealtimeProvider`, `ChatRoomReadStateProvider`와 nested page를
 조립하고, 401이면 이 하위 트리를 unmount한 뒤 현재 URL을 `returnTo`로 보존한 단일 로그인 필요
 화면으로 교체한다. Read-state Provider는
@@ -376,14 +377,17 @@ membership 불일치에서는 generation별 한 번만 Room detail과 receipt를
 `ChatRoomView`는 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode slot을 공통
 `PlatformShell`에 배치하는 대표 View 경계다. `PlatformHeader`에 `/chat` back action, 제목과 도메인 action을
 전달하고, `PlatformNavigationClient`를 하단 slot에 제공하며 visual viewport 높이 ref로 키보드가 열린 동안
-shell 높이만 보정한다. overlay 존재 여부는
+shell 높이만 보정한다. 최초 진입 중에는 실제 message viewport를 inert·비가시 상태로 배치해 초기 위치
+측정은 허용하되 loading content가 이를 덮고, viewport의 위치 보정 완료 callback을 받은 뒤 완성된 화면을
+한 번에 노출한다. 이때 read-state 보고는 실제 화면이 노출될 때까지 보류한다. overlay 존재 여부는
 공통 surface의 inert 상태와 read-state pause 신호에 함께 전달한다. session indicator처럼 받은 값을
 표시하는 내부 요소는 생략한다. `ChatRoomScreenHeaderActions`는 검색·채팅방 메뉴
 trigger를 배치하고, `ChatRoomScreenOverlay`는 채팅방 메뉴와 메시지 action의 단일 overlay 우선순위를
 표현한다. `ChatMessageViewport`는 virtualization, scroll anchoring, 이전 이력 조회와
 focus·visibility·최신 위치·overlay 상태를 반영한 read-state 보고 생명주기를 소유한다. 검색 결과 이동
 목표는 virtualization index의 중앙으로 정착시킨 뒤 focus하고, 최신 대화 복귀 시 원래 timeline
-viewport key로 전환한다. system activity가 추가되면 viewport가 최신 위치에 고정된 경우에만 따라가며
+viewport key로 전환한다. 최초 목표가 비어 있으면 빈 viewport도 즉시 위치 준비 완료로 처리하고,
+목표 위치의 측정·보정이 끝나면 해당 viewport key를 Screen에 알린다. system activity가 추가되면 viewport가 최신 위치에 고정된 경우에만 따라가며
 새 메시지 수에는 포함하지 않는다. 이 책임 때문에 독립 Feature로 유지하고,
 상단 loading/error, 이력 안내, 새 메시지 이동 버튼과 가상 row 선택 렌더링은
 `chat-message-viewport-presentation.tsx`의 순수 표현 컴포넌트로 위임한다. 이 내부 표현 컴포넌트와

@@ -66,7 +66,13 @@ export type ChatMessageViewportLoadOlderResult = Readonly<{
   hasOlderMessages: boolean;
 }>;
 
-export function ChatMessageViewport({ history }: { history: ChatMessageViewportViewModel }) {
+export function ChatMessageViewport({
+  history,
+  onInitialPositionReady,
+}: {
+  history: ChatMessageViewportViewModel;
+  onInitialPositionReady?: (viewportKey: string) => void;
+}) {
   const {
     canLoadOlder,
     initialScrollTarget,
@@ -84,6 +90,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const olderRequestInFlightRef = useRef(false);
   const canLoadOlderRef = useRef(canLoadOlder);
   const currentViewportKeyRef = useRef(history.viewportKey);
+  const positionedViewportKeyRef = useRef<string | null>(null);
   const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
   const initialScrollInFlightRef = useRef(false);
   const latestScrollFramesRef = useRef<ChatMessageViewportScrollFrames>({
@@ -131,6 +138,21 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
   const virtualItems = virtualizer.getVirtualItems();
   canLoadOlderRef.current = canLoadOlder;
   currentViewportKeyRef.current = viewportKey;
+
+  const notifyInitialPositionReady = useCallback(
+    (positionedViewportKey: string) => {
+      if (
+        currentViewportKeyRef.current !== positionedViewportKey ||
+        positionedViewportKeyRef.current === positionedViewportKey
+      ) {
+        return;
+      }
+
+      positionedViewportKeyRef.current = positionedViewportKey;
+      onInitialPositionReady?.(positionedViewportKey);
+    },
+    [onInitialPositionReady],
+  );
 
   const reportVisibleReadSequence = useCallback(() => {
     if (latestConfirmedSequence === null) {
@@ -181,6 +203,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
       return;
     }
 
+    const positionedViewportKey = viewportKey;
     cancelLatestScroll();
     latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
       latestScrollFramesRef.current.scroll = null;
@@ -209,13 +232,20 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
             type: "viewport-ready",
             isAtEnd: true,
           });
+          notifyInitialPositionReady(positionedViewportKey);
           reportVisibleReadSequence();
         });
       };
 
       settleAtLatest(LATEST_SCROLL_SETTLE_FRAMES);
     });
-  }, [cancelLatestScroll, history.items.length, reportVisibleReadSequence]);
+  }, [
+    cancelLatestScroll,
+    history.items.length,
+    notifyInitialPositionReady,
+    reportVisibleReadSequence,
+    viewportKey,
+  ]);
 
   const scrollToInitialTarget = useCallback(() => {
     if (viewportPositionRef.current !== "initializing" || initialScrollTarget.kind === "pending") {
@@ -225,6 +255,17 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     const targetIndex = findChatMessageInitialScrollIndex(history.items, initialScrollTarget);
 
     if (targetIndex === null) {
+      const scrollElement = scrollElementRef.current;
+      const isAtEnd =
+        scrollElement === null ||
+        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <=
+          AT_END_THRESHOLD;
+      viewportPositionRef.current = isAtEnd ? "pinned" : "detached";
+      dispatch({
+        type: "viewport-ready",
+        isAtEnd,
+      });
+      notifyInitialPositionReady(viewportKey);
       return;
     }
 
@@ -241,6 +282,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
 
     cancelLatestScroll();
     initialScrollInFlightRef.current = true;
+    const positionedViewportKey = viewportKey;
     latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
       latestScrollFramesRef.current.scroll = null;
       virtualizerRef.current.scrollToIndex(targetIndex, {
@@ -290,6 +332,7 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
             type: "viewport-ready",
             isAtEnd,
           });
+          notifyInitialPositionReady(positionedViewportKey);
 
           if (isAtEnd) {
             reportVisibleReadSequence();
@@ -303,8 +346,10 @@ export function ChatMessageViewport({ history }: { history: ChatMessageViewportV
     cancelLatestScroll,
     history.items,
     initialScrollTarget,
+    notifyInitialPositionReady,
     reportVisibleReadSequence,
     scrollToLatest,
+    viewportKey,
   ]);
 
   const loadOlderMessages = useCallback(async () => {
