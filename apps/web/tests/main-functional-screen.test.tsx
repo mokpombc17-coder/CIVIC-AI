@@ -522,7 +522,10 @@ describe("25 functional Main/Auth screens", () => {
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
 
-    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>인증 설정하기<\/button>/u);
+    expect(html).toContain(
+      "로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다.",
+    );
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>설정하기<\/button>/u);
   });
 
   it("RAG 실패 요약 조회 실패는 확인된 0건과 구분한다", async () => {

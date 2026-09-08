@@ -279,7 +279,7 @@ function AccountDetailLoadingSurface({ screenId }: Readonly<{ screenId: string }
           <article className="wf-account-security-card">
             <div>
               <h3>2단계 인증</h3>
-              <p>이메일 코드를 활용하여 보안을 강화합니다.</p>
+              <p>로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다.</p>
             </div>
             <button className="wf-button wf-button-secondary" disabled type="button">
               확인 중

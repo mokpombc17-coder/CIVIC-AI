@@ -883,7 +883,10 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   const twoFactorCard = page.locator(".wf-account-security-card").filter({
     hasText: "2단계 인증",
   });
-  await twoFactorCard.getByRole("button", { name: "인증 설정하기" }).click();
+  await expect(twoFactorCard).toContainText(
+    "로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다.",
+  );
+  await twoFactorCard.getByRole("button", { name: "설정하기" }).click();
   await expect(page.getByLabel("6자리 인증 코드")).toHaveCount(0);
 
   await page.getByRole("button", { name: "인증 코드 받기" }).click();
@@ -897,7 +900,7 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   await codeInput.fill("123456");
   await page.getByRole("button", { name: "인증 확인" }).click();
 
-  await expect(twoFactorCard.getByRole("button", { name: "인증 해제하기" })).toBeVisible();
+  await expect(twoFactorCard.getByRole("button", { name: "해제하기" })).toBeVisible();
   expect(twoFactorEnableRequestBodies).toEqual([{ code: null }, { code: "123456" }]);
 });
 
