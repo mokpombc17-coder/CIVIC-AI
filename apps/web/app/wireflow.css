@@ -5090,7 +5090,7 @@ body {
   gap: 7px;
   margin-top: 2px;
   border-top: 1px solid #d8dde3;
-  padding: 10px 2px 0;
+  padding: 10px 2px 8px;
   color: #526475;
 }
 
@@ -6657,7 +6657,7 @@ body {
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
   border-bottom: 1px solid #d9e2f2;
-  background: #f4f7ff;
+  background: #edf2f7;
   padding: 10px var(--civic-rag-inline-padding);
 }
 
