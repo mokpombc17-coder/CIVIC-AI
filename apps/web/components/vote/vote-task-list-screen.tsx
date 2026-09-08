@@ -232,6 +232,11 @@ export function VoteTaskListScreen() {
 function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
   return (
     <li className={styles.taskCard}>
+      <Link
+        aria-label={`${task.title} ${task.actionLabel}`}
+        className={styles.taskCardLink}
+        href={task.actionHref}
+      />
       <div className={styles.taskCardCopy}>
         <div className={styles.taskBadges}>
           <span className={styles.taskStatus}>{task.statusLabel}</span>
@@ -240,9 +245,9 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
         <h2 className={styles.taskTitle}>{task.title}</h2>
         <p className={styles.taskSupporting}>{task.supportingText}</p>
       </div>
-      <Link className={styles.taskAction} href={task.actionHref}>
+      <span aria-hidden="true" className={styles.taskAction}>
         {task.actionLabel}
-      </Link>
+      </span>
     </li>
   );
 }

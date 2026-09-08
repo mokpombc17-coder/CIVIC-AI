@@ -46,6 +46,30 @@ describe("VoteTaskListScreen", () => {
     expect(html).not.toContain("과업 목록을 불러오는 중입니다.");
   });
 
+  it("투표 카드 전체를 상세 화면으로 이동하는 링크로 제공한다", () => {
+    useOpenTasksQueryMock.mockReturnValue(
+      createQueryState({
+        data: [
+          {
+            closesAt: "2026-09-30T09:00:00Z",
+            description: "투표 카드 전체 링크 테스트",
+            openedAt: "2026-09-01T09:00:00Z",
+            submission: { submitted: false, submissionId: null, submittedAt: null },
+            taskId: "0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7",
+            title: "지역 교통 정책",
+          },
+        ],
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskListScreen />);
+
+    expect(html).toMatch(
+      /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
+    );
+    expect(html).toMatch(/<span aria-hidden="true" class="[^"]*taskAction[^"]*">참여하기<\/span>/);
+  });
+
   it("401 목록 오류는 다시 시도 대신 로그인 action을 제공한다", () => {
     useOpenTasksQueryMock.mockReturnValue(
       createQueryState({

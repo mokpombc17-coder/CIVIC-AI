@@ -158,6 +158,8 @@
 }
 
 .taskCard {
+  position: relative;
+  isolation: isolate;
   display: grid;
   min-height: 120px;
   grid-template-columns: minmax(0, 1fr) 89px;
@@ -167,6 +169,23 @@
   border-radius: 8px;
   background: #fff;
   padding: 16px 12px 16px 20px;
+}
+
+.taskCardLink {
+  position: absolute;
+  z-index: 0;
+  inset: -1px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  cursor: pointer;
+  transition:
+    border-color 160ms ease,
+    background-color 160ms ease;
+}
+
+.taskCardLink:hover {
+  border-color: var(--vote-primary);
+  background: var(--vote-soft);
 }
 
 .taskSkeletonCard {
@@ -205,7 +224,10 @@
 }
 
 .taskCardCopy {
+  position: relative;
+  z-index: 1;
   min-width: 0;
+  pointer-events: none;
 }
 
 .taskBadges {
@@ -260,6 +282,8 @@
 }
 
 .taskAction {
+  position: relative;
+  z-index: 1;
   display: inline-flex;
   width: 89px;
   height: 48px;
@@ -270,6 +294,7 @@
   color: var(--vote-primary-emphasis);
   font-size: 14px;
   font-weight: 700;
+  pointer-events: none;
   text-decoration: none;
 }
 
