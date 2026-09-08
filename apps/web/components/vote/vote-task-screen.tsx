@@ -960,14 +960,17 @@ function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
             <span className={styles.successBurstDot} key={dot} />
           ))}
         </span>
-        <strong>투표 참여가 완료되었습니다.</strong>
+        <div className={styles.successCopy}>
+          <strong>투표 참여가 완료되었습니다.</strong>
+          <p>소중한 의견을 나눠주셔서 감사합니다.</p>
+        </div>
       </div>
       <dl className={`${styles.infoCard} ${styles.completionInfoCard}`}>
         <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
         <InfoRow label="질문" value={detail.task.question.content} />
       </dl>
       <Link className={`${styles.compactPrimaryButton} ${styles.completionAction}`} href="/vote">
-        과업 목록으로
+        목록으로
       </Link>
     </div>
   );

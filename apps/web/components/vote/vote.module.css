@@ -1020,19 +1020,33 @@
 
 .successPanel {
   display: grid;
-  min-height: 106px;
-  align-content: start;
+  min-height: 140px;
+  align-content: center;
+  justify-items: center;
   gap: 12px;
   border: 1px solid #a8d9b5;
   border-radius: 8px;
   background: #edfaf0;
   padding: 16px;
   color: #176633;
+  text-align: center;
 }
 
 .successPanel strong {
   font-size: 16px;
   line-height: 24px;
+}
+
+.successCopy {
+  display: grid;
+  gap: 4px;
+}
+
+.successCopy p {
+  margin: 0;
+  color: var(--vote-muted);
+  font-size: 14px;
+  line-height: 20px;
 }
 
 .successCelebration {
@@ -1085,6 +1099,7 @@
 }
 
 .completionAction {
+  width: 100%;
   min-width: 124px;
   padding: 0 20px;
   font-size: 16px;
