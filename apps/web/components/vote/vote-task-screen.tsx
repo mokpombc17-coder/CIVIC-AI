@@ -895,7 +895,7 @@ function ResponseComposer(props: ComposerProps) {
           onClick={props.onSubmit}
           type="button"
         >
-          확인하기
+          제출하기
         </button>
         <button className={styles.fullSecondaryButton} onClick={props.onCancel} type="button">
           나가기
@@ -938,12 +938,12 @@ function ResponseConfirmation({
       ) : null}
       <button
         aria-busy={isSubmitting}
-        className={`${styles.compactPrimaryButton} ${styles.confirmationSubmitButton}`}
+        className={styles.fullPrimaryButton}
         disabled={isSubmitting || !canSubmit}
         onClick={onSubmit}
         type="button"
       >
-        {isSubmitting ? "제출 중…" : "제출하기"}
+        {isSubmitting ? "확인 중…" : "확인하기"}
       </button>
     </div>
   );

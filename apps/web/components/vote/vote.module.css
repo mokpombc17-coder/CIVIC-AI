@@ -628,10 +628,6 @@
   justify-self: end;
 }
 
-.confirmationSubmitButton {
-  justify-self: end;
-}
-
 .predictionNotice {
   margin: 0;
   color: var(--vote-muted);
