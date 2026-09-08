@@ -57,6 +57,7 @@ class ResearchTaskExportServiceTest {
         TaskResultSummaryV1 summary = mock(TaskResultSummaryV1.class);
         ResearchTaskExportArtifact artifact =
                 new ResearchTaskExportArtifact(
+                        "Task title",
                         new byte[]{1}, "a".repeat(64), 2, 0);
         ResearchTaskExportParticipant later = participant(20, "user-2");
         ResearchTaskExportParticipant earlier = participant(10, "user-1");

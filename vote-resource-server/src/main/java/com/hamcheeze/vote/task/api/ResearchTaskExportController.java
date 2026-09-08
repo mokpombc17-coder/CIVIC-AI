@@ -4,7 +4,6 @@ import com.hamcheeze.vote.task.application.research.ResearchTaskExportArtifact;
 import com.hamcheeze.vote.task.application.research.ResearchTaskExportService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import org.springframework.http.CacheControl;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -42,10 +41,10 @@ public final class ResearchTaskExportController {
                 .eTag('"' + artifact.sha256() + '"')
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment()
-                                .filename("research-task-export-"
-                                        + taskId + ".zip")
-                                .build()
+                        TaskDownloadFileName.resultAttachment(
+                                        artifact.taskTitle(),
+                                        taskId,
+                                        "zip")
                                 .toString())
                 .header(
                         "X-Export-Schema-Version",

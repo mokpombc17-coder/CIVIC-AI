@@ -4,6 +4,7 @@ import java.time.Instant;
 import java.util.Objects;
 
 public record TaskResultViewDocument(
+        String taskTitle,
         int resultVersion,
         String schemaVersion,
         Instant closedAt,
@@ -16,6 +17,7 @@ public record TaskResultViewDocument(
             "application/x-ndjson;charset=UTF-8";
 
     public TaskResultViewDocument {
+        Objects.requireNonNull(taskTitle, "taskTitle");
         if (resultVersion < 1) {
             throw new IllegalArgumentException(
                     "resultVersion must be positive");

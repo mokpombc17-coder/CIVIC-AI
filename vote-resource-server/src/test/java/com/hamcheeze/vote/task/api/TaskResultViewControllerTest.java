@@ -58,7 +58,11 @@ class TaskResultViewControllerTest {
                         '"' + HASH + '"'))
                 .andExpect(header().string(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"task-result-view-v1.jsonl\""))
+                        TaskDownloadFileName.resultAttachment(
+                                        "지역 공공도서관 운영 시간 확대",
+                                        TASK_ID,
+                                        "jsonl")
+                                .toString()))
                 .andExpect(header().string(
                         HttpHeaders.CACHE_CONTROL, "no-cache, private"))
                 .andExpect(content().string(JSONL));
@@ -95,6 +99,7 @@ class TaskResultViewControllerTest {
 
     private static TaskResultViewDocument document() {
         return new TaskResultViewDocument(
+                "지역 공공도서관 운영 시간 확대",
                 1,
                 "task-result-view/v1",
                 Instant.parse("2026-08-24T00:00:00Z"),

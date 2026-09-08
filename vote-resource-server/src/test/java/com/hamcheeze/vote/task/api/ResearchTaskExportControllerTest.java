@@ -42,6 +42,7 @@ class ResearchTaskExportControllerTest {
         byte[] zip = {1, 2, 3};
         when(service.export(new TaskId(TASK_ID)))
                 .thenReturn(Optional.of(new ResearchTaskExportArtifact(
+                        "지역 공공도서관 운영 시간 확대",
                         zip, HASH, 1, 1)));
 
         mockMvc.perform(post(
@@ -59,8 +60,11 @@ class ResearchTaskExportControllerTest {
                         "research-task-export/v1"))
                 .andExpect(header().string(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        "attachment; filename=\"research-task-export-"
-                                + TASK_ID + ".zip\""));
+                        TaskDownloadFileName.resultAttachment(
+                                        "지역 공공도서관 운영 시간 확대",
+                                        TASK_ID,
+                                        "zip")
+                                .toString()));
     }
 
     @Test

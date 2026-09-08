@@ -4,7 +4,6 @@ import com.hamcheeze.vote.task.application.result.TaskResultViewDocument;
 import com.hamcheeze.vote.task.application.result.TaskResultViewDocumentQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import org.springframework.http.CacheControl;
-import org.springframework.http.ContentDisposition;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -19,9 +18,6 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1/admin/tasks")
 final class TaskResultViewController {
-
-    private static final String DOWNLOAD_FILE_NAME =
-            "task-result-view-v1.jsonl";
 
     private final TaskResultViewDocumentQueryService documents;
 
@@ -46,9 +42,10 @@ final class TaskResultViewController {
                 .cacheControl(CacheControl.noCache().cachePrivate())
                 .header(
                         HttpHeaders.CONTENT_DISPOSITION,
-                        ContentDisposition.attachment()
-                                .filename(DOWNLOAD_FILE_NAME)
-                                .build()
+                        TaskDownloadFileName.resultAttachment(
+                                        document.taskTitle(),
+                                        taskId,
+                                        "jsonl")
                                 .toString())
                 .body(document.content());
     }

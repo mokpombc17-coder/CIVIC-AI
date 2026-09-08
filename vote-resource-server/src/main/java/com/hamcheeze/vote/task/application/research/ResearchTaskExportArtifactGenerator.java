@@ -97,6 +97,7 @@ public class ResearchTaskExportArtifactGenerator {
                 .filter(ResearchTaskExportParticipant::hasPrediction)
                 .count();
         return new ResearchTaskExportArtifact(
+                verified.view().task().title(),
                 zip,
                 sha256(zip),
                 immutableParticipants.size(),

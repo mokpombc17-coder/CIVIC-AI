@@ -29,6 +29,7 @@ public class TaskResultViewDocumentQueryService {
     ) {
         var manifest = verified.manifest();
         return new TaskResultViewDocument(
+                verified.view().task().title(),
                 manifest.resultVersion(),
                 manifest.schemaVersion(),
                 manifest.closedAt(),

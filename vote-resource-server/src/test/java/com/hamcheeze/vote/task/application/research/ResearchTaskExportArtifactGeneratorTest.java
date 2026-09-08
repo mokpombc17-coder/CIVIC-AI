@@ -77,6 +77,7 @@ class ResearchTaskExportArtifactGeneratorTest {
                 "predictions.jsonl");
         assertThat(artifact.participantCount()).isEqualTo(1);
         assertThat(artifact.predictionCount()).isEqualTo(1);
+        assertThat(artifact.taskTitle()).isEqualTo("연구 과업");
 
         JsonNode metadata = objectMapper.readTree(files.get("metadata.json"));
         assertThat(metadata.get("schemaVersion").asText())
