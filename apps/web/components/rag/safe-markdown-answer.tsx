@@ -24,6 +24,7 @@ const CITATION_TOKEN_PATTERN = new RegExp(
   "giu",
 );
 const CIVIC_CITATION_URL_PREFIX = "civic-citation:";
+const VISIBLE_CITATION_COUNT = 2;
 const DISPLAY_FILE_EXTENSION_PATTERN =
   /\.(?:bmp|csv|doc|docx|gif|hwp|hwpx|jpe?g|md|ods|pdf|png|ppt|pptx|tiff?|txt|webp|xls|xlsx)$/iu;
 
@@ -220,37 +221,76 @@ export const RagCitationSources = memo(function RagCitationSources({
 }: RagCitationSourcesProps) {
   const numberedCitations = numberedCitationsForAnswer(answer, citations);
   if (numberedCitations.length === 0) return null;
+  const visibleCitations = numberedCitations.slice(0, VISIBLE_CITATION_COUNT);
+  const additionalCitations = numberedCitations.slice(VISIBLE_CITATION_COUNT);
 
   return (
     <section aria-label="답변 출처" className="civic-rag-source-list">
       <h4>출처</h4>
       <ol>
-        {numberedCitations.map(({ citation, number }) => {
-          const displayTitle = citationDisplayTitle(citation);
-          return (
-            <li key={citationKey(citation)}>
-              <button
-                aria-label={`출처 ${number}, ${displayTitle} p.${citation.page_number} 열기`}
-                className="civic-rag-source-item"
-                onClick={onOpenCitation ? () => onOpenCitation(citation) : undefined}
-                title={citationChipLabel(citation)}
-                type="button"
-              >
-                <span aria-hidden="true" className="civic-rag-source-number">
-                  [{number}]
-                </span>
-                <span className="civic-rag-source-copy">
-                  <span className="civic-rag-source-title">{displayTitle}</span>
-                  <span className="civic-rag-source-page">p.{citation.page_number}</span>
-                </span>
-              </button>
-            </li>
-          );
-        })}
+        {visibleCitations.map(({ citation, number }) => (
+          <RagCitationSourceItem
+            citation={citation}
+            key={citationKey(citation)}
+            number={number}
+            onOpenCitation={onOpenCitation}
+          />
+        ))}
       </ol>
+      {additionalCitations.length > 0 ? (
+        <details className="civic-rag-source-more">
+          <summary>
+            <span className="civic-rag-source-more-label">
+              출처 {additionalCitations.length}개 더보기
+            </span>
+            <span className="civic-rag-source-less-label">출처 접기</span>
+          </summary>
+          <ol>
+            {additionalCitations.map(({ citation, number }) => (
+              <RagCitationSourceItem
+                citation={citation}
+                key={citationKey(citation)}
+                number={number}
+                onOpenCitation={onOpenCitation}
+              />
+            ))}
+          </ol>
+        </details>
+      ) : null}
     </section>
   );
 });
+
+function RagCitationSourceItem({
+  citation,
+  number,
+  onOpenCitation,
+}: Readonly<{
+  citation: Citation;
+  number: number;
+  onOpenCitation: ((citation: Citation) => void) | undefined;
+}>) {
+  const displayTitle = citationDisplayTitle(citation);
+  return (
+    <li>
+      <button
+        aria-label={`출처 ${number}, ${displayTitle} p.${citation.page_number} 열기`}
+        className="civic-rag-source-item"
+        onClick={onOpenCitation ? () => onOpenCitation(citation) : undefined}
+        title={citationChipLabel(citation)}
+        type="button"
+      >
+        <span aria-hidden="true" className="civic-rag-source-number">
+          [{number}]
+        </span>
+        <span className="civic-rag-source-copy">
+          <span className="civic-rag-source-title">{displayTitle}</span>
+          <span className="civic-rag-source-page">p.{citation.page_number}</span>
+        </span>
+      </button>
+    </li>
+  );
+}
 
 function citationMarkdownLink(
   citations: readonly Citation[],
