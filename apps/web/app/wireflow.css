@@ -6909,6 +6909,10 @@ body {
   line-height: 23.25px;
 }
 
+[data-wireflow-screen="U-RAG-001"] .civic-rag-markdown {
+  gap: 12px;
+}
+
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer p,
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer li,
 [data-wireflow-screen="U-RAG-001"] .civic-rag-answer h2,
