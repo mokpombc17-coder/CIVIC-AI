@@ -36,6 +36,11 @@ body {
   background: rgb(16 17 20 / 56%);
 }
 
+.civic-confirm-dialog[data-dialog-scope="platform"]::backdrop {
+  background: linear-gradient(rgb(16 17 20 / 56%), rgb(16 17 20 / 56%)) center /
+    min(var(--platform-shell-max-width, 393px), 100%) 100% no-repeat;
+}
+
 .civic-confirm-dialog {
   position: fixed;
   inset: 0;
@@ -50,6 +55,10 @@ body {
   background: #fff;
   padding: 1.5rem;
   box-shadow: 0 1rem 2.25rem rgb(16 17 20 / 28%);
+}
+
+.civic-confirm-dialog[data-dialog-scope="platform"] {
+  width: min(calc(var(--platform-shell-max-width, 393px) - 2rem), calc(100% - 2rem));
 }
 
 .civic-confirm-dialog[open] {
@@ -129,6 +138,23 @@ body {
   .civic-confirm-dialog-actions {
     display: grid;
     grid-template-columns: 1fr 1fr;
+  }
+}
+
+@media (min-width: 481px) and (max-width: 640px) {
+  .civic-confirm-dialog[data-dialog-scope="platform"] {
+    inset: 0;
+    margin: auto;
+  }
+}
+
+@media (max-width: 480px) {
+  .civic-confirm-dialog[data-dialog-scope="platform"] {
+    width: auto;
+  }
+
+  .civic-confirm-dialog[data-dialog-scope="platform"]::backdrop {
+    background-size: 100% 100%;
   }
 }
 

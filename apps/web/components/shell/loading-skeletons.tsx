@@ -191,6 +191,8 @@ function RagConversationLoadingSurface() {
       <div aria-hidden="true" className="civic-rag-messages civic-loading-rag-messages">
         <SkeletonBlock className="civic-skeleton-chat-question" />
         <SkeletonBlock className="civic-skeleton-chat-answer" />
+        <SkeletonBlock className="civic-skeleton-chat-question" />
+        <SkeletonBlock className="civic-skeleton-chat-answer" />
       </div>
       <div className="civic-rag-composer">
         <label className="sr-only" htmlFor="loading-rag-question">

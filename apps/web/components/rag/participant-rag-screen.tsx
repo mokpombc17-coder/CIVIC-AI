@@ -529,6 +529,7 @@ function RagConversation({
         onCancel={() => setNewQuestionDialogOpen(false)}
         onConfirm={startNewQuestion}
         open={newQuestionDialogOpen}
+        scope="platform"
         title="새 대화를 시작할까요?"
       />
       {activeCitation ? (

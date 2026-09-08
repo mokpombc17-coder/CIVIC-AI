@@ -1431,6 +1431,40 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
 });
 
+test("U-RAG-001 새 대화 확인창은 데스크톱에서 platform shell 안에 표시한다", async ({
+  context,
+  page,
+}) => {
+  await page.setViewportSize({ height: 853, width: 1200 });
+  await authenticate(context, "participant.payload.signature");
+  await page.goto("/rag");
+
+  const shell = page.locator('[data-platform-shell="true"]');
+  await expect(page.getByPlaceholder("문서에 대해 질문하세요…")).toBeEnabled();
+  await page.getByRole("button", { name: "새 대화" }).click();
+
+  const dialog = page.getByRole("alertdialog", { name: "새 대화를 시작할까요?" });
+  await expect(dialog).toBeVisible();
+  await expect(dialog).toHaveAttribute("data-dialog-scope", "platform");
+
+  const shellBox = await shell.boundingBox();
+  const dialogBox = await dialog.boundingBox();
+  if (!shellBox || !dialogBox) throw new Error("platform dialog geometry missing");
+
+  expect(dialogBox.x).toBeGreaterThanOrEqual(shellBox.x);
+  expect(dialogBox.x + dialogBox.width).toBeLessThanOrEqual(shellBox.x + shellBox.width);
+
+  const backdrop = await dialog.evaluate((element) => {
+    const style = getComputedStyle(element, "::backdrop");
+    return { backgroundRepeat: style.backgroundRepeat, backgroundSize: style.backgroundSize };
+  });
+  expect(backdrop.backgroundRepeat).toBe("no-repeat");
+  expect(backdrop.backgroundSize).toMatch(/393px.*100%/u);
+
+  await dialog.getByRole("button", { name: "취소" }).click();
+  await expect(dialog).toHaveCount(0);
+});
+
 test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어서 완료한다", async ({
   context,
   page,
