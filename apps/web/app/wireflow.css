@@ -6921,6 +6921,18 @@ body {
   font-weight: 600;
 }
 
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer hr {
+  margin: 12px 0;
+  border: 0;
+  border-top: 1px solid #d8dde3;
+}
+
+[data-wireflow-screen="U-RAG-001"] .civic-rag-answer.is-no-match {
+  border-color: #e1e7ee;
+  background: #f7f9fc;
+  color: #59616b;
+}
+
 [data-wireflow-screen="U-RAG-001"] .civic-rag-citations {
   width: 100%;
   gap: 7px;

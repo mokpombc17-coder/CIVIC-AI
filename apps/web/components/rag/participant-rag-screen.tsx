@@ -57,6 +57,8 @@ export type RagLiveJob = Readonly<{
 
 type RagLiveJobs = Readonly<Record<string, RagLiveJob>>;
 
+const RAG_NO_MATCH_ANSWER = "제공된 문서에서 매칭되는 정보를 찾지 못했습니다.";
+
 type RagQuestionKeyDownEvent = Readonly<{
   key: string;
   shiftKey: boolean;
@@ -714,6 +716,8 @@ export function RagMessage({
   const citations = message.job?.citations ?? [];
   const showStreamingAnswer = Boolean(liveJob?.streamedAnswer);
   const showProgress = Boolean(liveJob && !showStreamingAnswer);
+  const showNoMatchAnswer =
+    !liveJob && statusMessage === null && message.job?.answer?.trim() === RAG_NO_MATCH_ANSWER;
   return (
     <article className="civic-rag-exchange" data-rag-message-id={message.id}>
       <div className="civic-rag-question-row">
@@ -728,7 +732,7 @@ export function RagMessage({
         <div
           aria-busy={liveJob ? true : undefined}
           aria-label={liveJob && showStreamingAnswer ? "실시간 답변" : undefined}
-          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showProgress ? " is-progress-only" : ""}`}
+          className={`civic-rag-answer${liveJob ? " is-live" : ""}${showStreamingAnswer ? " is-streaming-answer" : ""}${showProgress ? " is-progress-only" : ""}${showNoMatchAnswer ? " is-no-match" : ""}`}
         >
           {liveJob ? (
             showStreamingAnswer ? (
