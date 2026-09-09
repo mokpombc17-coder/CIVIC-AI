@@ -241,17 +241,21 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
         className={styles.taskCardLink}
         href={task.actionHref}
       />
-      <div className={styles.taskCardCopy}>
-        <div className={styles.taskBadges}>
-          <span className={styles.taskStatus}>{task.statusLabel}</span>
-          {task.sourceLabel ? <span className={styles.taskSource}>{task.sourceLabel}</span> : null}
+      <div className={styles.taskCardSurface}>
+        <div className={styles.taskCardCopy}>
+          <div className={styles.taskBadges}>
+            <span className={styles.taskStatus}>{task.statusLabel}</span>
+            {task.sourceLabel ? (
+              <span className={styles.taskSource}>{task.sourceLabel}</span>
+            ) : null}
+          </div>
+          <h2 className={styles.taskTitle}>{task.title}</h2>
+          <p className={styles.taskSupporting}>{task.supportingText}</p>
         </div>
-        <h2 className={styles.taskTitle}>{task.title}</h2>
-        <p className={styles.taskSupporting}>{task.supportingText}</p>
+        <span aria-hidden="true" className={styles.taskAction}>
+          {task.actionLabel}
+        </span>
       </div>
-      <span aria-hidden="true" className={styles.taskAction}>
-        {task.actionLabel}
-      </span>
     </li>
   );
 }

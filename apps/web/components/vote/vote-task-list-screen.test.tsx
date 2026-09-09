@@ -70,6 +70,9 @@ describe("VoteTaskListScreen", () => {
     expect(html).toMatch(
       /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
     );
+    expect(html).toMatch(
+      /<div class="[^"]*taskCardSurface[^"]*"><div class="[^"]*taskCardCopy[^"]*">/,
+    );
     expect(html).toMatch(/<span aria-hidden="true" class="[^"]*taskAction[^"]*">참여하기<\/span>/);
   });
 

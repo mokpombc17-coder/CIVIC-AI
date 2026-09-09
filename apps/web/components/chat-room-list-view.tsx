@@ -429,43 +429,45 @@ export function MyRoomCard({
 
   return (
     <article
-      className="relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] bg-white px-5 py-4"
+      className="relative isolate h-[120px] rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)]"
       data-room-id={room.roomId}
     >
       <Link
         aria-label={`${room.name} 채팅방 입장`}
-        className="absolute -inset-px z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] border border-transparent transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="peer absolute inset-0 z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-none"
         href={`/chat/${room.roomId}`}
       >
         <span className="sr-only">{room.name} 채팅방 입장</span>
       </Link>
-      <span className="pointer-events-none relative z-[1] min-w-0 flex-1">
-        <ChatRoomCategoryBadges categories={room.categorySummaries} fitAvailableWidth />
-        <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
-          {room.name}
-        </strong>
-        <span className="mt-1 flex min-w-0 items-center gap-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
-          <span aria-label={memberCount.ariaLabel} className="shrink-0">
-            {memberCount.text}
-          </span>
-          <span aria-hidden="true">·</span>
-          <span aria-label={unread?.ariaLabel ?? "새 메시지 없음"} className="min-w-0 truncate">
-            {unread ? `읽지 않음 ${unread.text}` : "새 메시지 없음"}
+      <RoomCardInteractionSurface>
+        <span className="min-w-0 flex-1">
+          <ChatRoomCategoryBadges categories={room.categorySummaries} fitAvailableWidth />
+          <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+            {room.name}
+          </strong>
+          <span className="mt-1 flex min-w-0 items-center gap-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
+            <span aria-label={memberCount.ariaLabel} className="shrink-0">
+              {memberCount.text}
+            </span>
+            <span aria-hidden="true">·</span>
+            <span aria-label={unread?.ariaLabel ?? "새 메시지 없음"} className="min-w-0 truncate">
+              {unread ? `읽지 않음 ${unread.text}` : "새 메시지 없음"}
+            </span>
           </span>
         </span>
-      </span>
-      <button
-        aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
-        aria-expanded={isDetailOpen}
-        aria-haspopup="dialog"
-        aria-label={`${room.name} 상세 정보 보기`}
-        className="relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
-        id={getChatRoomListDetailTriggerId(room.roomId)}
-        onClick={(event) => onOpenDetails(event.currentTarget)}
-        type="button"
-      >
-        상세보기
-      </button>
+        <button
+          aria-controls={CHAT_ROOM_LIST_DETAIL_DIALOG_ID}
+          aria-expanded={isDetailOpen}
+          aria-haspopup="dialog"
+          aria-label={`${room.name} 상세 정보 보기`}
+          className="pointer-events-auto relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          id={getChatRoomListDetailTriggerId(room.roomId)}
+          onClick={(event) => onOpenDetails(event.currentTarget)}
+          type="button"
+        >
+          상세보기
+        </button>
+      </RoomCardInteractionSurface>
     </article>
   );
 }
@@ -483,9 +485,7 @@ export function PublicRoomCard({
 }>) {
   return (
     <article
-      className={`relative isolate grid h-[120px] grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)] px-5 py-4 motion-safe:transition-colors motion-safe:duration-700 ${
-        highlighted ? "bg-[var(--chat-publishing-color-accent-soft)]" : "bg-white"
-      }`}
+      className="relative isolate h-[120px] rounded-[var(--chat-publishing-radius-card)] border border-[var(--chat-publishing-color-border)]"
       data-new-public-room={highlighted || undefined}
       data-room-id={room.roomId}
     >
@@ -494,23 +494,43 @@ export function PublicRoomCard({
         aria-expanded={isDetailOpen}
         aria-haspopup="dialog"
         aria-label={`${room.name} 참여하기`}
-        className="absolute -inset-px z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] border border-transparent transition hover:border-[var(--chat-publishing-color-primary)] hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+        className="peer absolute inset-0 z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-none"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
         type="button"
       >
         <span className="sr-only">{room.name} 참여하기</span>
       </button>
-      <span className="pointer-events-none relative z-[1] min-w-0">
-        <RoomSummary room={room} />
-      </span>
-      <span
-        aria-hidden="true"
-        className="pointer-events-none relative z-[1] inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)]"
-      >
-        참여하기
-      </span>
+      <RoomCardInteractionSurface highlighted={highlighted}>
+        <span className="min-w-0">
+          <RoomSummary room={room} />
+        </span>
+        <span
+          aria-hidden="true"
+          className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)]"
+        >
+          참여하기
+        </span>
+      </RoomCardInteractionSurface>
     </article>
+  );
+}
+
+function RoomCardInteractionSurface({
+  children,
+  highlighted = false,
+}: Readonly<{
+  children: ReactNode;
+  highlighted?: boolean;
+}>) {
+  return (
+    <div
+      className={`pointer-events-none absolute inset-0 z-[1] isolate grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--chat-publishing-radius-card)] border border-transparent bg-white px-5 py-4 transition-[background-color,transform] duration-[250ms] ease-in-out after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:bg-[var(--chat-publishing-color-accent-soft)] after:transition-opacity after:duration-700 after:content-[''] peer-hover:bg-[var(--chat-publishing-color-accent-soft)] peer-focus-visible:border-[var(--chat-publishing-color-primary)] peer-active:[transform:scale(0.90)] peer-active:!border-transparent peer-active:bg-[var(--chat-publishing-color-accent-soft)] motion-reduce:!transform-none motion-reduce:transition-none motion-reduce:after:transition-none [&>*]:relative [&>*]:z-[1] ${
+        highlighted ? "after:opacity-100" : "after:opacity-0"
+      }`}
+    >
+      {children}
+    </div>
   );
 }
 

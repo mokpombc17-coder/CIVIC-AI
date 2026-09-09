@@ -167,28 +167,53 @@
   gap: 12px;
   border: 1px solid var(--vote-border);
   border-radius: 8px;
-  background: #fff;
   padding: 16px 12px 16px 20px;
 }
 
 .taskCardLink {
   position: absolute;
   z-index: 0;
-  inset: -1px;
-  border: 1px solid transparent;
+  inset: 0;
   border-radius: 8px;
   cursor: pointer;
-  transition:
-    border-color 160ms ease,
-    background-color 160ms ease;
+  outline: none;
 }
 
-.taskCardLink:hover {
-  border-color: var(--vote-primary);
+.taskCardSurface {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 89px;
+  align-items: center;
+  gap: 12px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: #fff;
+  background-clip: padding-box;
+  padding: 16px 12px 16px 20px;
+  pointer-events: none;
+  transition:
+    background-color 250ms ease-in-out,
+    transform 250ms ease-in-out;
+}
+
+.taskCardLink:hover + .taskCardSurface {
   background: var(--vote-soft);
 }
 
+.taskCardLink:focus-visible + .taskCardSurface {
+  border-color: var(--vote-primary);
+}
+
+.taskCardLink:active + .taskCardSurface {
+  border-color: transparent;
+  background: var(--vote-soft);
+  transform: scale(0.9);
+}
+
 .taskSkeletonCard {
+  background: #fff;
   pointer-events: none;
 }
 
@@ -291,6 +316,7 @@
   justify-content: center;
   border: 1px solid var(--vote-primary);
   border-radius: 6px;
+  background: #fff;
   color: var(--vote-primary-emphasis);
   font-size: 14px;
   font-weight: 700;
@@ -1016,6 +1042,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .taskCardSurface,
   .reasonTitleDisclosure,
   .reasonAccordion,
   .directInputDisclosure {

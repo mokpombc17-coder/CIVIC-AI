@@ -281,6 +281,10 @@ describe("chat room list publishing layout", () => {
 describe("chat room list cards", () => {
   it("참여 Room card에 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
+    const cardClass = /<article class="([^"]+)"/.exec(html)?.[1];
+    const entryLinkClass = /aria-label="프로젝트 회의방 채팅방 입장" class="([^"]+)"/.exec(
+      html,
+    )?.[1];
     const detailButtonClass = /aria-label="프로젝트 회의방 상세 정보 보기" class="([^"]+)"/.exec(
       html,
     )?.[1];
@@ -298,6 +302,23 @@ describe("chat room list cards", () => {
     expect(html).toContain("상세보기");
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
     expect(html.match(/cursor-pointer/g)).toHaveLength(2);
+    expect(entryLinkClass).toContain("absolute inset-0");
+    expect(entryLinkClass).toContain("peer");
+    expect(entryLinkClass).not.toContain("hover:border-");
+    expect(entryLinkClass).not.toContain("-inset-px");
+    expect(entryLinkClass).not.toContain("active:scale-");
+    expect(entryLinkClass).toContain("focus-visible:outline-none");
+    expect(cardClass).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(cardClass).not.toContain("scale-");
+    expect(html).toContain("border-transparent");
+    expect(html).not.toContain("peer-hover:border-[var(--chat-publishing-color-primary)]");
+    expect(html).toContain("peer-focus-visible:border-[var(--chat-publishing-color-primary)]");
+    expect(html).toContain("peer-active:bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(html).toContain("peer-active:!border-transparent");
+    expect(html).toContain("peer-active:[transform:scale(0.90)]");
+    expect(html).toContain("transition-[background-color,transform]");
+    expect(html).toContain("duration-[250ms]");
+    expect(html).toContain("motion-reduce:!transform-none");
     expect(/<article class="([^"]+)"/.exec(html)?.[1]).not.toContain("hover:bg-");
     expect(detailButtonClass).toContain(
       "hover:text-[var(--chat-publishing-color-primary-emphasis)]",
@@ -357,6 +378,7 @@ describe("chat room list cards", () => {
         room: PUBLIC_ROOM,
       }),
     );
+    const cardClass = /<article class="([^"]+)"/.exec(html)?.[1];
     const cardTriggerClass = /aria-label="공개 채팅방 참여하기" class="([^"]+)"/.exec(html)?.[1];
     const visualActionClass = /<span aria-hidden="true" class="([^"]+)">참여하기<\/span>/.exec(
       html,
@@ -369,12 +391,29 @@ describe("chat room list cards", () => {
     expect(html).toContain('aria-haspopup="dialog"');
     expect(html).toContain('id="chat-room-list-detail-trigger-room-public"');
     expect(html).toContain('data-new-public-room="true"');
-    expect(html).toContain("motion-safe:transition-colors");
+    expect(cardClass).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(cardClass).not.toContain("scale-");
+    expect(html).toContain("border-transparent");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(html).toContain("after:transition-opacity");
+    expect(html).toContain("after:duration-700");
+    expect(html).toContain("after:opacity-100");
     expect(html.match(/cursor-pointer/g)).toHaveLength(1);
-    expect(cardTriggerClass).toContain("absolute -inset-px");
-    expect(cardTriggerClass).toContain("hover:border-[var(--chat-publishing-color-primary)]");
-    expect(cardTriggerClass).toContain("hover:bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(cardTriggerClass).toContain("absolute inset-0");
+    expect(cardTriggerClass).toContain("peer");
+    expect(cardTriggerClass).not.toContain("hover:border-");
+    expect(cardTriggerClass).not.toContain("-inset-px");
+    expect(cardTriggerClass).not.toContain("active:scale-");
+    expect(cardTriggerClass).toContain("focus-visible:outline-none");
+    expect(html).not.toContain("peer-hover:border-[var(--chat-publishing-color-primary)]");
+    expect(html).toContain("peer-focus-visible:border-[var(--chat-publishing-color-primary)]");
+    expect(html).toContain("peer-active:bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(html).toContain("peer-active:!border-transparent");
+    expect(html).toContain("peer-active:[transform:scale(0.90)]");
+    expect(html).toContain("transition-[background-color,transform]");
+    expect(html).toContain("duration-[250ms]");
+    expect(html).toContain("motion-reduce:!transform-none");
+    expect(html).toContain("peer-hover:bg-[var(--chat-publishing-color-accent-soft)]");
     expect(visualActionClass).toContain("font-bold leading-5");
     expect(visualActionClass).toContain("text-[var(--chat-publishing-color-primary-emphasis)]");
     expect(html).not.toContain("자세히 보기");
