@@ -332,8 +332,18 @@
 
 .completedEmptyStateCopy {
   display: grid;
-  gap: 2px;
+  gap: 6px;
   margin: 0;
+}
+
+.completedEmptyStateMessage {
+  color: var(--vote-text);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+}
+
+.completedEmptyStateDescription {
   color: var(--vote-muted);
   font-size: 14px;
   font-weight: 400;

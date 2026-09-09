@@ -179,13 +179,17 @@ export function VoteTaskListScreen() {
                         stroke="currentColor"
                         strokeLinecap="round"
                         strokeLinejoin="round"
-                        strokeWidth="1.8"
+                        strokeWidth="2.2"
                       />
                     </svg>
                   </span>
                   <p className={styles.completedEmptyStateCopy}>
-                    <span>아직 확인할 수 있는 투표 결과가 없어요.</span>
-                    <span>참여한 투표의 결과만 확인할 수 있어요.</span>
+                    <span className={styles.completedEmptyStateMessage}>
+                      아직 확인할 수 있는 투표 결과가 없어요
+                    </span>
+                    <span className={styles.completedEmptyStateDescription}>
+                      참여한 투표의 결과만 확인할 수 있어요.
+                    </span>
                   </p>
                 </div>
               ) : (

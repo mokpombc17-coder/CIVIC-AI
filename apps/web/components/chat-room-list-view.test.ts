@@ -51,7 +51,8 @@ describe("chat room list publishing layout", () => {
     );
     expect(html).toContain('<h2 class="text-lg font-bold leading-[27px]">참여한 방</h2>');
     expect(html).toContain('<h2 class="text-lg font-bold leading-[27px]">참여 가능한 방</h2>');
-    expect(html).toContain("아직 참여한 토론방이 없어요.");
+    expect(html).toContain("아직 참여한 토론방이 없어요");
+    expect(html).not.toContain("아직 참여한 토론방이 없어요.");
     expect(html).toContain("관심 있는 주제를 찾아 다른 사람들과 생각을 나눠보세요.");
     expect(html).toContain('data-chat-room-list-empty-variant="no-participating-rooms"');
     expect(html).not.toContain("현재 참여 중인 방이 없습니다.");

@@ -280,7 +280,7 @@ export function ChatRoomListView({
           ) : participatingRooms.rooms.length === 0 && !participatingRooms.isError ? (
             <RoomListNotice
               description="관심 있는 주제를 찾아 다른 사람들과 생각을 나눠보세요."
-              message="아직 참여한 토론방이 없어요."
+              message="아직 참여한 토론방이 없어요"
               size="participating"
               variant="no-participating-rooms"
             />
