@@ -992,9 +992,9 @@ describe("9 functional RAG screens", () => {
       }),
     );
 
-    expect(html).toContain("어떤 정보가 필요한지 파악했습니다.");
-    expect(html).toContain("관련 문서를 찾는 중입니다.");
-    expect(html).toContain("문서에서 근거 확인");
+    expect(html).toContain("찾아볼 내용을 정리했습니다.");
+    expect(html).toContain("답변에 참고할 문서 후보를 찾고 있습니다.");
+    expect(html).toContain("답변 근거 확인");
     expect(html).toContain("답변 작성");
     expect(html).toContain("✓");
     expect(html).toContain('class="civic-rag-loading-spinner"');
@@ -1008,11 +1008,11 @@ describe("9 functional RAG screens", () => {
     expect(html).not.toContain('role="progressbar"');
     expect(html).not.toContain("관련 자료를 좁힙니다.");
     expect(html).not.toMatch(/[0-9]+초/u);
-    expect(ragLoadingLabel("QUEUED")).toBe("어떤 정보가 필요한지 파악하는 중입니다.");
-    expect(ragLoadingLabel("UNDERSTANDING")).toBe("어떤 정보가 필요한지 파악하는 중입니다.");
-    expect(ragLoadingLabel("SEARCHING")).toBe("관련 문서를 찾는 중입니다.");
-    expect(ragLoadingLabel("READING")).toBe("문서에서 근거를 확인하는 중입니다.");
-    expect(ragLoadingLabel("COMPOSING")).toBe("근거를 바탕으로 답변을 작성하는 중입니다.");
+    expect(ragLoadingLabel("QUEUED")).toBe("질문에서 찾아볼 내용을 정리하고 있습니다.");
+    expect(ragLoadingLabel("UNDERSTANDING")).toBe("질문에서 찾아볼 내용을 정리하고 있습니다.");
+    expect(ragLoadingLabel("SEARCHING")).toBe("답변에 참고할 문서 후보를 찾고 있습니다.");
+    expect(ragLoadingLabel("READING")).toBe("문서에 답변할 근거가 있는지 확인하고 있습니다.");
+    expect(ragLoadingLabel("COMPOSING")).toBe("확인 결과를 바탕으로 답변을 작성하고 있습니다.");
   });
 
   it("진행 이벤트는 정해진 공개 단계와 제한된 숫자만 허용한다", () => {
