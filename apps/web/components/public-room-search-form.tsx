@@ -44,15 +44,13 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
             data-focus-outline="container"
             inputMode="search"
             onChange={(event) => controller.setDraftQuery(event.currentTarget.value)}
-            onCompositionEnd={controller.endComposition}
-            onCompositionStart={controller.startComposition}
+            onKeyDown={preventComposingEnterSearch}
             placeholder="주제를 검색해 보세요"
             type="search"
             value={controller.draftQuery}
           />
           <button
-            className="h-[46px] shrink-0 cursor-pointer bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={controller.isComposing}
+            className="h-[46px] shrink-0 cursor-pointer bg-[var(--chat-publishing-color-primary)] px-4 text-sm font-bold text-white"
             type="submit"
           >
             검색
@@ -70,4 +68,22 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
       ) : null}
     </form>
   );
+}
+
+type SearchKeyEvent = Readonly<{
+  key: string;
+  nativeEvent: Readonly<{
+    isComposing: boolean;
+    keyCode?: number;
+  }>;
+  preventDefault: () => void;
+}>;
+
+export function preventComposingEnterSearch(event: SearchKeyEvent): void {
+  if (
+    event.key === "Enter" &&
+    (event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229)
+  ) {
+    event.preventDefault();
+  }
 }

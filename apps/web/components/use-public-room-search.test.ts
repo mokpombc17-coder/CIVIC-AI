@@ -35,29 +35,6 @@ describe("public Room search state", () => {
     expect(state.validationMessage).toBeUndefined();
   });
 
-  it("한글 조합 중 제출은 적용하지 않고 조합 완료 후 제출할 수 있다", () => {
-    const composing = reduce([
-      { type: "draft-changed", value: "정ㅊ" },
-      { type: "composition-started" },
-      { type: "submitted" },
-    ]);
-
-    expect(composing.appliedQuery).toBeUndefined();
-    expect(composing.isComposing).toBe(true);
-
-    const submitted = reduce(
-      [
-        { type: "draft-changed", value: "정책" },
-        { type: "composition-ended" },
-        { type: "submitted" },
-      ],
-      composing,
-    );
-
-    expect(submitted.appliedQuery).toBe("정책");
-    expect(submitted.isComposing).toBe(false);
-  });
-
   it("잘못된 검색어는 기존 적용 조건을 유지하고 validation을 반환한다", () => {
     const valid = reduce([{ type: "draft-changed", value: "환경" }, { type: "submitted" }]);
     const invalid = reduce(
@@ -69,12 +46,11 @@ describe("public Room search state", () => {
     expect(invalid.validationMessage).toBeTruthy();
   });
 
-  it("공백 검색을 제출하면 검색 조건을 제거한다", () => {
+  it("검색어를 모두 지우면 제출하지 않아도 검색 조건을 제거한다", () => {
     const state = reduce([
       { type: "draft-changed", value: "정책" },
       { type: "submitted" },
       { type: "draft-changed", value: "   " },
-      { type: "submitted" },
     ]);
 
     expect(state.appliedQuery).toBeUndefined();

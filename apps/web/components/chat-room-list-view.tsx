@@ -338,8 +338,10 @@ export function ChatRoomListView({
             ) : publicRooms.rooms.length === 0 && !publicRooms.isError ? (
               hasAppliedPublicRoomSearch ? (
                 <RoomListNotice
+                  description="다른 검색어로 다시 찾아보세요."
                   message={CHAT_ROOM_PUBLISHING_COPY.noPublicRoomSearchResults}
                   size="public"
+                  variant="no-search-results"
                 />
               ) : (
                 <RoomListNotice
@@ -619,7 +621,8 @@ function RoomListNotice({
   description?: string;
   message: string;
   size: "participating" | "public";
-  variant?: "all-read" | "default" | "no-available-rooms" | "no-participating-rooms";
+  variant?:
+    "all-read" | "default" | "no-available-rooms" | "no-participating-rooms" | "no-search-results";
 }) {
   const isIllustrated = variant !== "default";
 
@@ -640,9 +643,22 @@ function RoomListNotice({
           <span
             aria-hidden="true"
             className="mb-2 flex size-10 items-center justify-center rounded-full bg-[var(--chat-publishing-color-primary)] text-xl font-bold text-white shadow-sm"
+            data-chat-room-list-empty-icon={
+              variant === "all-read" ? "check" : variant === "no-search-results" ? "search" : "chat"
+            }
           >
             {variant === "all-read" ? (
               "✓"
+            ) : variant === "no-search-results" ? (
+              <svg className="size-5" fill="none" viewBox="0 0 20 20">
+                <circle cx="8.5" cy="8.5" r="4.5" stroke="currentColor" strokeWidth="1.8" />
+                <path
+                  d="m12 12 4 4"
+                  stroke="currentColor"
+                  strokeLinecap="round"
+                  strokeWidth="1.8"
+                />
+              </svg>
             ) : (
               <svg className="size-5" fill="none" viewBox="0 0 20 20">
                 <path

@@ -1,7 +1,10 @@
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { PublicRoomSearchForm } from "@/components/public-room-search-form";
+import {
+  preventComposingEnterSearch,
+  PublicRoomSearchForm,
+} from "@/components/public-room-search-form";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
 
 describe("public Room search form", () => {
@@ -37,10 +40,26 @@ describe("public Room search form", () => {
     expect(html).toContain("검색어에 제어 문자를 포함할 수 없습니다.");
   });
 
-  it("IME 조합 중에는 검색 버튼을 비활성화한다", () => {
-    const html = renderSearchForm({ isComposing: true });
+  it("검색 버튼은 활성화하고 IME 조합 중 Enter 제출만 차단한다", () => {
+    const html = renderSearchForm();
+    const preventDefault = vi.fn();
 
-    expect(html).toContain('disabled=""');
+    preventComposingEnterSearch({
+      key: "Enter",
+      nativeEvent: { isComposing: true },
+      preventDefault,
+    });
+
+    expect(html).not.toContain("disabled");
+    expect(preventDefault).toHaveBeenCalledOnce();
+
+    preventDefault.mockClear();
+    preventComposingEnterSearch({
+      key: "Enter",
+      nativeEvent: { isComposing: false },
+      preventDefault,
+    });
+    expect(preventDefault).not.toHaveBeenCalled();
   });
 });
 
@@ -51,10 +70,7 @@ function renderSearchForm(patch: Partial<PublicRoomSearchController> = {}): stri
         appliedQuery: undefined,
         applySearch: vi.fn(),
         draftQuery: "",
-        endComposition: vi.fn(),
-        isComposing: false,
         setDraftQuery: vi.fn(),
-        startComposition: vi.fn(),
         validationMessage: undefined,
         ...patch,
       },

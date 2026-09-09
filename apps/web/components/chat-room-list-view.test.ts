@@ -93,6 +93,10 @@ describe("chat room list publishing layout", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, "기후");
 
     expect(html).toContain("검색 결과가 없어요");
+    expect(html).toContain("다른 검색어로 다시 찾아보세요.");
+    expect(html).toContain('data-chat-room-list-empty-variant="no-search-results"');
+    expect(html).toContain('data-chat-room-list-empty-icon="search"');
+    expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(html).not.toContain("현재 참여 가능한 방이 없어요");
     expect(html).not.toContain("원하는 주제로 토론방 생성을 요청해 보세요.");
   });
@@ -536,10 +540,7 @@ function createPublicRoomSearchController(appliedQuery?: string): PublicRoomSear
     appliedQuery,
     applySearch: vi.fn(),
     draftQuery: "",
-    endComposition: vi.fn(),
-    isComposing: false,
     setDraftQuery: vi.fn(),
-    startComposition: vi.fn(),
     validationMessage: undefined,
   };
 }
