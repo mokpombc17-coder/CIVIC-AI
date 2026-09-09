@@ -187,6 +187,7 @@ export const SafeMarkdownAnswer = memo(function SafeMarkdownAnswer({
               </a>
             );
           },
+          hr: () => null,
           table: ({ children, node, ...props }) => {
             void node;
             return (
