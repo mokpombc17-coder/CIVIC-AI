@@ -733,22 +733,22 @@ export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): vo
 
 const RAG_PROGRESS_STEPS = [
   {
-    active: "어떤 정보가 필요한지 파악하는 중입니다.",
-    completed: "어떤 정보가 필요한지 파악했습니다.",
-    pending: "필요한 정보 파악",
+    active: "질문에서 찾아볼 내용을 정리하고 있습니다.",
+    completed: "찾아볼 내용을 정리했습니다.",
+    pending: "찾아볼 내용 정리",
   },
   {
-    active: "관련 문서를 찾는 중입니다.",
-    completed: "관련 문서를 찾았습니다.",
-    pending: "관련 문서 찾기",
+    active: "답변에 참고할 문서 후보를 찾고 있습니다.",
+    completed: "확인할 문서 후보를 선별했습니다.",
+    pending: "문서 후보 찾기",
   },
   {
-    active: "문서에서 근거를 확인하는 중입니다.",
-    completed: "문서에서 근거를 확인했습니다.",
-    pending: "문서에서 근거 확인",
+    active: "문서에 답변할 근거가 있는지 확인하고 있습니다.",
+    completed: "답변할 근거가 있는지 확인했습니다.",
+    pending: "답변 근거 확인",
   },
   {
-    active: "근거를 바탕으로 답변을 작성하는 중입니다.",
+    active: "확인 결과를 바탕으로 답변을 작성하고 있습니다.",
     completed: "답변 작성을 완료했습니다.",
     pending: "답변 작성",
   },
