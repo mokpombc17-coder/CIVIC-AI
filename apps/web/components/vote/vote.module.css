@@ -198,8 +198,10 @@
     transform 180ms ease-in-out;
 }
 
-.taskCardLink:hover + .taskCardSurface {
-  background: var(--vote-soft);
+@media (hover: hover) and (pointer: fine) {
+  .taskCardLink:hover + .taskCardSurface {
+    background: var(--vote-soft);
+  }
 }
 
 .taskCardLink:focus-visible + .taskCardSurface {
