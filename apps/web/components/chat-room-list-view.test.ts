@@ -317,7 +317,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("peer-active:!border-transparent");
     expect(html).toContain("peer-active:[transform:scale(0.90)]");
     expect(html).toContain("transition-[background-color,transform]");
-    expect(html).toContain("duration-[250ms]");
+    expect(html).toContain("duration-[180ms]");
     expect(html).toContain("motion-reduce:!transform-none");
     expect(/<article class="([^"]+)"/.exec(html)?.[1]).not.toContain("hover:bg-");
     expect(detailButtonClass).toContain(
@@ -411,7 +411,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("peer-active:!border-transparent");
     expect(html).toContain("peer-active:[transform:scale(0.90)]");
     expect(html).toContain("transition-[background-color,transform]");
-    expect(html).toContain("duration-[250ms]");
+    expect(html).toContain("duration-[180ms]");
     expect(html).toContain("motion-reduce:!transform-none");
     expect(html).toContain("peer-hover:bg-[var(--chat-publishing-color-accent-soft)]");
     expect(visualActionClass).toContain("font-bold leading-5");

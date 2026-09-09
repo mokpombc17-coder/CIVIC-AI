@@ -194,8 +194,8 @@
   padding: 16px 12px 16px 20px;
   pointer-events: none;
   transition:
-    background-color 250ms ease-in-out,
-    transform 250ms ease-in-out;
+    background-color 180ms ease-in-out,
+    transform 180ms ease-in-out;
 }
 
 .taskCardLink:hover + .taskCardSurface {
