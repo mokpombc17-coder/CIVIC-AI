@@ -15,6 +15,11 @@ vi.mock("next/navigation", () => ({
 import { RagFunctionalScreen } from "@/components/rag/rag-functional-screen";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
 import {
+  dismissRagIntroBanner,
+  isRagIntroBannerDismissed,
+  RAG_INTRO_DISMISSED_SESSION_KEY,
+} from "@/components/rag/rag-intro-banner";
+import {
   automaticRagRetryIdempotencyKey,
   DocumentInspector,
   DocumentWorkspace,
@@ -165,6 +170,16 @@ type RagSessionApi = Readonly<{
 const ragSessionApi = participantRagSession as unknown as RagSessionApi;
 
 describe("9 functional RAG screens", () => {
+  it("상단 안내를 닫으면 현재 브라우저 세션에 상태를 유지한다", () => {
+    const storage = memoryStorage();
+
+    expect(isRagIntroBannerDismissed(storage)).toBe(false);
+    dismissRagIntroBanner(storage);
+
+    expect(storage.getItem(RAG_INTRO_DISMISSED_SESSION_KEY)).toBe("true");
+    expect(isRagIntroBannerDismissed(storage)).toBe(true);
+  });
+
   it("참여자 RAG 대화 목록은 보조기기가 새 메시지 흐름으로 인식한다", () => {
     const screen = ragScreens.find((candidate) => candidate.id === "U-RAG-001");
     expect(screen).toBeDefined();
@@ -2457,13 +2472,8 @@ describe("9 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain(
-      '<strong class="civic-rag-intro-title">궁금한 내용을 AI에게 질문해 보세요.</strong>',
-    );
-    expect(participantHtml).toContain("등록된 자료를 바탕으로 근거와 함께 답변해 드려요.");
     expect(participantHtml).not.toContain("문서에서 궁금한 내용을 물어보세요.");
     expect(participantHtml).not.toContain("AI가 관련 내용을 찾아 답변해 드립니다.");
-    expect(participantHtml).toContain('aria-label="안내 닫기"');
     expect(participantHtml).not.toContain('aria-label="새 대화"');
     expect(headerActionHtml).toContain('aria-label="새 대화"');
     expect(headerActionHtml).toContain('aria-haspopup="dialog"');

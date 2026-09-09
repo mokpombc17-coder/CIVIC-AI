@@ -11,6 +11,7 @@ import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { RagCitationSources, SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
+import { RagIntroBanner } from "./rag-intro-banner";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -235,7 +236,6 @@ function RagConversation({
   const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
-  const [introVisible, setIntroVisible] = useState(true);
   const [newQuestionDialogOpen, setNewQuestionDialogOpen] = useState(false);
   const activePoll = useRef<AbortController | null>(null);
   const requestGeneration = useRef(0);
@@ -472,28 +472,7 @@ function RagConversation({
   return (
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
-        {introVisible ? (
-          <header className="civic-rag-session-bar">
-            <div className="civic-rag-intro-banner">
-              <p className="civic-rag-intro">
-                <strong className="civic-rag-intro-title">
-                  궁금한 내용을 AI에게 질문해 보세요.
-                </strong>
-                <br />
-                등록된 자료를 바탕으로 근거와 함께 답변해 드려요.
-              </p>
-              <button
-                aria-label="안내 닫기"
-                className="civic-rag-intro-dismiss"
-                onClick={() => setIntroVisible(false)}
-                title="안내 닫기"
-                type="button"
-              >
-                <CloseIcon />
-              </button>
-            </div>
-          </header>
-        ) : null}
+        <RagIntroBanner />
         <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
           {messages.length === 0 ? (
             <div className="civic-rag-empty">
@@ -667,37 +646,13 @@ function ConversationBackdrop() {
       className="civic-rag-conversation wf-rag-reference-backdrop"
       data-wireflow-layout="rag-conversation"
     >
-      <header className="civic-rag-session-bar">
-        <div className="civic-rag-intro-banner">
-          <p className="civic-rag-intro">
-            <strong className="civic-rag-intro-title">궁금한 내용을 AI에게 질문해 보세요.</strong>
-            <br />
-            등록된 자료를 바탕으로 근거와 함께 답변해 드려요.
-          </p>
-          <span aria-hidden="true" className="civic-rag-intro-dismiss">
-            <CloseIcon />
-          </span>
-        </div>
-      </header>
+      <RagIntroBanner dismissible={false} />
       <div className="civic-rag-messages" />
       <div className="civic-rag-composer">
         <span>궁금한 내용을 입력해 주세요</span>
         <span>전송</span>
       </div>
     </section>
-  );
-}
-
-function CloseIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" viewBox="0 0 20 20">
-      <path
-        d="m5 5 10 10M15 5 5 15"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeWidth="1.8"
-      />
-    </svg>
   );
 }
 

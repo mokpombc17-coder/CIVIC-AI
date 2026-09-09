@@ -238,4 +238,14 @@ describe("본문 인용 마커", () => {
     expect(html).toContain('href="https://example.com/notice"');
     expect(html).toContain('<pre><code class="language-text">신청서');
   });
+
+  it("Markdown 수평 구분선은 표시하지 않고 앞뒤 본문은 유지한다", () => {
+    const html = renderToStaticMarkup(
+      <SafeMarkdownAnswer answer={"첫 문단\n\n---\n\n둘째 문단"} />,
+    );
+
+    expect(html).toContain("첫 문단");
+    expect(html).toContain("둘째 문단");
+    expect(html).not.toContain("<hr");
+  });
 });
