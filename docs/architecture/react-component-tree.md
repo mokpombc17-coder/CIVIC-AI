@@ -161,8 +161,11 @@ skeleton이 끼어들지 않는다. `/chat/[roomId]/loading.tsx`도 같은 상�
 읽음 위치 탐색과 가상 viewport의 최초 위치 보정이 끝날 때까지 같은 버블 없는 loading content를
 유지한다.
 인증이 유효하면 Boundary는 `ChatRealtimeProvider`, `ChatRoomReadStateProvider`와 nested page를
-조립하고, 401이면 이 하위 트리를 unmount한 뒤 현재 URL을 `returnTo`로 보존한 단일 로그인 필요
-화면으로 교체한다. Read-state Provider는
+조립한다. 401 상태가 남은 채 route에 재진입하면 Boundary의 session recovery가 Chat Resource Server를
+기준으로 Access Token을 다시 확인하고, 유효한 세션이면 상태를 해제한 뒤 하위 트리를 새로 조립한다.
+실제 refresh 인증이 거절된 경우에만 하위 트리를 unmount한 채 현재 URL을 `returnTo`로 보존한 단일
+로그인 필요 화면을 제공한다. 네트워크·서버 일시 오류는 제한적으로 재시도하고 로그인 만료와 구분한다.
+Read-state Provider는
 방별 pending·in-flight·confirmed sequence를 route segment 수명 동안 유지하므로 방 화면이
 unmount되어도 `/chat` 안의 route 이동에서는 예약된 보고가 유실되지 않는다. Provider는 짧은
 bounded retry 이후 남은 pending을 focus·online·실시간 연결 복구 시 재개하고, 로그인 성공마다
@@ -170,9 +173,11 @@ transport의 인증 세대를 교체해 모든 탭에서 이전 사용자의 pen
 read-state PUT을 확정하면 기존 worker/leader-tab protocol을 통해 같은 인증 세대의 다른 탭에도
 confirmation을 전달하고, 각 탭은 Room inbox query만 invalidate한다. 실시간 Provider는 STOMP Client를
 직접 노출하지 않고 교체 가능한 transport를 제공하며, HTTP 계층의 Access Token 갱신 완료 이벤트를
-구독해 갱신된 쿠키로 transport를 재연결한다. STOMP가 `AUTHENTICATION_REQUIRED` 상태가 되면
-Provider가 공통 인증 계층에 Access Token 복구를 한 번 요청하고, 성공 시 transport를 재연결하며
-실패하거나 복구 직후 다시 거절되면 로그인 필요 Boundary로 전환한다. SharedWorker 지원 브라우저에서는
+구독해 갱신된 쿠키로 transport를 재연결한다. `pageshow`, `online`, visible `visibilitychange`에서는
+중단된 transport 또는 인증 복구를 재개한다. STOMP가 `AUTHENTICATION_REQUIRED` 상태가 되면 Provider가
+Chat Resource Server의 Access Token 복구를 요청하고, 성공 시 transport를 한 번만 재연결한다. 일시
+복구 실패는 다음 foreground 복귀에서 다시 시도하고, refresh 인증 거절 또는 복구 직후 재거절만 로그인
+필요 Boundary로 전환한다. SharedWorker 지원 브라우저에서는
 Worker가 STOMP Client를 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두
 하위 채팅 컴포넌트의 사용 계약은 같다. 활성 Room의 message, room-event, read-receipt 세 topic은 같은
 generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Room event 적용과 분리한다.

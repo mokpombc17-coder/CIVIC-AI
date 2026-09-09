@@ -98,6 +98,36 @@ describe("createAuthenticatedFetch", () => {
     expect(refreshCalls).toBe(1);
   });
 
+  it("서로 다른 Resource Server의 갱신은 origin별로 분리한다", async () => {
+    const refreshedOrigins: string[] = [];
+    const resourceAttempts = new Map<string, number>();
+    const request = vi.fn<typeof fetch>(async (input) => {
+      const url = new URL((input as Request).url);
+
+      if (url.pathname === "/api/v1/auth/refresh") {
+        refreshedOrigins.push(url.origin);
+        return new Response(null, { status: 204 });
+      }
+
+      const attempts = resourceAttempts.get(url.origin) ?? 0;
+      resourceAttempts.set(url.origin, attempts + 1);
+      return attempts === 0
+        ? Response.json({ code: "UNAUTHORIZED" }, { status: 401 })
+        : Response.json({ status: "ok" });
+    });
+    const authenticatedRequest = createAuthenticatedFetch(request);
+
+    await Promise.all([
+      authenticatedRequest("https://chat.civic.example/api/v1/rooms"),
+      authenticatedRequest("https://vote.civic.example/api/v1/me/tasks"),
+    ]);
+
+    expect(refreshedOrigins.sort()).toEqual([
+      "https://chat.civic.example",
+      "https://vote.civic.example",
+    ]);
+  });
+
   it("다른 탭의 409 회전을 기다린 뒤 리소스 요청만 재시도한다", async () => {
     let resourceCalls = 0;
     let currentUserCalls = 0;
@@ -186,6 +216,51 @@ describe("createAuthenticatedFetch", () => {
     expect(request).toHaveBeenCalledTimes(2);
     expect(new URL((request.mock.calls[1]![0] as Request).url).pathname).toBe(
       "/api/v1/auth/refresh",
+    );
+  });
+
+  it("지정한 Resource Server에서 access token 상태를 확인하고 갱신한다", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    await expect(
+      createAuthenticatedClient(request).recoverAccessToken("https://chat.civic.example/api/v1"),
+    ).resolves.toBe("authenticated");
+
+    expect(new URL((request.mock.calls[0]![0] as Request).url).origin).toBe(
+      "https://chat.civic.example",
+    );
+    expect(new URL((request.mock.calls[1]![0] as Request).url).origin).toBe(
+      "https://chat.civic.example",
+    );
+    expect((request.mock.calls[0]![0] as Request).credentials).toBe("include");
+    expect((request.mock.calls[1]![0] as Request).credentials).toBe("include");
+  });
+
+  it("refresh 인증이 거절되면 실제 로그인 필요 상태로 구분한다", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
+
+    await expect(createAuthenticatedClient(request).recoverAccessToken()).resolves.toBe(
+      "authentication-required",
+    );
+  });
+
+  it("네트워크와 서버 오류는 로그인 만료가 아닌 일시 오류로 구분한다", async () => {
+    const networkRequest = vi.fn<typeof fetch>().mockRejectedValue(new TypeError("offline"));
+    const serverRequest = vi
+      .fn<typeof fetch>()
+      .mockResolvedValue(Response.json({ code: "INTERNAL_ERROR" }, { status: 503 }));
+
+    await expect(createAuthenticatedClient(networkRequest).recoverAccessToken()).resolves.toBe(
+      "temporarily-unavailable",
+    );
+    await expect(createAuthenticatedClient(serverRequest).recoverAccessToken()).resolves.toBe(
+      "temporarily-unavailable",
     );
   });
 

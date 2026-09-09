@@ -14,7 +14,7 @@ import {
   observeAccessTokenRefreshed,
   observeAuthenticationSucceeded,
 } from "@/lib/auth/authentication-session-events";
-import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
+import { recoverAccessToken } from "@/lib/auth/authenticated-fetch";
 import { ChatRealtimeDiagnosticsPanel } from "@/components/chat-realtime-diagnostics-panel";
 import { attachChatRealtimePageLifecycle } from "@/lib/chat/realtime/chat-realtime-page-lifecycle";
 import { attachChatRealtimeRoomLifecycle } from "@/lib/chat/realtime/chat-realtime-room-lifecycle";
@@ -36,6 +36,7 @@ import {
   clearChatAuthenticationRequired,
   reportChatAuthenticationRequired,
 } from "@/lib/chat/chat-authentication-required";
+import { CHAT_API_BASE_URL } from "@/lib/chat/chat-config";
 import { ChatRoomInboxRuntime } from "@/components/chat-room-inbox-runtime";
 
 type ChatRealtimeContextValue = Readonly<{
@@ -63,19 +64,35 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   const { outbox, transport } = realtime;
 
   useEffect(() => {
+    const authenticationRecovery = attachChatAuthenticationRecovery(transport, {
+      recoverAccessToken: () => recoverAccessToken(CHAT_API_BASE_URL),
+      onAuthenticationRecovered: clearChatAuthenticationRequired,
+      onAuthenticationRequired: () => {
+        reportChatAuthenticationRequired({ status: 401 });
+      },
+    });
     const handleAuthenticationSucceeded = () => {
-      clearChatAuthenticationRequired();
-      transport.reconnect("authentication-succeeded");
+      authenticationRecovery.authenticationRefreshed();
     };
     const handleAccessTokenRefreshed = () => {
-      clearChatAuthenticationRequired();
-
-      if (transport.getSnapshot().status !== "authentication-required") {
-        transport.reconnect("authentication-succeeded");
-      }
+      authenticationRecovery.authenticationRefreshed();
     };
     const detachOutbox = outbox.attach();
-    const detachRealtime = attachChatRealtimePageLifecycle(transport, window);
+    const detachRealtime = attachChatRealtimePageLifecycle(transport, window, {
+      onResume: () => {
+        const status = transport.getSnapshot().status;
+
+        if (status === "authentication-required") {
+          authenticationRecovery.retry();
+          return;
+        }
+
+        if (status === "disconnected" || status === "error" || status === "idle") {
+          transport.reconnect();
+        }
+      },
+      visibilityTarget: document,
+    });
     const detachDiagnostics = attachChatRealtimeDiagnosticsDevtools(transport, window);
     const detachAuthentication = observeAuthenticationSucceeded(
       window,
@@ -85,16 +102,9 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
       window,
       handleAccessTokenRefreshed,
     );
-    const detachAuthenticationRecovery = attachChatAuthenticationRecovery(transport, {
-      ensureAccessToken,
-      onAuthenticationRecovered: clearChatAuthenticationRequired,
-      onAuthenticationRequired: () => {
-        reportChatAuthenticationRequired({ status: 401 });
-      },
-    });
 
     return () => {
-      detachAuthenticationRecovery();
+      authenticationRecovery.detach();
       detachAccessTokenRefresh();
       detachAuthentication();
       detachDiagnostics();

@@ -1,6 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { ChatAuthenticationBoundaryView } from "./chat-authentication-boundary";
+import {
+  ChatAuthenticationBoundaryView,
+  ChatAuthenticationRecoveryView,
+} from "./chat-authentication-boundary";
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/chat",
@@ -36,6 +39,27 @@ describe("ChatAuthenticationBoundaryView", () => {
     expect(markup).not.toContain('data-chat-child="true"');
     expect(markup).not.toContain("참여 중인 방을 불러오지 못했습니다.");
     expect(markup).not.toContain("Bearer");
+  });
+
+  it("세션 재확인 중에는 로그인 안내 대신 복구 상태를 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <ChatAuthenticationRecoveryView onRetry={vi.fn()} status="checking" />,
+    );
+
+    expect(markup).toContain('data-chat-authentication-recovery="checking"');
+    expect(markup).toContain("채팅 연결을 확인하고 있어요.");
+    expect(markup).not.toContain("로그인하기");
+  });
+
+  it("일시 오류는 로그인 대신 다시 시도 동작을 제공한다", () => {
+    const markup = renderToStaticMarkup(
+      <ChatAuthenticationRecoveryView onRetry={vi.fn()} status="temporarily-unavailable" />,
+    );
+
+    expect(markup).toContain('data-chat-authentication-recovery="unavailable"');
+    expect(markup).toContain("채팅 연결을 확인하지 못했습니다.");
+    expect(markup).toContain("다시 시도");
+    expect(markup).not.toContain("로그인하기");
   });
 
   it("인증이 유효하면 기존 하위 화면을 그대로 제공한다", () => {

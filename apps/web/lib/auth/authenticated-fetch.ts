@@ -11,57 +11,73 @@ const REFRESH_CONFLICT_RETRY_DELAYS_MS = [100, 200, 400] as const;
 export type AuthenticatedClient = Readonly<{
   fetch: FetchBackend;
   ensureAccessToken: () => Promise<boolean>;
+  recoverAccessToken: (requestUrl?: string) => Promise<AccessTokenRecoveryResult>;
 }>;
+
+export type AccessTokenRecoveryResult =
+  "authenticated" | "authentication-required" | "temporarily-unavailable";
 
 export function createAuthenticatedClient(
   requestBackend: FetchBackend = fetch,
   pauseBackend: PauseBackend = pause,
   onAccessTokenRefreshed: AccessTokenRefreshedCallback = () => {},
 ): AuthenticatedClient {
-  let refreshInFlight: Promise<boolean> | null = null;
+  const refreshInFlightByOrigin = new Map<string, Promise<AccessTokenRecoveryResult>>();
 
-  function rotateAccessToken(requestUrl: string): Promise<boolean> {
-    if (!refreshInFlight) {
-      refreshInFlight = refreshAccessToken(requestUrl, requestBackend, pauseBackend)
-        .then((refreshed) => {
-          if (refreshed) {
-            onAccessTokenRefreshed();
-          }
+  function rotateAccessToken(requestUrl: string): Promise<AccessTokenRecoveryResult> {
+    const requestOrigin = new URL(requestUrl).origin;
+    const existingRefresh = refreshInFlightByOrigin.get(requestOrigin);
 
-          return refreshed;
-        })
-        .finally(() => {
-          refreshInFlight = null;
-        });
+    if (existingRefresh) {
+      return existingRefresh;
     }
 
-    return refreshInFlight;
+    const refresh = refreshAccessToken(requestUrl, requestBackend, pauseBackend)
+      .then((result) => {
+        if (result === "authenticated") {
+          onAccessTokenRefreshed();
+        }
+
+        return result;
+      })
+      .finally(() => {
+        if (refreshInFlightByOrigin.get(requestOrigin) === refresh) {
+          refreshInFlightByOrigin.delete(requestOrigin);
+        }
+      });
+    refreshInFlightByOrigin.set(requestOrigin, refresh);
+
+    return refresh;
   }
 
-  async function ensureAccessToken(): Promise<boolean> {
+  async function recoverAccessToken(
+    requestUrl = createRequest("/api/v1/auth/me").url,
+  ): Promise<AccessTokenRecoveryResult> {
     let response: Response;
 
     try {
-      response = await requestBackend(
-        createRequest("/api/v1/auth/me", { cache: "no-store", method: "GET" }),
-      );
+      response = await requestBackend(currentUserRequest(requestUrl));
     } catch {
-      return false;
+      return "temporarily-unavailable";
     }
 
     if (response.ok) {
       await cancelResponseBody(response);
-      return true;
+      return "authenticated";
     }
 
     if (response.status !== 401) {
       await cancelResponseBody(response);
-      return false;
+      return "temporarily-unavailable";
     }
 
-    const requestUrl = response.url || createRequest("/api/v1/auth/me").url;
+    const refreshRequestUrl = response.url || currentUserRequest(requestUrl).url;
     await cancelResponseBody(response);
-    return rotateAccessToken(requestUrl);
+    return rotateAccessToken(refreshRequestUrl);
+  }
+
+  async function ensureAccessToken(): Promise<boolean> {
+    return (await recoverAccessToken()) === "authenticated";
   }
 
   const authenticatedRequest: FetchBackend = async (input, init) => {
@@ -73,7 +89,7 @@ export function createAuthenticatedClient(
       return firstResponse;
     }
 
-    if (!(await rotateAccessToken(firstRequest.url))) {
+    if ((await rotateAccessToken(firstRequest.url)) !== "authenticated") {
       return firstResponse;
     }
 
@@ -81,7 +97,7 @@ export function createAuthenticatedClient(
     return requestBackend(retryRequest);
   };
 
-  return { ensureAccessToken, fetch: authenticatedRequest };
+  return { ensureAccessToken, fetch: authenticatedRequest, recoverAccessToken };
 }
 
 export function createAuthenticatedFetch(
@@ -99,6 +115,7 @@ const authenticatedClient = createAuthenticatedClient(fetch, pause, () => {
 
 export const authenticatedFetch = authenticatedClient.fetch;
 export const ensureAccessToken = authenticatedClient.ensureAccessToken;
+export const recoverAccessToken = authenticatedClient.recoverAccessToken;
 
 function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
   const credentials =
@@ -115,7 +132,7 @@ function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
 function refreshRequest(requestUrl: string): Request {
   return new Request(new URL("/api/v1/auth/refresh", requestUrl), {
     method: "POST",
-    credentials: "same-origin",
+    credentials: "include",
     headers: { "content-type": "application/json" },
     body: "{}",
   });
@@ -125,23 +142,24 @@ async function refreshAccessToken(
   requestUrl: string,
   requestBackend: FetchBackend,
   pauseBackend: PauseBackend,
-): Promise<boolean> {
+): Promise<AccessTokenRecoveryResult> {
   let response: Response;
 
   try {
     response = await requestBackend(refreshRequest(requestUrl));
   } catch {
-    return false;
+    return "temporarily-unavailable";
   }
 
   if (response.ok) {
     await cancelResponseBody(response);
-    return true;
+    return "authenticated";
   }
 
   if (response.status !== 409) {
+    const authenticationRequired = response.status === 401 || response.status === 403;
     await cancelResponseBody(response);
-    return false;
+    return authenticationRequired ? "authentication-required" : "temporarily-unavailable";
   }
 
   await cancelResponseBody(response);
@@ -154,29 +172,29 @@ async function refreshAccessToken(
     try {
       currentUserResponse = await requestBackend(currentUserRequest(requestUrl));
     } catch {
-      return false;
+      return "temporarily-unavailable";
     }
 
     if (currentUserResponse.ok) {
       await cancelResponseBody(currentUserResponse);
-      return true;
+      return "authenticated";
     }
 
     const accessTokenPending = currentUserResponse.status === 401;
     await cancelResponseBody(currentUserResponse);
 
     if (!accessTokenPending) {
-      return false;
+      return "temporarily-unavailable";
     }
   }
 
-  return false;
+  return "temporarily-unavailable";
 }
 
 function currentUserRequest(requestUrl: string): Request {
   return new Request(new URL("/api/v1/auth/me", requestUrl), {
     cache: "no-store",
-    credentials: "same-origin",
+    credentials: "include",
     method: "GET",
   });
 }

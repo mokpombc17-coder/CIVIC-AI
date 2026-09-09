@@ -3,6 +3,7 @@ import type { ChatRealtimeTransport } from "./chat-realtime-transport";
 import {
   attachChatRealtimePageLifecycle,
   type ChatRealtimePageLifecycleTarget,
+  type ChatRealtimeVisibilityTarget,
 } from "./chat-realtime-page-lifecycle";
 
 describe("attachChatRealtimePageLifecycle", () => {
@@ -37,6 +38,29 @@ describe("attachChatRealtimePageLifecycle", () => {
 
     expect(transport.attach).toHaveBeenCalledTimes(1);
     expect(detach).toHaveBeenCalledTimes(1);
+  });
+
+  it("PWA가 visible 또는 online 상태로 복귀하면 연결 복구를 요청한다", () => {
+    const transport = createFakeTransport();
+    const target = createFakeTarget();
+    const visibilityTarget = createFakeVisibilityTarget();
+    const onResume = vi.fn();
+
+    const dispose = attachChatRealtimePageLifecycle(transport, target, {
+      onResume,
+      visibilityTarget,
+    });
+
+    visibilityTarget.setVisibility("hidden");
+    visibilityTarget.dispatch();
+    expect(onResume).not.toHaveBeenCalled();
+
+    visibilityTarget.setVisibility("visible");
+    visibilityTarget.dispatch();
+    target.dispatch("online");
+
+    expect(onResume).toHaveBeenCalledTimes(2);
+    dispose();
   });
 });
 
@@ -85,11 +109,12 @@ function createFakeTransport(...detachments: Array<() => void>): FakeTransport {
 }
 
 type FakeTarget = ChatRealtimePageLifecycleTarget & {
-  dispatch(type: "pagehide" | "pageshow"): void;
+  dispatch(type: "online" | "pagehide" | "pageshow"): void;
 };
 
 function createFakeTarget(): FakeTarget {
   const listeners = {
+    online: new Set<() => void>(),
     pagehide: new Set<() => void>(),
     pageshow: new Set<() => void>(),
   };
@@ -103,6 +128,34 @@ function createFakeTarget(): FakeTarget {
     },
     removeEventListener(type, listener) {
       listeners[type].delete(listener);
+    },
+  };
+}
+
+type FakeVisibilityTarget = ChatRealtimeVisibilityTarget & {
+  dispatch(): void;
+  setVisibility(visibilityState: DocumentVisibilityState): void;
+};
+
+function createFakeVisibilityTarget(): FakeVisibilityTarget {
+  const listeners = new Set<() => void>();
+  let visibilityState: DocumentVisibilityState = "visible";
+
+  return {
+    addEventListener(_type, listener) {
+      listeners.add(listener);
+    },
+    dispatch() {
+      listeners.forEach((listener) => listener());
+    },
+    get visibilityState() {
+      return visibilityState;
+    },
+    removeEventListener(_type, listener) {
+      listeners.delete(listener);
+    },
+    setVisibility(nextVisibilityState) {
+      visibilityState = nextVisibilityState;
     },
   };
 }
