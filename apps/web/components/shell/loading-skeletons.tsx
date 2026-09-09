@@ -9,6 +9,7 @@ import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-fra
 import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
+import { RagIntroBanner } from "@/components/rag/rag-intro-banner";
 import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { getScreenByRoute, type ScreenDefinition } from "@/lib/screens/registry";
 
@@ -167,25 +168,7 @@ function RagConversationLoadingSurface() {
       className="civic-rag-conversation civic-loading-static-surface"
       data-wireflow-layout="rag-conversation"
     >
-      <header className="civic-rag-session-bar">
-        <div className="civic-rag-intro-banner">
-          <p className="civic-rag-intro">
-            <strong className="civic-rag-intro-title">궁금한 내용을 AI에게 질문해 보세요.</strong>
-            <br />
-            등록된 자료를 바탕으로 근거와 함께 답변해 드려요.
-          </p>
-          <span aria-hidden="true" className="civic-rag-intro-dismiss">
-            <svg fill="none" viewBox="0 0 20 20">
-              <path
-                d="m5 5 10 10M15 5 5 15"
-                stroke="currentColor"
-                strokeLinecap="round"
-                strokeWidth="1.8"
-              />
-            </svg>
-          </span>
-        </div>
-      </header>
+      <RagIntroBanner />
       <div aria-hidden="true" className="civic-rag-messages civic-loading-rag-messages">
         <SkeletonBlock className="civic-skeleton-chat-question" />
         <SkeletonBlock className="civic-skeleton-chat-answer" />
