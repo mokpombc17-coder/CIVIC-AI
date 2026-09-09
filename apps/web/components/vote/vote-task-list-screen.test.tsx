@@ -68,7 +68,7 @@ describe("VoteTaskListScreen", () => {
     const html = renderToStaticMarkup(<VoteTaskListScreen />);
 
     expect(html).toMatch(
-      /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
+      /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*select-none[^"]*\[-webkit-touch-callout:none\][^"]*" draggable="false" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
     );
     expect(html).toMatch(
       /<div class="[^"]*taskCardSurface[^"]*"><div class="[^"]*taskCardCopy[^"]*">/,

@@ -36,6 +36,7 @@ import {
   isChatAuthenticationRequired,
 } from "@/lib/chat/chat-authentication-required";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
+import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 
 const PUBLIC_ROOM_HIGHLIGHT_DURATION_MS = 1_600;
 const PUBLIC_ROOM_SCROLL_EDGE_TOLERANCE_PX = 2;
@@ -434,8 +435,10 @@ export function MyRoomCard({
     >
       <Link
         aria-label={`${room.name} 채팅방 입장`}
-        className="peer absolute inset-0 z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-none"
+        className="peer absolute inset-0 z-0 cursor-pointer select-none rounded-[var(--chat-publishing-radius-card)] [-webkit-touch-callout:none] focus-visible:outline-none"
+        draggable={false}
         href={`/chat/${room.roomId}`}
+        onContextMenu={preventMobileLinkContextMenu}
       >
         <span className="sr-only">{room.name} 채팅방 입장</span>
       </Link>

@@ -307,7 +307,10 @@ describe("chat room list cards", () => {
     expect(entryLinkClass).not.toContain("hover:border-");
     expect(entryLinkClass).not.toContain("-inset-px");
     expect(entryLinkClass).not.toContain("active:scale-");
+    expect(entryLinkClass).toContain("select-none");
+    expect(entryLinkClass).toContain("[-webkit-touch-callout:none]");
     expect(entryLinkClass).toContain("focus-visible:outline-none");
+    expect(html).toContain('draggable="false"');
     expect(cardClass).toContain("border-[var(--chat-publishing-color-border)]");
     expect(cardClass).not.toContain("scale-");
     expect(html).toContain("border-transparent");

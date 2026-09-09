@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useMemo, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
+import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
 import {
@@ -238,8 +239,10 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
     <li className={styles.taskCard}>
       <Link
         aria-label={`${task.title} ${task.actionLabel}`}
-        className={styles.taskCardLink}
+        className={`${styles.taskCardLink} select-none [-webkit-touch-callout:none]`}
+        draggable={false}
         href={task.actionHref}
+        onContextMenu={preventMobileLinkContextMenu}
       />
       <div className={styles.taskCardSurface}>
         <div className={styles.taskCardCopy}>
