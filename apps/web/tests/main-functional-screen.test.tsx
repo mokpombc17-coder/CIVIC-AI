@@ -1199,7 +1199,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.");
     expect(html).toContain("질문하기");
     expect(html).toContain("같은 주제, 저마다의 생각");
-    expect(html).toContain("관심 있는 주제를 골라 자유롭게 참여해 보세요.");
+    expect(html).toContain("다른 참여자의 생각을 듣고,");
+    expect(html).toContain("내 생각도 나눠보세요.");
     expect(html).toContain("토론하기");
     expect(html).toContain("논의에 보태는 내 의견");
     expect(html).toContain("이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.");

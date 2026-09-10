@@ -74,7 +74,7 @@ export function ParticipantHomeActions({
             </Link>
           ),
           badge: "토론방",
-          description: "관심 있는 주제를 골라 자유롭게 참여해 보세요.",
+          description: "다른 참여자의 생각을 듣고,\n내 생각도 나눠보세요.",
           title: "같은 주제, 저마다의 생각",
         },
         {
