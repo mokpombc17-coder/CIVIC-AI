@@ -27,7 +27,7 @@ export function ParticipantHomeScreen({
         <WireflowBadge>참여 안내</WireflowBadge>
         <h2>배우고, 토론하고, 함께 결정합니다.</h2>
         <p>
-          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
+          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 이야기 나눈 다음, 나의 의견을
           투표로 남겨보세요.
         </p>
       </section>
@@ -74,8 +74,8 @@ export function ParticipantHomeActions({
             </Link>
           ),
           badge: "토론방",
-          description: "관심 있는 주제를 골라 자유롭게 참여해 보세요.",
-          title: "서로 오가는 이야기",
+          description: "관심 있는 주제를 골라 편하게 이야기해 보세요.",
+          title: "같은 주제와 저마다의 생각",
         },
         {
           action: (
@@ -89,7 +89,7 @@ export function ParticipantHomeActions({
           ),
           badge: "투표",
           description: "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
-          title: "논의에 보태는 내 의견",
+          title: "내 의견으로 채워가는 논의",
         },
       ]}
     />

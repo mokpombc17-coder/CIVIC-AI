@@ -1193,15 +1193,15 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("data-pwa-install-trigger");
     expect(html).toContain("배우고, 토론하고, 함께 결정합니다.");
     expect(html).toContain(
-      "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로 남겨보세요.",
+      "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 이야기 나눈 다음, 나의 의견을 투표로 남겨보세요.",
     );
     expect(html).toContain("어떤 점부터 짚어볼까요?");
     expect(html).toContain("AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.");
     expect(html).toContain("질문하기");
-    expect(html).toContain("서로 오가는 이야기");
-    expect(html).toContain("관심 있는 주제를 골라 자유롭게 참여해 보세요.");
+    expect(html).toContain("같은 주제와 저마다의 생각");
+    expect(html).toContain("관심 있는 주제를 골라 편하게 이야기해 보세요.");
     expect(html).toContain("토론하기");
-    expect(html).toContain("논의에 보태는 내 의견");
+    expect(html).toContain("내 의견으로 채워가는 논의");
     expect(html).toContain("이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.");
     expect(html).toContain("투표하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
