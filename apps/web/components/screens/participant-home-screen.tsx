@@ -89,7 +89,7 @@ export function ParticipantHomeActions({
           ),
           badge: "투표",
           description: "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
-          title: "논의에 보태는 내 의견",
+          title: "내 의견으로 채워가는 논의",
         },
       ]}
     />

@@ -1202,7 +1202,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("다른 참여자의 생각을 듣고,");
     expect(html).toContain("내 생각도 나눠보세요.");
     expect(html).toContain("토론하기");
-    expect(html).toContain("논의에 보태는 내 의견");
+    expect(html).toContain("내 의견으로 채워가는 논의");
     expect(html).toContain("이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.");
     expect(html).toContain("투표하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
