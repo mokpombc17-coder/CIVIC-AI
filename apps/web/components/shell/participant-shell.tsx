@@ -1,14 +1,13 @@
 import type { Route } from "next";
 import type { ReactNode } from "react";
-import { ParticipantEligibilityGuard } from "@/components/auth/participant-eligibility-guard";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import { PlatformNavigation } from "@/components/platform-shell";
 
-type ParticipantShellProps = Readonly<{
+export type ParticipantShellProps = Readonly<{
   activeRoute: string;
   backHref?: Route;
+  bottomNavigation?: ReactNode;
   children: ReactNode;
-  enforceServiceEligibility?: boolean;
   headerActions?: ReactNode;
   headerTitle?: ReactNode;
   requiresLoginForProtectedLinks?: boolean;
@@ -18,8 +17,8 @@ type ParticipantShellProps = Readonly<{
 export function ParticipantShell({
   activeRoute,
   backHref,
+  bottomNavigation,
   children,
-  enforceServiceEligibility = false,
   headerActions,
   headerTitle,
   requiresLoginForProtectedLinks = false,
@@ -32,20 +31,19 @@ export function ParticipantShell({
     : section.backDisabled
       ? { ariaLabel: "이전 화면으로 돌아가기", disabled: true as const }
       : undefined;
-  const content = enforceServiceEligibility ? (
-    <ParticipantEligibilityGuard activeRoute={activeRoute}>{children}</ParticipantEligibilityGuard>
-  ) : (
-    children
-  );
 
   return (
     <PlatformPageShell
       {...(backAction ? { backAction } : {})}
       bottomNavigation={
-        <PlatformNavigation
-          currentPathname={activeRoute}
-          requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
-        />
+        bottomNavigation === undefined ? (
+          <PlatformNavigation
+            currentPathname={activeRoute}
+            requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
+          />
+        ) : (
+          bottomNavigation
+        )
       }
       contentClassName="civic-platform-participant-content"
       {...(headerActions !== undefined ? { headerActions } : {})}
@@ -59,7 +57,7 @@ export function ParticipantShell({
         data-participant-surface="true"
         id="civic-content"
       >
-        {content}
+        {children}
       </div>
     </PlatformPageShell>
   );

@@ -1,8 +1,6 @@
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { Route } from "next";
-import Link from "next/link";
 import { AccountFunctionalScreen } from "./account-functional-screen";
-import { AdminFunctionalScreen } from "./admin-functional-screen";
 import { AuthFunctionalScreen } from "./auth-functional-screen";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
@@ -12,24 +10,22 @@ import {
   WireflowOutageState,
   WireflowProgressState,
 } from "@/components/wireflow/common-state-layouts";
-import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
-import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
-import type { CurrentUser } from "@/lib/auth/shell-access";
 
 export function MainFunctionalScreen({
   screen,
   initialSearch = "",
-  adminCurrentUser,
-  requiresLoginForProtectedLinks = false,
   devQuickLoginEnabled = false,
 }: Readonly<{
   screen: ScreenDefinition;
   initialSearch?: string;
-  adminCurrentUser?: Pick<CurrentUser, "role" | "permissions">;
-  requiresLoginForProtectedLinks?: boolean;
   devQuickLoginEnabled?: boolean;
 }>) {
-  if (screen.owner !== "MAIN_AUTH" || screen.status !== "FUNCTIONAL") {
+  if (
+    screen.owner !== "MAIN_AUTH" ||
+    screen.status !== "FUNCTIONAL" ||
+    screen.audience === "ADMIN" ||
+    screen.id === "U-HOME-001"
+  ) {
     throw new TypeError(`MainFunctionalScreen cannot render ${screen.id}.`);
   }
   if (screen.id.startsWith("AUTH-")) {
@@ -42,67 +38,7 @@ export function MainFunctionalScreen({
     );
   }
   if (screen.id.startsWith("U-ACCOUNT-")) return <AccountFunctionalScreen screen={screen} />;
-  if (screen.id.startsWith("A-")) {
-    return adminCurrentUser ? (
-      <AdminFunctionalScreen adminCurrentUser={adminCurrentUser} screen={screen} />
-    ) : (
-      <AdminFunctionalScreen screen={screen} />
-    );
-  }
-
   const action = mainScreenPrimaryActions[screen.id] ?? "계속";
-  if (screen.id === "U-HOME-001") {
-    const protectedHref = (path: string) =>
-      (requiresLoginForProtectedLinks
-        ? `/login?returnTo=${encodeURIComponent(path)}`
-        : path) as Route;
-    return (
-      <ScreenFrame screen={screen}>
-        <section className="wf-card wf-home-welcome">
-          <WireflowBadge>참여 안내</WireflowBadge>
-          <h2>배우고, 토론하고, 함께 결정합니다.</h2>
-          <p>
-            CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을
-            투표로 남겨보세요.
-          </p>
-        </section>
-        <ParticipantHomeLayout
-          actions={[
-            {
-              action: (
-                <Link className="wf-button wf-button-primary" href={protectedHref("/rag")}>
-                  질문하기
-                </Link>
-              ),
-              badge: "AI",
-              description: "AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.",
-              title: "어떤 점부터 짚어볼까요?",
-            },
-            {
-              action: (
-                <Link className="wf-button wf-button-primary" href={protectedHref("/chat")}>
-                  토론하기
-                </Link>
-              ),
-              badge: "토론방",
-              description: "관심 있는 주제를 골라 자유롭게 참여해 보세요.",
-              title: "서로 오가는 이야기",
-            },
-            {
-              action: (
-                <Link className="wf-button wf-button-primary" href={protectedHref("/vote")}>
-                  투표하기
-                </Link>
-              ),
-              badge: "투표",
-              description: "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
-              title: "논의에 보태는 내 의견",
-            },
-          ]}
-        />
-      </ScreenFrame>
-    );
-  }
   if (screen.id === "COMMON-002") {
     return (
       <ScreenFrame screen={screen}>

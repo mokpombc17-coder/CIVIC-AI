@@ -35,6 +35,7 @@ const PLATFORM_NAVIGATION_ITEMS = [
 
 export type PlatformNavigationProps = Readonly<{
   currentPathname: string;
+  prefetch?: boolean;
   requiresLoginForProtectedLinks?: boolean;
 }>;
 
@@ -59,6 +60,7 @@ export function resolvePlatformNavigationTarget(
 
 export function PlatformNavigation({
   currentPathname,
+  prefetch,
   requiresLoginForProtectedLinks = false,
 }: PlatformNavigationProps) {
   return (
@@ -76,6 +78,7 @@ export function PlatformNavigation({
             key={item.href}
             label={item.label}
             navigationMode={target.navigationMode}
+            {...(prefetch === undefined ? {} : { prefetch })}
           />
         );
       })}

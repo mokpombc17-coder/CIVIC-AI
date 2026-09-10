@@ -31,6 +31,7 @@ export type PlatformBottomNavigationItemProps = Readonly<{
   icon: ReactNode;
   label: ReactNode;
   navigationMode?: "client" | "document";
+  prefetch?: boolean;
 }>;
 
 export function PlatformBottomNavigationItem({
@@ -39,6 +40,7 @@ export function PlatformBottomNavigationItem({
   icon,
   label,
   navigationMode = "client",
+  prefetch,
   ...linkProps
 }: PlatformBottomNavigationItemProps) {
   const content = (
@@ -60,7 +62,12 @@ export function PlatformBottomNavigationItem({
   }
 
   return (
-    <Link {...linkProps} className={classNames} href={href as Route}>
+    <Link
+      {...linkProps}
+      className={classNames}
+      href={href as Route}
+      {...(prefetch === undefined ? {} : { prefetch })}
+    >
       {content}
     </Link>
   );

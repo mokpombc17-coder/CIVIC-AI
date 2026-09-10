@@ -91,9 +91,9 @@ describe("HomeBrandTitle", () => {
   it("CIVIC.AI 옆에 고정 서비스 권역 뱃지를 렌더링한다", () => {
     const html = renderToStaticMarkup(<HomeBrandTitle />);
 
-    expect(HOME_SERVICE_REGION_LABEL).toBe("광주/전남");
-    expect(html).toContain('aria-label="CIVIC.AI 광주/전남"');
-    expect(html).toMatch(/CIVIC\.AI[\s\S]+광주\/전남/);
+    expect(HOME_SERVICE_REGION_LABEL).toBe("전남광주");
+    expect(html).toContain('aria-label="CIVIC.AI 전남광주"');
+    expect(html).toMatch(/CIVIC\.AI[\s\S]+전남광주/);
     expect(html).toContain("civic-region-badge");
   });
 });

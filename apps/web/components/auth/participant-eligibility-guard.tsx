@@ -18,7 +18,8 @@ const eligibilityLoadingMinimumVisibleMs = 200;
 export function ParticipantEligibilityGuard({
   activeRoute,
   children,
-}: Readonly<{ activeRoute: string; children: ReactNode }>) {
+  loadingFallback,
+}: Readonly<{ activeRoute: string; children: ReactNode; loadingFallback?: ReactNode }>) {
   const exempt = isServiceEligibilityGuardExemptPath(activeRoute);
   const currentUser = useQuery({
     enabled: !exempt,
@@ -48,6 +49,7 @@ export function ParticipantEligibilityGuard({
 
   if (bypassGuard) return children;
   if (loading.blockContent) {
+    if (loadingFallback !== undefined) return loadingFallback;
     return (
       <div aria-busy="true" className="civic-eligibility-loading" data-eligibility-loading="true">
         {loading.showIndicator ? (
