@@ -1193,7 +1193,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("data-pwa-install-trigger");
     expect(html).toContain("배우고, 토론하고, 함께 결정합니다.");
     expect(html).toContain(
-      "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 의견을 나눈 다음, 나의 생각을 투표로 남겨보세요.",
+      "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 이야기 나눈 다음, 나의 의견을 투표로 남겨보세요.",
     );
     expect(html).toContain("어떤 점부터 짚어볼까요?");
     expect(html).toContain("AI가 주제 자료에서 관련 내용을 찾아 답변해 드려요.");
