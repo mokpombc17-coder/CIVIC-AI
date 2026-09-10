@@ -2,6 +2,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
+import { ParticipantHomeScreen } from "@/components/screens/participant-home-screen";
 import {
   completedSurveyDestination,
   groupSurveyQuestions,
@@ -19,6 +20,7 @@ import {
   auditSubjectHref,
   adminRoleMutationPath,
   ADMIN_PERMISSION_CODES,
+  AdminFunctionalScreen,
   AdminHome,
   AdminPendingChatRequests,
   filterAdminUsers,
@@ -72,6 +74,7 @@ import {
 import { requestLogout } from "@/components/auth/logout-button";
 import { mainScreenPrimaryActions } from "@/components/screens/main-screen-actions";
 import { AdminShell } from "@/components/shell/admin-shell";
+import { ParticipantHomeSkeleton } from "@/components/shell/participant-home-skeleton";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import { screenRegistry } from "@/lib/screens/registry";
 
@@ -949,7 +952,11 @@ describe("25 functional Main/Auth screens", () => {
 
   it.each(mainScreens)("$id 제품 제목·대표 행동을 렌더링한다", (screen) => {
     const html = renderToStaticMarkup(
-      createElement(MainFunctionalScreen, { screen, adminCurrentUser: fullAdminSession }),
+      screen.id === "U-HOME-001"
+        ? createElement(ParticipantHomeScreen, { screen })
+        : screen.audience === "ADMIN"
+          ? createElement(AdminFunctionalScreen, { screen, adminCurrentUser: fullAdminSession })
+          : createElement(MainFunctionalScreen, { screen }),
     );
     expect(html).toContain(screen.id);
     expect(html).toContain('<h1 id="civic-screen-title">');
@@ -1135,6 +1142,16 @@ describe("25 functional Main/Auth screens", () => {
     const mypageHtml = renderToStaticMarkup(
       <ParticipantShell activeRoute="/mypage">본문</ParticipantShell>,
     );
+    const customNavigationHtml = renderToStaticMarkup(
+      <ParticipantShell
+        activeRoute="/home"
+        bottomNavigation={<div data-home-navigation="pending" />}
+      >
+        본문
+      </ParticipantShell>,
+    );
+    expect(customNavigationHtml).toContain('data-home-navigation="pending"');
+    expect(customNavigationHtml).not.toContain('aria-label="참여자 주요 메뉴"');
     for (const sectionHtml of [participantHtml, mypageHtml]) {
       expect(sectionHtml).toContain('aria-label="이전 화면으로 돌아가기"');
       expect(sectionHtml).toContain('data-state="enabled"');
@@ -1167,9 +1184,10 @@ describe("25 functional Main/Auth screens", () => {
     const home = mainScreens.find((screen) => screen.id === "U-HOME-001");
     if (!home) throw new Error("U-HOME-001 missing");
 
-    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: home }));
+    const html = renderToStaticMarkup(createElement(ParticipantHomeScreen, { screen: home }));
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
+    expect(html).toContain("civic-opinion-hero--animated");
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
     expect(html).not.toContain("data-pwa-install-trigger");
@@ -1190,13 +1208,21 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("오픈 예정");
   });
 
+  it("홈 로딩 화면은 애니메이션 없이 실제 히어로의 초기 상태를 유지한다", () => {
+    const html = renderToStaticMarkup(createElement(ParticipantHomeSkeleton));
+
+    expect(html).toContain("지역마다 다른 전남광주 환승 요금,");
+    expect(html).toContain("어떻게 하면 좋을까요?");
+    expect(html).toContain('stroke="#e5e7eb"');
+    expect(html).not.toContain("civic-opinion-hero--animated");
+    expect(html).not.toContain("차트 애니메이션 다시 재생");
+  });
+
   it("계정 화면은 보안·비활성화·로그아웃을 한 화면에 제공하고 설문 보기를 노출하지 않는다", () => {
     const renderAccount = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
-      return renderToStaticMarkup(
-        createElement(MainFunctionalScreen, { screen, adminCurrentUser: fullAdminSession }),
-      );
+      return renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
     };
 
     const hub = renderAccount("U-ACCOUNT-001");
@@ -1247,7 +1273,7 @@ describe("25 functional Main/Auth screens", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
-      return renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
+      return renderToStaticMarkup(createElement(AdminFunctionalScreen, { screen }));
     };
 
     const list = renderAdmin("A-USER-001");
@@ -1289,7 +1315,7 @@ describe("25 functional Main/Auth screens", () => {
     if (!home) throw new Error("A-HOME-001 missing");
 
     const html = renderToStaticMarkup(
-      createElement(MainFunctionalScreen, { screen: home, adminCurrentUser: fullAdminSession }),
+      createElement(AdminFunctionalScreen, { screen: home, adminCurrentUser: fullAdminSession }),
     );
 
     expect(html).toContain('data-wireflow-layout="admin-home"');
@@ -1407,7 +1433,7 @@ describe("25 functional Main/Auth screens", () => {
     const renderAdmin = (id: string) => {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
-      return renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
+      return renderToStaticMarkup(createElement(AdminFunctionalScreen, { screen }));
     };
 
     const detail = renderAdmin("A-USER-002");

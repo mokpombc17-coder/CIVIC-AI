@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation";
 import { headers } from "next/headers";
-import { ParticipantShell } from "@/components/shell/participant-shell";
+import { EligibleParticipantShell } from "@/components/shell/eligible-participant-shell";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { requireParticipantAccess } from "@/lib/auth/require-access";
@@ -48,27 +48,25 @@ export default async function ParticipantPlaceholderPage({
     if (definition.audience === "PARTICIPANT") {
       await requireParticipantAccess(pathname);
       return (
-        <ParticipantShell
+        <EligibleParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
-          enforceServiceEligibility
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
-        </ParticipantShell>
+        </EligibleParticipantShell>
       );
     }
     if (definition.audience === "AUTHENTICATED") {
       const currentUser = await requireParticipantAccess(pathname);
       return currentUser.role === "PARTICIPANT" ? (
-        <ParticipantShell
+        <EligibleParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
-          enforceServiceEligibility
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
-        </ParticipantShell>
+        </EligibleParticipantShell>
       ) : (
         <AdminShell
           activeRoute={pathname}
@@ -84,17 +82,16 @@ export default async function ParticipantPlaceholderPage({
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
     const currentUser = await requireParticipantAccess(ragReturnTarget(pathname, query));
     return (
-      <ParticipantShell
+      <EligibleParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
-        enforceServiceEligibility
         {...(definition.id === "U-RAG-001"
           ? { headerActions: <RagNewQuestionHeaderAction /> }
           : {})}
         title={heading.title}
       >
         <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />
-      </ParticipantShell>
+      </EligibleParticipantShell>
     );
   }
 
@@ -103,13 +100,9 @@ export default async function ParticipantPlaceholderPage({
   await requireParticipantAccess(pathname);
 
   return (
-    <ParticipantShell
-      activeRoute={pathname}
-      enforceServiceEligibility
-      title={participantPlaceholderTitle(pathname)}
-    >
+    <EligibleParticipantShell activeRoute={pathname} title={participantPlaceholderTitle(pathname)}>
       <ComingSoonScreen screen={definition} />
-    </ParticipantShell>
+    </EligibleParticipantShell>
   );
 }
 

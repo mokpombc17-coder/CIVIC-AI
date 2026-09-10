@@ -6,7 +6,6 @@ import "./wireflow.css";
 import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
 import { StyleNonceProvider } from "@/components/admin/console/style-nonce-context";
-import { AppQueryProvider } from "@/components/providers/app-query-provider";
 import { resolveSiteUrl } from "@/lib/site-url";
 
 const siteUrl = resolveSiteUrl(process.env.SITE_URL);
@@ -50,17 +49,30 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     <html lang="ko">
       <head>
         <link
+          as="font"
           crossOrigin="anonymous"
           href="/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2"
+          rel="preload"
+          type="font/woff2"
+        />
+        <link
+          as="font"
+          crossOrigin="anonymous"
+          href="/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2"
           rel="preload"
           type="font/woff2"
         />
       </head>
       <body>
         <StyleNonceProvider nonce={nonce}>
-          <AppQueryProvider>
-            <AppShell>{children}</AppShell>
-          </AppQueryProvider>
+          <AppShell>{children}</AppShell>
         </StyleNonceProvider>
       </body>
     </html>

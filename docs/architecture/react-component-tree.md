@@ -5,13 +5,12 @@
 ```text
 RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
-    └── AppQueryProvider [Client, 전역 TanStack Query cache]
-        └── AppShell [Client]
-            ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
-            ├── NativeBridgeRuntime
-            └── AppUpdateGate
-                ├── AppInstallBanner [conditional]
-                └── App Router children
+    └── AppShell [Client]
+        ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
+        ├── NativeBridgeRuntime
+        └── AppUpdateGate
+            ├── AppInstallBanner [conditional]
+            └── App Router children
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
@@ -37,8 +36,7 @@ canonical route를 조회하고 화면 owner·audience·status에 따라 실제 
 ```text
 RootLayout [Server, 문서 CSP nonce 읽기]
 └── StyleNonceProvider [Client, nonce 고정]
-    └── AppQueryProvider [Client, 전역 TanStack Query cache]
-        └── AppShell
+    └── AppShell
 
 IndexPage / [Server Route] [redirect: /home]
 
@@ -56,21 +54,28 @@ RefreshPage /auth/refresh [Server Route, 안전한 returnTo 기준 대기 surfac
     └── 관리자·기타 경로 갱신 중 또는 갱신 실패: FullscreenStatus [route-neutral]
 
 HomePage /home [Server Route]
-├── hasAccessCredential [Access Token cookie 존재 여부만 확인]
 ├── HomeBrandTitle [CIVIC.AI + 고정 권역 광주/전남]
-└── ParticipantShell [비로그인 보호 메뉴: /login?returnTo=...]
-    ├── headerActions
-    │   ├── 비로그인: Login Link
-    │   └── CurrentUserGreeting [Client, 사용자 팝업·PWA 설치·로그아웃]
-    │       └── 관리자 역할: 관리자 페이지 Link 추가
+└── ParticipantShell [정적 홈 surface를 인증 확인보다 먼저 렌더링]
+    ├── headerActions Suspense [fallback: Login Link]
+    │   └── hasAccessCredential
+    │       ├── 비로그인: Login Link
+    │       └── CurrentUserGreeting [Client, 사용자 팝업·PWA 설치·로그아웃]
+    │           └── 관리자 역할: 관리자 페이지 Link 추가
+    ├── bottomNavigation Suspense [fallback: 보호 메뉴를 /login?returnTo=...로 연결]
+    │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            └── ParticipantEligibilityGuard [Client, 로그인 사용자 본문만 제어]
-                ├── GET /api/v1/me/service-eligibility [전역 cache 공유]
-                ├── 확인 중: Shell 유지, 200ms 뒤 indicator 표시·최소 200ms 유지
-                ├── 필수 미제출: /survey?returnTo=/home hard navigation
-                └── MainFunctionalScreen [U-HOME-001] [비로그인 보호 동작: /login?returnTo=...]
-                    └── ParticipantHomeLayout
+            ├── DeferredHomeQueryRuntime [Client, 히어로 animationend 뒤 동적 import]
+            │   ├── animationend 누락: 1.5초 fallback 뒤 idle scheduling
+            │   └── HomeQueryRuntime
+            │       ├── AppQueryProvider [Client, 비로그인도 query runtime 준비]
+            │       └── ParticipantEligibilityGuard [로그인 사용자만 백그라운드 확인]
+            │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
+            │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
+            │           └── 필수 미제출: /survey?returnTo=/home hard navigation
+            └── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
+                ├── OpinionGatheringHero [SSR: 질문·회색 도넛, DOM 삽입 즉시 CSS 애니메이션]
+                └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
 
 ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -79,24 +84,25 @@ ParticipantCatchAllPage [Server Route]
 │           └── AuthFunctionalScreen [가입 단계 history state 관리]
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
 │   ├── requireParticipantAccess
-│   └── ParticipantShell 또는 AdminShell
-│       ├── ParticipantShell
+│   └── EligibleParticipantShell 또는 AdminShell
+│       ├── EligibleParticipantShell
 │       │   └── PlatformPageShell
 │       │       └── 기존 frontend2 PlatformShell [정확히 1개]
-│       │           └── ParticipantEligibilityGuard [Client, 본문 slot만 제어]
-│       │               ├── /survey·인증 경로 제외
-│       │               ├── 확인 중에도 header·navigation 유지
-│       │               ├── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
-│       │               └── MainFunctionalScreen
-│       │               └── AccountFunctionalScreen [conditional]
-│       │                   ├── AccountHubSurface [/mypage, 로그아웃]
-│       │                   ├── AccountManagementSurface [/mypage/profile, 보안 포함]
-│       │                   └── DeactivationDialog [/mypage/deactivate]
+│       │           └── AppQueryProvider
+│       │               └── ParticipantEligibilityGuard [Client, 본문 slot만 제어]
+│       │                   ├── /survey·인증 경로 제외
+│       │                   ├── 확인 중에도 header·navigation 유지
+│       │                   ├── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
+│       │                   ├── MainFunctionalScreen
+│       │                   └── AccountFunctionalScreen [conditional]
+│       │                       ├── AccountHubSurface [/mypage, 로그아웃]
+│       │                       ├── AccountManagementSurface [/mypage/profile, 보안 포함]
+│       │                       └── DeactivationDialog [/mypage/deactivate]
 │       └── AdminShell
 │           └── MainFunctionalScreen
 ├── RAG
 │   ├── requireParticipantAccess
-│   └── ParticipantShell
+│   └── EligibleParticipantShell
 │       └── PlatformPageShell
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
 │               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
@@ -104,7 +110,7 @@ ParticipantCatchAllPage [Server Route]
 │                   └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
 └── PLACEHOLDER
     ├── requireParticipantAccess
-    └── ParticipantShell
+    └── EligibleParticipantShell
         └── PlatformPageShell
             └── 기존 frontend2 PlatformShell [정확히 1개]
                 └── ComingSoonScreen
@@ -112,10 +118,9 @@ ParticipantCatchAllPage [Server Route]
 AdminCatchAllPage [Server Route]
 ├── requireAdminAccess(role 또는 permission)
 └── AdminShell
-    ├── MainFunctionalScreen [Main/Auth]
-    │   └── AdminFunctionalScreen [A-HOME·A-USER]
-    │       ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation·Vote AI 예상 답변 작업 통합 폴링; VOTE_ADMIN 권한으로 초안 상세를 최대 4개 동시 조회]
-    │       └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
+    ├── AdminFunctionalScreen [Main/Auth의 A-HOME·A-USER, 관리자 route가 직접 조립]
+    │   ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation·Vote AI 예상 답변 작업 통합 폴링; VOTE_ADMIN 권한으로 초안 상세를 최대 4개 동시 조회]
+    │   └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]
     │   └── AdminRagScreen
     │       ├── FolderTree
@@ -195,13 +200,27 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 
 `/home`은 인증 없이 렌더링한다. Access Token cookie가 없는 경우 홈의 기능 동작과 하단 메뉴 중
 `/rag`, `/chat`, `/vote`, `/mypage`는 `/login?returnTo=...`로 연결하고, `/home` 메뉴는 공개 홈에
-남는다. cookie가 있으면 원래 보호 경로를 유지하며, 실제 자격 확인과 refresh는 각 보호 route가
-담당한다.
+남는다. 인증 확인에 따라 달라지는 header, 보호 링크와 하단 메뉴만 각각의 `Suspense` 안에서
+교체하므로 랜딩 본문과 회색 도넛은 cookie 확인을 기다리지 않는다. cookie가 있으면 원래 보호
+경로를 유지하고, 필수 설문 여부는 랜딩 본문을 가리지 않는 guard가 확인한다. 실제 refresh는 각
+보호 route가 담당한다.
 
 `CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. 브라우저가
 `beforeinstallprompt`를 제공한 경우에만 팝업에 `앱 설치`를 추가하고, 요청 또는 `appinstalled`
 이후에는 다시 숨긴다. 관리자는 같은 팝업에서 관리자 페이지로 이동한다. 홈의 참여 안내 카드는
 설치 동작을 소유하지 않는다. iOS 설치 안내나 별도 시각 CTA는 제공하지 않는다.
+
+`MainFunctionalScreen`은 홈을 제외한 참여자·인증 화면만 조립한다. 관리자 route는
+`AdminFunctionalScreen`을 직접 import하므로 AG Grid를 포함한 관리자 client graph는 관리자
+페이지에 진입할 때만 내려받는다.
+
+`/home` route는 `MainFunctionalScreen`을 거치지 않고 `ParticipantHomeScreen`을 직접 import한다.
+따라서 랜딩 초기 client graph에는 계정·인증 화면 및 React Query 코드가 포함되지 않는다. 홈은 인증
+여부와 관계없이 히어로의 마지막 `animationend` 이후 `HomeQueryRuntime`을 동적 import하며, 이벤트를
+놓치면 1.5초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
+`ParticipantEligibilityGuard`를 실행한다. 보호 참여자 route는 `EligibleParticipantShell`에서
+`AppQueryProvider`와 guard를 즉시 조립하며 browser singleton query cache를 공유한다. 홈에 노출되는
+Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져오지 않도록 prefetch를 끈다.
 
 `PwaStartup`의 세션 초기화는 `/pwa/start`에서만 실행한다. standalone display mode 또는 iOS
 standalone flag가 없으면 Refresh를 호출하지 않는다. API 계약 의존부는
@@ -322,4 +341,5 @@ placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않
 root `loading.tsx`는 route-neutral `FullscreenStatus`를 사용한다. 참여자·관리자 route 내부의
 `loading.tsx`는 각 목적지 shell에 맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존
 `PlatformPageShell`을 사용한다. 이 special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지
-않는다.
+않는다. `/home/loading.tsx`는 관리자 skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해
+질문·회색 도넛·홈 카드의 초기 구조만 렌더링한다.

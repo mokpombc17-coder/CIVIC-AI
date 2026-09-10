@@ -1,4 +1,4 @@
-export const HOME_SERVICE_REGION_LABEL = "광주/전남";
+export const HOME_SERVICE_REGION_LABEL = "전남광주";
 
 export function HomeBrandTitle() {
   return (

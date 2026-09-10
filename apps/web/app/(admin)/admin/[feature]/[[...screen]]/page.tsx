@@ -4,8 +4,8 @@ import { AdminChatInsightsScreen } from "@/components/admin/admin-chat-insights-
 import { AdminRoomCategoryScreen } from "@/components/admin/admin-room-category-screen";
 import { AdminTaskScreen } from "@/components/admin/admin-task-screen";
 import { AdminSimulationScreen } from "@/components/admin/admin-simulation-screen";
+import { AdminFunctionalScreen } from "@/components/screens/admin-functional-screen";
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
-import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { requireAdminAccess } from "@/lib/auth/require-admin";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
@@ -33,7 +33,7 @@ export default async function AdminPlaceholderPage({
   );
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "MAIN_AUTH") {
-    return <MainFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
+    return <AdminFunctionalScreen adminCurrentUser={currentUser} screen={definition} />;
   }
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
