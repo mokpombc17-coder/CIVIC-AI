@@ -1,8 +1,10 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useCallback, useMemo, useRef, useState } from "react";
 import {
   filterLoadedRoomInboxItems,
+  getChatRoomListHref,
   type ChatRoomInboxFilter,
 } from "@/components/chat-room-inbox-filter";
 import {
@@ -14,10 +16,10 @@ import { hasReachedChatUserActiveRoomLimit } from "@/components/chat-room-publis
 import { usePublicRoomSearch } from "@/components/use-public-room-search";
 import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
 
-export function useChatRoomListScreen() {
+export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomInboxFilter = "ALL") {
+  const router = useRouter();
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
-  const [participatingRoomFilter, setParticipatingRoomFilter] =
-    useState<ChatRoomInboxFilter>("ALL");
+  const participatingRoomFilter = initialParticipatingRoomFilter;
   const [selectedRoomDetail, setSelectedRoomDetail] = useState<ChatRoomListDetailSelection | null>(
     null,
   );
@@ -42,6 +44,15 @@ export function useChatRoomListScreen() {
   const filteredParticipatingRooms = useMemo(
     () => filterLoadedRoomInboxItems(roomInbox.rooms, participatingRoomFilter),
     [participatingRoomFilter, roomInbox.rooms],
+  );
+
+  const selectParticipatingRoomFilter = useCallback(
+    (filter: ChatRoomInboxFilter) => {
+      if (filter === participatingRoomFilter) return;
+
+      router.replace(getChatRoomListHref(filter), { scroll: false });
+    },
+    [participatingRoomFilter, router],
   );
 
   const closeRoomDetail = useCallback(() => {
@@ -97,7 +108,7 @@ export function useChatRoomListScreen() {
     isCreateRoomOpen,
     hasReachedActiveRoomLimit: hasReachedChatUserActiveRoomLimit(roomInbox.rooms.length),
     participatingRoomFilter: {
-      select: setParticipatingRoomFilter,
+      select: selectParticipatingRoomFilter,
       value: participatingRoomFilter,
     },
     participatingRooms: {

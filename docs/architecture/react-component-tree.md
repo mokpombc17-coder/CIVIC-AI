@@ -200,7 +200,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │       ├── [route segment loading] ChatLoading [Client] [Route] [pathname-aware] (apps/web/app/chat/loading.tsx)
                         │   │       │   ├── [list/non-room path] ChatRoomListScreen [Client] [Container] [cache-aware fallback]
                         │   │       │   └── [room detail path] ChatRoomScreenLoading [Server-compatible] [View]
-                        │   │       ├── route /chat: ChatPage [Server] [Route] (apps/web/app/chat/page.tsx)
+                        │   │       ├── route /chat: ChatPage [Server] [Route] [filter searchParams] (apps/web/app/chat/page.tsx)
                         │   │       │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
                         │   │       │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
                         │   │       │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
@@ -297,9 +297,10 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 렌더링한다. 패널이 열린 동안 SharedWorker 또는 direct transport의 구조화 진단 snapshot을
 주기적으로 조회하며, 초기화와 전체 JSON 다운로드 기능을 제공한다.
 
-`ChatRoomListScreen`은 목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의
-전체·안읽음 로컬 필터, 필터 전 inbox 기준 사용자 ACTIVE Room 한도 도달 표현, 생성 요청 sheet
-disclosure와 Room 상세 selection·trigger focus 복원을 담당하는 hook을 `ChatRoomListView`에 연결한다.
+`ChatPage`는 `filter` search param을 검증해 전체·안읽음 초기값을 정규화한다. `ChatRoomListScreen`은
+목록 Query, 공개 방 검색·필터 상태, 참여 방 제외, 누적된 Room inbox의 전체·안읽음 로컬 필터와 URL
+동기화, 필터 전 inbox 기준 사용자 ACTIVE Room 한도 도달 표현, 생성 요청 sheet disclosure와 Room
+상세 selection·trigger focus 복원을 담당하는 hook을 `ChatRoomListView`에 연결한다.
 `ChatRoomListView`는 본문의 생성 요청 action을 제공하고,
 생성 요청 sheet와 Room 상세 중 하나를 `PlatformShell`의 overlay slot에 전달하여 overlay가 열린 동안 기존 surface를 inert 처리한다.
 목록 surface는 참여 Room 필터·생성 action, 참여 Room 목록, 공개 Room 검색, 참여 가능한 Room 목록
@@ -444,9 +445,10 @@ canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 view를 사용한다. `VoteTaskScreen`의 최초 상세 Query 대기도 같은 1/4 구조와 4개 선택지 placeholder를 재사용한다.
 Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
-`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드
-view model로 변환한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를
-표시하며, 개발 환경에서만 publishing 디자인 샘플 카드를 실제 데이터와 구분해 제공한다.
+`VotePage`는 `tab` search param을 검증해 진행 중·완료 초기값을 정규화한다. `VoteTaskListScreen`은 검색
+실행과 진행 중·완료 필터 및 URL 동기화를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드 view model로
+변환한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를 표시하며,
+개발 환경에서만 publishing 디자인 샘플 카드를 실제 데이터와 구분해 제공한다.
 
 `VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
@@ -473,7 +475,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         ├── [route segment loading] VoteLoading [Client] [Route] [pathname-aware] (apps/web/app/vote/loading.tsx)
                         │   ├── [list path] VoteTaskListScreen [Client] [Container] [cache-aware fallback]
                         │   └── [task path] VoteTaskScreenLoading [Server-compatible] [View]
-                        ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx)
+                        ├── route /vote: VotePage [Server] [Route] [tab searchParams] (apps/web/app/vote/page.tsx)
                         │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
                         │       └── PlatformShell [Client graph] [View]
                         ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
@@ -543,7 +545,7 @@ flowchart TD
     ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
     ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
-    ChatPage["ChatPage [Server] [Route]<br/>apps/web/app/chat/page.tsx"]
+    ChatPage["ChatPage [Server] [Route] [filter searchParams]<br/>apps/web/app/chat/page.tsx"]
     ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
     ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
     ChatListPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
@@ -585,7 +587,7 @@ flowchart TD
     VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
     VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]
     VoteChildrenSlot["vote children slot<br/>nested page를 제공"]
-    VotePage["VotePage [Server] [Route]<br/>apps/web/app/vote/page.tsx"]
+    VotePage["VotePage [Server] [Route] [tab searchParams]<br/>apps/web/app/vote/page.tsx"]
     VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
     VoteTaskPage["VoteTaskPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/page.tsx"]
     VoteTaskScreen["VoteTaskScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-screen.tsx"]

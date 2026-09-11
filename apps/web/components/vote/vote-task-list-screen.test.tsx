@@ -5,9 +5,11 @@ import { VoteTaskListScreen } from "./vote-task-list-screen";
 
 const useOpenTasksQueryMock = vi.hoisted(() => vi.fn());
 const useCompletedTasksQueryMock = vi.hoisted(() => vi.fn());
+const replaceMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/vote",
+  useRouter: () => ({ replace: replaceMock }),
 }));
 
 vi.mock("@/lib/vote/vote-queries", () => ({
@@ -19,8 +21,17 @@ vi.mock("@/lib/vote/vote-queries", () => ({
 
 describe("VoteTaskListScreen", () => {
   beforeEach(() => {
+    replaceMock.mockReset();
     useOpenTasksQueryMock.mockReturnValue(createQueryState());
     useCompletedTasksQueryMock.mockReturnValue(createQueryState());
+  });
+
+  it("URL에서 복원한 완료 탭을 초기 선택으로 표시한다", () => {
+    const html = renderToStaticMarkup(<VoteTaskListScreen initialTab="completed" />);
+
+    expect(html).toContain('aria-selected="false"');
+    expect(html).toContain('aria-selected="true"');
+    expect(useCompletedTasksQueryMock).toHaveBeenCalledWith(20, true);
   });
 
   it("검색을 투표 주제 기준의 사용자 문구로 안내한다", () => {

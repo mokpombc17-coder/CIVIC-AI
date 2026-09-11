@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMemo, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
@@ -20,15 +21,16 @@ import {
   sortOpenTasksByLatest,
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
+import { getVoteTaskListHref, type VoteTaskListTab } from "@/lib/vote/vote-task-list-navigation";
 import styles from "./vote.module.css";
 import { VoteTaskListLoadingCards } from "./vote-task-list-loading";
 
-type VoteTab = "active" | "completed";
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
 const VOTE_LOGIN_HREF = "/login?returnTo=%2Fvote";
 
-export function VoteTaskListScreen() {
-  const [tab, setTab] = useState<VoteTab>("active");
+export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: VoteTaskListTab }) {
+  const router = useRouter();
+  const tab = initialTab;
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const openTasksQuery = useOpenTasksQuery();
@@ -69,6 +71,12 @@ export function VoteTaskListScreen() {
       ),
     [normalizedQuery, source],
   );
+
+  function selectTab(nextTab: VoteTaskListTab) {
+    if (nextTab === tab) return;
+
+    router.replace(getVoteTaskListHref(nextTab), { scroll: false });
+  }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -122,7 +130,7 @@ export function VoteTaskListScreen() {
             <button
               aria-selected={tab === "active"}
               className={styles.filterPill}
-              onClick={() => setTab("active")}
+              onClick={() => selectTab("active")}
               role="tab"
               type="button"
             >
@@ -131,7 +139,7 @@ export function VoteTaskListScreen() {
             <button
               aria-selected={tab === "completed"}
               className={styles.filterPill}
-              onClick={() => setTab("completed")}
+              onClick={() => selectTab("completed")}
               role="tab"
               type="button"
             >

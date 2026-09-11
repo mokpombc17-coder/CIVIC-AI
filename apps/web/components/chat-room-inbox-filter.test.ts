@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
-import { filterLoadedRoomInboxItems } from "./chat-room-inbox-filter";
+import {
+  filterLoadedRoomInboxItems,
+  getChatRoomListHref,
+  parseChatRoomInboxFilter,
+} from "./chat-room-inbox-filter";
 
 describe("loaded Room inbox filter", () => {
   const rooms = [createRoom("room-read", 0), createRoom("room-unread", 3)];
@@ -13,6 +17,18 @@ describe("loaded Room inbox filter", () => {
     expect(filterLoadedRoomInboxItems(rooms, "UNREAD").map((room) => room.roomId)).toEqual([
       "room-unread",
     ]);
+  });
+
+  it("unread query만 안읽음 filter로 복원한다", () => {
+    expect(parseChatRoomInboxFilter("unread")).toBe("UNREAD");
+    expect(parseChatRoomInboxFilter(["unread", "all"])).toBe("UNREAD");
+    expect(parseChatRoomInboxFilter("unknown")).toBe("ALL");
+    expect(parseChatRoomInboxFilter(undefined)).toBe("ALL");
+  });
+
+  it("전체 filter는 query를 제거하고 안읽음 filter는 URL에 기록한다", () => {
+    expect(getChatRoomListHref("ALL")).toBe("/chat");
+    expect(getChatRoomListHref("UNREAD")).toBe("/chat?filter=unread");
   });
 });
 
