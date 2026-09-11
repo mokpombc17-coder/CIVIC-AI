@@ -1454,7 +1454,6 @@
 }
 
 .resultChartFrame {
-  height: 359px;
   margin-top: 18px;
   border: 1px solid #ababab;
   background: #f0f0eb;
@@ -1462,7 +1461,6 @@
 }
 
 .resultChart {
-  height: 337px;
   margin: 0;
   border: 1px solid var(--vote-border);
   border-radius: 8px;
