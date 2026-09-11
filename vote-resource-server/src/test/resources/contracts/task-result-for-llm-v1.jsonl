@@ -1,0 +1,8 @@
+{"type":"manifest","schemaVersion":"task-result-for-llm/v1","taskId":"00000000-0000-0000-0000-000000000001","sourceSchemaVersion":"task-result-view/v1","resultVersion":1,"optionCount":3,"responseCount":2,"sourceBodySha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","bodySha256":"d9603d77e3bcb727467cb5f83dfb4cdd66b38467a8a472336175f160ae17681c"}
+{"type":"task","title":"출근 정책 선호도","background":"향후 출근 정책에 대한 의견 조사"}
+{"type":"question","questionType":"SINGLE_CHOICE","content":"어떤 근무 형태를 선호하나요?","description":null}
+{"type":"option","key":"O1","displayOrder":1,"content":"전면 출근"}
+{"type":"option","key":"O2","displayOrder":2,"content":"하이브리드"}
+{"type":"option","key":"O3","displayOrder":3,"content":"전면 재택"}
+{"type":"response","responseRef":"R1","selectedOptionKey":"O2","reason":"협업과 집중 근무를 병행할 수 있어서"}
+{"type":"response","responseRef":"R2","selectedOptionKey":"O3","reason":"출퇴근 시간이 너무 길어서"}

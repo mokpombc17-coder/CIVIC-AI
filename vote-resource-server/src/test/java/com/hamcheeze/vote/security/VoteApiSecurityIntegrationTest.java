@@ -311,6 +311,41 @@ class VoteApiSecurityIntegrationTest {
     }
 
     @Test
+    void taskResultForLlmExportRequiresSharedRuntimeToken()
+            throws Exception {
+        String path = "/api/v1/integrations/llm/tasks/"
+                + "00000000-0000-0000-0000-000000000999/result-export";
+
+        mockMvc.perform(get(path))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + scopedToken(
+                                        "llm-runtime",
+                                        VoteScopes.TASKS_ADMIN)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer wrong-runtime-token"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("UNAUTHENTICATED"));
+
+        mockMvc.perform(get(path)
+                        .header(
+                                HttpHeaders.AUTHORIZATION,
+                                "Bearer " + AI_RUNTIME_TOKEN))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code")
+                        .value("TASK_RESULT_FOR_LLM_NOT_FOUND"));
+    }
+
+    @Test
     void taskPreparationCallbackRequiresSharedRuntimeToken()
             throws Exception {
         String requestId =

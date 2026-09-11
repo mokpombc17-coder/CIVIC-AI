@@ -31,7 +31,9 @@ public class VoteSecurityConfig {
             String authToken
     ) throws Exception {
         http
-                .securityMatcher("/api/v1/integrations/persona/**")
+                .securityMatcher(
+                        "/api/v1/integrations/persona/**",
+                        "/api/v1/integrations/llm/**")
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session
                         .sessionCreationPolicy(
@@ -40,7 +42,8 @@ public class VoteSecurityConfig {
                         .requestMatchers(
                                 HttpMethod.GET,
                                 "/api/v1/integrations/persona/tasks/*/outcome",
-                                "/api/v1/integrations/persona/tasks/*/outcomes")
+                                "/api/v1/integrations/persona/tasks/*/outcomes",
+                                "/api/v1/integrations/llm/tasks/*/result-export")
                         .permitAll()
                         .requestMatchers(
                                 HttpMethod.POST,
