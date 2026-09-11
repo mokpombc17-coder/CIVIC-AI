@@ -21,33 +21,66 @@ export function ChatRoomInformationSection({
   canEdit: boolean;
   room: RoomDetails;
 }) {
-  return canEdit ? (
-    <ChatRoomSettingsControl room={room} />
+  const [isEditing, setIsEditing] = useState(false);
+
+  return canEdit && isEditing ? (
+    <ChatRoomSettingsControl onCancel={() => setIsEditing(false)} room={room} />
   ) : (
-    <ChatRoomInformationCard room={room} />
+    <ChatRoomInformationCard
+      {...(canEdit ? { onEdit: () => setIsEditing(true) } : {})}
+      room={room}
+    />
   );
 }
 
-export function ChatRoomSettingsControl({ room }: { room: RoomDetails }) {
+export function ChatRoomSettingsControl({
+  onCancel,
+  room,
+}: {
+  onCancel?: () => void;
+  room: RoomDetails;
+}) {
   const controller = useChatRoomSettingsControl(room);
 
-  return <ChatRoomSettingsControlView controller={controller} room={room} />;
+  return (
+    <ChatRoomSettingsControlView
+      controller={controller}
+      {...(onCancel === undefined ? {} : { onCancel })}
+      room={room}
+    />
+  );
 }
 
 export function ChatRoomSettingsControlView({
   controller,
+  onCancel,
   room,
 }: {
   controller: ChatRoomSettingsControlController;
+  onCancel?: () => void;
   room: RoomDetails;
 }) {
   const titleId = useId();
 
   return (
     <section aria-labelledby={titleId} className="py-5">
-      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
-        방 정보
-      </h3>
+      <div className="flex min-h-10 items-center justify-between gap-3">
+        <h3
+          className="text-base font-semibold text-[var(--chat-publishing-color-text)]"
+          id={titleId}
+        >
+          {onCancel ? "방 정보 수정" : "방 정보"}
+        </h3>
+        {onCancel ? (
+          <button
+            className="inline-flex min-h-10 items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-3 text-sm font-semibold text-[var(--chat-publishing-color-muted)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+            onClick={onCancel}
+            type="button"
+          >
+            취소
+          </button>
+        ) : null}
+      </div>
 
       {controller.completionMessage ? (
         <p
@@ -187,40 +220,29 @@ export function ChatRoomSettingsInlineForm({
   );
 }
 
-function ChatRoomInformationCard({ room }: { room: RoomDetails }) {
-  const titleId = useId();
-
+function ChatRoomInformationCard({ onEdit, room }: { onEdit?: () => void; room: RoomDetails }) {
   return (
-    <section aria-labelledby={titleId} className="py-5">
-      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]" id={titleId}>
-        방 정보
-      </h3>
-      <RoomInformationDetails room={room} />
-    </section>
-  );
-}
-
-function RoomInformationDetails({ room }: { room: RoomDetails }) {
-  return (
-    <dl className="mt-4 grid gap-4">
-      <div className="grid gap-1">
-        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">카테고리</dt>
-        <dd>
+    <section aria-label="방 정보" className="py-5">
+      <div className="flex items-start justify-between gap-4">
+        <div className="min-w-0 flex-1">
           <ChatRoomCategoryBadges categories={room.categorySummaries} maxVisible={5} />
-        </dd>
+          <h3 className="mt-3 break-words text-lg font-semibold leading-7 text-[var(--chat-publishing-color-text)]">
+            {room.name}
+          </h3>
+          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--chat-publishing-color-muted)]">
+            {room.description || "채팅방 소개가 없습니다."}
+          </p>
+        </div>
+        {onEdit ? (
+          <button
+            className="inline-flex min-h-10 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-3 text-sm font-semibold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+            onClick={onEdit}
+            type="button"
+          >
+            수정
+          </button>
+        ) : null}
       </div>
-      <div className="grid gap-1">
-        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 이름</dt>
-        <dd className="break-words text-base font-bold leading-6 text-[var(--chat-publishing-color-text)]">
-          {room.name}
-        </dd>
-      </div>
-      <div className="grid gap-1">
-        <dt className="text-xs font-medium text-[var(--chat-publishing-color-muted)]">방 설명</dt>
-        <dd className="whitespace-pre-wrap text-sm leading-6 text-[var(--chat-publishing-color-text)]">
-          {room.description || "채팅방 소개가 없습니다."}
-        </dd>
-      </div>
-    </dl>
+    </section>
   );
 }

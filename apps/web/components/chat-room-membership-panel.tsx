@@ -26,7 +26,6 @@ const PANEL_SECONDARY_BUTTON_CLASS_NAME =
   "inline-flex min-h-11 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 const MEMBER_ACTION_BUTTON_CLASS_NAME =
   "inline-flex min-h-9 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-3 text-xs font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
-const MEMBER_DANGER_ACTION_BUTTON_CLASS_NAME = `${MEMBER_ACTION_BUTTON_CLASS_NAME} border-[#f2b8b5] text-[#b42318] hover:bg-[#fff1f0]`;
 
 export function ChatRoomMembershipPanel({
   headerAction,
@@ -73,9 +72,9 @@ export function ChatRoomMembershipPanelView({
   } = controller;
 
   return (
-    <section className="px-6 pt-5 pb-6">
+    <section className="px-5 pt-2 pb-6">
       <div className="flex min-h-11 items-start justify-between gap-4">
-        <h2 className="min-w-0 pt-1 text-2xl font-bold leading-[32.4px]" id={headingId}>
+        <h2 className="min-w-0 pt-2 text-xl font-semibold leading-7" id={headingId}>
           채팅방 메뉴
         </h2>
         <div className="flex flex-wrap items-center justify-end gap-2">{headerAction}</div>
@@ -100,11 +99,12 @@ export function ChatRoomMembershipPanelView({
               onRetry={activeMemberships.retry}
               pendingCommand={command.pending}
               selfMembershipId={selfMembership.membership?.membershipId ?? null}
+              totalCount={room.activeMemberCount}
             />
           ) : null}
 
           {isOwner ? (
-            <div className={isActiveMembershipListEnabled ? "mt-6" : undefined}>
+            <div className={isActiveMembershipListEnabled ? "mt-3" : undefined}>
               <BlockedMembershipManagement
                 errorMessage={ownerManagedMemberships.errorMessage}
                 hasNextPage={ownerManagedMemberships.hasNextPage}
@@ -157,25 +157,20 @@ export function ChatRoomMembershipPanelView({
 
       {roomActionKind ? (
         <div className="mt-5 border-t border-[var(--chat-publishing-color-border)] pt-5">
-          {roomActionKind === "leave" ? (
-            <button
-              className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} w-full`}
-              disabled={command.isPending}
-              onClick={() => command.startRoom("leave")}
-              type="button"
-            >
-              {command.pending?.kind === "leave" ? "나가는 중…" : "방 나가기"}
-            </button>
-          ) : (
-            <button
-              className="inline-flex min-h-12 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[#f2b8b5] bg-white px-4 text-base font-bold text-[#b42318] transition hover:bg-[#fff1f0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={command.isPending}
-              onClick={() => command.startRoom("close")}
-              type="button"
-            >
-              {command.pending?.kind === "close" ? "종료 중…" : "방 종료"}
-            </button>
-          )}
+          <button
+            className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-4 text-sm font-semibold text-[#b42318] transition hover:bg-[#fff1f0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50"
+            disabled={command.isPending}
+            onClick={() => command.startRoom(roomActionKind)}
+            type="button"
+          >
+            {roomActionKind === "leave"
+              ? command.pending?.kind === "leave"
+                ? "나가는 중…"
+                : "방 나가기"
+              : command.pending?.kind === "close"
+                ? "종료 중…"
+                : "방 종료"}
+          </button>
         </div>
       ) : null}
     </section>
@@ -196,6 +191,7 @@ function ActiveMembershipList({
   onRetry,
   pendingCommand,
   selfMembershipId,
+  totalCount,
 }: {
   errorMessage: string | null;
   hasNextPage: boolean;
@@ -214,10 +210,14 @@ function ActiveMembershipList({
   onRetry: () => void;
   pendingCommand: ChatRoomMembershipPendingCommand | null;
   selfMembershipId: string | null;
+  totalCount: number;
 }) {
   return (
     <section>
-      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">참여자 목록</h3>
+      <div className="flex items-center gap-2">
+        <h3 className="text-base font-semibold text-[var(--chat-publishing-color-text)]">참여자</h3>
+        <span className="text-sm text-[var(--chat-publishing-color-muted)]">{totalCount}명</span>
+      </div>
 
       {isError ? (
         <div
@@ -292,49 +292,65 @@ function BlockedMembershipManagement({
   selfMembershipId: string | null;
 }) {
   return (
-    <section>
-      <h3 className="text-lg font-bold text-[var(--chat-publishing-color-text)]">
-        차단된 사용자 관리
-      </h3>
-
-      {isError ? (
-        <div
-          className="mt-3 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
-          role="alert"
+    <details className="group border-t border-[var(--chat-publishing-color-border)]">
+      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-base font-semibold text-[var(--chat-publishing-color-text)] [&::-webkit-details-marker]:hidden">
+        <span>차단된 사용자 관리</span>
+        <svg
+          aria-hidden="true"
+          className="size-5 shrink-0 text-[var(--chat-publishing-color-muted)] transition group-open:rotate-180"
+          fill="none"
+          viewBox="0 0 24 24"
         >
-          <p className="text-sm font-semibold">차단된 사용자 목록을 불러오지 못했습니다.</p>
-          <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
-            {errorMessage}
-          </p>
-          <button
-            className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
-            onClick={onRetry}
-            type="button"
-          >
-            차단된 사용자 목록 다시 불러오기
-          </button>
-        </div>
-      ) : isPending ? (
-        <MembershipNotice message="차단된 사용자 목록을 불러오고 있습니다." />
-      ) : memberships.length === 0 ? (
-        <MembershipNotice message="차단된 사용자가 없습니다." />
-      ) : (
-        <MembershipRows
-          actionMode="banned-owner"
-          isCommandPending={isCommandPending}
-          memberships={memberships}
-          onMemberCommand={onMemberCommand}
-          pendingCommand={pendingCommand}
-          selfMembershipId={selfMembershipId}
-        />
-      )}
+          <path
+            d="m7 10 5 5 5-5"
+            stroke="currentColor"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            strokeWidth="1.8"
+          />
+        </svg>
+      </summary>
 
-      <MembershipPagination
-        hasNextPage={hasNextPage}
-        isFetchingNextPage={isFetchingNextPage}
-        onFetchNextPage={onFetchNextPage}
-      />
-    </section>
+      <div className="pb-2">
+        {isError ? (
+          <div
+            className="mt-2 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
+            role="alert"
+          >
+            <p className="text-sm font-semibold">차단된 사용자 목록을 불러오지 못했습니다.</p>
+            <p className="mt-1 text-xs leading-5 text-[var(--chat-publishing-color-muted)]">
+              {errorMessage}
+            </p>
+            <button
+              className={`${PANEL_SECONDARY_BUTTON_CLASS_NAME} mt-3`}
+              onClick={onRetry}
+              type="button"
+            >
+              차단된 사용자 목록 다시 불러오기
+            </button>
+          </div>
+        ) : isPending ? (
+          <MembershipNotice message="차단된 사용자 목록을 불러오고 있습니다." />
+        ) : memberships.length === 0 ? (
+          <MembershipNotice message="차단된 사용자가 없습니다." />
+        ) : (
+          <MembershipRows
+            actionMode="banned-owner"
+            isCommandPending={isCommandPending}
+            memberships={memberships}
+            onMemberCommand={onMemberCommand}
+            pendingCommand={pendingCommand}
+            selfMembershipId={selfMembershipId}
+          />
+        )}
+
+        <MembershipPagination
+          hasNextPage={hasNextPage}
+          isFetchingNextPage={isFetchingNextPage}
+          onFetchNextPage={onFetchNextPage}
+        />
+      </div>
+    </details>
   );
 }
 
@@ -358,10 +374,10 @@ function MembershipRows({
   selfMembershipId: string | null;
 }) {
   return (
-    <ul className="mt-3 grid min-w-0 max-w-full gap-1">
+    <ul className="mt-2 min-w-0 max-w-full">
       {memberships.map((member) => (
         <li
-          className="flex min-w-0 max-w-full flex-wrap items-center justify-between gap-3 py-3"
+          className="flex min-w-0 max-w-full items-center justify-between gap-3 py-3"
           key={member.membershipId}
         >
           <ChatRoomParticipantProfile
@@ -372,36 +388,52 @@ function MembershipRows({
             role={member.role}
           />
           {actionMode === "active-owner" && member.role === "MEMBER" ? (
-            <div className="flex flex-wrap gap-2">
-              <button
-                className={MEMBER_ACTION_BUTTON_CLASS_NAME}
-                disabled={isCommandPending}
-                onClick={() =>
-                  onMemberCommand(
-                    "transfer",
-                    member.membershipId,
-                    getRoomParticipantDisplayName(member),
-                  )
-                }
-                type="button"
+            <details className="group relative shrink-0">
+              <summary
+                aria-label={`${getRoomParticipantDisplayName(member)} 관리`}
+                className="flex size-10 cursor-pointer list-none items-center justify-center rounded-full text-[var(--chat-publishing-color-muted)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] [&::-webkit-details-marker]:hidden"
               >
-                {isPendingForMember(pendingCommand, "transfer", member.membershipId)
-                  ? "위임 중…"
-                  : "방장 위임"}
-              </button>
-              <button
-                className={MEMBER_DANGER_ACTION_BUTTON_CLASS_NAME}
-                disabled={isCommandPending}
-                onClick={() =>
-                  onMemberCommand("ban", member.membershipId, getRoomParticipantDisplayName(member))
-                }
-                type="button"
-              >
-                {isPendingForMember(pendingCommand, "ban", member.membershipId)
-                  ? "차단 중…"
-                  : "차단"}
-              </button>
-            </div>
+                <svg aria-hidden="true" className="size-5" fill="currentColor" viewBox="0 0 24 24">
+                  <circle cx="5" cy="12" r="1.5" />
+                  <circle cx="12" cy="12" r="1.5" />
+                  <circle cx="19" cy="12" r="1.5" />
+                </svg>
+              </summary>
+              <div className="absolute right-0 z-10 mt-1 grid min-w-32 overflow-hidden rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white p-1 shadow-[0_8px_24px_rgba(18,20,23,0.14)]">
+                <button
+                  className="min-h-10 rounded-[calc(var(--chat-publishing-radius-control)-2px)] px-3 text-left text-sm font-semibold text-[var(--chat-publishing-color-text)] hover:bg-[var(--chat-publishing-color-neutral-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isCommandPending}
+                  onClick={() =>
+                    onMemberCommand(
+                      "transfer",
+                      member.membershipId,
+                      getRoomParticipantDisplayName(member),
+                    )
+                  }
+                  type="button"
+                >
+                  {isPendingForMember(pendingCommand, "transfer", member.membershipId)
+                    ? "위임 중…"
+                    : "방장 위임"}
+                </button>
+                <button
+                  className="min-h-10 rounded-[calc(var(--chat-publishing-radius-control)-2px)] px-3 text-left text-sm font-semibold text-[#b42318] hover:bg-[#fff1f0] disabled:cursor-not-allowed disabled:opacity-50"
+                  disabled={isCommandPending}
+                  onClick={() =>
+                    onMemberCommand(
+                      "ban",
+                      member.membershipId,
+                      getRoomParticipantDisplayName(member),
+                    )
+                  }
+                  type="button"
+                >
+                  {isPendingForMember(pendingCommand, "ban", member.membershipId)
+                    ? "차단 중…"
+                    : "차단"}
+                </button>
+              </div>
+            </details>
           ) : actionMode === "banned-owner" ? (
             <button
               className={MEMBER_ACTION_BUTTON_CLASS_NAME}

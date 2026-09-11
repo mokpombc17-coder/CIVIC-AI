@@ -1,7 +1,10 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { RoomDetails, RoomMembership } from "@/lib/chat/chat-room-contracts";
-import { ChatRoomSettingsControlView } from "./chat-room-settings-control";
+import {
+  ChatRoomInformationSection,
+  ChatRoomSettingsControlView,
+} from "./chat-room-settings-control";
 import type { ChatRoomSettingsControlController } from "./use-chat-room-settings-control";
 
 describe("ChatRoomSettingsControlView", () => {
@@ -45,6 +48,30 @@ describe("ChatRoomSettingsControlView", () => {
     expect(html).toContain('<fieldset class="grid gap-4" disabled="">');
     expect(html).toContain(">저장 중…</button>");
     expect(html).toContain('disabled="" type="submit"');
+  });
+});
+
+describe("ChatRoomInformationSection", () => {
+  it("방장에게도 방 정보를 요약해서 보여주고 편집은 수정 action 뒤로 접어 둔다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomInformationSection canEdit room={createRoomDetails()} />,
+    );
+
+    expect(html).toContain('aria-label="방 정보"');
+    expect(html).toContain("시민 토론방");
+    expect(html).toContain("방 설정 View 테스트");
+    expect(html).toContain(">수정</button>");
+    expect(html).not.toContain("<input");
+    expect(html).not.toContain(">저장</button>");
+  });
+
+  it("일반 참여자의 방 정보 요약에는 수정 action을 표시하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      <ChatRoomInformationSection canEdit={false} room={createRoomDetails()} />,
+    );
+
+    expect(html).toContain("시민 토론방");
+    expect(html).not.toContain(">수정</button>");
   });
 });
 

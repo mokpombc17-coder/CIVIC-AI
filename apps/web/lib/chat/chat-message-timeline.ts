@@ -109,7 +109,7 @@ export function createChatMessageTimelineRows(
     activitiesBySequence.set(activity.afterMessageSequence, activities);
   }
 
-  const appendDateSeparator = (date: ChatMessageTimelineDate) => {
+  const appendDateSeparator = (date: ChatMessageTimelineDate, anchorKey: string) => {
     if (date.key === previousDateKey) {
       return;
     }
@@ -118,7 +118,7 @@ export function createChatMessageTimelineRows(
       Object.freeze({
         date,
         kind: "date-separator",
-        renderKey: `date-separator-${date.key}`,
+        renderKey: `date-separator-${date.key}-before-${anchorKey}`,
       }),
     );
     previousDateKey = date.key;
@@ -126,12 +126,16 @@ export function createChatMessageTimelineRows(
 
   const appendActivitiesAfterSequence = (afterMessageSequence: number) => {
     for (const activity of activitiesBySequence.get(afterMessageSequence) ?? []) {
-      appendDateSeparator(getChatMessageTimelineDateFromTimestamp(activity.emittedAt));
+      const activityRenderKey = `system-activity-${activity.eventKey}`;
+      appendDateSeparator(
+        getChatMessageTimelineDateFromTimestamp(activity.emittedAt),
+        activityRenderKey,
+      );
       rows.push(
         Object.freeze({
           activity,
           kind: "system-activity",
-          renderKey: `system-activity-${activity.eventKey}`,
+          renderKey: activityRenderKey,
         }),
       );
     }
@@ -141,7 +145,7 @@ export function createChatMessageTimelineRows(
 
   for (const item of timeline) {
     const date = getChatMessageTimelineDate(item);
-    appendDateSeparator(date);
+    appendDateSeparator(date, `message-${item.message.clientMessageId}`);
 
     if (
       !readBoundaryInserted &&

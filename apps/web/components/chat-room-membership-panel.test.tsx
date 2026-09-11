@@ -73,7 +73,9 @@ describe("ChatRoomMembershipPanel", () => {
 
     const html = renderPanel(createRoomDetails({ myMembership: membership }));
 
-    expect(html).toContain("참여자 목록");
+    expect(html).toContain(">참여자</h3>");
+    expect(html).toContain(">2명</span>");
+    expect(html).not.toContain("divide-y");
     expect(html).toContain("참여자 1");
     expect(html).toContain("참여자 2");
     expect(html).toContain("참여자 프로필 테스트");
@@ -136,7 +138,8 @@ describe("ChatRoomMembershipPanel", () => {
       }),
     );
 
-    expect(html).toContain("참여자 목록");
+    expect(html).toContain(">참여자</h3>");
+    expect(html).toContain(">2명</span>");
     expect(html).toContain("방장 위임");
     expect(html).toContain(">차단</button>");
     expect(html).toContain("차단된 사용자 관리");
@@ -166,7 +169,8 @@ describe("ChatRoomMembershipPanel", () => {
       <ChatRoomMembershipPanelView controller={controller} room={room} />,
     );
 
-    expect(html).toContain("참여자 목록");
+    expect(html).toContain(">참여자</h3>");
+    expect(html).toContain(">2명</span>");
     expect(html).toContain("참여자 2");
     expect(html).not.toContain('class="panel"');
     expect(html).toContain("border-[var(--chat-publishing-color-border)]");

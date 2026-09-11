@@ -27,7 +27,8 @@ describe("ChatRoomMembershipDialog", () => {
 
     expect(html).toContain('role="dialog"');
     expect(html).toContain('data-chat-room-membership-bottom-sheet="true"');
-    expect(html).toContain("rounded-t-xl");
+    expect(html).toContain("rounded-t-[20px]");
+    expect(html).toContain("mx-auto mt-2 h-1 w-10 rounded-full");
     expect(html).toContain("max-w-[393px]");
     expect(html).toContain("overflow-x-hidden");
     expect(html).toContain('aria-label="채팅방 메뉴 닫기"');

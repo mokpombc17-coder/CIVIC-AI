@@ -48,12 +48,12 @@ describe("createChatMessageTimelineRows", () => {
       {
         date: { day: 6, key: "2026-08-06", month: 8, year: 2026 },
         kind: "date-separator",
-        renderKey: "date-separator-2026-08-06",
+        renderKey: "date-separator-2026-08-06-before-message-before-midnight",
       },
       {
         date: { day: 7, key: "2026-08-07", month: 8, year: 2026 },
         kind: "date-separator",
-        renderKey: "date-separator-2026-08-07",
+        renderKey: "date-separator-2026-08-07-before-message-after-midnight",
       },
     ]);
   });
@@ -95,6 +95,27 @@ describe("createChatMessageTimelineRows", () => {
       "date-separator",
       "message",
     ]);
+  });
+
+  it("같은 날짜가 떨어져 다시 등장해도 날짜 구분선 renderKey를 고유하게 유지한다", () => {
+    const timeline = createChatMessageTimeline(
+      [
+        createConfirmed("first-day", "2026-08-24T15:00:00Z"),
+        createConfirmed("second-day", "2026-08-25T15:00:00Z"),
+      ],
+      [createOutgoing("optimistic-first-day", "queued", Date.parse("2026-08-24T16:00:00Z"))],
+    );
+
+    const separatorKeys = createChatMessageTimelineRows(timeline).flatMap((row) =>
+      row.kind === "date-separator" ? [row.renderKey] : [],
+    );
+
+    expect(separatorKeys).toEqual([
+      "date-separator-2026-08-25-before-message-first-day",
+      "date-separator-2026-08-26-before-message-second-day",
+      "date-separator-2026-08-25-before-message-optimistic-first-day",
+    ]);
+    expect(new Set(separatorKeys).size).toBe(separatorKeys.length);
   });
 
   it("삭제된 메시지도 updatedAt이 아닌 원래 createdAt 날짜를 유지한다", () => {
