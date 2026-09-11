@@ -9,7 +9,7 @@ export type VoteTaskListItemPresentation = Readonly<{
   supportingText: string;
   actionLabel: "참여하기" | "응답 보기" | "결과보기";
   actionHref: `/vote/${string}`;
-  sourceLabel?: "디자인 샘플" | "실제 API";
+  sourceLabel?: "디자인 샘플";
 }>;
 
 export function sortOpenTasksByLatest(tasks: readonly UserTaskSummary[]): UserTaskSummary[] {
@@ -52,7 +52,6 @@ export function presentCompletedTask(task: CompletedTaskSummary): VoteTaskListIt
     supportingText: `${formatVoteDateTime(task.closedAt)} 마감`,
     actionLabel: "결과보기",
     actionHref: `/vote/${task.taskId}/result`,
-    sourceLabel: "실제 API",
   };
 }
 
