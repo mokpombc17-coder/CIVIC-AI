@@ -56,6 +56,10 @@ services:
       VOTE_JWT_JWKS_URI: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}/.well-known/jwks.json
       VOTE_BROWSER_ORIGIN: ${PUBLIC_ORIGIN:?PUBLIC_ORIGIN is required}
       VOTE_SECURITY_LOCAL_ADMIN_API_ENABLED: "false"
+      VOTE_TASK_OPINION_MAP_ENABLED: ${VOTE_TASK_OPINION_MAP_ENABLED:-true}
+      VOTE_TASK_OPINION_MAP_PROVIDER: ${VOTE_TASK_OPINION_MAP_PROVIDER:-openrouter}
+      VOTE_TASK_OPINION_MAP_MODEL: ${VOTE_TASK_OPINION_MAP_MODEL:-openai/gpt-5.6-luna}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     depends_on:
       vote-db:
         condition: service_healthy
