@@ -99,10 +99,6 @@ export function ChatRoomMembershipDialog({
         onKeyDown={handleKeyDown}
         role="dialog"
       >
-        <div
-          aria-hidden="true"
-          className="mx-auto mt-2 h-1 w-10 rounded-full bg-[var(--chat-publishing-color-border)]"
-        />
         <ChatRoomMembershipPanel
           headerAction={
             <button
