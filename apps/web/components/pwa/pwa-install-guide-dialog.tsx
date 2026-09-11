@@ -18,7 +18,6 @@ function OpenPwaInstallGuideDialog({
   onClose,
   returnFocusRef,
 }: Omit<PwaInstallGuideDialogProps, "open">) {
-  const descriptionId = useId();
   const dialogRef = useRef<HTMLDialogElement>(null);
   const closeButtonRef = useRef<HTMLButtonElement>(null);
   const titleId = useId();
@@ -47,7 +46,6 @@ function OpenPwaInstallGuideDialog({
 
   return (
     <dialog
-      aria-describedby={descriptionId}
       aria-labelledby={titleId}
       aria-modal="true"
       className={styles.dialog}
@@ -74,14 +72,12 @@ function OpenPwaInstallGuideDialog({
         </button>
       </header>
 
-      <p className={styles.description} id={descriptionId}>
-        한 번만 설정하면 홈 화면에서 앱처럼 바로 열 수 있어요.
-      </p>
-
       <ol className={styles.steps}>
         <li>
           <span className={styles.stepNumber}>1</span>
-          <p>화면의 공유 메뉴를 열어주세요.</p>
+          <p>
+            화면의 <strong>공유</strong> 메뉴를 열어주세요.
+          </p>
         </li>
         <li>
           <span className={styles.stepNumber}>2</span>

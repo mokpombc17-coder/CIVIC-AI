@@ -11,7 +11,8 @@ describe("PwaInstallGuideDialog", () => {
     expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
     expect(html).toContain("iOS 앱 설치 방법");
-    expect(html).toContain("공유 메뉴");
+    expect(html).toContain("<strong>공유</strong> 메뉴");
+    expect(html).not.toContain("한 번만 설정하면");
     expect(html).toContain("홈 화면에 추가");
     expect(html).toContain("웹 앱으로 열기");
     expect(html).toContain(">닫기</button>");
