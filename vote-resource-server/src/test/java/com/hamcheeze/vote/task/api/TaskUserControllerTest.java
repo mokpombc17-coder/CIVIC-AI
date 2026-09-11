@@ -10,6 +10,7 @@ import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskOpinionMap;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionExecutionService;
@@ -48,6 +49,8 @@ import static com.hamcheeze.vote.task.TaskTestFixtures.shortTextQuestion;
 import static com.hamcheeze.vote.task.TaskTestFixtures.submissionId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.taskId;
 import static com.hamcheeze.vote.task.TaskTestFixtures.userId;
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.hasKey;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -233,6 +236,15 @@ class TaskUserControllerTest {
                         .value("USER_WRITTEN"))
                 .andExpect(jsonPath("$.mySubmission.finalReason")
                         .value("내 최종 이유"))
+                .andExpect(jsonPath("$.opinionMap.status")
+                        .value("UNAVAILABLE"))
+                .andExpect(jsonPath("$.opinionMap").value(allOf(
+                        hasKey("sameChoice"),
+                        hasKey("otherChoices"))))
+                .andExpect(jsonPath("$.opinionMap.sameChoice")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.opinionMap.otherChoices")
+                        .doesNotExist())
                 .andExpect(jsonPath("$.schemaVersion").doesNotExist())
                 .andExpect(jsonPath("$.percentage").doesNotExist())
                 .andExpect(jsonPath("$.options[0].key").doesNotExist())
@@ -243,6 +255,45 @@ class TaskUserControllerTest {
                 .andExpect(jsonPath("$.responses").doesNotExist());
 
         verify(taskResults).findByTask(eq(userId()), eq(taskId()));
+    }
+
+    @Test
+    void participantResultExposesOnlySelectedOpinionMapAreas()
+            throws Exception {
+        MyTaskOpinionMap opinionMap = new MyTaskOpinionMap(
+                MyTaskOpinionMap.Status.AVAILABLE,
+                new MyTaskOpinionMap.Area(
+                        MyTaskOpinionMap.AreaStatus.AVAILABLE,
+                        "같은 선택을 한 사람들의 이유입니다."),
+                new MyTaskOpinionMap.Area(
+                        MyTaskOpinionMap.AreaStatus.INSUFFICIENT_REASON,
+                        null));
+        when(taskResults.findByTask(any(), any()))
+                .thenReturn(Optional.of(myTaskResult(opinionMap)));
+
+        mockMvc.perform(get("/api/v1/me/tasks/{taskId}/result",
+                        taskId().value()).principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.opinionMap.status")
+                        .value("AVAILABLE"))
+                .andExpect(jsonPath("$.opinionMap.sameChoice.status")
+                        .value("AVAILABLE"))
+                .andExpect(jsonPath("$.opinionMap.sameChoice.body")
+                        .value("같은 선택을 한 사람들의 이유입니다."))
+                .andExpect(jsonPath("$.opinionMap.otherChoices.status")
+                        .value("INSUFFICIENT_REASON"))
+                .andExpect(jsonPath("$.opinionMap.otherChoices")
+                        .value(hasKey("body")))
+                .andExpect(jsonPath("$.opinionMap.otherChoices.body")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.opinionMap.optionKey")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.opinionMap.sameChoice.sourceOptionKeys")
+                        .doesNotExist())
+                .andExpect(jsonPath(
+                        "$.opinionMap.otherChoices.sourceOptionKeys")
+                        .doesNotExist());
     }
 
     @Test
@@ -626,6 +677,12 @@ class TaskUserControllerTest {
     }
 
     private static MyTaskResultQueryService.MyTaskResult myTaskResult() {
+        return myTaskResult(MyTaskOpinionMap.unavailable());
+    }
+
+    private static MyTaskResultQueryService.MyTaskResult myTaskResult(
+            MyTaskOpinionMap opinionMap
+    ) {
         return new MyTaskResultQueryService.MyTaskResult(
                 taskId(),
                 "결과 Task",
@@ -647,7 +704,8 @@ class TaskUserControllerTest {
                         resultOptionId(2),
                         TaskReasonSource.USER_WRITTEN,
                         "내 최종 이유",
-                        NOW.minusSeconds(600)));
+                        NOW.minusSeconds(600)),
+                opinionMap);
     }
 
     private static TaskOptionId resultOptionId(long value) {

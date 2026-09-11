@@ -14,6 +14,7 @@ import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
 import com.hamcheeze.vote.task.application.query.TaskProgressResponsesQueryService;
 import com.hamcheeze.vote.task.application.query.TaskProgressSummaryQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
+import com.hamcheeze.vote.task.application.result.MyTaskOpinionMap;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionOutcome;
 import com.hamcheeze.vote.task.application.submission.TaskSubmissionService;
@@ -634,7 +635,8 @@ final class TaskApiModels {
             int responseCount,
             MyTaskResultQuestionResponse question,
             List<MyTaskResultOptionResponse> options,
-            MyTaskResultSubmissionResponse mySubmission
+            MyTaskResultSubmissionResponse mySubmission,
+            MyTaskOpinionMapResponse opinionMap
     ) {
         static MyTaskResultResponse from(
                 MyTaskResultQueryService.MyTaskResult result
@@ -653,7 +655,38 @@ final class TaskApiModels {
                             .map(MyTaskResultOptionResponse::from)
                             .toList(),
                     MyTaskResultSubmissionResponse.from(
-                            result.mySubmission()));
+                            result.mySubmission()),
+                    MyTaskOpinionMapResponse.from(result.opinionMap()));
+        }
+    }
+
+    record MyTaskOpinionMapResponse(
+            MyTaskOpinionMap.Status status,
+            MyTaskOpinionMapAreaResponse sameChoice,
+            MyTaskOpinionMapAreaResponse otherChoices
+    ) {
+        static MyTaskOpinionMapResponse from(MyTaskOpinionMap opinionMap) {
+            return new MyTaskOpinionMapResponse(
+                    opinionMap.status(),
+                    MyTaskOpinionMapAreaResponse.from(
+                            opinionMap.sameChoice()),
+                    MyTaskOpinionMapAreaResponse.from(
+                            opinionMap.otherChoices()));
+        }
+    }
+
+    record MyTaskOpinionMapAreaResponse(
+            MyTaskOpinionMap.AreaStatus status,
+            String body
+    ) {
+        static MyTaskOpinionMapAreaResponse from(
+                MyTaskOpinionMap.Area area
+        ) {
+            if (area == null) {
+                return null;
+            }
+            return new MyTaskOpinionMapAreaResponse(
+                    area.status(), area.body());
         }
     }
 

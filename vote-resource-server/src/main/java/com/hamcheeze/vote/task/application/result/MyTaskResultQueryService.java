@@ -88,7 +88,8 @@ public class MyTaskResultQueryService {
                         submission.selectedOptionId(),
                         submission.reasonSource(),
                         submission.finalReason(),
-                        submission.submittedAt()));
+                        submission.submittedAt()),
+                MyTaskOpinionMap.unavailable());
     }
 
     private static void verifySubmissionTask(
@@ -172,7 +173,8 @@ public class MyTaskResultQueryService {
             int responseCount,
             ResultQuestion question,
             List<ResultOption> options,
-            ResultSubmission mySubmission
+            ResultSubmission mySubmission,
+            MyTaskOpinionMap opinionMap
     ) {
         public MyTaskResult {
             Objects.requireNonNull(taskId, "taskId");
@@ -191,6 +193,7 @@ public class MyTaskResultQueryService {
             Objects.requireNonNull(question, "question");
             options = List.copyOf(Objects.requireNonNull(options, "options"));
             Objects.requireNonNull(mySubmission, "mySubmission");
+            Objects.requireNonNull(opinionMap, "opinionMap");
         }
     }
 

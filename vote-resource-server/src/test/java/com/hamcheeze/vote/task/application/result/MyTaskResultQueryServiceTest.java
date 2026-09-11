@@ -140,6 +140,8 @@ class MyTaskResultQueryServiceTest {
                 .isEqualTo("내 최종 이유");
         assertThat(result.mySubmission().submittedAt())
                 .isEqualTo(SUBMITTED_AT);
+        assertThat(result.opinionMap())
+                .isEqualTo(MyTaskOpinionMap.unavailable());
 
         InOrder privacyOrder = inOrder(
                 submissions, verification, summaries);
