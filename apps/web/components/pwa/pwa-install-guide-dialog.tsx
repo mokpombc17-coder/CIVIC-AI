@@ -55,7 +55,7 @@ function OpenPwaInstallGuideDialog({
       ref={dialogRef}
     >
       <header className={styles.header}>
-        <h2 id={titleId}>CIVIC.AI를 홈 화면에 추가</h2>
+        <h2 id={titleId}>iOS 앱 설치 방법</h2>
         <button
           aria-label="설치 안내 닫기"
           className={styles.closeButton}
@@ -75,18 +75,13 @@ function OpenPwaInstallGuideDialog({
       </header>
 
       <p className={styles.description} id={descriptionId}>
-        Safari에서 한 번만 설정하면 앱처럼 바로 열 수 있어요.
+        한 번만 설정하면 홈 화면에서 앱처럼 바로 열 수 있어요.
       </p>
 
       <ol className={styles.steps}>
         <li>
           <span className={styles.stepNumber}>1</span>
-          <p>
-            <span className={styles.inlineIcon}>
-              <ShareIcon />
-            </span>
-            Safari 하단의 공유 아이콘을 눌러주세요.
-          </p>
+          <p>화면의 공유 메뉴를 열어주세요.</p>
         </li>
         <li>
           <span className={styles.stepNumber}>2</span>
@@ -108,19 +103,5 @@ function OpenPwaInstallGuideDialog({
         닫기
       </button>
     </dialog>
-  );
-}
-
-function ShareIcon() {
-  return (
-    <svg aria-hidden="true" fill="none" height="18" viewBox="0 0 18 18" width="18">
-      <path
-        d="M9 11.5V2.75m0 0L6.25 5.5M9 2.75l2.75 2.75M5.25 7.5H4.5A1.5 1.5 0 0 0 3 9v4.5A1.5 1.5 0 0 0 4.5 15h9a1.5 1.5 0 0 0 1.5-1.5V9a1.5 1.5 0 0 0-1.5-1.5h-.75"
-        stroke="currentColor"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="1.4"
-      />
-    </svg>
   );
 }

@@ -81,12 +81,12 @@ test("iOS 사용자는 앱 설치 메뉴에서 홈 화면 추가 안내를 확�
   await expect(installButton).toBeEnabled();
   await installButton.click();
 
-  const dialog = page.getByRole("dialog", { name: "CIVIC.AI를 홈 화면에 추가" });
+  const dialog = page.getByRole("dialog", { name: "iOS 앱 설치 방법" });
   await expect(dialog).toBeVisible();
-  await expect(dialog).toContainText("Safari");
-  await expect(dialog).toContainText("공유 아이콘");
+  await expect(dialog).toContainText("공유 메뉴");
   await expect(dialog).toContainText("홈 화면에 추가");
   await expect(dialog).toContainText("웹 앱으로 열기");
+  await expect(dialog).not.toContainText("Safari");
 
   const box = await dialog.boundingBox();
   const viewport = page.viewportSize();

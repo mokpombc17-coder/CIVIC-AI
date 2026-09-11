@@ -10,12 +10,13 @@ describe("PwaInstallGuideDialog", () => {
 
     expect(html).toContain("<dialog");
     expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("CIVIC.AI를 홈 화면에 추가");
-    expect(html).toContain("Safari");
-    expect(html).toContain("공유 아이콘");
+    expect(html).toContain("iOS 앱 설치 방법");
+    expect(html).toContain("공유 메뉴");
     expect(html).toContain("홈 화면에 추가");
     expect(html).toContain("웹 앱으로 열기");
     expect(html).toContain(">닫기</button>");
+    expect(html).not.toContain("Safari");
+    expect(html).not.toContain("공유 아이콘");
   });
 
   it("stays unmounted while closed", () => {

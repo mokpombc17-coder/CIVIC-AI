@@ -104,14 +104,6 @@
   text-align: center;
 }
 
-.inlineIcon {
-  display: inline-flex;
-  align-items: center;
-  margin-right: 0.3rem;
-  color: #64748b;
-  vertical-align: -0.2em;
-}
-
 .tip {
   margin: 0;
   padding: 0.2rem 0 0.1rem 1.9rem;
