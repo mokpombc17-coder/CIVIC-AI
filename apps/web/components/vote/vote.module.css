@@ -1536,6 +1536,51 @@
   background: var(--vote-primary);
 }
 
+.resultQualitativeSummary {
+  display: grid;
+  gap: 16px;
+  margin-top: 28px;
+}
+
+.resultQualitativeCopy {
+  padding-inline: 4px;
+}
+
+.resultSummaryBadge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 4px;
+  background: var(--vote-soft);
+  color: var(--vote-primary-emphasis);
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.resultBadgedCopy {
+  margin-top: 6px;
+}
+
+.resultQualitativeCopy > h3 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 26px;
+  word-break: keep-all;
+}
+
+.resultQualitativeText {
+  margin: 6.2px 0 0;
+  color: var(--vote-muted);
+  font-size: 16px;
+  font-weight: 400;
+  line-height: 26px;
+  word-break: keep-all;
+}
+
 @media (max-width: 392px) {
   .taskCard {
     grid-template-columns: minmax(0, 1fr) 82px;

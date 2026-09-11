@@ -14,7 +14,15 @@ type VoteResultPresentation = Readonly<{
   background: string;
   question: string;
   responseCount: number;
-  sourceLabel: "디자인 샘플" | "실제 응답 결과";
+  sourceLabel: "실제 응답 결과" | null;
+  mySubmission: Readonly<{
+    selectedOption: string;
+    reason: string;
+  }>;
+  qualitativeSummary: Readonly<{
+    sameChoice: string;
+    differentChoices: string;
+  }> | null;
   options: ReadonlyArray<
     Readonly<{
       id: string;
@@ -25,14 +33,22 @@ type VoteResultPresentation = Readonly<{
 }>;
 
 export function VoteTaskResultScreen({
+  showAiBadges = false,
   source = "api",
   taskId,
 }: {
+  showAiBadges?: boolean;
   source?: VoteResultSource;
   taskId: string;
 }) {
   if (source === "mock") {
-    return <VoteTaskResultView result={presentPublishingResult()} taskId={taskId} />;
+    return (
+      <VoteTaskResultView
+        result={presentPublishingResult()}
+        showAiBadges={showAiBadges}
+        taskId={taskId}
+      />
+    );
   }
 
   return <ApiVoteTaskResult taskId={taskId} />;
@@ -64,14 +80,16 @@ function ApiVoteTaskResult({ taskId }: { taskId: string }) {
 
 function VoteTaskResultView({
   result,
+  showAiBadges,
   taskId,
 }: {
   result: VoteResultPresentation;
+  showAiBadges: boolean;
   taskId: string;
 }) {
   return (
     <VoteTaskResultShell taskId={taskId}>
-      <VoteTaskResultContent result={result} />
+      <VoteTaskResultContent result={result} showAiBadges={showAiBadges} />
     </VoteTaskResultShell>
   );
 }
@@ -96,7 +114,17 @@ function VoteTaskResultShell({ children, taskId }: { children: ReactNode; taskId
   );
 }
 
-function VoteTaskResultContent({ result }: { result: VoteResultPresentation }) {
+function VoteTaskResultContent({
+  result,
+  showAiBadges = false,
+}: {
+  result: VoteResultPresentation;
+  showAiBadges?: boolean;
+}) {
+  const aiSummaryCopyClassName = showAiBadges
+    ? `${styles.resultQualitativeCopy} ${styles.resultBadgedCopy}`
+    : styles.resultQualitativeCopy;
+
   return (
     <>
       <section className={styles.resultTaskSummary}>
@@ -120,7 +148,7 @@ function VoteTaskResultContent({ result }: { result: VoteResultPresentation }) {
       <section className={styles.resultChartFrame}>
         <figure className={styles.resultChart}>
           <figcaption>
-            <span>{result.sourceLabel}</span>
+            {result.sourceLabel ? <span>{result.sourceLabel}</span> : null}
             <strong>투표 결과</strong>
           </figcaption>
           <ol className={styles.resultOptions}>
@@ -143,6 +171,35 @@ function VoteTaskResultContent({ result }: { result: VoteResultPresentation }) {
           </ol>
         </figure>
       </section>
+      <div className={styles.resultQualitativeSummary}>
+        <section className={styles.resultTaskSummary}>
+          <span className={styles.resultSummaryBadge}>내 제출</span>
+          <div className={`${styles.resultQualitativeCopy} ${styles.resultBadgedCopy}`}>
+            <h3>{result.mySubmission.selectedOption}</h3>
+            <p className={styles.resultQualitativeText}>{result.mySubmission.reason}</p>
+          </div>
+        </section>
+        <section className={styles.resultTaskSummary}>
+          {showAiBadges ? <span className={styles.resultSummaryBadge}>AI</span> : null}
+          <div className={aiSummaryCopyClassName}>
+            <h3>같은 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>
+            {result.qualitativeSummary ? (
+              <p className={styles.resultQualitativeText}>{result.qualitativeSummary.sameChoice}</p>
+            ) : null}
+          </div>
+        </section>
+        <section className={styles.resultTaskSummary}>
+          {showAiBadges ? <span className={styles.resultSummaryBadge}>AI</span> : null}
+          <div className={aiSummaryCopyClassName}>
+            <h3>다른 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>
+            {result.qualitativeSummary ? (
+              <p className={styles.resultQualitativeText}>
+                {result.qualitativeSummary.differentChoices}
+              </p>
+            ) : null}
+          </div>
+        </section>
+      </div>
     </>
   );
 }
@@ -161,24 +218,39 @@ function ResultFeedback({ message, onRetry }: { message: string; onRetry?: () =>
 }
 
 function presentPublishingResult(): VoteResultPresentation {
+  const selectedOption = votePublishingResult.options.find(
+    ({ id }) => id === votePublishingResult.mySubmission.selectedOptionId,
+  );
+
   return {
     background: votePublishingResult.title,
     question: votePublishingResult.question,
     responseCount: votePublishingResult.responseCount,
-    sourceLabel: "디자인 샘플",
+    sourceLabel: null,
+    mySubmission: {
+      selectedOption: selectedOption?.content ?? "",
+      reason: votePublishingResult.mySubmission.finalReason,
+    },
+    qualitativeSummary: votePublishingResult.qualitativeSummary,
     options: votePublishingResult.options,
   };
 }
 
 function presentApiResult(result: MyTaskResult): VoteResultPresentation {
+  const options = [...result.options].sort((left, right) => left.displayOrder - right.displayOrder);
+
   return {
     background: result.description || result.title,
     question: result.question.content,
     responseCount: result.responseCount,
     sourceLabel: "실제 응답 결과",
-    options: [...result.options]
-      .sort((left, right) => left.displayOrder - right.displayOrder)
-      .map(({ id, content, count }) => ({ id, content, count })),
+    mySubmission: {
+      selectedOption:
+        options.find(({ id }) => id === result.mySubmission.selectedOptionId)?.content ?? "",
+      reason: result.mySubmission.finalReason,
+    },
+    qualitativeSummary: null,
+    options: options.map(({ id, content, count }) => ({ id, content, count })),
   };
 }
 

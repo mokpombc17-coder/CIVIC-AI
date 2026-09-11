@@ -457,8 +457,9 @@ session storage에 남은 미확정 제출은 자동 전송하지 않고 동일 
 option과 `AI_ACCEPTED`의 predicted reason ID 또는 `USER_WRITTEN`의 직접 입력 이유만 전달한다. Persona,
 Prediction, Question 식별자는 Backend가 현재 상태에서 결정한다. `VoteTaskResultScreen`은 사용자용 결과 API가
 제공되기 전에는 준비 중 상태를 표시한다. 개발 전용 `source=mock` 진입은 실제 API를 호출하지 않고 publishing
-결과 샘플을 같은 view model로 변환해 그래프 시각 검수에 사용한다. Vote API client와 query hook은 Provider가
-제공하는 client cache를 공유한다.
+결과 샘플을 같은 view model로 변환해 그래프 시각 검수에 사용한다. 정성 요약의 AI 뱃지는 기본적으로 숨기며,
+개발 전용 mock에서 `aiBadge=on`을 함께 지정한 경우에만 표시해 비교할 수 있다. Vote API client와 query hook은
+Provider가 제공하는 client cache를 공유한다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
