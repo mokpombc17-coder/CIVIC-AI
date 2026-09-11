@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.task.application.result;
 
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapResultQueryService;
 import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer.RenderedTaskResultView;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService.MyTaskSubmission;
@@ -36,6 +37,7 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
@@ -67,12 +69,20 @@ class MyTaskResultQueryServiceTest {
     @Mock
     private TaskResultSummaryAssembler summaries;
 
+    @Mock
+    private OpinionMapResultQueryService opinionMaps;
+
     private MyTaskResultQueryService service;
 
     @BeforeEach
     void setUp() {
+        lenient().when(opinionMaps.findForTask(
+                        org.mockito.ArgumentMatchers.any(),
+                        org.mockito.ArgumentMatchers.anyInt(),
+                        org.mockito.ArgumentMatchers.anyInt()))
+                .thenReturn(MyTaskOpinionMap.unavailable());
         service = new MyTaskResultQueryService(
-                submissions, verification, summaries);
+                submissions, verification, summaries, opinionMaps);
     }
 
     @Test
@@ -82,7 +92,7 @@ class MyTaskResultQueryServiceTest {
 
         assertThat(service.findByTask(USER_ID, TASK_ID)).isEmpty();
 
-        verifyNoInteractions(verification, summaries);
+        verifyNoInteractions(verification, summaries, opinionMaps);
     }
 
     @Test
@@ -94,7 +104,7 @@ class MyTaskResultQueryServiceTest {
 
         assertThat(service.findByTask(USER_ID, TASK_ID)).isEmpty();
 
-        verifyNoInteractions(summaries);
+        verifyNoInteractions(summaries, opinionMaps);
     }
 
     @Test

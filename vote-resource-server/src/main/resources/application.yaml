@@ -88,6 +88,25 @@ vote:
       worker-shutdown-await: 10s
       fake:
         scenario: success
+    opinion-map:
+      enabled: ${VOTE_TASK_OPINION_MAP_ENABLED:false}
+      provider: ${VOTE_TASK_OPINION_MAP_PROVIDER:none}
+      base-url: ${VOTE_TASK_OPINION_MAP_BASE_URL:https://openrouter.ai}
+      path: ${VOTE_TASK_OPINION_MAP_PATH:/api/v1/chat/completions}
+      api-key: ${OPENROUTER_API_KEY:}
+      model: ${VOTE_TASK_OPINION_MAP_MODEL:openai/gpt-5.6-luna}
+      connect-timeout: ${VOTE_TASK_OPINION_MAP_CONNECT_TIMEOUT:5s}
+      maximum-output-tokens: ${VOTE_TASK_OPINION_MAP_MAXIMUM_OUTPUT_TOKENS:4096}
+      prompt-version: ${VOTE_TASK_OPINION_MAP_PROMPT_VERSION:task-result-prompt/v1}
+      request-timeout: ${VOTE_TASK_OPINION_MAP_REQUEST_TIMEOUT:60s}
+      maximum-attempts: ${VOTE_TASK_OPINION_MAP_MAXIMUM_ATTEMPTS:3}
+      retry-delay: ${VOTE_TASK_OPINION_MAP_RETRY_DELAY:30s}
+      dispatcher-delay: ${VOTE_TASK_OPINION_MAP_DISPATCHER_DELAY:5s}
+      processing-lease-duration: ${VOTE_TASK_OPINION_MAP_PROCESSING_LEASE_DURATION:90s}
+      batch-size: ${VOTE_TASK_OPINION_MAP_BATCH_SIZE:10}
+      worker-pool-size: ${VOTE_TASK_OPINION_MAP_WORKER_POOL_SIZE:2}
+      worker-queue-capacity: ${VOTE_TASK_OPINION_MAP_WORKER_QUEUE_CAPACITY:10}
+      worker-shutdown-await: ${VOTE_TASK_OPINION_MAP_WORKER_SHUTDOWN_AWAIT:10s}
   survey:
     round-activation:
       enabled: false

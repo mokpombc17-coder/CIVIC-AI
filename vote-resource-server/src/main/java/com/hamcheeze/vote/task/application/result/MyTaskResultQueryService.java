@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.result;
 
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService;
 import com.hamcheeze.vote.task.application.query.MyTaskSubmissionQueryService.MyTaskSubmission;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapResultQueryService;
 import com.hamcheeze.vote.task.application.result.TaskResultSummaryV1.OptionCount;
 import com.hamcheeze.vote.task.application.result.TaskResultViewV1.OptionData;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -29,16 +30,19 @@ public class MyTaskResultQueryService {
     private final MyTaskSubmissionQueryService submissions;
     private final TaskResultViewVerificationService verification;
     private final TaskResultSummaryAssembler summaries;
+    private final OpinionMapResultQueryService opinionMaps;
 
     public MyTaskResultQueryService(
             MyTaskSubmissionQueryService submissions,
             TaskResultViewVerificationService verification,
-            TaskResultSummaryAssembler summaries
+            TaskResultSummaryAssembler summaries,
+            OpinionMapResultQueryService opinionMaps
     ) {
         this.submissions = Objects.requireNonNull(submissions, "submissions");
         this.verification = Objects.requireNonNull(
                 verification, "verification");
         this.summaries = Objects.requireNonNull(summaries, "summaries");
+        this.opinionMaps = Objects.requireNonNull(opinionMaps, "opinionMaps");
     }
 
     @Transactional(readOnly = true)
@@ -69,6 +73,13 @@ public class MyTaskResultQueryService {
         verifySubmissionTask(taskId, submission, view);
         List<ResultOption> options = options(
                 taskId, submission, view, summary);
+        int selectedOptionDisplayOrder = options.stream()
+                .filter(option -> option.id().equals(
+                        submission.selectedOptionId()))
+                .mapToInt(ResultOption::displayOrder)
+                .findFirst()
+                .orElseThrow(() -> new IllegalStateException(
+                        "selected option is missing from the Task result"));
         return new MyTaskResult(
                 taskId,
                 view.task().title(),
@@ -89,7 +100,10 @@ public class MyTaskResultQueryService {
                         submission.reasonSource(),
                         submission.finalReason(),
                         submission.submittedAt()),
-                MyTaskOpinionMap.unavailable());
+                opinionMaps.findForTask(
+                        taskId,
+                        manifest.resultVersion(),
+                        selectedOptionDisplayOrder));
     }
 
     private static void verifySubmissionTask(

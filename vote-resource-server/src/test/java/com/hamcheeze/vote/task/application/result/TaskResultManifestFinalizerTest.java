@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.task.application.result;
 
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationStateService;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskResultResponseReader;
 import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer;
@@ -35,6 +36,8 @@ class TaskResultManifestFinalizerTest {
         TaskResultViewRenderer renderer = mock(TaskResultViewRenderer.class);
         TaskResultManifestRepository manifests = mock(
                 TaskResultManifestRepository.class);
+        OpinionMapGenerationStateService opinionMaps = mock(
+                OpinionMapGenerationStateService.class);
         when(responses.findByTaskId(task.id())).thenReturn(List.of());
         when(renderer.render(any())).thenReturn(
                 new RenderedTaskResultView("jsonl", "b".repeat(64)));
@@ -45,7 +48,8 @@ class TaskResultManifestFinalizerTest {
                         responses,
                         new TaskResultViewV1Assembler(),
                         renderer,
-                        manifests);
+                        manifests,
+                        opinionMaps);
 
         TaskResultManifest manifest = finalizer.finalizeResult(task);
 
@@ -60,5 +64,6 @@ class TaskResultManifestFinalizerTest {
         assertThat(manifest.bodySha256()).isEqualTo("b".repeat(64));
         verify(renderer).render(any());
         verify(manifests).insert(manifest);
+        verify(opinionMaps).enqueue(manifest);
     }
 }

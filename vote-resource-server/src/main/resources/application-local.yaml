@@ -63,6 +63,11 @@ vote:
       dispatcher-delay: ${VOTE_TASK_PREDICTION_DISPATCHER_DELAY:500ms}
       fake:
         scenario: ${VOTE_TASK_PREDICTION_FAKE_SCENARIO:success}
+    opinion-map:
+      enabled: ${VOTE_TASK_OPINION_MAP_ENABLED:false}
+      provider: ${VOTE_TASK_OPINION_MAP_PROVIDER:fake}
+      retry-delay: ${VOTE_TASK_OPINION_MAP_RETRY_DELAY:1s}
+      dispatcher-delay: ${VOTE_TASK_OPINION_MAP_DISPATCHER_DELAY:500ms}
   survey:
     preview:
       user-ids: ${VOTE_SURVEY_PREVIEW_USER_IDS:local-user-1}

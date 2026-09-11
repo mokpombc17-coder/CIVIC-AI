@@ -1,6 +1,6 @@
 # Task Opinion Map frontend contract v1
 
-Status: Frontend response shape implemented; persistence wiring pending
+Status: Frontend response, generation pipeline, and OpenRouter adapter implemented
 Last updated: 2026-09-11
 
 ## Purpose
@@ -88,8 +88,9 @@ type OpinionMapArea = {
 표시 가능 여부는 영역의 `status`로 판단한다.
 
 Opinion Map 저장 결과가 없는 기존 종료 Task는 `UNAVAILABLE`로 반환한다.
-향후 생성 파이프라인이 연결되면 처리 레코드가 있는 신규 결과만
-`PENDING` 또는 `AVAILABLE`로 전환된다.
+생성 기능이 활성화된 뒤 확정되는 신규 결과에는 처리 레코드가 생성되어
+`PENDING`을 거쳐 `AVAILABLE` 또는 `UNAVAILABLE`로 전환된다. 기능은 실제
+LLM provider adapter가 연결되기 전까지 기본적으로 비활성화한다.
 
 ## Area status
 

@@ -1,0 +1,79 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "taskId",
+    "resultVersion",
+    "status",
+    "error",
+    "optionSummaries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "enum": ["opinionmap-option-explanation/v1"]
+    },
+    "taskId": {
+      "type": ["string", "null"]
+    },
+    "resultVersion": {
+      "type": ["integer", "null"]
+    },
+    "status": {
+      "type": "string",
+      "enum": ["COMPLETED", "INVALID_INPUT"]
+    },
+    "error": {
+      "type": ["string", "null"]
+    },
+    "optionSummaries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/optionSummary"
+      }
+    }
+  },
+  "$defs": {
+    "optionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["optionKey", "sameChoice", "otherChoices"],
+      "properties": {
+        "optionKey": {
+          "type": "string"
+        },
+        "sameChoice": {
+          "$ref": "#/$defs/areaSummary"
+        },
+        "otherChoices": {
+          "$ref": "#/$defs/areaSummary"
+        }
+      }
+    },
+    "areaSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "sourceOptionKeys", "body"],
+      "properties": {
+        "status": {
+          "type": "string",
+          "enum": [
+            "AVAILABLE",
+            "NO_RESPONSES",
+            "INSUFFICIENT_REASON"
+          ]
+        },
+        "sourceOptionKeys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "body": {
+          "type": ["string", "null"]
+        }
+      }
+    }
+  }
+}
