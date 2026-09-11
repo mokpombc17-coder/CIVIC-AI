@@ -1,9 +1,12 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   createMockVoteCompletedApi,
+  createReadyVoteCompletedApi,
   createVoteCompletedApi,
   getVoteCompletedApiMode,
+  taskResultFixtures,
 } from "./vote-completed-api";
+import type { VoteFetch } from "./vote-fetch";
 
 const ORIGINAL_COMPLETED_API_MODE = process.env.NEXT_PUBLIC_VOTE_COMPLETED_API_MODE;
 
@@ -43,6 +46,18 @@ describe("Vote completed API adapters", () => {
     const page = await createVoteCompletedApi("mock").listCompletedTasks({ size: 1 });
     expect(page.items).toHaveLength(1);
     expect(page.nextCursor).toBe("mock:1");
+  });
+
+  it("사용자 결과 응답의 opinionMap을 파싱한다", async () => {
+    const fixture = Object.values(taskResultFixtures)[0]!;
+    const requestMock = vi.fn(async () => fixture);
+
+    const result = await createReadyVoteCompletedApi(
+      requestMock as unknown as VoteFetch,
+    ).getTaskResult(fixture.taskId);
+
+    expect(requestMock).toHaveBeenCalledWith(`/me/tasks/${fixture.taskId}/result`, {});
+    expect(result.opinionMap).toEqual(fixture.opinionMap);
   });
 
   it("opaque mock cursor를 그대로 다음 페이지 경계로 사용한다", async () => {

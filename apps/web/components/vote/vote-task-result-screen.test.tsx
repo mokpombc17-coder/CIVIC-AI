@@ -1,11 +1,34 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import type { OpinionMapResponse } from "@/lib/vote/vote-completed-contracts";
+import { taskResultFixtures } from "@/lib/vote/vote-completed-api";
 import { votePublishingResult } from "@/lib/vote/vote-publishing-fixtures";
 import { VoteTaskResultScreen } from "./vote-task-result-screen";
+
+const useTaskResultQueryMock = vi.hoisted(() => vi.fn());
 
 vi.mock("next/navigation", () => ({
   usePathname: () => "/vote/task-01/result",
 }));
+
+vi.mock("@/lib/vote/vote-queries", () => ({
+  useTaskResultQuery: useTaskResultQueryMock,
+  voteCompletedApiAvailable: true,
+}));
+
+const apiResultFixture = Object.values(taskResultFixtures)[0]!;
+
+function renderApiOpinionMap(opinionMap: OpinionMapResponse): string {
+  useTaskResultQueryMock.mockReturnValue({
+    data: { ...apiResultFixture, opinionMap },
+    error: null,
+    isError: false,
+    isPending: false,
+    refetch: vi.fn(),
+  });
+
+  return renderToStaticMarkup(<VoteTaskResultScreen taskId={apiResultFixture.taskId} />);
+}
 
 describe("VoteTaskResultScreen", () => {
   it("결과 화면에서 투표 대상을 주제로 안내한다", () => {
@@ -39,6 +62,58 @@ describe("VoteTaskResultScreen", () => {
     expect(html.match(/class="[^"]*resultSummaryBadge[^"]*">AI<\/span>/g)).toHaveLength(2);
     expect(html).toContain(">같은 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
     expect(html).toContain(">다른 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
+  });
+
+  it("실제 API가 제공한 두 영역의 응답 이유 요약을 표시한다", () => {
+    const html = renderApiOpinionMap(apiResultFixture.opinionMap);
+
+    expect(apiResultFixture.opinionMap.status).toBe("AVAILABLE");
+    if (apiResultFixture.opinionMap.status !== "AVAILABLE") return;
+    expect(apiResultFixture.opinionMap.sameChoice.status).toBe("AVAILABLE");
+    expect(apiResultFixture.opinionMap.otherChoices.status).toBe("AVAILABLE");
+    if (
+      apiResultFixture.opinionMap.sameChoice.status !== "AVAILABLE" ||
+      apiResultFixture.opinionMap.otherChoices.status !== "AVAILABLE"
+    ) {
+      return;
+    }
+    expect(html).toContain(apiResultFixture.opinionMap.sameChoice.body);
+    expect(html).toContain(apiResultFixture.opinionMap.otherChoices.body);
+  });
+
+  it("영역별 응답 없음과 요약 불가 상태를 안내한다", () => {
+    const html = renderApiOpinionMap({
+      status: "AVAILABLE",
+      sameChoice: { status: "NO_RESPONSES", body: null },
+      otherChoices: { status: "INSUFFICIENT_REASON", body: null },
+    });
+
+    expect(html).toContain("같은 선택을 한 참여자 응답이 없어요.");
+    expect(html).toContain("요약할 수 있는 응답 이유가 충분하지 않아요.");
+  });
+
+  it("응답 이유 요약이 준비 중인 상태를 안내한다", () => {
+    const html = renderApiOpinionMap({
+      status: "PENDING",
+      sameChoice: null,
+      otherChoices: null,
+    });
+
+    expect(html).toContain(">참여자 의견 요약</h3>");
+    expect(html).toContain("참여자들의 의견을 요약하고 있어요.");
+    expect(html).not.toContain(">같은 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
+  });
+
+  it("응답 이유 요약을 제공할 수 없는 상태를 안내한다", () => {
+    const html = renderApiOpinionMap({
+      status: "UNAVAILABLE",
+      sameChoice: null,
+      otherChoices: null,
+    });
+
+    expect(html).toContain(">참여자 의견 요약</h3>");
+    expect(html).toContain("이번 투표에서는 의견 요약을 제공할 수 없어요.");
+    expect(html).not.toContain(">다른 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
   });
 
   it("엑셀을 기준으로 만든 울산 트램 결과 mock을 표시한다", () => {

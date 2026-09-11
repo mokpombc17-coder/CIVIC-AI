@@ -9,6 +9,39 @@ const uuidSchema = z
 const timestampSchema = z.string().min(1);
 const closureTypeSchema = z.enum(["DEADLINE_REACHED", "EARLY_CLOSED"]);
 
+export const opinionMapAreaSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("AVAILABLE"),
+    body: z.string().trim().min(1),
+  }),
+  z.object({
+    status: z.literal("NO_RESPONSES"),
+    body: z.null(),
+  }),
+  z.object({
+    status: z.literal("INSUFFICIENT_REASON"),
+    body: z.null(),
+  }),
+]);
+
+export const opinionMapResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("PENDING"),
+    sameChoice: z.null(),
+    otherChoices: z.null(),
+  }),
+  z.object({
+    status: z.literal("AVAILABLE"),
+    sameChoice: opinionMapAreaSchema,
+    otherChoices: opinionMapAreaSchema,
+  }),
+  z.object({
+    status: z.literal("UNAVAILABLE"),
+    sameChoice: z.null(),
+    otherChoices: z.null(),
+  }),
+]);
+
 export const completedTaskSummarySchema = z.object({
   taskId: uuidSchema,
   title: z.string(),
@@ -57,10 +90,13 @@ export const myTaskResultSchema = z.object({
     finalReason: z.string(),
     submittedAt: timestampSchema,
   }),
+  opinionMap: opinionMapResponseSchema,
 });
 
 export type CompletedTaskSummary = z.infer<typeof completedTaskSummarySchema>;
 export type CompletedTaskPage = z.infer<typeof completedTaskPageSchema>;
+export type OpinionMapArea = z.infer<typeof opinionMapAreaSchema>;
+export type OpinionMapResponse = z.infer<typeof opinionMapResponseSchema>;
 export type MyTaskResult = z.infer<typeof myTaskResultSchema>;
 
 export function calculateVotePercentage(count: number, responseCount: number): number {

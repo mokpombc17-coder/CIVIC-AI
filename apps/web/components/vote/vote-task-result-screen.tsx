@@ -3,7 +3,12 @@
 import type { ReactNode } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
-import { calculateVotePercentage, type MyTaskResult } from "@/lib/vote/vote-completed-contracts";
+import {
+  calculateVotePercentage,
+  type MyTaskResult,
+  type OpinionMapArea,
+  type OpinionMapResponse,
+} from "@/lib/vote/vote-completed-contracts";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingResult } from "@/lib/vote/vote-publishing-fixtures";
 import { useTaskResultQuery, voteCompletedApiAvailable } from "@/lib/vote/vote-queries";
@@ -19,10 +24,7 @@ type VoteResultPresentation = Readonly<{
     selectedOption: string;
     reason: string;
   }>;
-  qualitativeSummary: Readonly<{
-    sameChoice: string;
-    differentChoices: string;
-  }> | null;
+  opinionMap: OpinionMapResponse;
   options: ReadonlyArray<
     Readonly<{
       id: string;
@@ -179,28 +181,88 @@ function VoteTaskResultContent({
             <p className={styles.resultQualitativeText}>{result.mySubmission.reason}</p>
           </div>
         </section>
-        <section className={styles.resultTaskSummary}>
-          {showAiBadges ? <span className={styles.resultSummaryBadge}>AI</span> : null}
-          <div className={aiSummaryCopyClassName}>
-            <h3>같은 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>
-            {result.qualitativeSummary ? (
-              <p className={styles.resultQualitativeText}>{result.qualitativeSummary.sameChoice}</p>
-            ) : null}
-          </div>
-        </section>
-        <section className={styles.resultTaskSummary}>
-          {showAiBadges ? <span className={styles.resultSummaryBadge}>AI</span> : null}
-          <div className={aiSummaryCopyClassName}>
-            <h3>다른 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>
-            {result.qualitativeSummary ? (
-              <p className={styles.resultQualitativeText}>
-                {result.qualitativeSummary.differentChoices}
-              </p>
-            ) : null}
-          </div>
-        </section>
+        <OpinionMapSummary
+          copyClassName={aiSummaryCopyClassName}
+          opinionMap={result.opinionMap}
+          showAiBadges={showAiBadges}
+        />
       </div>
     </>
+  );
+}
+
+function OpinionMapSummary({
+  copyClassName,
+  opinionMap,
+  showAiBadges,
+}: {
+  copyClassName: string | undefined;
+  opinionMap: OpinionMapResponse;
+  showAiBadges: boolean;
+}) {
+  if (opinionMap.status !== "AVAILABLE") {
+    return (
+      <section className={styles.resultTaskSummary}>
+        <div className={styles.resultQualitativeCopy}>
+          <h3>참여자 의견 요약</h3>
+          <p className={styles.resultQualitativeText} role="status">
+            {opinionMap.status === "PENDING"
+              ? "참여자들의 의견을 요약하고 있어요."
+              : "이번 투표에서는 의견 요약을 제공할 수 없어요."}
+          </p>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <>
+      <OpinionMapAreaSummary
+        area={opinionMap.sameChoice}
+        copyClassName={copyClassName}
+        emptyMessage="같은 선택을 한 참여자 응답이 없어요."
+        heading="같은 선택을 한 사람들은 어떤 이유를 들었을까요?"
+        showAiBadge={showAiBadges}
+      />
+      <OpinionMapAreaSummary
+        area={opinionMap.otherChoices}
+        copyClassName={copyClassName}
+        emptyMessage="다른 선택을 한 참여자 응답이 없어요."
+        heading="다른 선택을 한 사람들은 어떤 이유를 들었을까요?"
+        showAiBadge={showAiBadges}
+      />
+    </>
+  );
+}
+
+function OpinionMapAreaSummary({
+  area,
+  copyClassName,
+  emptyMessage,
+  heading,
+  showAiBadge,
+}: {
+  area: OpinionMapArea;
+  copyClassName: string | undefined;
+  emptyMessage: string;
+  heading: string;
+  showAiBadge: boolean;
+}) {
+  const body =
+    area.status === "AVAILABLE"
+      ? area.body
+      : area.status === "NO_RESPONSES"
+        ? emptyMessage
+        : "요약할 수 있는 응답 이유가 충분하지 않아요.";
+
+  return (
+    <section className={styles.resultTaskSummary}>
+      {showAiBadge ? <span className={styles.resultSummaryBadge}>AI</span> : null}
+      <div className={copyClassName}>
+        <h3>{heading}</h3>
+        <p className={styles.resultQualitativeText}>{body}</p>
+      </div>
+    </section>
   );
 }
 
@@ -231,7 +293,17 @@ function presentPublishingResult(): VoteResultPresentation {
       selectedOption: selectedOption?.content ?? "",
       reason: votePublishingResult.mySubmission.finalReason,
     },
-    qualitativeSummary: votePublishingResult.qualitativeSummary,
+    opinionMap: {
+      status: "AVAILABLE",
+      sameChoice: {
+        status: "AVAILABLE",
+        body: votePublishingResult.qualitativeSummary.sameChoice,
+      },
+      otherChoices: {
+        status: "AVAILABLE",
+        body: votePublishingResult.qualitativeSummary.differentChoices,
+      },
+    },
     options: votePublishingResult.options,
   };
 }
@@ -249,7 +321,7 @@ function presentApiResult(result: MyTaskResult): VoteResultPresentation {
         options.find(({ id }) => id === result.mySubmission.selectedOptionId)?.content ?? "",
       reason: result.mySubmission.finalReason,
     },
-    qualitativeSummary: null,
+    opinionMap: result.opinionMap,
     options: options.map(({ id, content, count }) => ({ id, content, count })),
   };
 }

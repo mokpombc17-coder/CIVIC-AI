@@ -133,6 +133,17 @@ export const taskResultFixtures: Readonly<Record<string, MyTaskResult>> = Object
       finalReason: "대중교통 공급 확대가 접근성을 높일 것으로 봅니다.",
       submittedAt: "2026-08-27T04:00:00Z",
     },
+    opinionMap: {
+      status: "AVAILABLE",
+      sameChoice: {
+        status: "AVAILABLE",
+        body: "대중교통 공급 확대가 접근성과 이동 편의를 높일 수 있다는 이유가 제시됐습니다.",
+      },
+      otherChoices: {
+        status: "AVAILABLE",
+        body: "혼잡 통행료가 교통량을 줄이고 도로 이용 효율을 높일 수 있다는 이유가 제시됐습니다.",
+      },
+    },
   }),
   [TASK_B]: myTaskResultSchema.parse({
     taskId: TASK_B,
@@ -170,6 +181,17 @@ export const taskResultFixtures: Readonly<Record<string, MyTaskResult>> = Object
       reasonSource: "USER_WRITTEN",
       finalReason: "출퇴근 전후에도 공원을 이용할 수 있으면 좋겠습니다.",
       submittedAt: "2026-08-22T01:30:00Z",
+    },
+    opinionMap: {
+      status: "AVAILABLE",
+      sameChoice: {
+        status: "AVAILABLE",
+        body: "출퇴근 전후에도 공원을 이용할 수 있도록 운영 시간을 넓혀야 한다는 이유가 제시됐습니다.",
+      },
+      otherChoices: {
+        status: "AVAILABLE",
+        body: "관리 부담과 인근 주민의 휴식을 고려해 현재와 비슷한 운영 시간을 유지하자는 이유가 제시됐습니다.",
+      },
     },
   }),
 });
