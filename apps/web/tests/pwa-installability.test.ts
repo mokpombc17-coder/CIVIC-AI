@@ -16,6 +16,7 @@ describe("PWA installability", () => {
       start_url: "/pwa/start",
       scope: "/",
       display: "standalone",
+      orientation: "portrait",
       background_color: "#f5f7fb",
       theme_color: "#f5f7fb",
       lang: "ko",
