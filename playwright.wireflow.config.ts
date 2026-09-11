@@ -13,6 +13,7 @@ export default defineConfig({
     "critical/main-admin-users.spec.ts",
     "critical/main-auth-lifecycle.spec.ts",
     "critical/admin-domain-console.spec.ts",
+    "pwa-install-guide.spec.ts",
   ],
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),

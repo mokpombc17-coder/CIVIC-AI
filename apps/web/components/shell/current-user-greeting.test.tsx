@@ -53,7 +53,7 @@ describe("CurrentUserHeaderIdentity", () => {
     expect(html).not.toContain('role="separator"');
   });
 
-  it("일반 사용자에게 관리자 페이지를 노출하지 않고 설치 불가 상태를 disabled로 알린다", () => {
+  it("일반 사용자에게 관리자 페이지와 사용할 수 없는 설치 동작을 노출하지 않는다", () => {
     const html = renderToStaticMarkup(
       <CurrentUserMenuPanel
         installAvailable={false}
@@ -65,8 +65,24 @@ describe("CurrentUserHeaderIdentity", () => {
     );
 
     expect(html).not.toContain("관리자 페이지");
-    expect(html).toMatch(/<button[^>]+disabled=""[^>]*>앱 설치<\/button>/);
+    expect(html).not.toContain("앱 설치");
     expect(html).toContain("로그아웃");
+  });
+
+  it("iOS 설치 안내를 여는 활성 버튼의 dialog 관계를 알린다", () => {
+    const html = renderToStaticMarkup(
+      <CurrentUserMenuPanel
+        installAvailable
+        installOpensDialog
+        isAdministrator={false}
+        logoutBusy={false}
+        logoutFailed={false}
+        {...menuCallbacks}
+      />,
+    );
+
+    expect(html).toMatch(/<button[^>]+aria-haspopup="dialog"[^>]*>앱 설치<\/button>/);
+    expect(html).not.toContain("disabled");
   });
 
   it("로그아웃 진행·실패 상태를 팝업 안에서 알린다", () => {

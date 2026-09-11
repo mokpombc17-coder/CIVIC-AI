@@ -3,14 +3,19 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { requestLogout } from "@/components/auth/logout-button";
+import { PwaInstallGuideDialog } from "@/components/pwa/pwa-install-guide-dialog";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { isNativeShell } from "@/lib/native/bridge-client";
 import {
   capturePwaInstallPrompt,
+  isIosPwaInstallTarget,
   requestPwaInstall,
   type BeforeInstallPromptEvent,
 } from "@/lib/pwa/install-prompt";
+import { isStandalonePwa } from "@/lib/pwa/runtime";
 
 const USER_MENU_ID = "civic-home-user-menu";
+type InstallMode = "browser-prompt" | "ios-guide" | null;
 
 /** 이메일 로컬파트를 표시 이름으로 사용한다 (auth/me 계약에 이름 필드가 없음). */
 export function greetingNameFromEmail(email: unknown): string | null {
@@ -21,6 +26,19 @@ export function greetingNameFromEmail(email: unknown): string | null {
 
 export function isAdministratorRole(role: unknown): boolean {
   return role === "ADMIN" || role === "HIGHEST_ADMIN";
+}
+
+function initialInstallMode(): InstallMode {
+  if (typeof window === "undefined" || typeof navigator === "undefined") return null;
+
+  const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+  const matchMedia =
+    typeof window.matchMedia === "function" ? window.matchMedia.bind(window) : undefined;
+  if (isNativeShell() || isStandalonePwa(matchMedia, standaloneNavigator.standalone)) {
+    return null;
+  }
+
+  return isIosPwaInstallTarget(navigator) ? "ios-guide" : null;
 }
 
 export function CurrentUserGreeting() {
@@ -60,19 +78,28 @@ export function CurrentUserHeaderIdentity({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const installPrompt = useRef<BeforeInstallPromptEvent | null>(null);
-  const [installAvailable, setInstallAvailable] = useState(false);
+  const [installMode, setInstallMode] = useState<InstallMode>(initialInstallMode);
+  const [installGuideOpen, setInstallGuideOpen] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const [logoutBusy, setLogoutBusy] = useState(false);
   const [logoutFailed, setLogoutFailed] = useState(false);
 
   useEffect(() => {
+    const standaloneNavigator = navigator as Navigator & { standalone?: boolean };
+    const matchMedia =
+      typeof window.matchMedia === "function" ? window.matchMedia.bind(window) : undefined;
+    if (isNativeShell() || isStandalonePwa(matchMedia, standaloneNavigator.standalone)) {
+      return;
+    }
+
     const handleBeforeInstallPrompt = (event: Event) => {
       installPrompt.current = capturePwaInstallPrompt(event);
-      setInstallAvailable(true);
+      setInstallMode("browser-prompt");
     };
     const handleInstalled = () => {
       installPrompt.current = null;
-      setInstallAvailable(false);
+      setInstallMode(null);
+      setInstallGuideOpen(false);
       setMenuOpen(false);
     };
 
@@ -109,11 +136,17 @@ export function CurrentUserHeaderIdentity({
   if (!name) return null;
 
   const install = () => {
+    if (installMode === "ios-guide") {
+      setMenuOpen(false);
+      setInstallGuideOpen(true);
+      return;
+    }
+
     const event = installPrompt.current;
     if (!event) return;
 
     installPrompt.current = null;
-    setInstallAvailable(false);
+    setInstallMode(null);
     setMenuOpen(false);
     void requestPwaInstall(event).catch(() => undefined);
   };
@@ -133,47 +166,56 @@ export function CurrentUserHeaderIdentity({
   };
 
   return (
-    <div className="civic-header-identity" ref={containerRef}>
-      <button
-        aria-controls={USER_MENU_ID}
-        aria-expanded={menuOpen}
-        aria-label={`${name}님 사용자 메뉴`}
-        className="civic-header-user-trigger"
-        onClick={() => setMenuOpen((open) => !open)}
-        ref={triggerRef}
-        type="button"
-      >
-        <span className="civic-header-greeting">{name}님</span>
-        <svg
-          aria-hidden="true"
-          className="civic-header-user-chevron"
-          data-open={menuOpen ? "true" : "false"}
-          fill="none"
-          height="16"
-          viewBox="0 0 16 16"
-          width="16"
+    <>
+      <div className="civic-header-identity" ref={containerRef}>
+        <button
+          aria-controls={USER_MENU_ID}
+          aria-expanded={menuOpen}
+          aria-label={`${name}님 사용자 메뉴`}
+          className="civic-header-user-trigger"
+          onClick={() => setMenuOpen((open) => !open)}
+          ref={triggerRef}
+          type="button"
         >
-          <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
-        </svg>
-      </button>
+          <span className="civic-header-greeting">{name}님</span>
+          <svg
+            aria-hidden="true"
+            className="civic-header-user-chevron"
+            data-open={menuOpen ? "true" : "false"}
+            fill="none"
+            height="16"
+            viewBox="0 0 16 16"
+            width="16"
+          >
+            <path d="m4 6 4 4 4-4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.5" />
+          </svg>
+        </button>
 
-      {menuOpen ? (
-        <CurrentUserMenuPanel
-          installAvailable={installAvailable}
-          isAdministrator={isAdministrator}
-          logoutBusy={logoutBusy}
-          logoutFailed={logoutFailed}
-          onClose={() => setMenuOpen(false)}
-          onInstall={install}
-          onLogout={() => void logout()}
-        />
-      ) : null}
-    </div>
+        {menuOpen ? (
+          <CurrentUserMenuPanel
+            installAvailable={installMode !== null}
+            installOpensDialog={installMode === "ios-guide"}
+            isAdministrator={isAdministrator}
+            logoutBusy={logoutBusy}
+            logoutFailed={logoutFailed}
+            onClose={() => setMenuOpen(false)}
+            onInstall={install}
+            onLogout={() => void logout()}
+          />
+        ) : null}
+      </div>
+      <PwaInstallGuideDialog
+        onClose={() => setInstallGuideOpen(false)}
+        open={installGuideOpen}
+        returnFocusRef={triggerRef}
+      />
+    </>
   );
 }
 
 export function CurrentUserMenuPanel({
   installAvailable,
+  installOpensDialog = false,
   isAdministrator,
   logoutBusy,
   logoutFailed,
@@ -182,6 +224,7 @@ export function CurrentUserMenuPanel({
   onLogout,
 }: Readonly<{
   installAvailable: boolean;
+  installOpensDialog?: boolean;
   isAdministrator: boolean;
   logoutBusy: boolean;
   logoutFailed: boolean;
@@ -196,14 +239,16 @@ export function CurrentUserMenuPanel({
           관리자 페이지
         </Link>
       ) : null}
-      <button
-        className="civic-header-user-menu-item"
-        disabled={!installAvailable}
-        onClick={onInstall}
-        type="button"
-      >
-        앱 설치
-      </button>
+      {installAvailable ? (
+        <button
+          aria-haspopup={installOpensDialog ? "dialog" : undefined}
+          className="civic-header-user-menu-item"
+          onClick={onInstall}
+          type="button"
+        >
+          앱 설치
+        </button>
+      ) : null}
       <button
         className="civic-header-user-menu-item"
         disabled={logoutBusy}

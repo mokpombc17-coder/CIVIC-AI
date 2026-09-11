@@ -9,12 +9,11 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
         ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
         ├── NativeBridgeRuntime
         └── AppUpdateGate
-            ├── AppInstallBanner [conditional]
             └── App Router children
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
-설치·업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
+업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
 리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
 
 `StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
@@ -205,10 +204,12 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 경로를 유지하고, 필수 설문 여부는 랜딩 본문을 가리지 않는 guard가 확인한다. 실제 refresh는 각
 보호 route가 담당한다.
 
-`CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. 브라우저가
-`beforeinstallprompt`를 제공한 경우에만 팝업에 `앱 설치`를 추가하고, 요청 또는 `appinstalled`
-이후에는 다시 숨긴다. 관리자는 같은 팝업에서 관리자 페이지로 이동한다. 홈의 참여 안내 카드는
-설치 동작을 소유하지 않는다. iOS 설치 안내나 별도 시각 CTA는 제공하지 않는다.
+`CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. Chromium 계열에서는
+`beforeinstallprompt`를 캡처해 `앱 설치` 동작으로 연결하고, iOS·iPadOS 일반 브라우저에서는 같은
+메뉴에서 `PwaInstallGuideDialog`를 열어 Safari의 공유 메뉴와 `홈 화면에 추가` 절차를 안내한다.
+설치된 PWA와 네이티브 셸에서는 설치 동작을 제공하지 않으며, `appinstalled` 이후에도 다시 숨긴다.
+관리자는 같은 팝업에서 관리자 페이지로 이동한다. 홈의 참여 안내 카드는 설치 동작을 소유하지
+않는다. 앱스토어 이동을 위한 별도 시각 CTA는 제공하지 않는다.
 
 `MainFunctionalScreen`은 홈을 제외한 참여자·인증 화면만 조립한다. 관리자 route는
 `AdminFunctionalScreen`을 직접 import하므로 AG Grid를 포함한 관리자 client graph는 관리자
