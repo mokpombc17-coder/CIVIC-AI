@@ -1,5 +1,5 @@
 .dialog::backdrop {
-  background: rgb(15 23 42 / 56%);
+  background: rgb(15 23 42 / 42%);
 }
 
 .dialog {
@@ -11,17 +11,17 @@
   margin: auto;
   overflow: auto;
   overscroll-behavior: contain;
-  border: 1px solid #d7deea;
-  border-radius: 1.25rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
   background: #fff;
   color: var(--civic-ink, #172033);
   padding: 1.5rem;
-  box-shadow: 0 1.5rem 3.5rem rgb(15 23 42 / 32%);
+  box-shadow: 0 1rem 2.5rem rgb(15 23 42 / 18%);
 }
 
 .dialog[open] {
   display: grid;
-  gap: 1rem;
+  gap: 0.875rem;
 }
 
 .header {
@@ -33,34 +33,36 @@
 
 .header h2 {
   margin: 0;
-  font-size: 1.35rem;
+  font-size: 1.2rem;
+  font-weight: 700;
   line-height: 1.35;
   text-wrap: balance;
 }
 
 .closeButton {
   display: grid;
-  width: 2.75rem;
-  height: 2.75rem;
+  width: 2.5rem;
+  height: 2.5rem;
   flex: 0 0 auto;
   place-items: center;
   border: 0;
   border-radius: 999px;
-  background: #f1f5f9;
-  color: #475569;
+  background: transparent;
+  color: #64748b;
   cursor: pointer;
   touch-action: manipulation;
 }
 
 .description {
   margin: 0;
-  color: #475569;
-  font-size: 0.95rem;
+  color: #64748b;
+  font-size: 0.92rem;
   line-height: 1.6;
 }
 
 .steps {
   display: grid;
+  gap: 0.35rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -68,67 +70,64 @@
 
 .steps li {
   display: grid;
-  grid-template-columns: 1.75rem minmax(0, 1fr);
-  gap: 0.75rem;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.65rem;
   align-items: center;
-  border-bottom: 1px solid #e2e8f0;
-  padding: 0.9rem 0;
+  padding: 0.45rem 0;
 }
 
 .steps li:first-child {
-  padding-top: 0.25rem;
+  padding-top: 0.15rem;
 }
 
 .steps li:last-child {
-  border-bottom: 0;
-  padding-bottom: 0.25rem;
+  padding-bottom: 0.15rem;
 }
 
 .steps p {
   margin: 0;
   color: #334155;
-  font-size: 0.95rem;
-  line-height: 1.6;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.steps strong {
+  color: inherit;
+  font-weight: 600;
 }
 
 .stepNumber {
-  display: grid;
-  width: 1.75rem;
-  height: 1.75rem;
-  place-items: center;
-  border-radius: 999px;
-  background: #e8efff;
-  color: var(--civic-blue, #1d4ed8);
-  font-size: 0.8rem;
-  font-weight: 700;
+  color: #94a3b8;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: center;
 }
 
 .inlineIcon {
   display: inline-flex;
   align-items: center;
   margin-right: 0.3rem;
-  color: #475569;
+  color: #64748b;
   vertical-align: -0.2em;
 }
 
 .tip {
   margin: 0;
-  border-radius: 0.75rem;
-  background: #f1f5f9;
-  padding: 0.75rem 0.9rem;
-  color: #64748b;
-  font-size: 0.85rem;
+  padding: 0.2rem 0 0.1rem 1.9rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
   line-height: 1.5;
 }
 
 .doneButton {
   width: 100%;
-  min-height: 3.25rem;
-  border: 0;
-  border-radius: 0.8rem;
-  background: var(--civic-blue, #1d4ed8);
-  color: #fff;
-  font-weight: 700;
+  min-height: 3rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #334155;
+  font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
 }
@@ -137,6 +136,11 @@
 .doneButton:focus-visible {
   outline: 3px solid #93c5fd;
   outline-offset: 3px;
+}
+
+.closeButton:is(:hover, :active),
+.doneButton:is(:hover, :active) {
+  background: #f8fafc;
 }
 
 @media (max-width: 640px) {
@@ -149,25 +153,7 @@
     border-right: 0;
     border-bottom: 0;
     border-left: 0;
-    border-radius: 1.25rem 1.25rem 0 0;
+    border-radius: 1rem 1rem 0 0;
     padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
-  }
-}
-
-@media (prefers-reduced-motion: no-preference) {
-  .dialog[open] {
-    animation: pwa-guide-enter 180ms ease-out;
-  }
-}
-
-@keyframes pwa-guide-enter {
-  from {
-    opacity: 0;
-    transform: translateY(1.25rem);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
   }
 }
