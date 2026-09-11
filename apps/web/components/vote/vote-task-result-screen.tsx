@@ -19,7 +19,6 @@ type VoteResultPresentation = Readonly<{
   background: string;
   question: string;
   responseCount: number;
-  sourceLabel: "실제 응답 결과" | null;
   mySubmission: Readonly<{
     selectedOption: string;
     reason: string;
@@ -150,7 +149,6 @@ function VoteTaskResultContent({
       <section className={styles.resultChartFrame}>
         <figure className={styles.resultChart}>
           <figcaption>
-            {result.sourceLabel ? <span>{result.sourceLabel}</span> : null}
             <strong>투표 결과</strong>
           </figcaption>
           <ol className={styles.resultOptions}>
@@ -288,7 +286,6 @@ function presentPublishingResult(): VoteResultPresentation {
     background: votePublishingResult.title,
     question: votePublishingResult.question,
     responseCount: votePublishingResult.responseCount,
-    sourceLabel: null,
     mySubmission: {
       selectedOption: selectedOption?.content ?? "",
       reason: votePublishingResult.mySubmission.finalReason,
@@ -315,7 +312,6 @@ function presentApiResult(result: MyTaskResult): VoteResultPresentation {
     background: result.description || result.title,
     question: result.question.content,
     responseCount: result.responseCount,
-    sourceLabel: "실제 응답 결과",
     mySubmission: {
       selectedOption:
         options.find(({ id }) => id === result.mySubmission.selectedOptionId)?.content ?? "",
