@@ -21,7 +21,7 @@
 
 .dialog[open] {
   display: grid;
-  gap: 1.25rem;
+  gap: 1rem;
 }
 
 .header {
@@ -61,7 +61,6 @@
 
 .steps {
   display: grid;
-  gap: 0.75rem;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -69,13 +68,20 @@
 
 .steps li {
   display: grid;
-  grid-template-columns: 2rem minmax(0, 1fr);
+  grid-template-columns: 1.75rem minmax(0, 1fr);
   gap: 0.75rem;
-  align-items: start;
-  border: 1px solid #e2e8f0;
-  border-radius: 0.9rem;
-  background: #f8fafc;
-  padding: 0.9rem;
+  align-items: center;
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.9rem 0;
+}
+
+.steps li:first-child {
+  padding-top: 0.25rem;
+}
+
+.steps li:last-child {
+  border-bottom: 0;
+  padding-bottom: 0.25rem;
 }
 
 .steps p {
@@ -87,24 +93,32 @@
 
 .stepNumber {
   display: grid;
-  width: 2rem;
-  height: 2rem;
+  width: 1.75rem;
+  height: 1.75rem;
   place-items: center;
   border-radius: 999px;
-  background: var(--civic-blue, #1d4ed8);
-  color: #fff;
-  font-size: 0.85rem;
+  background: #e8efff;
+  color: var(--civic-blue, #1d4ed8);
+  font-size: 0.8rem;
   font-weight: 700;
 }
 
-.shareLabel {
+.inlineIcon {
   display: inline-flex;
   align-items: center;
-  gap: 0.2rem;
-  margin: 0 0.25rem;
-  color: var(--civic-blue, #1d4ed8);
-  font-weight: 700;
-  white-space: nowrap;
+  margin-right: 0.3rem;
+  color: #475569;
+  vertical-align: -0.2em;
+}
+
+.tip {
+  margin: 0;
+  border-radius: 0.75rem;
+  background: #f1f5f9;
+  padding: 0.75rem 0.9rem;
+  color: #64748b;
+  font-size: 0.85rem;
+  line-height: 1.5;
 }
 
 .doneButton {

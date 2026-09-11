@@ -55,7 +55,7 @@ function OpenPwaInstallGuideDialog({
       ref={dialogRef}
     >
       <header className={styles.header}>
-        <h2 id={titleId}>홈 화면에 CIVIC.AI 추가</h2>
+        <h2 id={titleId}>CIVIC.AI를 홈 화면에 추가</h2>
         <button
           aria-label="설치 안내 닫기"
           className={styles.closeButton}
@@ -75,36 +75,37 @@ function OpenPwaInstallGuideDialog({
       </header>
 
       <p className={styles.description} id={descriptionId}>
-        iPhone 또는 iPad의 Safari에서 아래 순서대로 진행해 주세요.
+        Safari에서 한 번만 설정하면 앱처럼 바로 열 수 있어요.
       </p>
 
       <ol className={styles.steps}>
         <li>
           <span className={styles.stepNumber}>1</span>
           <p>
-            Safari에서 CIVIC.AI를 열고 하단의
-            <span className={styles.shareLabel}>
-              <ShareIcon /> 공유
+            <span className={styles.inlineIcon}>
+              <ShareIcon />
             </span>
-            버튼을 누르세요.
+            Safari 하단의 공유 아이콘을 눌러주세요.
           </p>
         </li>
         <li>
           <span className={styles.stepNumber}>2</span>
           <p>
-            메뉴를 아래로 내려 <strong>홈 화면에 추가</strong>를 선택하세요.
+            메뉴에서 <strong>홈 화면에 추가</strong>를 선택해주세요.
           </p>
         </li>
         <li>
           <span className={styles.stepNumber}>3</span>
           <p>
-            <strong>웹 앱으로 열기</strong>를 켜고 <strong>추가</strong>를 누르세요.
+            오른쪽 위의 <strong>추가</strong>를 눌러주세요.
           </p>
         </li>
       </ol>
 
+      <p className={styles.tip}>‘웹 앱으로 열기’가 보이면 켜주세요.</p>
+
       <button className={styles.doneButton} onClick={onClose} type="button">
-        확인했어요
+        닫기
       </button>
     </dialog>
   );

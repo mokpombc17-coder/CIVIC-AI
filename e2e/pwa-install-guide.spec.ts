@@ -81,10 +81,10 @@ test("iOS 사용자는 앱 설치 메뉴에서 홈 화면 추가 안내를 확�
   await expect(installButton).toBeEnabled();
   await installButton.click();
 
-  const dialog = page.getByRole("dialog", { name: "홈 화면에 CIVIC.AI 추가" });
+  const dialog = page.getByRole("dialog", { name: "CIVIC.AI를 홈 화면에 추가" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("Safari");
-  await expect(dialog).toContainText("공유");
+  await expect(dialog).toContainText("공유 아이콘");
   await expect(dialog).toContainText("홈 화면에 추가");
   await expect(dialog).toContainText("웹 앱으로 열기");
 
@@ -97,7 +97,7 @@ test("iOS 사용자는 앱 설치 메뉴에서 홈 화면 추가 안내를 확�
     Math.abs((box?.y ?? 0) + (box?.height ?? 0) - (viewport?.height ?? 0)),
   ).toBeLessThanOrEqual(2);
 
-  await page.getByRole("button", { name: "확인했어요" }).click();
+  await page.getByRole("button", { name: "닫기", exact: true }).click();
   await expect(dialog).toBeHidden();
   await expect(userMenuTrigger).toBeFocused();
 });
