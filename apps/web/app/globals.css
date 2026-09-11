@@ -2,6 +2,7 @@
 @import "tailwindcss";
 
 :root {
+  --app-viewport-height: 100vh;
   --font-pretendard: "Pretendard GOV";
   color-scheme: light;
   font-family:
@@ -19,6 +20,12 @@
   font-synthesis: none;
 }
 
+@supports (height: 100dvh) {
+  :root {
+    --app-viewport-height: 100dvh;
+  }
+}
+
 * {
   box-sizing: border-box;
 }
@@ -29,7 +36,7 @@ html {
 }
 
 body {
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height);
   margin: 0;
   background:
     radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
@@ -68,11 +75,11 @@ pre {
 }
 
 .app-shell {
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height);
 }
 
 .app-route-content {
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height);
   width: 100%;
 }
 

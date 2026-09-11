@@ -16,7 +16,7 @@ export function ChatRoomInboxToastList({ onSelect, toasts }: ChatRoomInboxToastL
     <aside
       aria-label="새 채팅 메시지 알림"
       aria-live="polite"
-      className="pointer-events-none fixed inset-x-4 top-4 z-50 ml-auto flex max-w-sm flex-col gap-3 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-full"
+      className="pointer-events-none fixed inset-x-4 top-[calc(1rem+env(safe-area-inset-top))] z-50 ml-auto flex max-w-sm flex-col gap-3 sm:inset-x-auto sm:right-6 sm:top-6 sm:w-full"
     >
       {toasts.map((toast) => (
         <button

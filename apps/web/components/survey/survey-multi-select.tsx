@@ -129,6 +129,7 @@ export function SurveyMultiSelect({
             return (
               <label
                 className={styles.multiSelectOption}
+                data-disabled={option.disabled ? "true" : undefined}
                 data-selected={checked ? "true" : undefined}
                 key={option.value}
                 onMouseDown={(event) => event.preventDefault()}

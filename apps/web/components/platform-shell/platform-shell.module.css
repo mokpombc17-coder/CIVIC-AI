@@ -7,6 +7,13 @@
   --platform-shell-color-muted: #59616b;
   --platform-shell-color-primary: #266ef5;
   --platform-shell-color-primary-emphasis: #0a4fd1;
+  --platform-shell-color-primary-alpha-12: rgb(38 110 245 / 12%);
+  --platform-shell-color-primary-alpha-22: rgb(38 110 245 / 22%);
+  --platform-shell-color-primary-alpha-35: rgb(38 110 245 / 35%);
+  --platform-shell-color-primary-soft-9: #ebf2fe;
+  --platform-shell-color-primary-soft-13: #e3ecfe;
+  --platform-shell-color-primary-border-22: #b2c5ea;
+  --platform-shell-color-text-alpha-6: rgb(18 20 23 / 6%);
   --platform-shell-color-border: #ccd1d6;
   --platform-shell-radius: 12px;
   --platform-shell-shadow: 0 8px 24px rgba(18, 20, 23, 0.12);
@@ -16,7 +23,7 @@
   --platform-z-toast: 200;
 
   display: grid;
-  min-height: 100dvh;
+  min-height: var(--app-viewport-height, 100vh);
   place-items: center;
   padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
 }
@@ -25,12 +32,52 @@
   position: relative;
   width: 100%;
   max-width: var(--platform-shell-max-width);
-  height: 100dvh;
+  height: var(--app-viewport-height, 100vh);
   overflow: hidden;
   border-radius: var(--platform-shell-radius);
   background: var(--platform-shell-color-surface);
   box-shadow: var(--platform-shell-shadow);
   color: var(--platform-shell-color-text);
+}
+
+@supports (color: color-mix(in srgb, white, black)) {
+  .stage {
+    --platform-shell-color-primary-alpha-12: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 12%,
+      transparent
+    );
+    --platform-shell-color-primary-alpha-22: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 22%,
+      transparent
+    );
+    --platform-shell-color-primary-alpha-35: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 35%,
+      transparent
+    );
+    --platform-shell-color-primary-soft-9: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 9%,
+      white
+    );
+    --platform-shell-color-primary-soft-13: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 13%,
+      white
+    );
+    --platform-shell-color-primary-border-22: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 22%,
+      #d9dee7
+    );
+    --platform-shell-color-text-alpha-6: color-mix(
+      in srgb,
+      var(--platform-shell-color-text) 6%,
+      transparent
+    );
+  }
 }
 
 .shell[data-header-size="compact"] {
@@ -143,7 +190,7 @@
 }
 
 .headerBackControl:not(:disabled):hover {
-  background: color-mix(in srgb, var(--platform-shell-color-text) 6%, transparent);
+  background: var(--platform-shell-color-text-alpha-6);
 }
 
 .headerBackControl:focus-visible {

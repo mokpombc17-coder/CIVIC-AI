@@ -6,6 +6,7 @@ const options = [
   { value: "A", label: "드라마/영화" },
   { value: "B", label: "여행" },
   { value: "C", label: "경제/재테크" },
+  { value: "D", label: "기타", disabled: true },
 ] as const;
 
 describe("SurveyMultiSelect", () => {
@@ -24,6 +25,7 @@ describe("SurveyMultiSelect", () => {
     expect(html).toContain("드라마/영화, 여행 외 1개");
     expect(html).not.toContain("1)");
     expect(html).toContain('data-selected="true"');
+    expect(html).toContain('data-disabled="true"');
     expect(html).toContain('data-option-index="0"');
     expect(html).toContain('tabindex="-1"');
   });

@@ -248,7 +248,11 @@ function MatrixScaleField({
               role="radiogroup"
             >
               {numberRange(question.minimum, question.maximum).map((scale) => (
-                <label className={styles.affectiveDistanceOption} key={scale}>
+                <label
+                  className={styles.affectiveDistanceOption}
+                  data-selected={value === scale ? "true" : undefined}
+                  key={scale}
+                >
                   <input
                     checked={value === scale}
                     name={controlId}

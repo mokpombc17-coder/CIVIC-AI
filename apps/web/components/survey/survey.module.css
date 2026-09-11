@@ -259,7 +259,7 @@
   font-weight: 700;
 }
 
-.familyMatrixOption:has(input:focus-visible) {
+.familyMatrixOption:focus-within {
   outline: 2px solid var(--platform-shell-color-primary-emphasis);
   outline-offset: 2px;
 }
@@ -326,14 +326,14 @@
   text-align: center;
 }
 
-.affectiveDistanceOption:has(input:checked) {
+.affectiveDistanceOption[data-selected="true"] {
   border-color: var(--platform-shell-color-primary);
   background: #edf2ff;
   color: var(--platform-shell-color-primary-emphasis);
   font-weight: 700;
 }
 
-.affectiveDistanceOption:has(input:focus-visible) {
+.affectiveDistanceOption:focus-within {
   outline: 2px solid var(--platform-shell-color-primary-emphasis);
   outline-offset: 2px;
 }
@@ -407,9 +407,24 @@
   font-weight: 700;
 }
 
-.mediaDurationOption:has(input:focus-visible) {
+.mediaDurationOption:focus-within {
   outline: 2px solid var(--platform-shell-color-primary-emphasis);
   outline-offset: 2px;
+}
+
+@supports selector(:focus-visible) {
+  .familyMatrixOption:focus-within,
+  .affectiveDistanceOption:focus-within,
+  .mediaDurationOption:focus-within {
+    outline: none;
+  }
+
+  .familyMatrixOption:has(input:focus-visible),
+  .affectiveDistanceOption:has(input:focus-visible),
+  .mediaDurationOption:has(input:focus-visible) {
+    outline: 2px solid var(--platform-shell-color-primary-emphasis);
+    outline-offset: 2px;
+  }
 }
 
 .mediaDurationItem[data-invalid="true"] .mediaDurationOption {
@@ -462,6 +477,7 @@ input.textControl,
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  -webkit-appearance: none;
   appearance: none;
   cursor: pointer;
   text-align: left;
@@ -478,7 +494,7 @@ input.textControl,
 
 .selectControl[data-open="true"] {
   border-color: var(--platform-shell-color-primary);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--platform-shell-color-primary) 12%, transparent);
+  box-shadow: 0 0 0 3px var(--platform-shell-color-primary-alpha-12);
 }
 
 .customSelect {
@@ -521,7 +537,7 @@ input.textControl,
   box-sizing: border-box;
   max-width: 100%;
   overflow: hidden;
-  border: 1px solid color-mix(in srgb, var(--platform-shell-color-primary) 22%, #d9dee7);
+  border: 1px solid var(--platform-shell-color-primary-border-22);
   border-radius: 12px;
   background: var(--platform-shell-color-surface);
   box-shadow: 0 16px 36px rgb(30 42 65 / 18%);
@@ -621,11 +637,11 @@ input.textControl,
 
 .selectOption:hover,
 .selectOption[data-active="true"] {
-  background: color-mix(in srgb, var(--platform-shell-color-primary) 9%, white);
+  background: var(--platform-shell-color-primary-soft-9);
 }
 
 .selectOption[aria-selected="true"] {
-  background: color-mix(in srgb, var(--platform-shell-color-primary) 13%, white);
+  background: var(--platform-shell-color-primary-soft-13);
   color: var(--platform-shell-color-primary-emphasis);
   font-weight: 700;
 }
@@ -753,12 +769,12 @@ input.textControl,
 }
 
 .multiSelectOption:hover,
-.multiSelectOption:has(input:focus-visible) {
-  background: color-mix(in srgb, var(--platform-shell-color-primary) 9%, white);
+.multiSelectOption:focus-within {
+  background: var(--platform-shell-color-primary-soft-9);
 }
 
 .multiSelectOption[data-selected="true"] {
-  background: color-mix(in srgb, var(--platform-shell-color-primary) 13%, white);
+  background: var(--platform-shell-color-primary-soft-13);
   color: var(--platform-shell-color-primary-emphasis);
   font-weight: 700;
 }
@@ -770,6 +786,7 @@ input.textControl,
   flex: 0 0 auto;
   place-items: center;
   margin: 0;
+  -webkit-appearance: none;
   appearance: none;
   border: 1.5px solid #aab4c3;
   border-radius: 5px;
@@ -809,7 +826,7 @@ input.textControl,
   outline-offset: 2px;
 }
 
-.multiSelectOption:has(input:disabled) {
+.multiSelectOption[data-disabled="true"] {
   cursor: not-allowed;
   opacity: 0.45;
 }
@@ -855,7 +872,7 @@ input.textControl,
 
 .residencePostcodeButton:focus-visible {
   border-radius: 4px;
-  outline: 2px solid color-mix(in srgb, var(--platform-shell-color-primary) 35%, transparent);
+  outline: 2px solid var(--platform-shell-color-primary-alpha-35);
   outline-offset: 2px;
 }
 
@@ -873,8 +890,8 @@ input.textControl,
 .postcodeDialog {
   display: flex;
   width: min(560px, 100%);
-  height: min(680px, calc(100dvh - 32px));
-  min-height: min(520px, calc(100dvh - 32px));
+  height: min(680px, calc(var(--app-viewport-height, 100vh) - 32px));
+  min-height: min(520px, calc(var(--app-viewport-height, 100vh) - 32px));
   flex-direction: column;
   overflow: hidden;
   border-radius: 16px;
@@ -1047,8 +1064,8 @@ input.textControl,
 
   .postcodeDialog {
     width: 100%;
-    height: 100dvh;
-    min-height: 100dvh;
+    height: var(--app-viewport-height, 100vh);
+    min-height: var(--app-viewport-height, 100vh);
     border-radius: 0;
   }
 }
@@ -1062,7 +1079,7 @@ textarea.textControl {
 .textControl:focus-visible,
 .otherTextControl:focus-visible {
   border-color: var(--platform-shell-color-primary);
-  outline: 2px solid color-mix(in srgb, var(--platform-shell-color-primary) 22%, transparent);
+  outline: 2px solid var(--platform-shell-color-primary-alpha-22);
   outline-offset: 1px;
 }
 
@@ -1247,11 +1264,6 @@ textarea.textControl {
 .confirmationNativeCheck:focus-visible + .confirmationCheckbox {
   outline: 2px solid var(--platform-shell-color-primary-emphasis);
   outline-offset: 2px;
-}
-
-.confirmationCheck:has(.confirmationNativeCheck:disabled) {
-  cursor: not-allowed;
-  opacity: 0.55;
 }
 
 .confirmationLabel {
