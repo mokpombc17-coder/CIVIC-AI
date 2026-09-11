@@ -9,6 +9,21 @@ export type BeforeInstallPromptEvent = Event &
     userChoice: Promise<PwaInstallChoice>;
   }>;
 
+export type PwaInstallNavigator = Readonly<{
+  maxTouchPoints?: number;
+  platform?: string;
+  userAgent?: string;
+}>;
+
+export function isIosPwaInstallTarget(navigatorLike: PwaInstallNavigator): boolean {
+  const userAgent = navigatorLike.userAgent?.toLowerCase() ?? "";
+  const isClassicIosUserAgent = /iphone|ipad|ipod/.test(userAgent);
+  const isIpadosDesktopMode =
+    navigatorLike.platform === "MacIntel" && (navigatorLike.maxTouchPoints ?? 0) > 1;
+
+  return isClassicIosUserAgent || isIpadosDesktopMode;
+}
+
 export function capturePwaInstallPrompt(event: Event): BeforeInstallPromptEvent {
   event.preventDefault();
   return event as BeforeInstallPromptEvent;
