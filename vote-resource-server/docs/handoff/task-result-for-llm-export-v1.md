@@ -82,3 +82,23 @@ The export deliberately excludes:
 
 Prompt templates, provider model settings, and qualitative-summary output are
 separate contracts and are not part of this export.
+
+## Downstream qualitative-summary output
+
+The LLM prompt is `src/main/resources/task-result-prompt.md`. Its structured
+output contract is `opinionmap-option-explanation/v1`:
+
+- DTO and semantic validation:
+  `OpinionMapOptionExplanationV1`
+- JSON Schema:
+  `src/main/resources/schemas/opinionmap-option-explanation-v1.schema.json`
+- golden response:
+  `src/test/resources/contracts/opinionmap-option-explanation-v1.json`
+
+The DTO validates its own status/body/source-key combinations. Calling
+`validateAgainst(TaskResultForLlmV1)` additionally checks the echoed Task and
+Result identifiers, complete option coverage in display order, source-option
+membership, and `NO_RESPONSES` states against the exact input projection.
+
+For `NO_RESPONSES` and `INSUFFICIENT_REASON`, the output body remains JSON
+`null`; the frontend owns the corresponding placeholder copy.

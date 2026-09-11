@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "opinionmap-option-explanation/v1",
+  "taskId": "00000000-0000-0000-0000-000000000001",
+  "resultVersion": 1,
+  "status": "COMPLETED",
+  "error": null,
+  "optionSummaries": [
+    {
+      "optionKey": "O1",
+      "sameChoice": {
+        "status": "AVAILABLE",
+        "sourceOptionKeys": [
+          "O1"
+        ],
+        "body": "첫 번째 선택을 한 참여자들은 검증된 절차가 필요하다고 설명했습니다."
+      },
+      "otherChoices": {
+        "status": "AVAILABLE",
+        "sourceOptionKeys": [
+          "O2"
+        ],
+        "body": "두 번째 선택을 한 참여자들은 신속한 추진이 필요하다고 설명했습니다."
+      }
+    },
+    {
+      "optionKey": "O2",
+      "sameChoice": {
+        "status": "AVAILABLE",
+        "sourceOptionKeys": [
+          "O2"
+        ],
+        "body": "두 번째 선택을 한 참여자들은 신속한 추진이 필요하다고 설명했습니다."
+      },
+      "otherChoices": {
+        "status": "AVAILABLE",
+        "sourceOptionKeys": [
+          "O1"
+        ],
+        "body": "첫 번째 선택을 한 참여자들은 검증된 절차가 필요하다고 설명했습니다."
+      }
+    }
+  ]
+}

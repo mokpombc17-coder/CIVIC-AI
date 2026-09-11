@@ -1,0 +1,208 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://hamcheeze.com/schemas/opinionmap-option-explanation-v1.schema.json",
+  "title": "OpinionMap option explanation v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schemaVersion",
+    "taskId",
+    "resultVersion",
+    "status",
+    "error",
+    "optionSummaries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": "opinionmap-option-explanation/v1"
+    },
+    "taskId": {
+      "anyOf": [
+        {
+          "type": "string",
+          "format": "uuid"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "resultVersion": {
+      "anyOf": [
+        {
+          "type": "integer",
+          "minimum": 1
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "status": {
+      "enum": [
+        "COMPLETED",
+        "INVALID_INPUT"
+      ]
+    },
+    "error": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "optionSummaries": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/optionSummary"
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "status": {
+            "const": "COMPLETED"
+          }
+        },
+        "required": [
+          "status"
+        ]
+      },
+      "then": {
+        "properties": {
+          "taskId": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "resultVersion": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "error": {
+            "type": "null"
+          },
+          "optionSummaries": {
+            "minItems": 1
+          }
+        }
+      },
+      "else": {
+        "properties": {
+          "error": {
+            "type": "string",
+            "minLength": 1
+          },
+          "optionSummaries": {
+            "maxItems": 0
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "optionSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "optionKey",
+        "sameChoice",
+        "otherChoices"
+      ],
+      "properties": {
+        "optionKey": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S"
+        },
+        "sameChoice": {
+          "$ref": "#/$defs/areaSummary"
+        },
+        "otherChoices": {
+          "$ref": "#/$defs/areaSummary"
+        }
+      }
+    },
+    "areaSummary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "sourceOptionKeys",
+        "body"
+      ],
+      "properties": {
+        "status": {
+          "enum": [
+            "AVAILABLE",
+            "NO_RESPONSES",
+            "INSUFFICIENT_REASON"
+          ]
+        },
+        "sourceOptionKeys": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "\\S"
+          }
+        },
+        "body": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "const": "AVAILABLE"
+              }
+            },
+            "required": [
+              "status"
+            ]
+          },
+          "then": {
+            "properties": {
+              "sourceOptionKeys": {
+                "minItems": 1
+              },
+              "body": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "\\S"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "sourceOptionKeys": {
+                "maxItems": 0
+              },
+              "body": {
+                "type": "null"
+              }
+            }
+          }
+        }
+      ]
+    }
+  }
+}
