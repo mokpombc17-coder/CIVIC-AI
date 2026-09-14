@@ -102,12 +102,12 @@ export function OpinionMapReviewPanelView({
       className="civic-domain-result civic-opinion-map-review"
     >
       <header>
-        <span>Opinion Map 검수</span>
+        <span>Opinion Map 생성 결과</span>
         <h2 id="civic-opinion-map-review-title">선택지별 의견 요약</h2>
       </header>
 
       {state.status === "loading" ? (
-        <ConsoleStatus>검수 결과를 불러오는 중입니다.</ConsoleStatus>
+        <ConsoleStatus>Opinion Map 결과를 불러오는 중입니다.</ConsoleStatus>
       ) : null}
 
       {state.status === "unavailable" ? (
@@ -232,7 +232,7 @@ function opinionMapStatusLabel(status: OpinionMapGenerationStatus): string {
     PENDING: "생성 대기 중",
     PROCESSING: "생성 중",
     RETRY_WAIT: "자동 재시도 대기 중",
-    AVAILABLE: "검수 가능",
+    AVAILABLE: "생성 완료",
     UNAVAILABLE: "생성 실패",
   }[status];
 }

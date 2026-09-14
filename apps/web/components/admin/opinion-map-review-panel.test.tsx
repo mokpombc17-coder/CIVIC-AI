@@ -129,6 +129,9 @@ describe("Opinion Map 관리자 검수 화면", () => {
     });
     expect(html).toContain("같은 선택 의견");
     expect(html).toContain("다른 선택 의견");
+    expect(html).toContain("Opinion Map 생성 결과");
+    expect(html).toContain("생성 완료");
+    expect(html).not.toContain("검수 가능");
     expect(html).toContain("같은 선택을 한 참여자의 이유입니다.");
     expect(html).toContain("이 선택지를 고른 응답이 없습니다.");
     expect(html).toContain("요약할 수 있는 의견이 충분하지 않습니다.");
