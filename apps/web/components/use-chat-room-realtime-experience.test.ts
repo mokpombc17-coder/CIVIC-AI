@@ -22,8 +22,8 @@ describe("ChatRoom realtime experience", () => {
     expect(isChatRoomRealtimeEnabled(undefined)).toBe(false);
   });
 
-  it("종료된 방은 실시간 구독 없이도 메시지 내역을 조회한다", () => {
-    expect(isChatRoomMessageHistoryEnabled("CLOSED", false)).toBe(true);
+  it("활성 상태로 연결된 방에서만 메시지 내역을 조회한다", () => {
+    expect(isChatRoomMessageHistoryEnabled("CLOSED", false)).toBe(false);
     expect(isChatRoomMessageHistoryEnabled("ACTIVE", true)).toBe(true);
     expect(isChatRoomMessageHistoryEnabled("ACTIVE", false)).toBe(false);
     expect(isChatRoomMessageHistoryEnabled(undefined, false)).toBe(false);

@@ -161,6 +161,7 @@ describe("chat room REST contracts", () => {
     {
       code: "ROOM_CREATION_REQUESTED",
       status: "PENDING",
+      roomStatus: null,
       resolvedAt: null,
       roomId: null,
       ownerMembershipId: null,
@@ -171,6 +172,7 @@ describe("chat room REST contracts", () => {
     {
       code: "ROOM_CREATED",
       status: "APPROVED",
+      roomStatus: "ACTIVE",
       resolvedAt: "2026-08-25T07:00:01Z",
       roomId: "room-123",
       ownerMembershipId: "membership-123",
@@ -181,6 +183,7 @@ describe("chat room REST contracts", () => {
     {
       code: "ROOM_CREATION_REJECTED",
       status: "REJECTED",
+      roomStatus: null,
       resolvedAt: "2026-08-25T07:00:01Z",
       roomId: null,
       ownerMembershipId: null,
@@ -191,6 +194,7 @@ describe("chat room REST contracts", () => {
     {
       code: "ROOM_CREATION_CANCELED",
       status: "CANCELED",
+      roomStatus: null,
       resolvedAt: "2026-08-25T07:00:01Z",
       roomId: null,
       ownerMembershipId: null,
@@ -202,6 +206,28 @@ describe("chat room REST contracts", () => {
     const response = createRoomCreationResponse(state);
 
     expect(createRoomResponseSchema.parse(response)).toEqual(response);
+  });
+
+  it("승인된 방 생성 신청은 현재 Room 운영 상태를 제공한다", () => {
+    const approved = createRoomCreationResponse({
+      code: "ROOM_CREATED",
+      status: "APPROVED",
+      roomStatus: "CLOSED",
+      resolvedAt: "2026-08-25T07:00:01Z",
+      roomId: "room-123",
+      ownerMembershipId: "membership-123",
+      roomVersion: 1,
+      ownerMembershipVersion: 1,
+      rejectionReason: null,
+    });
+
+    expect(createRoomResponseSchema.parse(approved)).toMatchObject({
+      name: "시민 AI 토론방",
+      roomStatus: "CLOSED",
+    });
+    expect(createRoomResponseSchema.safeParse({ ...approved, roomStatus: null }).success).toBe(
+      false,
+    );
   });
 
   it("방 생성 신청 status와 code 조합이 다르면 거절한다", () => {
@@ -1231,6 +1257,8 @@ function createRoomCreationResponse(state: Record<string, unknown>) {
     clientRequestId: "b3688817-a610-4ef2-987a-1172945974c7",
     replayed: false,
     creationRequestId: "creation-request-123",
+    name: "시민 AI 토론방",
+    roomStatus: null,
     requestedAt: "2026-08-25T07:00:00Z",
     ...state,
   };

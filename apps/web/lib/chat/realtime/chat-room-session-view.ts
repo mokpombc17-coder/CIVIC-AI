@@ -45,8 +45,7 @@ export function getChatRoomSessionView(
     return {
       kind: "closed",
       title: "종료된 채팅방입니다.",
-      description:
-        "지난 대화 내역은 확인할 수 있지만 새 메시지를 보내거나 실시간으로 참여할 수 없습니다.",
+      description: "종료된 채팅방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,

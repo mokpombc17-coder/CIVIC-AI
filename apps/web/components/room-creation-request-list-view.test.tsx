@@ -16,6 +16,13 @@ describe("RoomCreationRequestListContent", () => {
     expect(markup).not.toContain("신청 ID");
     expect(markup).not.toContain("/chat/creation-requests/");
     expect(markup).not.toContain("실시간 알림");
+    expect(markup).toContain("공원 개선 논의");
+    expect(markup).toContain("반려동물 동호회");
+    expect(markup).not.toContain("토론방 생성 요청");
+    expect(markup).toContain("rounded-[4px]");
+    expect(markup).toContain("px-1.5");
+    expect(markup).toContain("py-0.5");
+    expect(markup).not.toContain("rounded-full");
     expect(markup).toContain("min-h-[120px]");
     expect(markup).toContain("rounded-[var(--chat-publishing-radius-card)]");
   });
@@ -26,6 +33,16 @@ describe("RoomCreationRequestListContent", () => {
     expect(markup).toContain('data-room-creation-request-status="APPROVED"');
     expect(markup).toContain('href="/chat/room-01"');
     expect(markup).toContain(">이동하기</a>");
+  });
+
+  it("운영이 종료된 생성 완료 요청에는 이동 action을 표시하지 않는다", () => {
+    const markup = renderView({ requests: [CLOSED_APPROVED_REQUEST] });
+
+    expect(markup).toContain('data-room-creation-request-status="APPROVED"');
+    expect(markup).toContain("종료됨");
+    expect(markup).toContain("종료된 도시 정책 토론방");
+    expect(markup).toContain("생성된 토론방의 운영이 종료되었습니다.");
+    expect(markup).not.toContain("이동하기");
   });
 
   it("다음 cursor가 있을 때만 더 보기 동작을 표시한다", () => {
@@ -78,8 +95,10 @@ const RESPONSE_BASE = {
 const PENDING_REQUEST = {
   ...RESPONSE_BASE,
   creationRequestId: "request-old",
+  name: "공원 개선 논의",
   code: "ROOM_CREATION_REQUESTED",
   status: "PENDING",
+  roomStatus: null,
   resolvedAt: null,
   roomId: null,
   ownerMembershipId: null,
@@ -91,8 +110,10 @@ const PENDING_REQUEST = {
 const REJECTED_REQUEST = {
   ...RESPONSE_BASE,
   creationRequestId: "request-new",
+  name: "반려동물 동호회",
   code: "ROOM_CREATION_REJECTED",
   status: "REJECTED",
+  roomStatus: null,
   resolvedAt: "2026-08-25T08:00:00Z",
   roomId: null,
   ownerMembershipId: null,
@@ -104,12 +125,21 @@ const REJECTED_REQUEST = {
 const APPROVED_REQUEST = {
   ...RESPONSE_BASE,
   creationRequestId: "request-approved",
+  name: "울산 교통 정책 토론방",
   code: "ROOM_CREATED",
   status: "APPROVED",
+  roomStatus: "ACTIVE",
   resolvedAt: "2026-08-25T08:00:00Z",
   roomId: "room-01",
   ownerMembershipId: "membership-01",
   roomVersion: 1,
   ownerMembershipVersion: 1,
   rejectionReason: null,
+} satisfies RoomCreationRequestResponse;
+
+const CLOSED_APPROVED_REQUEST = {
+  ...APPROVED_REQUEST,
+  creationRequestId: "request-approved-closed",
+  name: "종료된 도시 정책 토론방",
+  roomStatus: "CLOSED",
 } satisfies RoomCreationRequestResponse;

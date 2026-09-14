@@ -21,21 +21,25 @@ export function createRoomCreationRequestStatusPresentation(
     case "PENDING":
       return statusPresentation(
         "승인 대기",
-        "토론방 생성 요청",
+        request.name,
         "관리자가 요청을 검토하고 있습니다.",
         "info",
       );
     case "APPROVED":
-      return statusPresentation(
-        "생성 완료",
-        "토론방 생성 요청",
-        "토론방이 생성되었습니다.",
-        "success",
-      );
+      if (request.roomStatus === "CLOSED") {
+        return statusPresentation(
+          "종료됨",
+          request.name,
+          "생성된 토론방의 운영이 종료되었습니다.",
+          "neutral",
+        );
+      }
+
+      return statusPresentation("생성 완료", request.name, "토론방이 생성되었습니다.", "success");
     case "REJECTED":
-      return statusPresentation("반려", "토론방 생성 요청", request.rejectionReason, "danger");
+      return statusPresentation("반려", request.name, request.rejectionReason, "danger");
     case "CANCELED":
-      return statusPresentation("신청 취소", "토론방 생성 요청", "취소된 요청입니다.", "neutral");
+      return statusPresentation("신청 취소", request.name, "취소된 요청입니다.", "neutral");
   }
 }
 

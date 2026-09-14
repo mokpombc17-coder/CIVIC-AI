@@ -14,6 +14,15 @@ describe("RoomCreationRequestView", () => {
     expect(markup).toContain("최신 상태 확인");
   });
 
+  it("운영이 종료된 Room의 신청 상세에서는 이동을 제공하지 않는다", () => {
+    const markup = renderRequest(CLOSED_APPROVED_REQUEST);
+
+    expect(markup).toContain("도시 정책 토론방");
+    expect(markup).toContain("종료됨");
+    expect(markup).toContain("생성된 토론방의 운영이 종료되었습니다.");
+    expect(markup).not.toContain("생성된 채팅방으로 이동");
+  });
+
   it("반려 상태에는 반려 사유를 표시하고 Room 이동을 숨긴다", () => {
     const markup = renderRequest(REJECTED_REQUEST);
 
@@ -91,6 +100,7 @@ const RESPONSE_BASE = {
   clientRequestId: "b3688817-a610-4ef2-987a-1172945974c7",
   replayed: false,
   creationRequestId: "creation-request-01",
+  name: "도시 정책 토론방",
   requestedAt: "2026-08-25T07:00:00Z",
 } as const;
 
@@ -98,6 +108,7 @@ const APPROVED_REQUEST = {
   ...RESPONSE_BASE,
   code: "ROOM_CREATED",
   status: "APPROVED",
+  roomStatus: "ACTIVE",
   resolvedAt: "2026-08-25T08:00:00Z",
   roomId: "room-01",
   ownerMembershipId: "membership-01",
@@ -106,10 +117,16 @@ const APPROVED_REQUEST = {
   rejectionReason: null,
 } satisfies RoomCreationRequestResponse;
 
+const CLOSED_APPROVED_REQUEST = {
+  ...APPROVED_REQUEST,
+  roomStatus: "CLOSED",
+} satisfies RoomCreationRequestResponse;
+
 const PENDING_REQUEST = {
   ...RESPONSE_BASE,
   code: "ROOM_CREATION_REQUESTED",
   status: "PENDING",
+  roomStatus: null,
   resolvedAt: null,
   roomId: null,
   ownerMembershipId: null,
@@ -122,6 +139,7 @@ const REJECTED_REQUEST = {
   ...RESPONSE_BASE,
   code: "ROOM_CREATION_REJECTED",
   status: "REJECTED",
+  roomStatus: null,
   resolvedAt: "2026-08-25T08:00:00Z",
   roomId: null,
   ownerMembershipId: null,

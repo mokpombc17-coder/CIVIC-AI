@@ -345,12 +345,14 @@ const roomCreationRequestResponseBaseSchema = z.object({
   clientRequestId: idempotencyKeySchema,
   replayed: z.boolean(),
   creationRequestId: opaqueIdSchema,
+  name: roomNameSchema,
   requestedAt: instantSchema,
 });
 
 const pendingRoomCreationRequestResponseSchema = roomCreationRequestResponseBaseSchema.extend({
   code: z.literal("ROOM_CREATION_REQUESTED"),
   status: z.literal("PENDING"),
+  roomStatus: z.null(),
   resolvedAt: z.null(),
   roomId: z.null(),
   ownerMembershipId: z.null(),
@@ -362,6 +364,7 @@ const pendingRoomCreationRequestResponseSchema = roomCreationRequestResponseBase
 const approvedRoomCreationRequestResponseSchema = roomCreationRequestResponseBaseSchema.extend({
   code: z.literal("ROOM_CREATED"),
   status: z.literal("APPROVED"),
+  roomStatus: roomStatusSchema,
   resolvedAt: instantSchema,
   roomId: roomIdSchema,
   ownerMembershipId: opaqueIdSchema,
@@ -373,6 +376,7 @@ const approvedRoomCreationRequestResponseSchema = roomCreationRequestResponseBas
 const rejectedRoomCreationRequestResponseSchema = roomCreationRequestResponseBaseSchema.extend({
   code: z.literal("ROOM_CREATION_REJECTED"),
   status: z.literal("REJECTED"),
+  roomStatus: z.null(),
   resolvedAt: instantSchema,
   roomId: z.null(),
   ownerMembershipId: z.null(),
@@ -384,6 +388,7 @@ const rejectedRoomCreationRequestResponseSchema = roomCreationRequestResponseBas
 const canceledRoomCreationRequestResponseSchema = roomCreationRequestResponseBaseSchema.extend({
   code: z.literal("ROOM_CREATION_CANCELED"),
   status: z.literal("CANCELED"),
+  roomStatus: z.null(),
   resolvedAt: instantSchema,
   roomId: z.null(),
   ownerMembershipId: z.null(),

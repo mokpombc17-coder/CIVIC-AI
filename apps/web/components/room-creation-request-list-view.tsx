@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { formatRoomInboxActivityTime } from "@/components/chat-room-last-activity-time";
 import type { RoomCreationRequestResponse } from "@/lib/chat/chat-room-contracts";
 import {
   createRoomCreationRequestStatusPresentation,
-  formatRoomCreationRequestInstant,
   type RoomCreationRequestStatusPresentation,
 } from "@/lib/chat/room-creation-request-presentation";
 
@@ -123,10 +123,10 @@ function RoomCreationRequestListItem({ request }: { request: RoomCreationRequest
             dateTime={request.requestedAt}
             suppressHydrationWarning
           >
-            {formatRoomCreationRequestInstant(request.requestedAt)}
+            {formatRoomInboxActivityTime(request.requestedAt, new Date())}
           </time>
         </div>
-        <strong className="mt-2 block text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+        <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
           {presentation.title}
         </strong>
         <p className="mt-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
@@ -134,7 +134,7 @@ function RoomCreationRequestListItem({ request }: { request: RoomCreationRequest
         </p>
       </div>
 
-      {request.status === "APPROVED" ? (
+      {request.status === "APPROVED" && request.roomStatus === "ACTIVE" ? (
         <Link
           className="inline-flex h-12 min-w-[88px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-primary)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
           href={`/chat/${request.roomId}`}
@@ -155,7 +155,9 @@ function StatusBadge({ presentation }: { presentation: RoomCreationRequestStatus
   }[presentation.tone];
 
   return (
-    <span className={`inline-flex rounded-full px-3 py-1 text-xs font-bold ${toneClassName}`}>
+    <span
+      className={`inline-flex rounded-[4px] px-1.5 py-0.5 text-xs font-bold leading-[18px] ${toneClassName}`}
+    >
       {presentation.badgeLabel}
     </span>
   );

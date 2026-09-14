@@ -28,14 +28,14 @@ describe("ChatRoomSessionNotice", () => {
     expect(html).not.toContain("border-red-200");
   });
 
-  it("종료된 방을 오류가 아닌 정보성 읽기 전용 안내로 표시한다", () => {
+  it("종료된 방을 오류가 아닌 정보성 안내로 표시한다", () => {
     const html = renderToStaticMarkup(
       <ChatRoomSessionNotice onReactivate={vi.fn()} onReconnect={vi.fn()} view={CLOSED_VIEW} />,
     );
 
     expect(html).toContain('data-chat-session-notice="closed"');
     expect(html).toContain("종료된 채팅방입니다.");
-    expect(html).toContain("지난 대화 내역은 확인할 수 있지만");
+    expect(html).toContain("지난 대화 내역을 확인할 수 없습니다.");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain(">다시 연결</button>");
   });
@@ -77,7 +77,7 @@ const CLOSED_VIEW = {
   canDraft: false,
   canReactivate: false,
   canReconnect: false,
-  description: "지난 대화 내역은 확인할 수 있지만 새 메시지는 보낼 수 없습니다.",
+  description: "종료된 채팅방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
   indicatorLabel: "종료됨",
   indicatorTone: "pending",
   kind: "closed",

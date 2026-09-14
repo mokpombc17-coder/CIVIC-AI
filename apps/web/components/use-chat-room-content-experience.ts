@@ -31,6 +31,7 @@ export function useChatRoomContentExperience(
     : messageHistory.messages;
   const { fetchNextPage } = messageHistory;
   const room = roomQuery.data;
+  const roomClosed = room?.status === "CLOSED";
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
   const read = useChatRoomReadExperience({
     connectionErrorCode: session.connectionError?.code ?? null,
@@ -94,20 +95,22 @@ export function useChatRoomContentExperience(
     }),
     messageActions: message.actions,
     messageHistory: {
-      canLoadOlder: contextNavigationActive ? false : messageHistory.hasNextPage,
-      entryNavigation: contextNavigationActive ? null : read.entryNavigationNotice,
-      feedback: contextNavigationActive
-        ? createChatRoomMessageNavigationFeedback(messageNavigation)
-        : createChatRoomMessageHistoryFeedback({
-            error: messageHistory.error,
-            isHistoryEnabled: realtime.messageHistoryEnabled,
-            isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
-            isPending: messageHistory.isPending,
-            hasSystemActivities: message.viewportItems.some(
-              (item) => item.kind === "system-activity",
-            ),
-            messageCount: message.messageItems.length,
-          }),
+      canLoadOlder: roomClosed || contextNavigationActive ? false : messageHistory.hasNextPage,
+      entryNavigation: roomClosed || contextNavigationActive ? null : read.entryNavigationNotice,
+      feedback: roomClosed
+        ? null
+        : contextNavigationActive
+          ? createChatRoomMessageNavigationFeedback(messageNavigation)
+          : createChatRoomMessageHistoryFeedback({
+              error: messageHistory.error,
+              isHistoryEnabled: realtime.messageHistoryEnabled,
+              isError: messageHistory.isError && !messageHistory.isFetchNextPageError,
+              isPending: messageHistory.isPending,
+              hasSystemActivities: message.viewportItems.some(
+                (item) => item.kind === "system-activity",
+              ),
+              messageCount: message.messageItems.length,
+            }),
       initialScrollTarget:
         messageNavigationActive && messageNavigation.targetMessageId
           ? ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
@@ -115,7 +118,7 @@ export function useChatRoomContentExperience(
             ? ({ kind: "pending" } as const)
             : read.initialScrollTarget,
       isLoadingOlder: contextNavigationActive ? false : messageHistory.isFetchingNextPage,
-      items: message.viewportItems,
+      items: roomClosed ? [] : message.viewportItems,
       latestConfirmedSequence,
       onLoadOlder: loadOlder,
       onNavigateToLatest: messageNavigationActive ? messageNavigation.closeContext : null,

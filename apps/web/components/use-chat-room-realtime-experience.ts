@@ -77,7 +77,7 @@ export function isChatRoomMessageHistoryEnabled(
   roomStatus: RoomStatus | undefined,
   isRoomActive: boolean,
 ): boolean {
-  return isRoomActive || roomStatus === "CLOSED";
+  return roomStatus === "ACTIVE" && isRoomActive;
 }
 
 export function isChatRoomRealtimeCoordinatorEnabled({

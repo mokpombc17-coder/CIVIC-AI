@@ -26,6 +26,23 @@ describe("room creation request presentation", () => {
     ).toBe("운영 정책과 맞지 않습니다.");
   });
 
+  it("응답의 방 이름을 제목으로 사용하고 종료된 Room을 구분한다", () => {
+    expect(createRoomCreationRequestStatusPresentation(CREATION_REQUESTS.PENDING).title).toBe(
+      "도시 정책 토론방",
+    );
+    expect(
+      createRoomCreationRequestStatusPresentation({
+        ...CREATION_REQUESTS.APPROVED,
+        roomStatus: "CLOSED",
+      }),
+    ).toEqual({
+      badgeLabel: "종료됨",
+      description: "생성된 토론방의 운영이 종료되었습니다.",
+      title: "도시 정책 토론방",
+      tone: "neutral",
+    });
+  });
+
   it.each([
     ["ROOM_CREATION_REQUEST_NOT_FOUND", "신청을 찾을 수 없습니다."],
     ["UNAUTHENTICATED", "로그인이 필요합니다."],
@@ -69,6 +86,7 @@ const RESPONSE_BASE = {
   clientRequestId: "b3688817-a610-4ef2-987a-1172945974c7",
   replayed: false,
   creationRequestId: "creation-request-01",
+  name: "도시 정책 토론방",
   requestedAt: "2026-08-25T07:00:00Z",
 } as const;
 
@@ -77,6 +95,7 @@ const CREATION_REQUESTS = {
     ...RESPONSE_BASE,
     code: "ROOM_CREATION_REQUESTED",
     status: "PENDING",
+    roomStatus: null,
     resolvedAt: null,
     roomId: null,
     ownerMembershipId: null,
@@ -88,6 +107,7 @@ const CREATION_REQUESTS = {
     ...RESPONSE_BASE,
     code: "ROOM_CREATED",
     status: "APPROVED",
+    roomStatus: "ACTIVE",
     resolvedAt: "2026-08-25T08:00:00Z",
     roomId: "room-01",
     ownerMembershipId: "membership-01",
@@ -99,6 +119,7 @@ const CREATION_REQUESTS = {
     ...RESPONSE_BASE,
     code: "ROOM_CREATION_REJECTED",
     status: "REJECTED",
+    roomStatus: null,
     resolvedAt: "2026-08-25T08:00:00Z",
     roomId: null,
     ownerMembershipId: null,
@@ -110,6 +131,7 @@ const CREATION_REQUESTS = {
     ...RESPONSE_BASE,
     code: "ROOM_CREATION_CANCELED",
     status: "CANCELED",
+    roomStatus: null,
     resolvedAt: "2026-08-25T08:00:00Z",
     roomId: null,
     ownerMembershipId: null,

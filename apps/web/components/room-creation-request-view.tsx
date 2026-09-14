@@ -158,7 +158,7 @@ function RoomCreationRequestDetails({
       </dl>
 
       <div className="mt-6 grid gap-2">
-        {request.status === "APPROVED" ? (
+        {request.status === "APPROVED" && request.roomStatus === "ACTIVE" ? (
           <Link
             className="primary-button inline-flex items-center justify-center"
             href={`/chat/${request.roomId}`}
