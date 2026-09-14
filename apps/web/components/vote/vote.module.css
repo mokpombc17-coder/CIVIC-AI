@@ -1580,6 +1580,22 @@
   word-break: keep-all;
 }
 
+.resultPendingHeading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.resultPendingSpinner {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  border: 2px solid #d9e6f5;
+  border-top-color: var(--vote-primary);
+  border-radius: 50%;
+  animation: voteLoadingSpin 700ms linear infinite;
+}
+
 @media (max-width: 392px) {
   .taskCard {
     grid-template-columns: minmax(0, 1fr) 82px;

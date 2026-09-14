@@ -99,8 +99,9 @@ describe("VoteTaskResultScreen", () => {
       otherChoices: null,
     });
 
-    expect(html).toContain(">참여자 의견 요약</h3>");
+    expect(html).toContain("참여자 의견 요약</span></h3>");
     expect(html).toContain("참여자들의 의견을 요약하고 있어요.");
+    expect(html).toContain('data-opinion-map-spinner="true"');
     expect(html).not.toContain(">같은 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
   });
 
@@ -113,7 +114,17 @@ describe("VoteTaskResultScreen", () => {
 
     expect(html).toContain(">참여자 의견 요약</h3>");
     expect(html).toContain("이번 투표에서는 의견 요약을 제공할 수 없어요.");
+    expect(html).not.toContain('data-opinion-map-spinner="true"');
     expect(html).not.toContain(">다른 선택을 한 사람들은 어떤 이유를 들었을까요?</h3>");
+  });
+
+  it("로컬 결과 mock에서 준비 중 상태를 표시한다", () => {
+    const html = renderToStaticMarkup(
+      <VoteTaskResultScreen mockOpinionMapStatus="PENDING" source="mock" taskId="task-01" />,
+    );
+
+    expect(html).toContain("참여자들의 의견을 요약하고 있어요.");
+    expect(html).toContain('data-opinion-map-spinner="true"');
   });
 
   it("엑셀을 기준으로 만든 울산 트램 결과 mock을 표시한다", () => {

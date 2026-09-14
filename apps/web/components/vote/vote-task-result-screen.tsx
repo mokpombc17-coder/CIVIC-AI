@@ -15,6 +15,7 @@ import { useTaskResultQuery, voteCompletedApiAvailable } from "@/lib/vote/vote-q
 import styles from "./vote.module.css";
 
 type VoteResultSource = "api" | "mock";
+type VoteResultMockOpinionMapStatus = "AVAILABLE" | "PENDING";
 type VoteResultPresentation = Readonly<{
   background: string;
   question: string;
@@ -34,10 +35,12 @@ type VoteResultPresentation = Readonly<{
 }>;
 
 export function VoteTaskResultScreen({
+  mockOpinionMapStatus = "AVAILABLE",
   showAiBadges = false,
   source = "api",
   taskId,
 }: {
+  mockOpinionMapStatus?: VoteResultMockOpinionMapStatus;
   showAiBadges?: boolean;
   source?: VoteResultSource;
   taskId: string;
@@ -45,7 +48,7 @@ export function VoteTaskResultScreen({
   if (source === "mock") {
     return (
       <VoteTaskResultView
-        result={presentPublishingResult()}
+        result={presentPublishingResult(mockOpinionMapStatus)}
         showAiBadges={showAiBadges}
         taskId={taskId}
       />
@@ -202,7 +205,18 @@ function OpinionMapSummary({
     return (
       <section className={styles.resultTaskSummary}>
         <div className={styles.resultQualitativeCopy}>
-          <h3>참여자 의견 요약</h3>
+          {opinionMap.status === "PENDING" ? (
+            <h3 className={styles.resultPendingHeading}>
+              <span
+                aria-hidden="true"
+                className={styles.resultPendingSpinner}
+                data-opinion-map-spinner="true"
+              />
+              <span>참여자 의견 요약</span>
+            </h3>
+          ) : (
+            <h3>참여자 의견 요약</h3>
+          )}
           <p className={styles.resultQualitativeText} role="status">
             {opinionMap.status === "PENDING"
               ? "참여자들의 의견을 요약하고 있어요."
@@ -277,7 +291,9 @@ function ResultFeedback({ message, onRetry }: { message: string; onRetry?: () =>
   );
 }
 
-function presentPublishingResult(): VoteResultPresentation {
+function presentPublishingResult(
+  opinionMapStatus: VoteResultMockOpinionMapStatus,
+): VoteResultPresentation {
   const selectedOption = votePublishingResult.options.find(
     ({ id }) => id === votePublishingResult.mySubmission.selectedOptionId,
   );
@@ -290,17 +306,24 @@ function presentPublishingResult(): VoteResultPresentation {
       selectedOption: selectedOption?.content ?? "",
       reason: votePublishingResult.mySubmission.finalReason,
     },
-    opinionMap: {
-      status: "AVAILABLE",
-      sameChoice: {
-        status: "AVAILABLE",
-        body: votePublishingResult.qualitativeSummary.sameChoice,
-      },
-      otherChoices: {
-        status: "AVAILABLE",
-        body: votePublishingResult.qualitativeSummary.differentChoices,
-      },
-    },
+    opinionMap:
+      opinionMapStatus === "PENDING"
+        ? {
+            status: "PENDING",
+            sameChoice: null,
+            otherChoices: null,
+          }
+        : {
+            status: "AVAILABLE",
+            sameChoice: {
+              status: "AVAILABLE",
+              body: votePublishingResult.qualitativeSummary.sameChoice,
+            },
+            otherChoices: {
+              status: "AVAILABLE",
+              body: votePublishingResult.qualitativeSummary.differentChoices,
+            },
+          },
     options: votePublishingResult.options,
   };
 }

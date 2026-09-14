@@ -12,18 +12,23 @@ export default async function VoteTaskResultPage({
   params: Promise<{ taskId: string }>;
   searchParams: Promise<{
     aiBadge?: string | string[];
+    opinionMap?: string | string[];
     source?: string | string[];
   }>;
 }) {
   const parsed = voteTaskIdSchema.safeParse((await params).taskId);
   if (!parsed.success) notFound();
-  const { aiBadge, source } = await searchParams;
+  const { aiBadge, opinionMap, source } = await searchParams;
   const requestedSource = Array.isArray(source) ? source[0] : source;
   const requestedAiBadge = Array.isArray(aiBadge) ? aiBadge[0] : aiBadge;
+  const requestedOpinionMap = Array.isArray(opinionMap) ? opinionMap[0] : opinionMap;
   const useDesignSample = process.env.NODE_ENV !== "production" && requestedSource === "mock";
 
   return (
     <VoteTaskResultScreen
+      mockOpinionMapStatus={
+        useDesignSample && requestedOpinionMap === "pending" ? "PENDING" : "AVAILABLE"
+      }
       showAiBadges={useDesignSample && requestedAiBadge === "on"}
       source={useDesignSample ? "mock" : "api"}
       taskId={parsed.data}
