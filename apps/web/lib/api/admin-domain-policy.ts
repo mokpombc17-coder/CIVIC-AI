@@ -138,14 +138,31 @@ export function matchVoteTaskAdminRoute(
         ? ["POST"]
         : action === "deadline"
           ? ["PUT"]
-          : ["open-now", "start-now", "close", "cancel"].includes(action)
-            ? ["POST"]
-            : ["progress-summary", "result-summary", "result-view"].includes(action)
-              ? ["GET"]
-              : [];
+          : action === "opinion-map-generation"
+            ? ["GET", "POST"]
+            : ["open-now", "start-now", "close", "cancel"].includes(action)
+              ? ["POST"]
+              : ["progress-summary", "result-summary", "result-view"].includes(action)
+                ? ["GET"]
+                : [];
   return methods.length > 0
     ? allow(normalizedMethod, methods, taskPath(segments), "vote:tasks:admin")
     : { allowedMethods: [], status: 404 };
+}
+
+export function matchOpinionMapGenerationAdminRoute(
+  method: string,
+  segments: readonly string[],
+): AdminDomainRoute | RouteFailure {
+  if (segments.length !== 1 || segments[0] !== "unavailable") {
+    return { allowedMethods: [], status: 404 };
+  }
+  return allow(
+    method.toUpperCase(),
+    ["GET"],
+    "/api/v1/admin/opinion-map-generations/unavailable",
+    "vote:tasks:admin",
+  );
 }
 
 function allow(

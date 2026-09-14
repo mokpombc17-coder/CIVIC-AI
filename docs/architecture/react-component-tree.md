@@ -118,6 +118,7 @@ AdminCatchAllPage [Server Route]
 ├── requireAdminAccess(role 또는 permission)
 └── AdminShell
     ├── AdminFunctionalScreen [Main/Auth의 A-HOME·A-USER, 관리자 route가 직접 조립]
+    │   ├── OpinionMapRetryPanel [A-HOME의 UNAVAILABLE Opinion Map 목록·cursor 페이지네이션·과업별 수동 재시도]
     │   ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation·Vote AI 예상 답변 작업 통합 폴링; VOTE_ADMIN 권한으로 초안 상세를 최대 4개 동시 조회]
     │   └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]
@@ -144,6 +145,7 @@ AdminCatchAllPage [Server Route]
     │   ├── TaskCreationDrawer [기본 정보→질문→선택지 단계형 초안 생성]
     │   ├── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     │   └── TaskResultsTab [결과 탭: OPEN 현황 집계·수동 새로고침, 종료 시 확정 결과·다운로드]
+    │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
     │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정
