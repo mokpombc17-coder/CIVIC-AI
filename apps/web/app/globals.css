@@ -5020,7 +5020,7 @@ th {
 [data-wireflow-shell="admin"] .civic-opinion-map-review-options > li {
   display: grid;
   gap: 0.75rem;
-  border: 1px solid var(--civic-line);
+  border: 1px solid transparent;
   border-radius: var(--civic-radius);
   padding: 1rem;
 }
