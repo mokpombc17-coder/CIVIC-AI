@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
+import { OpinionMapReviewPanel } from "@/components/admin/opinion-map-review-panel";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
   ConsoleEmpty,
@@ -1138,63 +1139,67 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
             다시 시도
           </button>
         ) : null}
+        <OpinionMapReviewPanel taskId={taskId} />
       </>
     );
   const { task, observedAt } = result;
   const inProgress = observedAt !== null;
   return (
-    <section className="civic-domain-result">
-      <header>
-        <span>{inProgress ? "진행 중 투표 집계" : "실제 참여자 응답"}</span>
-        <h2>{task.title}</h2>
-        <strong>전체 {result.responseCount.toLocaleString("ko-KR")}건</strong>
-        {observedAt ? (
-          <p>
-            집계 시각: <time dateTime={observedAt}>{formatDate(observedAt)}</time> · 진행 중인
-            투표로 결과가 변경될 수 있습니다.
-          </p>
-        ) : null}
-      </header>
-      {result.responseCount === 0 ? <p>아직 제출된 응답이 없습니다.</p> : null}
-      <ol className="civic-result-bars">
-        {result.options.map((option) => {
-          const percent = option.rate * 100;
-          return (
-            <li key={option.key}>
-              <div>
-                <strong>{option.content}</strong>
-                <span>
-                  {option.count.toLocaleString("ko-KR")}건 · {percent.toFixed(1)}%
-                </span>
-              </div>
-              <progress aria-label={`${option.content} 득표 비율`} max={100} value={percent}>
-                {percent.toFixed(1)}%
-              </progress>
-            </li>
-          );
-        })}
-      </ol>
-      <div className="civic-form-actions">
-        {inProgress ? (
-          <button
-            className="wf-button wf-button-secondary"
-            disabled={loading}
-            onClick={() => setRevision((value) => value + 1)}
-            type="button"
-          >
-            현황 새로고침
-          </button>
-        ) : (
-          <AuthenticatedDownloadLink
-            className="civic-primary-action"
-            href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
-          >
-            결과 다운로드
-          </AuthenticatedDownloadLink>
-        )}
-      </div>
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
-    </section>
+    <>
+      <section className="civic-domain-result">
+        <header>
+          <span>{inProgress ? "진행 중 투표 집계" : "실제 참여자 응답"}</span>
+          <h2>{task.title}</h2>
+          <strong>전체 {result.responseCount.toLocaleString("ko-KR")}건</strong>
+          {observedAt ? (
+            <p>
+              집계 시각: <time dateTime={observedAt}>{formatDate(observedAt)}</time> · 진행 중인
+              투표로 결과가 변경될 수 있습니다.
+            </p>
+          ) : null}
+        </header>
+        {result.responseCount === 0 ? <p>아직 제출된 응답이 없습니다.</p> : null}
+        <ol className="civic-result-bars">
+          {result.options.map((option) => {
+            const percent = option.rate * 100;
+            return (
+              <li key={option.key}>
+                <div>
+                  <strong>{option.content}</strong>
+                  <span>
+                    {option.count.toLocaleString("ko-KR")}건 · {percent.toFixed(1)}%
+                  </span>
+                </div>
+                <progress aria-label={`${option.content} 득표 비율`} max={100} value={percent}>
+                  {percent.toFixed(1)}%
+                </progress>
+              </li>
+            );
+          })}
+        </ol>
+        <div className="civic-form-actions">
+          {inProgress ? (
+            <button
+              className="wf-button wf-button-secondary"
+              disabled={loading}
+              onClick={() => setRevision((value) => value + 1)}
+              type="button"
+            >
+              현황 새로고침
+            </button>
+          ) : (
+            <AuthenticatedDownloadLink
+              className="civic-primary-action"
+              href={`/api/v1/admin/tasks/${encodeURIComponent(task.id)}/result-view`}
+            >
+              결과 다운로드
+            </AuthenticatedDownloadLink>
+          )}
+        </div>
+        {message ? <StatusMessage>{message}</StatusMessage> : null}
+      </section>
+      <OpinionMapReviewPanel taskId={taskId} />
+    </>
   );
 }
 

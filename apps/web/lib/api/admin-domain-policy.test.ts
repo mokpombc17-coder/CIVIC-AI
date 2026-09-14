@@ -150,8 +150,8 @@ describe("admin domain route allowlist", () => {
       scope: "vote:tasks:admin",
     });
     expect(matchVoteTaskAdminRoute("GET", [taskId, "opinion-map-generation"])).toEqual({
-      allowedMethods: ["POST"],
-      status: 405,
+      path: `/api/v1/admin/tasks/${taskId}/opinion-map-generation`,
+      scope: "vote:tasks:admin",
     });
   });
 

@@ -138,11 +138,13 @@ export function matchVoteTaskAdminRoute(
         ? ["POST"]
         : action === "deadline"
           ? ["PUT"]
-          : ["open-now", "start-now", "close", "cancel", "opinion-map-generation"].includes(action)
-            ? ["POST"]
-            : ["progress-summary", "result-summary", "result-view"].includes(action)
-              ? ["GET"]
-              : [];
+          : action === "opinion-map-generation"
+            ? ["GET", "POST"]
+            : ["open-now", "start-now", "close", "cancel"].includes(action)
+              ? ["POST"]
+              : ["progress-summary", "result-summary", "result-view"].includes(action)
+                ? ["GET"]
+                : [];
   return methods.length > 0
     ? allow(normalizedMethod, methods, taskPath(segments), "vote:tasks:admin")
     : { allowedMethods: [], status: 404 };

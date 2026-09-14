@@ -4985,6 +4985,102 @@ th {
   accent-color: var(--civic-blue);
 }
 
+[data-wireflow-shell="admin"] .civic-opinion-map-review-status {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  background: #f8fafc;
+  padding: 0.85rem 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-status > strong {
+  color: var(--civic-blue-dark);
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-status > span {
+  color: var(--civic-muted);
+  font-size: 0.85rem;
+  line-height: 1.5;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-status > small {
+  color: var(--civic-muted);
+  font-size: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options {
+  display: grid;
+  gap: 0.85rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li {
+  display: grid;
+  gap: 0.75rem;
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  padding: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: baseline;
+  gap: 0.35rem 0.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header :is(h3, span) {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header > span {
+  color: var(--civic-blue-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header > h3 {
+  overflow-wrap: anywhere;
+  font-size: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header > strong {
+  color: var(--civic-muted);
+  font-size: 0.82rem;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-areas {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(18rem, 100%), 1fr));
+  gap: 0.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-area {
+  border-left: 0.2rem solid #b8cdf8;
+  background: #f8faff;
+  padding: 0.8rem 0.9rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-area :is(h4, p) {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-area h4 {
+  font-size: 0.82rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-review-area p {
+  margin-top: 0.35rem;
+  color: var(--civic-muted);
+  font-size: 0.88rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-empty,
 [data-wireflow-shell="admin"] .civic-boundary-note {
   border: 1px dashed var(--civic-line-strong);
