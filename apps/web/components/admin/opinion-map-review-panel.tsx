@@ -169,7 +169,6 @@ function OpinionMapGenerationView({
               <header>
                 <span>선택지 {option.displayOrder}</span>
                 <h3>{option.content}</h3>
-                <strong>{option.responseCount?.toLocaleString("ko-KR")}건</strong>
               </header>
               {option.sameChoice && option.otherChoices ? (
                 <div className="civic-opinion-map-review-areas">

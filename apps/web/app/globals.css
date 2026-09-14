@@ -5027,7 +5027,7 @@ th {
 
 [data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
+  grid-template-columns: auto minmax(0, 1fr);
   align-items: baseline;
   gap: 0.35rem 0.65rem;
 }
@@ -5045,12 +5045,6 @@ th {
 [data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header > h3 {
   overflow-wrap: anywhere;
   font-size: 1rem;
-}
-
-[data-wireflow-shell="admin"] .civic-opinion-map-review-options > li > header > strong {
-  color: var(--civic-muted);
-  font-size: 0.82rem;
-  white-space: nowrap;
 }
 
 [data-wireflow-shell="admin"] .civic-opinion-map-review-areas {

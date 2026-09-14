@@ -192,6 +192,8 @@ describe("Opinion Map 관리자 검수 화면", () => {
     expect(html).toContain("같은 선택을 한 참여자의 이유입니다.");
     expect(html).toContain("이 선택지를 고른 응답이 없습니다.");
     expect(html).toContain("요약할 수 있는 의견이 충분하지 않습니다.");
+    expect(html).not.toContain("12건");
+    expect(html).not.toContain("0건");
   });
 
   it("생성 이력이 없고 생성 가능한 과업에는 생성 버튼을 표시한다", () => {
