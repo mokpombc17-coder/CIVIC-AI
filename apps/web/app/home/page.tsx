@@ -15,6 +15,10 @@ import { hasAccessCredential } from "@/lib/auth/require-access";
 import { getScreenByRoute } from "@/lib/screens/registry";
 
 export const metadata: Metadata = {
+  robots: {
+    follow: true,
+    index: true,
+  },
   title: "홈",
 };
 

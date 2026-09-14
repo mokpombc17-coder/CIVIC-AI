@@ -17,6 +17,13 @@ export const metadata: Metadata = {
   applicationName: "CIVIC.AI",
   description: "자료를 확인하고 의견을 나누며 투표에 참여하는 시민 참여 플랫폼",
   manifest: "/manifest.webmanifest",
+  robots: {
+    follow: false,
+    index: false,
+  },
+  verification: {
+    google: "Caojc4hdAOVV0T9gSPwoopN5hXTebFWe9EZ5PXG4HqY",
+  },
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
