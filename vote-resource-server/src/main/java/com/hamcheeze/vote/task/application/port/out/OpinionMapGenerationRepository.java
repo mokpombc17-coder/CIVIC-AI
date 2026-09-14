@@ -20,6 +20,13 @@ public interface OpinionMapGenerationRepository {
             TaskId taskId,
             int resultVersion);
 
+    default Optional<OpinionMapGeneration> findByTaskResultForUpdate(
+            TaskId taskId,
+            int resultVersion
+    ) {
+        return findByTaskResult(taskId, resultVersion);
+    }
+
     Optional<OpinionMapGeneration> findNextDispatchableForUpdate(
             Instant dueAt);
 }

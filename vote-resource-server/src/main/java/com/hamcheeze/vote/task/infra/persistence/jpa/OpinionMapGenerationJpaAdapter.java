@@ -119,6 +119,29 @@ public class OpinionMapGenerationJpaAdapter
 
     @Override
     @Transactional
+    public Optional<OpinionMapGeneration> findByTaskResultForUpdate(
+            TaskId taskId,
+            int resultVersion
+    ) {
+        Objects.requireNonNull(taskId, "taskId");
+        return entityManager.createQuery("""
+                        SELECT generation
+                        FROM OpinionMapGenerationJpaEntity generation
+                        WHERE generation.taskId = :taskId
+                          AND generation.resultVersion = :resultVersion
+                        """, OpinionMapGenerationJpaEntity.class)
+                .setParameter("taskId", taskId.value())
+                .setParameter("resultVersion", resultVersion)
+                .setLockMode(LockModeType.PESSIMISTIC_WRITE)
+                .setMaxResults(1)
+                .getResultList()
+                .stream()
+                .findFirst()
+                .map(OpinionMapGenerationJpaEntity::toDomain);
+    }
+
+    @Override
+    @Transactional
     @SuppressWarnings("unchecked")
     public Optional<OpinionMapGeneration> findNextDispatchableForUpdate(
             Instant dueAt

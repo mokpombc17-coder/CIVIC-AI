@@ -70,12 +70,32 @@ class VoteAdminApiProductionSecurityIntegrationTest {
                                                 VoteScopes.TASKS_ADMIN)))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.subject").value("admin-a"));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/opinion-map-generations/security-probe")
+                        .with(jwt()
+                                .jwt(token -> token.subject("admin-a"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        VoteScopes.authority(
+                                                VoteScopes.TASKS_ADMIN)))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.subject").value("admin-a"));
     }
 
     @Test
     void deniesTaskAdminApiInProductionWithoutTaskAdminScope()
             throws Exception {
         mockMvc.perform(get("/api/v1/admin/tasks/security-probe")
+                        .with(jwt()
+                                .jwt(token -> token.subject("user-a"))
+                                .authorities(new SimpleGrantedAuthority(
+                                        VoteScopes.authority(
+                                                VoteScopes.TASKS_READ)))))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/opinion-map-generations/security-probe")
                         .with(jwt()
                                 .jwt(token -> token.subject("user-a"))
                                 .authorities(new SimpleGrantedAuthority(
@@ -90,7 +110,8 @@ class VoteAdminApiProductionSecurityIntegrationTest {
 
         @GetMapping({
                 "/api/v1/admin/security-probe",
-                "/api/v1/admin/tasks/security-probe"
+                "/api/v1/admin/tasks/security-probe",
+                "/api/v1/admin/opinion-map-generations/security-probe"
         })
         Map<String, String> probe(Authentication authentication) {
             return Map.of("subject", authentication.getName());

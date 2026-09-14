@@ -84,6 +84,31 @@ class OpinionMapGenerationTest {
         assertThat(generation.outputJson()).isEqualTo("{\"ok\":true}");
     }
 
+    @Test
+    void manualRetryResetsAnUnavailableGeneration() {
+        OpinionMapGeneration generation = pending();
+        UUID claimId = new UUID(0, 7);
+        generation.claim(claimId, NOW, Duration.ofSeconds(60), 1);
+        generation.fail(
+                claimId,
+                "PROVIDER_TIMEOUT",
+                true,
+                1,
+                Duration.ofSeconds(30),
+                NOW.plusSeconds(5));
+
+        generation.scheduleManualRetry(NOW.plusSeconds(10));
+
+        assertThat(generation.status())
+                .isEqualTo(OpinionMapGenerationStatus.PENDING);
+        assertThat(generation.attemptCount()).isZero();
+        assertThat(generation.lastErrorCode()).isNull();
+        assertThat(generation.completedAt()).isNull();
+        assertThat(generation.processingStartedAt()).isNull();
+        assertThat(generation.isDispatchableAt(NOW.plusSeconds(10)))
+                .isTrue();
+    }
+
     private static OpinionMapGeneration pending() {
         return OpinionMapGeneration.pending(
                 new OpinionMapGenerationId(new UUID(0, 1)),

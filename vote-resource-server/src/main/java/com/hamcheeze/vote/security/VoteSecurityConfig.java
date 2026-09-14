@@ -109,7 +109,9 @@ public class VoteSecurityConfig {
                         .denyAll()
                         .requestMatchers(
                                 "/api/v1/admin/tasks",
-                                "/api/v1/admin/tasks/**")
+                                "/api/v1/admin/tasks/**",
+                                "/api/v1/admin/opinion-map-generations",
+                                "/api/v1/admin/opinion-map-generations/**")
                         .hasAuthority(VoteScopes.authority(
                                 VoteScopes.TASKS_ADMIN))
                         .requestMatchers(

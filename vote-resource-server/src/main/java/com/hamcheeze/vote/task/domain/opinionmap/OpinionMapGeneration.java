@@ -206,6 +206,25 @@ public final class OpinionMapGeneration {
         return true;
     }
 
+    public void scheduleManualRetry(Instant now) {
+        Objects.requireNonNull(now, "now");
+        if (status != OpinionMapGenerationStatus.UNAVAILABLE) {
+            throw new IllegalStateException(
+                    "only unavailable Opinion Map generation can be retried");
+        }
+        status = OpinionMapGenerationStatus.PENDING;
+        attemptCount = 0;
+        nextAttemptAt = null;
+        outputJson = null;
+        lastErrorCode = null;
+        processingStartedAt = null;
+        completedAt = null;
+        activeClaimId = null;
+        leaseExpiresAt = null;
+        updatedAt = now;
+        validateConsistency();
+    }
+
     public boolean isDispatchableAt(Instant now) {
         Objects.requireNonNull(now, "now");
         return status == OpinionMapGenerationStatus.PENDING

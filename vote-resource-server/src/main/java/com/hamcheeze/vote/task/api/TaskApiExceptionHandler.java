@@ -133,6 +133,7 @@ final class TaskApiExceptionHandler {
 
     private static HttpStatus domainStatus(String code) {
         if (code.equals("TASK_PREDICTION_DISABLED")
+                || code.equals("OPINION_MAP_GENERATION_DISABLED")
                 || code.equals("TASK_PREPARATION_UNAVAILABLE")
                 || code.equals(
                 "TASK_PREPARATION_VERIFICATION_UNAVAILABLE")) {

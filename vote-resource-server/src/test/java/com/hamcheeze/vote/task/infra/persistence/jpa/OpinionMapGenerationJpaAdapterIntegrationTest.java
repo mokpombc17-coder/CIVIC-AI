@@ -1,11 +1,16 @@
 package com.hamcheeze.vote.task.infra.persistence.jpa;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationManualRequest;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationAdminViewRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationManualRequestRepository;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGeneration;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationId;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationStatus;
+import com.hamcheeze.vote.task.domain.task.Task;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -15,8 +20,11 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Duration;
 import java.time.Instant;
+import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
+import static com.hamcheeze.vote.task.TaskTestFixtures.singleQuestion;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @Import(TestcontainersConfiguration.class)
@@ -30,6 +38,15 @@ class OpinionMapGenerationJpaAdapterIntegrationTest {
 
     @Autowired
     private OpinionMapGenerationRepository generations;
+
+    @Autowired
+    private OpinionMapGenerationAdminViewRepository adminViews;
+
+    @Autowired
+    private OpinionMapGenerationManualRequestRepository manualRequests;
+
+    @Autowired
+    private TaskRepository tasks;
 
     @Test
     void insertsIdempotentlyClaimsAndRestoresTheGeneration() {
@@ -73,5 +90,58 @@ class OpinionMapGenerationJpaAdapterIntegrationTest {
                     assertThat(restored.outputJson())
                             .isEqualTo("{\"status\":\"ok\"}");
                 });
+    }
+
+    @Test
+    void listsUnavailableGenerationAndRecordsManualRetry() {
+        Task task = Task.draft(
+                new TaskId(UUID.randomUUID()),
+                "실패한 과업",
+                "설명",
+                List.of(singleQuestion()),
+                NOW);
+        tasks.save(task);
+        OpinionMapGeneration generation = OpinionMapGeneration.pending(
+                new OpinionMapGenerationId(UUID.randomUUID()),
+                task.id(),
+                1,
+                "b".repeat(64),
+                "task-result-prompt/v1",
+                NOW);
+        generations.insertIfAbsent(generation);
+        UUID claimId = UUID.randomUUID();
+        generation.claim(claimId, NOW, Duration.ofSeconds(60), 1);
+        generation.fail(
+                claimId,
+                "PROVIDER_TIMEOUT",
+                true,
+                1,
+                Duration.ofSeconds(30),
+                NOW.plusSeconds(5));
+        generations.save(generation);
+
+        assertThat(adminViews.findUnavailable(Optional.empty(), 10))
+                .singleElement()
+                .satisfies(row -> {
+                    assertThat(row.taskId()).isEqualTo(task.id());
+                    assertThat(row.taskTitle()).isEqualTo("실패한 과업");
+                    assertThat(row.lastErrorCode())
+                            .isEqualTo("PROVIDER_TIMEOUT");
+                    assertThat(row.failedAt()).isEqualTo(NOW.plusSeconds(5));
+                });
+
+        manualRequests.insert(new OpinionMapGenerationManualRequest(
+                UUID.randomUUID(),
+                generation.id(),
+                OpinionMapGenerationManualRequest.Action.RETRIED,
+                generation.attemptCount(),
+                generation.lastErrorCode(),
+                "admin-a",
+                NOW.plusSeconds(10)));
+        generation.scheduleManualRetry(NOW.plusSeconds(10));
+        generations.save(generation);
+
+        assertThat(adminViews.findUnavailable(Optional.empty(), 10))
+                .isEmpty();
     }
 }
