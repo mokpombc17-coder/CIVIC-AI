@@ -386,6 +386,9 @@ export function formatAdminProblem(problem: AdminProblem): string {
     USER_ACTIVE_ROOM_LIMIT_EXCEEDED: "신청자가 만들 수 있는 활성 토론방 수를 초과했습니다.",
     SIMULATION_NOT_COMPLETED: "아직 결과가 없습니다.",
     TASK_PREPARATION_UNAVAILABLE: "AI 답변 준비를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    TASK_NOT_FOUND: "과업을 찾을 수 없습니다.",
+    TASK_RESULT_NOT_ELIGIBLE: "현재 상태에서는 Opinion Map 생성을 다시 시도할 수 없습니다.",
+    OPINION_MAP_GENERATION_DISABLED: "Opinion Map 생성 기능이 비활성화되어 있습니다.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
   };

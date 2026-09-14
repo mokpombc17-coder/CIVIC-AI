@@ -4,6 +4,7 @@ import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
+import { OpinionMapRetryPanel } from "@/components/admin/opinion-map-retry-panel";
 import { AdminUserWorkspace } from "@/components/admin/admin-user-workspace";
 import { ConsoleMetricStrip } from "@/components/admin/console/console-ui";
 import { formatKrw } from "@/lib/admin/format";
@@ -270,6 +271,7 @@ export function AdminHome({
       />
       <div className="civic-home-columns">
         <AdminPendingChatRequests state={chatRequestSummary} />
+        {canManageVote ? <OpinionMapRetryPanel /> : null}
         {dueSoonTasks.length > 0 ? (
           <HomeSection
             action={

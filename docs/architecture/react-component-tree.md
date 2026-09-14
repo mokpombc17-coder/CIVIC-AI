@@ -118,6 +118,7 @@ AdminCatchAllPage [Server Route]
 ├── requireAdminAccess(role 또는 permission)
 └── AdminShell
     ├── AdminFunctionalScreen [Main/Auth의 A-HOME·A-USER, 관리자 route가 직접 조립]
+    │   ├── OpinionMapRetryPanel [A-HOME의 UNAVAILABLE Opinion Map 목록·cursor 페이지네이션·과업별 수동 재시도]
     │   ├── AdminCurrentOperations [보이는 탭에서 RAG 문서·Simulation·Vote AI 예상 답변 작업 통합 폴링; VOTE_ADMIN 권한으로 초안 상세를 최대 4개 동시 조회]
     │   └── UserDetailDrawer [계정 정보·역할/권한·변경 이력 3개 탭]
     ├── RagFunctionalScreen [RAG]

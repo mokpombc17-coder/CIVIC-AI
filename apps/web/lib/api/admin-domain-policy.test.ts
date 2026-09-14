@@ -8,6 +8,7 @@ import {
   matchChatRoomCategoryAssignmentRoute,
   matchChatRoomDetailRoute,
   matchChatRoomListRoute,
+  matchOpinionMapGenerationAdminRoute,
   matchVoteTaskAdminRoute,
 } from "./admin-domain-policy";
 
@@ -143,6 +144,29 @@ describe("admin domain route allowlist", () => {
     expect(matchVoteTaskAdminRoute("GET", [taskId, "preparation"])).toEqual({
       allowedMethods: ["POST"],
       status: 405,
+    });
+    expect(matchVoteTaskAdminRoute("POST", [taskId, "opinion-map-generation"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/opinion-map-generation`,
+      scope: "vote:tasks:admin",
+    });
+    expect(matchVoteTaskAdminRoute("GET", [taskId, "opinion-map-generation"])).toEqual({
+      allowedMethods: ["POST"],
+      status: 405,
+    });
+  });
+
+  it("allows only the unavailable Opinion Map generation list", () => {
+    expect(matchOpinionMapGenerationAdminRoute("GET", ["unavailable"])).toEqual({
+      path: "/api/v1/admin/opinion-map-generations/unavailable",
+      scope: "vote:tasks:admin",
+    });
+    expect(matchOpinionMapGenerationAdminRoute("POST", ["unavailable"])).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
+    });
+    expect(matchOpinionMapGenerationAdminRoute("GET", ["pending"])).toEqual({
+      allowedMethods: [],
+      status: 404,
     });
   });
 
