@@ -102,7 +102,9 @@ class OpinionMapGenerationPipelineTest {
                 .isEqualTo("opinion-map-prompt");
 
         MyTaskOpinionMap result = new OpinionMapResultQueryService(
-                repository, objectMapper).findForTask(TASK_ID, 1, 2);
+                repository,
+                new OpinionMapGenerationOutputReader(objectMapper))
+                .findForTask(TASK_ID, 1, 2);
         assertThat(result.status())
                 .isEqualTo(MyTaskOpinionMap.Status.AVAILABLE);
         assertThat(result.sameChoice().body()).isEqualTo("same-O2");

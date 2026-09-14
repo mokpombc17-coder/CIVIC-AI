@@ -1,12 +1,20 @@
 package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.Area;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.AreaStatus;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.OptionView;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.Status;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminDetailQueryService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailableItem;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailablePage;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Execution;
+import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
+import com.hamcheeze.vote.task.domain.common.TaskOptionId;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGeneration;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationId;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,6 +25,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.eq;
@@ -38,6 +47,8 @@ class OpinionMapGenerationAdminControllerTest {
             mock(OpinionMapGenerationAdminService.class);
     private final OpinionMapGenerationAdminQueryService queries =
             mock(OpinionMapGenerationAdminQueryService.class);
+    private final OpinionMapGenerationAdminDetailQueryService details =
+            mock(OpinionMapGenerationAdminDetailQueryService.class);
     private final AuthenticatedUserIdResolver userIds =
             mock(AuthenticatedUserIdResolver.class);
     private final Authentication authentication = mock(Authentication.class);
@@ -49,7 +60,7 @@ class OpinionMapGenerationAdminControllerTest {
         when(userIds.resolve(authentication)).thenReturn("admin-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new OpinionMapGenerationAdminController(
-                                commands, queries, userIds))
+                                commands, queries, details, userIds))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
     }
@@ -72,6 +83,80 @@ class OpinionMapGenerationAdminControllerTest {
                 .andExpect(jsonPath("$.status").value("PENDING"))
                 .andExpect(jsonPath("$.attemptCount").value(0))
                 .andExpect(jsonPath("$.action").value("RETRIED"));
+    }
+
+    @Test
+    void returnsEveryOptionSummaryForAdminReview() throws Exception {
+        TaskOptionId optionId = new TaskOptionId(new UUID(0, 30));
+        when(details.findByTaskId(TASK_ID)).thenReturn(Optional.of(
+                new AdminOpinionMapGenerationView(
+                        TASK_ID,
+                        1,
+                        Status.AVAILABLE,
+                        1,
+                        null,
+                        null,
+                        NOW.minusSeconds(5),
+                        NOW,
+                        NOW,
+                        false,
+                        false,
+                        List.of(new OptionView(
+                                optionId,
+                                1,
+                                "선택지 A",
+                                12,
+                                new Area(
+                                        AreaStatus.AVAILABLE,
+                                        "같은 선택의 이유"),
+                                new Area(
+                                        AreaStatus.NO_RESPONSES,
+                                        null))))));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/opinion-map-generation",
+                        TASK_UUID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.taskId")
+                        .value(TASK_UUID.toString()))
+                .andExpect(jsonPath("$.status").value("AVAILABLE"))
+                .andExpect(jsonPath("$.options[0].optionId")
+                        .value(optionId.value().toString()))
+                .andExpect(jsonPath("$.options[0].responseCount")
+                        .value(12))
+                .andExpect(jsonPath("$.options[0].sameChoice.status")
+                        .value("AVAILABLE"))
+                .andExpect(jsonPath("$.options[0].sameChoice.body")
+                        .value("같은 선택의 이유"))
+                .andExpect(jsonPath("$.options[0].otherChoices.status")
+                        .value("NO_RESPONSES"))
+                .andExpect(jsonPath("$.options[0].otherChoices.body")
+                        .doesNotExist());
+    }
+
+    @Test
+    void adminReviewReturnsStableNotFoundProblem() throws Exception {
+        when(details.findByTaskId(TASK_ID)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/opinion-map-generation",
+                        TASK_UUID))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("TASK_NOT_FOUND"));
+    }
+
+    @Test
+    void adminReviewReturnsStableIntegrityFailureProblem() throws Exception {
+        when(details.findByTaskId(TASK_ID)).thenThrow(
+                new TaskResultViewIntegrityException(
+                        TASK_ID, "stored Opinion Map output is invalid"));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/opinion-map-generation",
+                        TASK_UUID))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.code").value(
+                        "TASK_RESULT_VIEW_INTEGRITY_FAILURE"));
     }
 
     @Test

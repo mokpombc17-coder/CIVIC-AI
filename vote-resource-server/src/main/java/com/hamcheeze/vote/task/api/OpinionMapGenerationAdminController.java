@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.AuthenticatedUserIdResolver;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminDetailQueryService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Execution;
@@ -22,16 +23,29 @@ final class OpinionMapGenerationAdminController {
 
     private final OpinionMapGenerationAdminService commands;
     private final OpinionMapGenerationAdminQueryService queries;
+    private final OpinionMapGenerationAdminDetailQueryService details;
     private final AuthenticatedUserIdResolver userIds;
 
     OpinionMapGenerationAdminController(
             OpinionMapGenerationAdminService commands,
             OpinionMapGenerationAdminQueryService queries,
+            OpinionMapGenerationAdminDetailQueryService details,
             AuthenticatedUserIdResolver userIds
     ) {
         this.commands = commands;
         this.queries = queries;
+        this.details = details;
         this.userIds = userIds;
+    }
+
+    @GetMapping("/tasks/{taskId}/opinion-map-generation")
+    OpinionMapGenerationAdminApiModels.DetailResponse findByTaskId(
+            @PathVariable UUID taskId
+    ) {
+        return details.findByTaskId(new TaskId(taskId))
+                .map(OpinionMapGenerationAdminApiModels.DetailResponse::from)
+                .orElseThrow(() -> TaskApiException.notFound(
+                        "TASK_NOT_FOUND", "The task does not exist."));
     }
 
     @PostMapping("/tasks/{taskId}/opinion-map-generation")

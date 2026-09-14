@@ -1,5 +1,8 @@
 package com.hamcheeze.vote.task.api;
 
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.AreaStatus;
+import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.Status;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailableItem;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailablePage;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Execution;
@@ -14,6 +17,70 @@ import java.util.UUID;
 final class OpinionMapGenerationAdminApiModels {
 
     private OpinionMapGenerationAdminApiModels() {
+    }
+
+    record DetailResponse(
+            UUID taskId,
+            Integer resultVersion,
+            Status status,
+            int attemptCount,
+            String lastErrorCode,
+            Instant nextAttemptAt,
+            Instant processingStartedAt,
+            Instant completedAt,
+            Instant updatedAt,
+            boolean canGenerate,
+            boolean canRetry,
+            List<OptionResponse> options
+    ) {
+        static DetailResponse from(AdminOpinionMapGenerationView view) {
+            return new DetailResponse(
+                    view.taskId().value(),
+                    view.resultVersion(),
+                    view.status(),
+                    view.attemptCount(),
+                    view.lastErrorCode(),
+                    view.nextAttemptAt(),
+                    view.processingStartedAt(),
+                    view.completedAt(),
+                    view.updatedAt(),
+                    view.canGenerate(),
+                    view.canRetry(),
+                    view.options().stream()
+                            .map(OptionResponse::from)
+                            .toList());
+        }
+    }
+
+    record OptionResponse(
+            UUID optionId,
+            int displayOrder,
+            String content,
+            Integer responseCount,
+            AreaResponse sameChoice,
+            AreaResponse otherChoices
+    ) {
+        static OptionResponse from(
+                AdminOpinionMapGenerationView.OptionView option
+        ) {
+            return new OptionResponse(
+                    option.optionId().value(),
+                    option.displayOrder(),
+                    option.content(),
+                    option.responseCount(),
+                    AreaResponse.from(option.sameChoice()),
+                    AreaResponse.from(option.otherChoices()));
+        }
+    }
+
+    record AreaResponse(AreaStatus status, String body) {
+        static AreaResponse from(
+                AdminOpinionMapGenerationView.Area area
+        ) {
+            return area == null
+                    ? null
+                    : new AreaResponse(area.status(), area.body());
+        }
     }
 
     record CommandResponse(
