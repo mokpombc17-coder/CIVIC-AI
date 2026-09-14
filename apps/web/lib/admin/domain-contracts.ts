@@ -387,10 +387,10 @@ export function formatAdminProblem(problem: AdminProblem): string {
     SIMULATION_NOT_COMPLETED: "아직 결과가 없습니다.",
     TASK_PREPARATION_UNAVAILABLE: "AI 답변 준비를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
     TASK_NOT_FOUND: "과업을 찾을 수 없습니다.",
-    TASK_RESULT_NOT_ELIGIBLE: "현재 상태에서는 Opinion Map 생성을 다시 시도할 수 없습니다.",
-    OPINION_MAP_GENERATION_DISABLED: "Opinion Map 생성 기능이 비활성화되어 있습니다.",
+    TASK_RESULT_NOT_ELIGIBLE: "현재 상태에서는 정성 요약 생성을 다시 시도할 수 없습니다.",
+    OPINION_MAP_GENERATION_DISABLED: "정성 요약 생성 기능이 비활성화되어 있습니다.",
     TASK_RESULT_VIEW_INTEGRITY_FAILURE:
-      "확정 결과와 저장된 Opinion Map이 일치하지 않습니다. 서버 데이터 점검이 필요합니다.",
+      "확정 결과와 저장된 정성 요약이 일치하지 않습니다. 서버 데이터 점검이 필요합니다.",
     TASK_RESULT_SUMMARY_NOT_FOUND: "아직 확정된 정량 결과가 없습니다.",
     TASK_RESULT_VIEW_NOT_FOUND: "아직 다운로드할 상세 결과가 없습니다.",
   };

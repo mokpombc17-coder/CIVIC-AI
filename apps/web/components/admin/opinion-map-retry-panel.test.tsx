@@ -67,7 +67,7 @@ describe("Opinion Map 관리자 재시도", () => {
     );
 
     await expect(requestOpinionMapRetry(taskId, request as typeof fetch)).rejects.toThrow(
-      "Opinion Map 생성 기능이 비활성화되어 있습니다.",
+      "정성 요약 생성 기능이 비활성화되어 있습니다.",
     );
   });
 
@@ -75,7 +75,8 @@ describe("Opinion Map 관리자 재시도", () => {
     const items = [unavailableItem(), unavailableItem({ taskId: "task-2", canRetry: false })];
     const html = renderView({ status: "ready", items, nextCursor: "next" }, new Set([taskId]));
 
-    expect(html).toContain("Opinion Map 생성 실패");
+    expect(html).toContain("정성 요약 생성 실패");
+    expect(html).not.toContain("Opinion Map");
     expect(html).toContain("2건+");
     expect(html).toContain("AI 응답 시간이 초과되었습니다.");
     expect(html).toContain("재시도 중");
@@ -96,7 +97,7 @@ describe("Opinion Map 관리자 재시도", () => {
     const incoming = [unavailableItem({ attemptCount: 4 }), unavailableItem({ taskId: "task-2" })];
 
     expect(mergeOpinionMapUnavailableItems(current, incoming)).toEqual(incoming);
-    expect(opinionMapFailureMessage("UNKNOWN")).toBe("Opinion Map을 생성하지 못했습니다.");
+    expect(opinionMapFailureMessage("UNKNOWN")).toBe("정성 요약을 생성하지 못했습니다.");
   });
 });
 

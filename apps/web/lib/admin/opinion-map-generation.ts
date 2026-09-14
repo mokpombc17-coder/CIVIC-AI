@@ -60,7 +60,7 @@ export type OpinionMapGeneration = Readonly<{
   nextAttemptAt: string | null;
   processingStartedAt: string | null;
   completedAt: string | null;
-  updatedAt: string;
+  updatedAt: string | null;
   canGenerate: boolean;
   canRetry: boolean;
   options: readonly OpinionMapGenerationOption[];
@@ -123,7 +123,6 @@ export function readOpinionMapGeneration(value: unknown): OpinionMapGeneration |
   const generation = object(value);
   const taskId = generation && nonEmptyString(generation.taskId);
   const status = generation && opinionMapGenerationStatus(generation.status);
-  const updatedAt = generation && timestamp(generation.updatedAt);
   if (
     !generation ||
     !taskId ||
@@ -134,7 +133,7 @@ export function readOpinionMapGeneration(value: unknown): OpinionMapGeneration |
     !nullableTimestamp(generation.nextAttemptAt) ||
     !nullableTimestamp(generation.processingStartedAt) ||
     !nullableTimestamp(generation.completedAt) ||
-    !updatedAt ||
+    !nullableTimestamp(generation.updatedAt) ||
     typeof generation.canGenerate !== "boolean" ||
     typeof generation.canRetry !== "boolean" ||
     !Array.isArray(generation.options)
@@ -167,8 +166,9 @@ export function readOpinionMapGeneration(value: unknown): OpinionMapGeneration |
   }
   if (
     status === "NOT_CREATED" &&
-    (generation.resultVersion !== null ||
-      parsedOptions.some((option) => option.responseCount !== null))
+    (generation.resultVersion === null
+      ? parsedOptions.some((option) => option.responseCount !== null)
+      : parsedOptions.some((option) => option.responseCount === null))
   ) {
     return null;
   }
@@ -182,7 +182,7 @@ export function readOpinionMapGeneration(value: unknown): OpinionMapGeneration |
     nextAttemptAt: generation.nextAttemptAt as string | null,
     processingStartedAt: generation.processingStartedAt as string | null,
     completedAt: generation.completedAt as string | null,
-    updatedAt,
+    updatedAt: generation.updatedAt as string | null,
     canGenerate: generation.canGenerate,
     canRetry: generation.canRetry,
     options: parsedOptions,
@@ -196,7 +196,7 @@ export async function requestOpinionMapUnavailablePage(
   const response = await request(opinionMapUnavailablePath(cursor), { cache: "no-store" });
   if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
   const page = readOpinionMapUnavailablePage(await response.json());
-  if (!page) throw new Error("Opinion Map 실패 목록의 응답 형식을 확인하지 못했습니다.");
+  if (!page) throw new Error("정성 요약 실패 목록의 응답 형식을 확인하지 못했습니다.");
   return page;
 }
 
@@ -207,7 +207,7 @@ export async function requestOpinionMapRetry(
   const response = await request(opinionMapRetryPath(taskId), { method: "POST" });
   if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
   const result = readOpinionMapRetryResult(await response.json());
-  if (!result) throw new Error("Opinion Map 재시도 응답 형식을 확인하지 못했습니다.");
+  if (!result) throw new Error("정성 요약 재시도 응답 형식을 확인하지 못했습니다.");
   return result;
 }
 
@@ -223,7 +223,7 @@ export async function requestOpinionMapGeneration(
   if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
   const generation = readOpinionMapGeneration(await response.json());
   if (!generation || generation.taskId !== taskId) {
-    throw new Error("Opinion Map 검수 응답 형식을 확인하지 못했습니다.");
+    throw new Error("정성 요약 조회 응답 형식을 확인하지 못했습니다.");
   }
   return generation;
 }
@@ -241,7 +241,7 @@ export function opinionMapFailureMessage(code: string): string {
   return (
     {
       OPINION_MAP_OPENROUTER_TIMEOUT: "AI 응답 시간이 초과되었습니다.",
-    }[code] ?? "Opinion Map을 생성하지 못했습니다."
+    }[code] ?? "정성 요약을 생성하지 못했습니다."
   );
 }
 

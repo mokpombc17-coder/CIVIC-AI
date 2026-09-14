@@ -52,7 +52,14 @@ describe("Opinion Map 관리자 검수 계약", () => {
     expect(readOpinionMapGeneration(availableGeneration())).toEqual(availableGeneration());
   });
 
-  it("NOT_CREATED의 null 버전·응답 수를 읽는다", () => {
+  it("updatedAt이 null인 응답을 읽는다", () => {
+    expect(readOpinionMapGeneration({ ...availableGeneration(), updatedAt: null })).toMatchObject({
+      updatedAt: null,
+      status: "AVAILABLE",
+    });
+  });
+
+  it("manifest가 없는 NOT_CREATED의 null 버전·응답 수를 읽는다", () => {
     const value = {
       ...availableGeneration(),
       resultVersion: null,
@@ -73,6 +80,55 @@ describe("Opinion Map 관리자 검수 계약", () => {
       resultVersion: null,
       canGenerate: true,
     });
+  });
+
+  it("manifest가 있는 NOT_CREATED의 버전·응답 수를 읽는다", () => {
+    const value = {
+      ...availableGeneration(),
+      status: "NOT_CREATED",
+      attemptCount: 0,
+      processingStartedAt: null,
+      completedAt: null,
+      updatedAt: null,
+      canGenerate: true,
+      options: availableGeneration().options.map((option) => ({
+        ...option,
+        sameChoice: null,
+        otherChoices: null,
+      })),
+    };
+    expect(readOpinionMapGeneration(value)).toMatchObject({
+      status: "NOT_CREATED",
+      resultVersion: 1,
+      updatedAt: null,
+      options: [{ responseCount: 12 }, { responseCount: 0 }],
+    });
+  });
+
+  it("NOT_CREATED의 manifest와 응답 수가 서로 다른 형태를 거부한다", () => {
+    const options = availableGeneration().options.map((option) => ({
+      ...option,
+      sameChoice: null,
+      otherChoices: null,
+    }));
+    expect(
+      readOpinionMapGeneration({
+        ...availableGeneration(),
+        status: "NOT_CREATED",
+        resultVersion: null,
+        options,
+      }),
+    ).toBeNull();
+    expect(
+      readOpinionMapGeneration({
+        ...availableGeneration(),
+        status: "NOT_CREATED",
+        options: options.map((option, index) => ({
+          ...option,
+          responseCount: index === 0 ? null : option.responseCount,
+        })),
+      }),
+    ).toBeNull();
   });
 
   it("비 AVAILABLE 상태의 요약 본문과 잘못된 영역 본문을 거부한다", () => {
@@ -102,7 +158,7 @@ describe("Opinion Map 관리자 검수 계약", () => {
 
     request.mockResolvedValueOnce(Response.json({ ...availableGeneration(), taskId: "다른-과업" }));
     await expect(requestOpinionMapGeneration(taskId, request)).rejects.toThrow(
-      "Opinion Map 검수 응답 형식을 확인하지 못했습니다.",
+      "정성 요약 조회 응답 형식을 확인하지 못했습니다.",
     );
   });
 
@@ -116,7 +172,7 @@ describe("Opinion Map 관리자 검수 계약", () => {
         ),
       );
     await expect(requestOpinionMapGeneration(taskId, request)).rejects.toThrow(
-      "확정 결과와 저장된 Opinion Map이 일치하지 않습니다. 서버 데이터 점검이 필요합니다. 문의 코드: trace-review-1",
+      "확정 결과와 저장된 정성 요약이 일치하지 않습니다. 서버 데이터 점검이 필요합니다. 문의 코드: trace-review-1",
     );
   });
 });
@@ -129,8 +185,9 @@ describe("Opinion Map 관리자 검수 화면", () => {
     });
     expect(html).toContain("같은 선택 의견");
     expect(html).toContain("다른 선택 의견");
-    expect(html).toContain("Opinion Map 생성 결과");
+    expect(html).toContain("정성 요약");
     expect(html).toContain("생성 완료");
+    expect(html).not.toContain("Opinion Map");
     expect(html).not.toContain("검수 가능");
     expect(html).toContain("같은 선택을 한 참여자의 이유입니다.");
     expect(html).toContain("이 선택지를 고른 응답이 없습니다.");
@@ -155,7 +212,7 @@ describe("Opinion Map 관리자 검수 화면", () => {
     });
     const html = renderView({ status: "ready", generation: generation! });
     expect(html).toContain("생성 전");
-    expect(html).toContain("Opinion Map 생성");
+    expect(html).toContain("정성 요약 생성");
   });
 
   it("조회 실패 시 오류와 다시 불러오기 동작을 표시한다", () => {

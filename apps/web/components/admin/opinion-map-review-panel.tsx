@@ -55,8 +55,8 @@ export function OpinionMapReviewPanel({
         result.action === "UNCHANGED"
           ? "이미 상태가 변경되어 최신 상태를 확인했습니다."
           : result.action === "CREATED"
-            ? "Opinion Map 생성을 요청했습니다."
-            : "Opinion Map 생성을 다시 요청했습니다.",
+            ? "정성 요약 생성을 요청했습니다."
+            : "정성 요약 생성을 다시 요청했습니다.",
       );
     } catch (error) {
       setNotice(errorMessage(error));
@@ -102,12 +102,12 @@ export function OpinionMapReviewPanelView({
       className="civic-domain-result civic-opinion-map-review"
     >
       <header>
-        <span>Opinion Map 생성 결과</span>
+        <span>정성 요약</span>
         <h2 id="civic-opinion-map-review-title">선택지별 의견 요약</h2>
       </header>
 
       {state.status === "loading" ? (
-        <ConsoleStatus>Opinion Map 결과를 불러오는 중입니다.</ConsoleStatus>
+        <ConsoleStatus>정성 요약을 불러오는 중입니다.</ConsoleStatus>
       ) : null}
 
       {state.status === "unavailable" ? (
@@ -145,7 +145,7 @@ function OpinionMapGenerationView({
   onReload: () => void;
 }>) {
   const actionLabel = generation.canGenerate
-    ? "Opinion Map 생성"
+    ? "정성 요약 생성"
     : generation.canRetry
       ? "생성 재시도"
       : null;
@@ -157,8 +157,8 @@ function OpinionMapGenerationView({
         <strong>{opinionMapStatusLabel(generation.status)}</strong>
         <span>{opinionMapStatusMessage(generation)}</span>
         <small>
-          시도 {generation.attemptCount.toLocaleString("ko-KR")}회 · 최근 상태{" "}
-          {formatAdminDate(generation.updatedAt)}
+          시도 {generation.attemptCount.toLocaleString("ko-KR")}회
+          {generation.updatedAt ? <> · 최근 상태 {formatAdminDate(generation.updatedAt)}</> : null}
         </small>
       </div>
 
@@ -240,10 +240,10 @@ function opinionMapStatusLabel(status: OpinionMapGenerationStatus): string {
 function opinionMapStatusMessage(generation: OpinionMapGeneration): string {
   switch (generation.status) {
     case "NOT_ELIGIBLE":
-      return "아직 결과 대상이 아니거나 Opinion Map 결과 비대상으로 종료된 과업입니다.";
+      return "아직 결과 대상이 아니거나 정성 요약 비대상으로 종료된 과업입니다.";
     case "NOT_CREATED":
       return generation.canGenerate
-        ? "아직 Opinion Map 생성 이력이 없습니다."
+        ? "아직 정성 요약 생성 이력이 없습니다."
         : "아직 생성 이력이 없으며 현재 수동 생성을 사용할 수 없습니다.";
     case "PENDING":
       return "생성 요청이 접수되어 대기 중입니다.";
@@ -254,7 +254,11 @@ function opinionMapStatusMessage(generation: OpinionMapGeneration): string {
         ? `${formatAdminDate(generation.nextAttemptAt)}에 자동으로 다시 시도합니다.`
         : "자동 재시도를 기다리고 있습니다.";
     case "AVAILABLE":
-      return `버전 ${generation.resultVersion} · ${formatAdminDate(generation.completedAt ?? generation.updatedAt)} 완료`;
+      return (generation.completedAt ?? generation.updatedAt)
+        ? `버전 ${generation.resultVersion} · ${formatAdminDate(
+            generation.completedAt ?? generation.updatedAt,
+          )} 완료`
+        : `버전 ${generation.resultVersion} · 생성 완료`;
     case "UNAVAILABLE":
       return `${opinionMapFailureMessage(generation.lastErrorCode ?? "")}${
         generation.canRetry ? "" : " 현재 수동 재시도를 사용할 수 없습니다."

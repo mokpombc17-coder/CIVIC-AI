@@ -68,7 +68,7 @@ export function OpinionMapRetryPanel({
       setNotice(
         result.action === "UNCHANGED"
           ? "이미 상태가 변경되어 최신 목록을 확인했습니다."
-          : "Opinion Map 생성을 다시 요청했습니다.",
+          : "정성 요약 생성을 다시 요청했습니다.",
       );
     } catch (error) {
       setNotice(errorMessage(error));
@@ -141,7 +141,7 @@ export function OpinionMapRetryPanelView({
     >
       <header className="civic-home-section-header">
         <h2 id="civic-opinion-map-retry-title">
-          Opinion Map 생성 실패
+          정성 요약 생성 실패
           {state.status === "ready" ? (
             <span className="civic-home-section-count">
               {state.items.length}건{state.nextCursor ? "+" : ""}
@@ -175,7 +175,7 @@ export function OpinionMapRetryPanelView({
                     </small>
                   </div>
                   <button
-                    aria-label={`${item.taskTitle} Opinion Map 재시도`}
+                    aria-label={`${item.taskTitle} 정성 요약 재시도`}
                     className="civic-opinion-map-retry-button"
                     disabled={!item.canRetry || retrying}
                     onClick={() => onRetry(item.taskId)}
