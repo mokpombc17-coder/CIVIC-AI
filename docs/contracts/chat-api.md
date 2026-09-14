@@ -443,7 +443,8 @@ C0 제어문자는 허용하지 않는다. Markdown 또는 HTML 렌더링 의미
   "ownerMembershipId": "membership-01",
   "roomVersion": 1,
   "ownerMembershipVersion": 1,
-  "rejectionReason": null
+  "rejectionReason": null,
+  "roomStatus": "ACTIVE"
 }
 ```
 
@@ -468,7 +469,8 @@ Location: /api/v1/rooms/{roomId}
   "ownerMembershipId": null,
   "roomVersion": null,
   "ownerMembershipVersion": null,
-  "rejectionReason": null
+  "rejectionReason": null,
+  "roomStatus": null
 }
 ```
 
@@ -505,6 +507,10 @@ GET /api/v1/me/room-creation-requests/{creationRequestId}
 
 상태 조회는 `POST /api/v1/rooms`와 동일한
 `RoomCreationRequestResponse` DTO를 사용하고 `replayed=false`로 응답한다.
+`status`는 생성 신청의 처리 상태다. `roomStatus`는 승인으로 생성된 현재 방의
+상태이며, `APPROVED` 신청에는 `ACTIVE` 또는 `CLOSED`, 그 외 신청에는 `null`이
+들어간다. 이 필드는 사용자용 `RoomCreationRequestResponse`에만 제공하며 관리자
+신청 응답 DTO는 변경하지 않는다.
 
 신청자는 `PENDING` 신청만 취소할 수 있다.
 

@@ -6,6 +6,8 @@ import com.hamcheeze.chat.room.creation.RoomCreationRequest;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestExecution;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
 import com.hamcheeze.chat.room.query.CursorPage;
+import com.hamcheeze.chat.room.query.RoomCreationRequestQueryService;
+import com.hamcheeze.chat.room.query.model.RoomCreationRequestView;
 import org.springframework.http.CacheControl;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
@@ -16,6 +18,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/v1/me/room-creation-requests")
 public class RoomCreationRequestController {
@@ -23,15 +27,18 @@ public class RoomCreationRequestController {
     private final RoomCreationRequestService service;
     private final AuthenticatedUserIdResolver userIdResolver;
     private final RoomCreationRequestHttpMapper httpMapper;
+    private final RoomCreationRequestQueryService queryService;
 
     public RoomCreationRequestController(
             RoomCreationRequestService service,
             AuthenticatedUserIdResolver userIdResolver,
-            RoomCreationRequestHttpMapper httpMapper
+            RoomCreationRequestHttpMapper httpMapper,
+            RoomCreationRequestQueryService queryService
     ) {
         this.service = service;
         this.userIdResolver = userIdResolver;
         this.httpMapper = httpMapper;
+        this.queryService = queryService;
     }
 
     @GetMapping
@@ -46,13 +53,16 @@ public class RoomCreationRequestController {
                 requester,
                 cursor,
                 RoomApiValidation.limit(limit));
+        List<RoomCreationRequestView> views =
+                queryService.views(page.items());
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore())
                 .body(new CursorPageResponse<>(
-                        page.items().stream()
-                                .map(item -> httpMapper.response(
-                                        item,
-                                        false))
+                        views.stream()
+                                .map(view -> httpMapper.response(
+                                        view.request(),
+                                        false,
+                                        view.roomStatus()))
                                 .toList(),
                         page.nextCursor(),
                         page.hasNext()));
@@ -70,7 +80,9 @@ public class RoomCreationRequestController {
                 .cacheControl(CacheControl.noStore())
                 .body(httpMapper.response(
                         execution.request(),
-                        execution.replayed()));
+                        execution.replayed(),
+                        queryService.view(execution.request())
+                                .roomStatus()));
     }
 
     @PostMapping("/{creationRequestId}/cancel")
@@ -78,8 +90,11 @@ public class RoomCreationRequestController {
             Authentication authentication,
             @PathVariable String creationRequestId
     ) {
-        return httpMapper.canceled(service.cancelOwn(
+        RoomCreationRequestExecution execution = service.cancelOwn(
                 userIdResolver.resolve(authentication),
-                creationRequestId));
+                creationRequestId);
+        return httpMapper.canceled(
+                execution,
+                queryService.view(execution.request()).roomStatus());
     }
 }

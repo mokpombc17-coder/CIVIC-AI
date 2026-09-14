@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.api.dto;
 import com.hamcheeze.chat.room.creation.RoomCreationRejectionReason;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestResultCode;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
+import com.hamcheeze.chat.room.RoomStatus;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -20,7 +21,8 @@ public record RoomCreationRequestResponse(
         String ownerMembershipId,
         Long roomVersion,
         Long ownerMembershipVersion,
-        String rejectionReason
+        String rejectionReason,
+        RoomStatus roomStatus
 ) {
 
     public RoomCreationRequestResponse {
@@ -46,6 +48,7 @@ public record RoomCreationRequestResponse(
 
         switch (status) {
             case PENDING -> {
+                requireNoRoomStatus(roomStatus);
                 requireUnresolved(resolvedAt);
                 requireNoRoom(
                         roomId,
@@ -55,6 +58,7 @@ public record RoomCreationRequestResponse(
                 requireNoRejectionReason(rejectionReason);
             }
             case APPROVED -> {
+                Objects.requireNonNull(roomStatus, "roomStatus");
                 requireResolved(resolvedAt);
                 roomId = requireText(roomId, "roomId");
                 ownerMembershipId = requireText(
@@ -67,6 +71,7 @@ public record RoomCreationRequestResponse(
                 requireNoRejectionReason(rejectionReason);
             }
             case REJECTED -> {
+                requireNoRoomStatus(roomStatus);
                 requireResolved(resolvedAt);
                 requireNoRoom(
                         roomId,
@@ -78,6 +83,7 @@ public record RoomCreationRequestResponse(
                                 rejectionReason);
             }
             case CANCELED -> {
+                requireNoRoomStatus(roomStatus);
                 requireResolved(resolvedAt);
                 requireNoRoom(
                         roomId,
@@ -142,6 +148,13 @@ public record RoomCreationRequestResponse(
         if (rejectionReason != null) {
             throw new IllegalArgumentException(
                     "only a rejected request may have a reason");
+        }
+    }
+
+    private static void requireNoRoomStatus(RoomStatus roomStatus) {
+        if (roomStatus != null) {
+            throw new IllegalArgumentException(
+                    "only an approved request may have a Room status");
         }
     }
 }

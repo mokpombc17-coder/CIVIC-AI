@@ -6,6 +6,7 @@ import com.hamcheeze.chat.room.query.ListedRoomQueryCursorCodec;
 import com.hamcheeze.chat.room.inbox.RoomInboxCursorCodec;
 import com.hamcheeze.chat.room.query.ListedRoomQueryService;
 import com.hamcheeze.chat.room.query.RoomQueryCursorCodec;
+import com.hamcheeze.chat.room.query.RoomCreationRequestQueryService;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.query.RoomQueryService;
 import com.hamcheeze.chat.userlabel.AuthenticatedUserLabelRegistrar;
@@ -60,6 +61,12 @@ public class RoomApiConfiguration {
     AdminRoomCreationRequestHttpMapper
     adminRoomCreationRequestHttpMapper() {
         return new AdminRoomCreationRequestHttpMapper();
+    }
+
+    @Bean
+    RoomCreationRequestQueryService
+    roomCreationRequestQueryService(RoomQueryReader reader) {
+        return new RoomCreationRequestQueryService(reader);
     }
 
     @Bean

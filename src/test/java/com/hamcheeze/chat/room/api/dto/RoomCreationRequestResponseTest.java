@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.api.dto;
 
+import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestResultCode;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 import org.junit.jupiter.api.Test;
@@ -44,7 +45,8 @@ class RoomCreationRequestResponseTest {
                         "ownerMembershipId",
                         "roomVersion",
                         "ownerMembershipVersion",
-                        "rejectionReason"));
+                        "rejectionReason",
+                        "roomStatus"));
         assertThat(json.get("code").asText())
                 .isEqualTo("ROOM_CREATION_REQUESTED");
         assertThat(json.get("name").asText()).isEqualTo(NAME);
@@ -69,7 +71,8 @@ class RoomCreationRequestResponseTest {
                         "membership-1",
                         0L,
                         0L,
-                        null);
+                        null,
+                        RoomStatus.ACTIVE);
         RoomCreationRequestResponse rejected =
                 new RoomCreationRequestResponse(
                         "client-2",
@@ -85,7 +88,8 @@ class RoomCreationRequestResponseTest {
                         null,
                         null,
                         null,
-                        "  생성 목적을 확인할 수 없습니다.  ");
+                        "  생성 목적을 확인할 수 없습니다.  ",
+                        null);
         RoomCreationRequestResponse canceled =
                 new RoomCreationRequestResponse(
                         "client-3",
@@ -101,9 +105,11 @@ class RoomCreationRequestResponseTest {
                         null,
                         null,
                         null,
+                        null,
                         null);
 
         assertThat(approved.roomId()).isEqualTo("room-1");
+        assertThat(approved.roomStatus()).isEqualTo(RoomStatus.ACTIVE);
         assertThat(rejected.rejectionReason())
                 .isEqualTo("생성 목적을 확인할 수 없습니다.");
         assertThat(canceled.status())
@@ -120,6 +126,7 @@ class RoomCreationRequestResponseTest {
                 NAME,
                 RoomCreationRequestStatus.PENDING,
                 REQUESTED_AT,
+                null,
                 null,
                 null,
                 null,
@@ -142,7 +149,8 @@ class RoomCreationRequestResponseTest {
                 null,
                 null,
                 null,
-                null))
+                null,
+                RoomStatus.ACTIVE))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("roomId must not be blank");
 
@@ -154,6 +162,7 @@ class RoomCreationRequestResponseTest {
                 "  ",
                 RoomCreationRequestStatus.PENDING,
                 REQUESTED_AT,
+                null,
                 null,
                 null,
                 null,
@@ -174,6 +183,7 @@ class RoomCreationRequestResponseTest {
                 NAME,
                 RoomCreationRequestStatus.PENDING,
                 REQUESTED_AT,
+                null,
                 null,
                 null,
                 null,

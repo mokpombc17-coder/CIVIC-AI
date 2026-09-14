@@ -18,6 +18,8 @@ import com.hamcheeze.chat.room.application.command.UpdateRoomSettingsCommand;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.api.dto.RoomCreationRequestResponse;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestService;
+import com.hamcheeze.chat.room.creation.RoomCreationRequestExecution;
+import com.hamcheeze.chat.room.query.RoomCreationRequestQueryService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -47,6 +49,8 @@ public class RoomCommandController {
     private final RoomCommandHttpMapper httpMapper;
     private final RoomCreationRequestHttpMapper
             creationRequestHttpMapper;
+    private final RoomCreationRequestQueryService
+            creationRequestQueryService;
 
     public RoomCommandController(
             RoomCommandService commandService,
@@ -56,7 +60,8 @@ public class RoomCommandController {
                     membershipLimitModeResolver,
             RoomIdempotencyKeyResolver idempotencyKeyResolver,
             RoomCommandHttpMapper httpMapper,
-            RoomCreationRequestHttpMapper creationRequestHttpMapper
+            RoomCreationRequestHttpMapper creationRequestHttpMapper,
+            RoomCreationRequestQueryService creationRequestQueryService
     ) {
         this.commandService = commandService;
         this.creationRequestService = creationRequestService;
@@ -66,6 +71,8 @@ public class RoomCommandController {
         this.idempotencyKeyResolver = idempotencyKeyResolver;
         this.httpMapper = httpMapper;
         this.creationRequestHttpMapper = creationRequestHttpMapper;
+        this.creationRequestQueryService =
+                creationRequestQueryService;
     }
 
     @PostMapping
@@ -80,7 +87,7 @@ public class RoomCommandController {
         String requester = userIdResolver.resolve(authentication);
         String requestId =
                 idempotencyKeyResolver.resolve(idempotencyKey);
-        return creationRequestHttpMapper.submission(
+        RoomCreationRequestExecution execution =
                 creationRequestService.submit(
                         new CreateRoomCommand(
                                 requester,
@@ -91,7 +98,11 @@ public class RoomCommandController {
                                 request.visibility(),
                                 request.joinPolicy()),
                         membershipLimitModeResolver.resolve(
-                                authentication)));
+                                authentication));
+        return creationRequestHttpMapper.submission(
+                execution,
+                creationRequestQueryService.view(execution.request())
+                        .roomStatus());
     }
 
     @PostMapping("/{roomId}/commands/join")

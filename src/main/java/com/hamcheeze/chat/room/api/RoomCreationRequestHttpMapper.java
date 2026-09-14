@@ -1,6 +1,7 @@
 package com.hamcheeze.chat.room.api;
 
 import com.hamcheeze.chat.room.api.dto.RoomCreationRequestResponse;
+import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.creation.RoomCreationRequest;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestExecution;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestResultCode;
@@ -14,7 +15,8 @@ import java.util.Objects;
 public final class RoomCreationRequestHttpMapper {
 
     public ResponseEntity<RoomCreationRequestResponse> submission(
-            RoomCreationRequestExecution execution
+            RoomCreationRequestExecution execution,
+            RoomStatus roomStatus
     ) {
         RoomCreationRequest request = Objects.requireNonNull(
                 execution,
@@ -26,23 +28,31 @@ public final class RoomCreationRequestHttpMapper {
         };
         return ResponseEntity.status(status)
                 .location(location(request))
-                .body(response(request, execution.replayed()));
+                .body(response(
+                        request,
+                        execution.replayed(),
+                        roomStatus));
     }
 
     public ResponseEntity<RoomCreationRequestResponse> canceled(
-            RoomCreationRequestExecution execution
+            RoomCreationRequestExecution execution,
+            RoomStatus roomStatus
     ) {
         RoomCreationRequest request = Objects.requireNonNull(
                 execution,
                 "execution").request();
         return ResponseEntity.ok()
                 .location(requestLocation(request.creationRequestId()))
-                .body(response(request, execution.replayed()));
+                .body(response(
+                        request,
+                        execution.replayed(),
+                        roomStatus));
     }
 
     public RoomCreationRequestResponse response(
             RoomCreationRequest request,
-            boolean replayed
+            boolean replayed,
+            RoomStatus roomStatus
     ) {
         RoomCreationRequest source = Objects.requireNonNull(
                 request,
@@ -60,7 +70,8 @@ public final class RoomCreationRequestHttpMapper {
                 source.ownerMembershipId(),
                 source.roomVersion(),
                 source.ownerMembershipVersion(),
-                source.rejectionReason());
+                source.rejectionReason(),
+                roomStatus);
     }
 
     private static RoomCreationRequestResultCode resultCode(

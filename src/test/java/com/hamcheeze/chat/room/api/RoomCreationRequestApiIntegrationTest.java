@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.api;
 
+import com.hamcheeze.chat.room.category.RoomCategoryDefaults;
 import com.hamcheeze.chat.room.creation.RoomCreationRequestStatus;
 import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
@@ -58,6 +59,7 @@ class RoomCreationRequestApiIntegrationTest
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_CREATION_REQUESTED"))
                 .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.roomStatus").isEmpty())
                 .andExpect(jsonPath("$.replayed").value(false))
                 .andExpect(jsonPath("$.roomId").isEmpty())
                 .andExpect(jsonPath("$.ownerMembershipId").isEmpty())
@@ -118,6 +120,7 @@ class RoomCreationRequestApiIntegrationTest
                 .andExpect(jsonPath("$.code")
                         .value("ROOM_CREATION_CANCELED"))
                 .andExpect(jsonPath("$.status").value("CANCELED"))
+                .andExpect(jsonPath("$.roomStatus").isEmpty())
                 .andExpect(jsonPath("$.replayed").value(false));
 
         mockMvc.perform(post(
@@ -126,6 +129,49 @@ class RoomCreationRequestApiIntegrationTest
                         .with(jwt("requester-1", ChatScopes.ROOMS_WRITE)))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.replayed").value(true));
+    }
+
+    @Test
+    void ownRequestShowsCurrentStatusOfApprovedRoom()
+            throws Exception {
+        MvcResult submitted = submit(
+                "requester-status",
+                requestId(),
+                "Status room")
+                .andExpect(status().isAccepted())
+                .andReturn();
+        String creationRequestId = json(submitted)
+                .get("creationRequestId").asText();
+        MvcResult approved = mockMvc.perform(post(
+                        "/api/v1/admin/room-creation-requests/{id}/approve",
+                        creationRequestId)
+                        .with(jwt(
+                                "admin-status",
+                                ChatScopes.ROOMS_APPROVE))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"categoryIds\":[\""
+                                + RoomCategoryDefaults.POLICY_CATEGORY_ID
+                                + "\"]}"))
+                .andExpect(status().isCreated())
+                .andReturn();
+        String roomId = json(approved).get("roomId").asText();
+
+        ownRequest(creationRequestId, "requester-status")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomStatus").value("ACTIVE"));
+
+        mockMvc.perform(post(
+                        "/api/v1/rooms/{roomId}/commands/close",
+                        roomId)
+                        .with(jwt(
+                                "requester-status",
+                                ChatScopes.ROOMS_WRITE))
+                        .header("Idempotency-Key", requestId()))
+                .andExpect(status().isOk());
+
+        ownRequest(creationRequestId, "requester-status")
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.roomStatus").value("CLOSED"));
     }
 
     @Test
@@ -251,6 +297,16 @@ class RoomCreationRequestApiIntegrationTest
                           "joinPolicy":"OPEN"
                         }
                         """.formatted(name)));
+    }
+
+    private org.springframework.test.web.servlet.ResultActions ownRequest(
+            String creationRequestId,
+            String userId
+    ) throws Exception {
+        return mockMvc.perform(get(
+                        "/api/v1/me/room-creation-requests/{id}",
+                        creationRequestId)
+                .with(jwt(userId, ChatScopes.ROOMS_READ)));
     }
 
     private static JwtRequestPostProcessor jwt(
