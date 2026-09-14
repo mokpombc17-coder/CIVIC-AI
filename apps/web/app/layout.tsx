@@ -15,7 +15,8 @@ export const dynamic = "force-dynamic";
 export const metadata: Metadata = {
   ...(siteUrl ? { metadataBase: siteUrl } : {}),
   applicationName: "CIVIC.AI",
-  description: "자료를 확인하고 의견을 나누며 투표에 참여하는 시민 참여 플랫폼",
+  description:
+    "자료를 살펴보고, 다양한 생각을 나누며, 투표로 의견을 더하는 AI 기반 시민 참여 플랫폼 CIVIC.AI",
   manifest: "/manifest.webmanifest",
   robots: {
     follow: false,
