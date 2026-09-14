@@ -75,7 +75,7 @@ export function ParticipantHomeActions({
           ),
           badge: "토론방",
           description: "관심 있는 주제를 골라 함께\n이야기해 보세요.",
-          title: "같은 주제와 저마다의 생각",
+          title: "같은 주제로 나누는 생각들",
         },
         {
           action: (
@@ -89,7 +89,7 @@ export function ParticipantHomeActions({
           ),
           badge: "투표",
           description: "이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.",
-          title: "내 의견으로 채워가는 논의",
+          title: "내 의견을 더하는 투표",
         },
       ]}
     />
