@@ -22,5 +22,6 @@ export default async function RefreshPage({ searchParams }: RefreshPageProps) {
 
 function participantRefreshPathname(returnTo: string): string | null {
   const pathname = new URL(returnTo, "https://civic.invalid").pathname;
-  return /^\/(?:mypage|rag)(?:\/|$)/u.test(pathname) ? pathname : null;
+  if (/^\/survey(?:\/|$)/u.test(pathname)) return "/mypage/survey";
+  return /^\/(?:account|mypage|rag|chat|vote)(?:\/|$)/u.test(pathname) ? pathname : null;
 }
