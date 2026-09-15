@@ -1,4 +1,5 @@
 import type { Metadata, Viewport } from "next";
+import { GoogleAnalytics } from "@next/third-parties/google";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
@@ -55,6 +56,7 @@ export default function RootLayout({ children }: Readonly<{ children: ReactNode 
       <body>
         <AppShell>{children}</AppShell>
       </body>
+      {process.env.NODE_ENV === "production" ? <GoogleAnalytics gaId="G-VYNQG10QHJ" /> : null}
     </html>
   );
 }
