@@ -1391,6 +1391,27 @@ textarea.textControl {
   animation: survey-spinner-rotate 760ms linear infinite;
 }
 
+.loadingIcon {
+  display: grid;
+  width: 48px;
+  height: 48px;
+  place-items: center;
+  justify-self: center;
+  border-radius: 50%;
+  margin-bottom: 8px;
+  background: #e8edff;
+}
+
+.loadingIconSpinner {
+  width: 24px;
+  height: 24px;
+  box-sizing: border-box;
+  border: 3px solid #b8c4ee;
+  border-top-color: var(--platform-shell-color-primary);
+  border-radius: 50%;
+  animation: survey-spinner-rotate 760ms linear infinite;
+}
+
 @keyframes survey-spinner-rotate {
   to {
     transform: rotate(360deg);
@@ -1536,6 +1557,7 @@ textarea.textControl {
   }
 
   .loadingSpinner,
+  .loadingIconSpinner,
   .postcodeSpinner {
     animation: none;
   }

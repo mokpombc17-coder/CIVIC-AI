@@ -48,6 +48,7 @@ import {
   SurveyStepCard,
   shouldShowSurveyHeaderProgress,
 } from "./survey-flow";
+import { SurveyLoadingStatus } from "./survey-loading";
 import { SurveySectionFields } from "./survey-question-fields";
 import styles from "./survey.module.css";
 
@@ -126,9 +127,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
           <SurveySubmissionCompletion result={submissionResult} returnTo={returnTo} />
         ) : (
           <>
-            {surveyQuery.isPending ? (
-              <SurveyStatus loading title="설문을 불러오는 중입니다." />
-            ) : null}
+            {surveyQuery.isPending ? <SurveyLoadingStatus /> : null}
             {surveyQuery.isError ? (
               <SurveyStatus
                 actions={
