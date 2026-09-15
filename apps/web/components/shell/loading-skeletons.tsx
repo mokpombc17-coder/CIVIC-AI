@@ -528,7 +528,7 @@ function LoadingAnnouncement() {
 }
 
 function participantScreen(pathname: string): ScreenDefinition {
-  const screen = getScreenByRoute(pathname);
+  const screen = getScreenByRoute(pathname === "/survey" ? "/account/survey" : pathname);
   if (screen && screen.audience !== "ADMIN") return screen;
   return fallbackScreen("U-HOME-001", "/home", "홈", "PARTICIPANT", "MAIN_AUTH");
 }

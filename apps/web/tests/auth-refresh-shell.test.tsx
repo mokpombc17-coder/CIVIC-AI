@@ -1,3 +1,4 @@
+import { isValidElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import Loading from "@/app/loading";
@@ -51,6 +52,14 @@ describe("authentication transition shells", () => {
     const page = await RefreshPage({
       searchParams: Promise.resolve({ returnTo: "/survey?returnTo=%2Frag" }),
     });
+    expect(isValidElement<{ loadingFallback: unknown }>(page)).toBe(true);
+    if (!isValidElement<{ loadingFallback: unknown }>(page)) throw new Error("Invalid page");
+    expect(isValidElement<{ pathname: string }>(page.props.loadingFallback)).toBe(true);
+    if (!isValidElement<{ pathname: string }>(page.props.loadingFallback)) {
+      throw new Error("Invalid loading fallback");
+    }
+    expect(page.props.loadingFallback.props.pathname).toBe("/survey");
+
     const markup = renderToStaticMarkup(page);
 
     expect(markup).toContain('data-platform-shell="true"');
