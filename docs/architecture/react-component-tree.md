@@ -38,25 +38,29 @@ view와 독립 feature control 사이의 논리적 조립 관계를 정리한다
 `RootLayout`의 `children`은 App Router가 현재 route segment에 맞게 제공한다. `/`의
 `IndexPage`는 표준 홈 경로인 `/home`으로 redirect하고, `/home`의 `HomePage`가 일반 플랫폼
 화면용 `PlatformPageShell`을 조립한다. `AppShell`은 route UI를 감싸는 `main`이나 site header를
-소유하지 않고 bridge·update 같은 전역 runtime만 조립한다.
+소유하지 않고 bridge·update·analytics identity 같은 전역 runtime만 조립한다. Production의
+`GoogleAnalyticsUserIdentity`는 3000 앱이 `civic.analytics-user-id.v1` session storage key에 저장한
+사용자 UUID를 GA data layer에 설정하며, route 이동이나 일반 unmount에서는 값을 초기화하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
-└── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
-    ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
-    └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
-        ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
-        └── children [slot: App Router가 route child를 제공]
-            ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
-            └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
-                ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
-                │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
-                │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-                │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
-                │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
-                └── LocalE2ELoginControl [Client] [Feature] [conditional: development] (apps/web/components/local-e2e-login-control.tsx)
+├── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
+│   ├── GoogleAnalyticsUserIdentity [Client] [Runtime] [conditional: production] (apps/web/components/google-analytics-user-identity.tsx)
+│   ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
+│   └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
+│       ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
+│       └── children [slot: App Router가 route child를 제공]
+│           ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
+│           └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
+│               ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
+│               │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+│               │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+│               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+│               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+│               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
+│               ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
+│               └── LocalE2ELoginControl [Client] [Feature] [conditional: development] (apps/web/components/local-e2e-login-control.tsx)
+└── GoogleAnalytics [Client] [Runtime] [conditional: production] (@next/third-parties/google)
 ```
 
 `PlatformPageShell`은 일반 화면의 기본 header, `scroll="self"` content와 pathname 기반 하단
@@ -193,6 +197,7 @@ generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Ro
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
+    ├── GoogleAnalyticsUserIdentity [Client] [Runtime] [conditional: production] (apps/web/components/google-analytics-user-identity.tsx)
     ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
         └── children [slot: App Router가 route child를 제공]
