@@ -55,8 +55,8 @@ describe("route-aware loading skeletons", () => {
     expect(markup).not.toContain("변경하면 모든 기기에서 다시 로그인해야 합니다.");
   });
 
-  it("Vote 설문 화면은 정식 /survey 경로에서 실제 클라이언트 로딩 안내를 사용한다", () => {
-    const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/survey" />);
+  it("Vote 설문 화면은 실제 클라이언트 로딩 안내를 그대로 사용한다", () => {
+    const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/mypage/survey" />);
 
     expect(markup).toContain("설문 확인 중");
     expect(markup).toContain("Vote 서버에서 현재 설문을 불러오는 중입니다…");
