@@ -360,6 +360,7 @@ describe("25 functional Main/Auth screens", () => {
       body: "{}",
     });
     expect(storage.removeItem).toHaveBeenCalledWith("civic:rag-conversation:v1");
+    expect(storage.removeItem).toHaveBeenCalledWith("civic.analytics-user-id.v1");
     await expect(
       requestLogout(vi.fn(async () => Promise.reject(new Error("offline"))) as typeof fetch),
     ).resolves.toBe(false);

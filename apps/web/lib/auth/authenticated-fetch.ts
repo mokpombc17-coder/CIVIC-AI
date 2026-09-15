@@ -1,7 +1,10 @@
 "use client";
 
+import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
+
 type FetchBackend = typeof fetch;
 type PauseBackend = (delayMs: number) => Promise<void>;
+type ClearAnalyticsUserId = () => void;
 
 const REFRESH_CONFLICT_RETRY_DELAYS_MS = [100, 200, 400] as const;
 
@@ -18,12 +21,18 @@ export type AuthenticatedClient = Readonly<{
 export function createAuthenticatedClient(
   requestBackend: FetchBackend = fetch,
   pauseBackend: PauseBackend = pause,
+  clearUserId: ClearAnalyticsUserId = clearAnalyticsUserId,
 ): AuthenticatedClient {
   let refreshInFlight: Promise<boolean> | null = null;
 
   function rotateAccessToken(requestUrl: string): Promise<boolean> {
     if (!refreshInFlight) {
-      refreshInFlight = refreshAccessToken(requestUrl, requestBackend, pauseBackend).finally(() => {
+      refreshInFlight = refreshAccessToken(
+        requestUrl,
+        requestBackend,
+        pauseBackend,
+        clearUserId,
+      ).finally(() => {
         refreshInFlight = null;
       });
     }
@@ -70,8 +79,9 @@ export function createAuthenticatedClient(
 export function createAuthenticatedFetch(
   requestBackend: FetchBackend = fetch,
   pauseBackend: PauseBackend = pause,
+  clearUserId: ClearAnalyticsUserId = clearAnalyticsUserId,
 ): FetchBackend {
-  return createAuthenticatedClient(requestBackend, pauseBackend).fetch;
+  return createAuthenticatedClient(requestBackend, pauseBackend, clearUserId).fetch;
 }
 
 const authenticatedClient = createAuthenticatedClient();
@@ -100,6 +110,7 @@ async function refreshAccessToken(
   requestUrl: string,
   requestBackend: FetchBackend,
   pauseBackend: PauseBackend,
+  clearUserId: ClearAnalyticsUserId,
 ): Promise<boolean> {
   let response: Response;
   try {
@@ -113,6 +124,7 @@ async function refreshAccessToken(
     return true;
   }
   if (response.status !== 409) {
+    if (response.status === 401 || response.status === 403) clearUserId();
     await response.body?.cancel().catch(() => undefined);
     return false;
   }

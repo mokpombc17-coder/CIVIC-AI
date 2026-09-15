@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { requestLogout } from "@/components/auth/logout-button";
 import { PwaInstallGuideDialog } from "@/components/pwa/pwa-install-guide-dialog";
+import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { isNativeShell } from "@/lib/native/bridge-client";
 import {
@@ -58,8 +59,14 @@ export function CurrentUserGreeting() {
     authenticatedFetch("/api/v1/auth/me", { cache: "no-store" })
       .then(async (response) => {
         if (!response.ok) return;
-        const currentUser = (await response.json().catch(() => null)) as { role?: unknown } | null;
-        if (active) setIsAdministrator(isAdministratorRole(currentUser?.role));
+        const currentUser = (await response.json().catch(() => null)) as {
+          role?: unknown;
+          user_id?: unknown;
+        } | null;
+        if (active) {
+          storeAnalyticsUserId(currentUser?.user_id);
+          setIsAdministrator(isAdministratorRole(currentUser?.role));
+        }
       })
       .catch(() => {});
 

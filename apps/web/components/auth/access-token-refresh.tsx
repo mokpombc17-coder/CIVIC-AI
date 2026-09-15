@@ -2,6 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { FullscreenStatus } from "@/components/shell/fullscreen-status";
+import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
 
 export function AccessTokenRefresh({
   loadingFallback,
@@ -23,6 +24,7 @@ export function AccessTokenRefresh({
           location.replace(returnTo);
           return;
         }
+        if (response.status === 401 || response.status === 403) clearAnalyticsUserId();
         location.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
       })
       .catch(() => {

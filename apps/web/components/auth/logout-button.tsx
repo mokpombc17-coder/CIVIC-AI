@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
+import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
 
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
@@ -42,7 +43,10 @@ export async function requestLogout(
       body: "{}",
     });
     if (!response.ok) return false;
-    if (storage) clearRagConversationSnapshot(storage);
+    if (storage) {
+      clearRagConversationSnapshot(storage);
+      clearAnalyticsUserId(storage);
+    }
     return true;
   } catch {
     return false;
