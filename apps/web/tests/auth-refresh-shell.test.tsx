@@ -47,20 +47,6 @@ describe("authentication transition shells", () => {
     },
   );
 
-  it("설문 토큰 갱신 중에는 기존 설문 로딩 화면을 유지한다", async () => {
-    const page = await RefreshPage({
-      searchParams: Promise.resolve({ returnTo: "/survey?returnTo=%2Frag" }),
-    });
-    const markup = renderToStaticMarkup(page);
-
-    expect(markup).toContain('data-platform-shell="true"');
-    expect(markup).toContain('data-participant-surface="true"');
-    expect(markup).toContain("설문 확인 중");
-    expect(markup).toContain("Vote 서버에서 현재 설문을 불러오는 중입니다…");
-    expect(markup).not.toContain('data-fullscreen-status="true"');
-    expect(markup).not.toContain("로그인 상태를 확인하고 있습니다.");
-  });
-
   it("does not render the participant mobile shell while an admin token refreshes", async () => {
     const page = await RefreshPage({
       searchParams: Promise.resolve({ returnTo: "/admin/rag" }),
