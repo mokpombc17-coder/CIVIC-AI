@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { useEffect, useState, type ReactNode } from "react";
+import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   isServiceEligibilityGuardExemptPath,
@@ -109,6 +110,10 @@ function useDelayedEligibilityLoading(isBlocking: boolean): Readonly<{
 async function loadCurrentUserRole(): Promise<string | null> {
   const response = await authenticatedFetch("/api/v1/auth/me", { cache: "no-store" });
   if (!response.ok) throw new Error("로그인 정보를 확인하지 못했습니다.");
-  const currentUser = (await response.json().catch(() => null)) as { role?: unknown } | null;
+  const currentUser = (await response.json().catch(() => null)) as {
+    role?: unknown;
+    user_id?: unknown;
+  } | null;
+  storeAnalyticsUserId(currentUser?.user_id);
   return typeof currentUser?.role === "string" ? currentUser.role : null;
 }

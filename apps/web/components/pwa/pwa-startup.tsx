@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
 import { isStandalonePwa } from "@/lib/pwa/runtime";
 import {
   initializePwaSession,
@@ -34,6 +35,7 @@ export function PwaStartup() {
         return;
       }
       if (result.status === "unauthenticated") {
+        clearAnalyticsUserId();
         window.location.replace(PWA_LOGIN_PATH);
         return;
       }

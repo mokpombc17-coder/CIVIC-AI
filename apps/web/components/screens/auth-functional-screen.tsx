@@ -3,6 +3,7 @@
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
+import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
@@ -1163,9 +1164,11 @@ async function redirectToRoleHome(returnTo: string | null): Promise<void> {
   const response = await fetch("/api/v1/auth/me", { cache: "no-store" });
   if (!response.ok) throw new Error("로그인 정보를 확인하지 못했습니다.");
   const currentUser = (await response.json()) as {
+    user_id?: unknown;
     role?: unknown;
     must_change_password?: unknown;
   };
+  storeAnalyticsUserId(currentUser.user_id);
   location.assign(authenticatedDestination(currentUser, returnTo));
 }
 

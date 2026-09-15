@@ -24,17 +24,21 @@ describe("createAuthenticatedFetch", () => {
   });
 
   it("returns the original 401 when refresh is unavailable", async () => {
+    const clearUserId = vi.fn();
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
       .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }));
 
-    const response = await createAuthenticatedFetch(request)(
-      "https://civic.example/api/v1/rag/queries/job-1",
-    );
+    const response = await createAuthenticatedFetch(
+      request,
+      undefined,
+      clearUserId,
+    )("https://civic.example/api/v1/rag/queries/job-1");
 
     expect(response.status).toBe(401);
     expect(request).toHaveBeenCalledTimes(2);
+    expect(clearUserId).toHaveBeenCalledOnce();
   });
 
   it("never recursively refreshes an Auth request", async () => {
