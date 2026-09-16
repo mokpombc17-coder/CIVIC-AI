@@ -2,8 +2,6 @@ import type { Metadata, Viewport } from "next";
 import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
-import "./wireflow.css";
-import "./admin-console.css";
 import { AppShell } from "@/components/app-shell";
 import { StyleNonceProvider } from "@/components/admin/console/style-nonce-context";
 import { resolveSiteUrl } from "@/lib/site-url";

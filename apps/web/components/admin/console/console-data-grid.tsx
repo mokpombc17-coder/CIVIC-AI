@@ -15,7 +15,7 @@ import { useStyleNonce } from "./style-nonce-context";
 
 ModuleRegistry.registerModules([AllCommunityModule]);
 
-// Wireframe theme aligned to the --wf-* tokens in wireflow.css. Values are
+// Wireframe theme aligned to the --wf-* tokens in wireflow-base.css. Values are
 // duplicated as literals because AG Grid resolves theme params at style
 // injection time, before our stylesheet variables are guaranteed to exist.
 const consoleGridTheme = themeQuartz.withParams({

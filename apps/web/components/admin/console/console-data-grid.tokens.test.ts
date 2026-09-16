@@ -9,12 +9,12 @@ const webRoot = join(__dirname, "..", "..", "..");
 
 function tokenValue(css: string, name: string): string {
   const match = css.match(new RegExp(`${name}:\\s*([^;]+);`));
-  if (!match?.[1]) throw new Error(`wireflow.css에서 ${name} 토큰을 찾지 못했습니다.`);
+  if (!match?.[1]) throw new Error(`wireflow-base.css에서 ${name} 토큰을 찾지 못했습니다.`);
   return match[1].trim();
 }
 
 describe("console-data-grid theme literals", () => {
-  const wireflow = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+  const wireflow = readFileSync(join(webRoot, "app", "wireflow-base.css"), "utf8");
   const grid = readFileSync(join(__dirname, "console-data-grid.tsx"), "utf8");
 
   it.each([
