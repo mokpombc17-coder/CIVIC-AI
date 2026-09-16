@@ -50,7 +50,7 @@ export function ParticipantShell({
       title={headerTitle ?? title ?? section.title}
     >
       <a className="civic-skip-link" href="#civic-content">
-        본문 바로가기
+        <span data-nosnippet="">본문 바로가기</span>
       </a>
       <div
         className="civic-platform-participant-body"

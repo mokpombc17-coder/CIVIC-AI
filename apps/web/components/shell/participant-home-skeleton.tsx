@@ -3,6 +3,7 @@ import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-fra
 import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
+import { HOME_SEARCH_DESCRIPTION } from "@/lib/home-search";
 import { getScreenByRoute } from "@/lib/screens/registry";
 
 export function ParticipantHomeSkeleton() {
@@ -54,10 +55,7 @@ export function HomeLoadingSurface() {
       <section className="wf-card wf-home-welcome">
         <WireflowBadge>참여 안내</WireflowBadge>
         <h2>배우고, 토론하고, 함께 결정합니다.</h2>
-        <p>
-          CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 이야기 나눈 다음, 나의 의견을
-          투표로 남겨보세요.
-        </p>
+        <p>{HOME_SEARCH_DESCRIPTION}</p>
       </section>
       <div className="wf-participant-home" data-wireflow-layout="participant-home">
         {actions.map(([badge, title, description, action]) => (

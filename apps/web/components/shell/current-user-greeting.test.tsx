@@ -109,6 +109,7 @@ describe("HomeBrandTitle", () => {
 
     expect(HOME_SERVICE_REGION_LABEL).toBe("전남광주");
     expect(html).toContain('aria-label="CIVIC.AI 전남광주"');
+    expect(html).toContain('class="civic-home-brand" data-nosnippet=""');
     expect(html).toContain('</span> <span class="civic-region-badge">');
     expect(html).toMatch(/CIVIC\.AI[\s\S]+전남광주/);
     expect(html).toContain("civic-region-badge");

@@ -48,7 +48,9 @@ export function PlatformBottomNavigationItem({
       <span aria-hidden="true" className={styles.bottomNavigationIcon}>
         {icon}
       </span>
-      <span className={styles.bottomNavigationLabel}>{label}</span>
+      <span className={styles.bottomNavigationLabel} data-nosnippet="">
+        {label}
+      </span>
     </>
   );
   const classNames = [styles.bottomNavigationItem, className].filter(Boolean).join(" ");

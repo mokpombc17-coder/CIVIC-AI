@@ -28,7 +28,7 @@ export function WireflowScreenHeading({
             </svg>
           </Link>
         ) : null}
-        <div className="wf-screen-heading-copy">
+        <div className="wf-screen-heading-copy" data-nosnippet="">
           {secondary ? (
             <h2 id="civic-screen-title">{title}</h2>
           ) : (
