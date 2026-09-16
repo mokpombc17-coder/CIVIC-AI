@@ -16,6 +16,10 @@ describe("home route import boundary", () => {
       join(webRoot, "components", "screens", "participant-home-screen.tsx"),
       "utf8",
     );
+    const opinionHero = readFileSync(
+      join(webRoot, "components", "screens", "opinion-gathering-hero.tsx"),
+      "utf8",
+    );
     const participantShell = readFileSync(
       join(webRoot, "components", "shell", "participant-shell.tsx"),
       "utf8",
@@ -35,5 +39,34 @@ describe("home route import boundary", () => {
       /account-functional-screen|admin-functional-screen|auth-functional-screen|@tanstack\/react-query/u,
     );
     expect(homeScreen.match(/prefetch=\{false\}/gu)).toHaveLength(3);
+    expect(opinionHero).not.toMatch(/["']use client["']/u);
+    expect(opinionHero).toContain("useId");
+    expect(opinionHero).not.toMatch(/use(?:Effect|State)|window\.|document\./u);
+  });
+
+  it("홈 initial CSS에서 participant 전체·admin stylesheet를 제외한다", () => {
+    const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");
+    const homeLayout = readFileSync(join(webRoot, "app", "home", "layout.tsx"), "utf8");
+    const participantLayout = readFileSync(
+      join(webRoot, "app", "(participant)", "layout.tsx"),
+      "utf8",
+    );
+    const adminLayout = readFileSync(
+      join(webRoot, "app", "(admin)", "admin", "layout.tsx"),
+      "utf8",
+    );
+    const homeStyles = readFileSync(join(webRoot, "app", "home", "home.css"), "utf8");
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(rootLayout).not.toMatch(/import "\.\/(?:wireflow-base|wireflow|admin-console)\.css"/u);
+    expect(homeLayout).toContain('import "./home.css"');
+    expect(participantLayout).toContain('import "..\/wireflow.css"');
+    expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
+    expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
+    expect(homeStyles).toContain('@import "../wireflow-base.css"');
+    expect(homeStyles).toContain(".civic-opinion-hero-question");
+    expect(homeStyles).toContain(".wf-participant-home");
+    expect(wireflowStyles).not.toContain(".civic-opinion-hero-question");
+    expect(wireflowStyles).not.toContain(".wf-home-welcome");
   });
 });

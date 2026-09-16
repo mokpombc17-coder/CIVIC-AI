@@ -52,7 +52,7 @@ RefreshPage /auth/refresh [Server Route, 안전한 returnTo 기준 대기 surfac
     ├── /rag 또는 /mypage 계열 갱신 중: ParticipantLoadingView [목적지 PlatformShell 유지]
     └── 관리자·기타 경로 갱신 중 또는 갱신 실패: FullscreenStatus [route-neutral]
 
-HomePage /home [Server Route]
+HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Server Route]
 ├── HomeBrandTitle [CIVIC.AI + 고정 권역 광주/전남]
 └── ParticipantShell [정적 홈 surface를 인증 확인보다 먼저 렌더링]
     ├── headerActions Suspense [fallback: Login Link]
@@ -76,7 +76,7 @@ HomePage /home [Server Route]
                 ├── OpinionGatheringHero [SSR: 질문·회색 도넛, DOM 삽입 즉시 CSS 애니메이션]
                 └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
 
-ParticipantCatchAllPage [Server Route]
+ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
 │   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화]
 │       └── PlatformPageShell [bottom navigation 없음]
@@ -114,7 +114,7 @@ ParticipantCatchAllPage [Server Route]
             └── 기존 frontend2 PlatformShell [정확히 1개]
                 └── ComingSoonScreen
 
-AdminCatchAllPage [Server Route]
+AdminLayout [Server Route Layout, wireflow.css + admin-console.css 소유] → AdminCatchAllPage [Server Route]
 ├── requireAdminAccess(role 또는 permission)
 └── AdminShell
     ├── AdminFunctionalScreen [Main/Auth의 A-HOME·A-USER, 관리자 route가 직접 조립]
@@ -205,6 +205,11 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 교체하므로 랜딩 본문과 회색 도넛은 cookie 확인을 기다리지 않는다. cookie가 있으면 원래 보호
 경로를 유지하고, 필수 설문 여부는 랜딩 본문을 가리지 않는 guard가 확인한다. 실제 refresh는 각
 보호 route가 담당한다.
+
+초기 CSS도 같은 route 경계를 따른다. `RootLayout`은 `globals.css`만 소유하고, `HomeLayout`의
+`home.css`가 작은 `wireflow-base.css`와 홈 전용 규칙을 함께 가져온다. 참여자 catch-all은
+`ParticipantLayout`에서 전체 `wireflow.css`를, 관리자 route는 `AdminLayout`에서 `wireflow.css`와
+`admin-console.css`를 가져오므로 `/home` 초기 dependency에는 두 전체 stylesheet가 포함되지 않는다.
 
 `CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. Chromium 계열에서는
 `beforeinstallprompt`를 캡처해 `앱 설치` 동작으로 연결하고, iOS·iPadOS 일반 브라우저에서는 같은

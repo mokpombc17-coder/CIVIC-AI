@@ -1,0 +1,236 @@
+@import "../wireflow-base.css";
+
+/* Home route styles
+ * Keep shared primitives here so route-scoped CSS does not duplicate them.
+ */
+
+.wf-participant-home {
+  display: grid;
+  align-content: start;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 12px;
+  margin: 19px 16px 16px;
+}
+
+.wf-participant-home .wf-action-card {
+  min-height: 120px;
+  align-items: start;
+  column-gap: 12px;
+  padding: 19px 21px 19px 19px;
+}
+
+.wf-participant-home .wf-action-copy {
+  gap: 6px;
+}
+
+.wf-participant-home .wf-action-copy h2 {
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
+}
+
+.wf-participant-home .wf-action-copy p {
+  color: #59616b;
+  font-size: 14px;
+  line-height: 20.3px;
+  white-space: pre-line;
+}
+
+.wf-participant-home .wf-action-control {
+  padding-top: 15px;
+}
+
+.wf-participant-home .wf-action-control .wf-button {
+  width: 94px;
+  min-width: 94px;
+  min-height: 48px;
+  border-radius: 6px;
+  font-weight: 700;
+  line-height: 20px;
+  white-space: nowrap;
+}
+
+.civic-brand-title {
+  color: #0a4fd1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 20px;
+}
+
+.civic-home-brand {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  vertical-align: middle;
+}
+
+.civic-region-badge {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+}
+
+.civic-header-login {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  border: 0;
+  background: transparent;
+  color: #1f2124;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 21px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.civic-header-login:focus-visible {
+  border-radius: 4px;
+  outline: 2px solid #266ef5;
+  outline-offset: 2px;
+}
+[data-wireflow-screen="U-HOME-001"] {
+  --wf-ink: #121417;
+  --wf-muted: #59616b;
+  --wf-line: #ccd1d6;
+  --wf-blue: #266ef5;
+  --wf-blue-dark: #0a4fd1;
+  --wf-blue-soft: #edf2ff;
+}
+
+.civic-opinion-hero-question {
+  font-weight: 700;
+}
+
+@keyframes civic-hero-donut-reveal {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@keyframes civic-hero-content-reveal {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes civic-hero-connector-reveal {
+  0% {
+    opacity: 0;
+    stroke-dashoffset: 1;
+  }
+  1% {
+    opacity: 1;
+    stroke-dashoffset: 1;
+  }
+  100% {
+    opacity: 1;
+    stroke-dashoffset: 0;
+  }
+}
+
+.civic-opinion-hero--animated .civic-hero-reveal {
+  animation: civic-hero-donut-reveal 600ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.civic-opinion-hero--animated .civic-hero-ratios {
+  animation: civic-hero-content-reveal 200ms 600ms ease-out both;
+}
+
+.civic-opinion-hero--animated .civic-hero-line {
+  animation: civic-hero-connector-reveal 250ms 660ms ease-out both;
+}
+
+.civic-opinion-hero--animated .civic-hero-label {
+  animation: civic-hero-content-reveal 200ms 910ms ease-out both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .civic-opinion-hero--animated .civic-hero-reveal,
+  .civic-opinion-hero--animated .civic-hero-line,
+  .civic-opinion-hero--animated .civic-hero-ratios,
+  .civic-opinion-hero--animated .civic-hero-label {
+    animation: none;
+  }
+
+  .civic-opinion-hero--animated .civic-hero-reveal,
+  .civic-opinion-hero--animated .civic-hero-line {
+    stroke-dashoffset: 0;
+  }
+
+  .civic-opinion-hero--animated .civic-hero-line,
+  .civic-opinion-hero--animated .civic-hero-ratios,
+  .civic-opinion-hero--animated .civic-hero-label {
+    opacity: 1;
+  }
+}
+
+.wf-home-welcome {
+  display: grid;
+  height: 141px;
+  align-content: start;
+  gap: 0;
+  margin: 8px 16px 0;
+  border-color: #ccd1d6;
+  padding: 17px 19px 18px;
+}
+
+.wf-home-welcome h2 {
+  margin: 11px 0 0;
+  color: #121417;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 23.8px;
+}
+
+.wf-home-welcome p {
+  margin: 6.2px 0 0;
+  color: #59616b;
+  font-size: 14px;
+  line-height: 20.3px;
+}
+
+.wf-home-welcome .wf-badge {
+  justify-self: start;
+}
+
+.civic-region-badge,
+[data-wireflow-screen="U-HOME-001"] .wf-badge {
+  height: 22px;
+  min-height: 22px;
+  border-radius: 4px;
+  padding: 2px 6px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+}
+
+.wf-participant-home .wf-badge {
+  min-width: 32.75px;
+  justify-content: center;
+}
+
+.wf-participant-home .wf-action-card {
+  border-color: var(--wf-blue);
+}
+
+.wf-participant-home .wf-action-control .wf-button-primary {
+  border: 0;
+  background: var(--wf-blue);
+  color: #fff;
+}
