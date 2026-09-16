@@ -1,6 +1,7 @@
 "use client";
 
 import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
+import { authSessionRevision } from "./auth-session-events";
 
 type FetchBackend = typeof fetch;
 type PauseBackend = (delayMs: number) => Promise<void>;
@@ -62,14 +63,18 @@ export function createAuthenticatedClient(
   }
 
   const authenticatedRequest: FetchBackend = async (input, init) => {
+    const revision = authSessionRevision();
     const firstRequest = createRequest(input, init);
     const retryRequest = firstRequest.clone();
     const firstResponse = await requestBackend(firstRequest);
     if (firstResponse.status !== 401 || isAuthRoute(firstRequest.url)) return firstResponse;
+    if (firstRequest.signal.aborted || revision !== authSessionRevision()) return firstResponse;
 
     if (!(await rotateAccessToken(firstRequest.url))) return firstResponse;
+    if (firstRequest.signal.aborted || revision !== authSessionRevision()) return firstResponse;
 
     await firstResponse.body?.cancel().catch(() => undefined);
+    if (firstRequest.signal.aborted || revision !== authSessionRevision()) return firstResponse;
     return requestBackend(retryRequest);
   };
 

@@ -1,7 +1,65 @@
 import { describe, expect, it, vi } from "vitest";
 import { createAuthenticatedClient, createAuthenticatedFetch } from "./authenticated-fetch";
+import { sendAuthMessage } from "./auth-session-events";
 
 describe("createAuthenticatedFetch", () => {
+  it("does not replay an old account's RAG request after LOGIN during refresh", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(new Response(null, { status: 401 }))
+      .mockImplementationOnce(async () => {
+        sendAuthMessage("LOGIN");
+        return new Response(null, { status: 204 });
+      });
+    const response = await createAuthenticatedFetch(request)(
+      "https://civic.example/api/v1/rag/queries",
+      { method: "POST", body: "old question" },
+    );
+    expect(response.status).toBe(401);
+    expect(request).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not refresh an aborted conversation request", async () => {
+    const controller = new AbortController();
+    const request = vi.fn<typeof fetch>().mockImplementationOnce(async () => {
+      controller.abort();
+      return new Response(null, { status: 401 });
+    });
+    await createAuthenticatedFetch(request)("https://civic.example/api/v1/rag/queries", {
+      signal: controller.signal,
+    });
+    expect(request).toHaveBeenCalledOnce();
+  });
+
+  it.each(["LOGIN", "LOGOUT", "abort"] as const)(
+    "does not replay a request when %s arrives while disposing the 401 body",
+    async (change) => {
+      const controller = new AbortController();
+      const unauthorized = new Response(
+        new ReadableStream({
+          cancel() {
+            if (change === "abort") controller.abort();
+            else sendAuthMessage(change);
+          },
+        }),
+        { status: 401 },
+      );
+      const request = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(unauthorized)
+        .mockResolvedValueOnce(new Response(null, { status: 204 }))
+        .mockResolvedValueOnce(Response.json({ status: "unexpected replay" }));
+
+      const response = await createAuthenticatedFetch(request)(
+        "https://civic.example/api/v1/rag/queries",
+        { method: "POST", body: "old question", signal: controller.signal },
+      );
+
+      expect(request).toHaveBeenCalledTimes(2);
+      expect(response.status).toBe(401);
+    },
+  );
+
   it("rotates the refresh token and retries a resource request once", async () => {
     const request = vi
       .fn<typeof fetch>()

@@ -6,6 +6,12 @@ type MessageListener = (message: AuthSessionMessage) => void;
 
 const messageListeners = new Set<MessageListener>();
 let channel: BroadcastChannel | undefined;
+let revision = 0;
+
+/** Prevent a request started by one account from retrying after an observed account change. */
+export function authSessionRevision(): number {
+  return revision;
+}
 
 function authChannel(): BroadcastChannel | undefined {
   if (channel || typeof window === "undefined") return channel;
@@ -13,6 +19,7 @@ function authChannel(): BroadcastChannel | undefined {
     channel = new BroadcastChannel(AUTH_CHANNEL_NAME);
     channel.onmessage = (event: MessageEvent<unknown>) => {
       if (event.data !== "LOGIN" && event.data !== "LOGOUT") return;
+      revision += 1;
       for (const listener of messageListeners) listener(event.data);
     };
   } catch {
@@ -23,6 +30,7 @@ function authChannel(): BroadcastChannel | undefined {
 
 /** Send only after a successful session change, never for ordinary token refresh. */
 export function sendAuthMessage(message: AuthSessionMessage): void {
+  revision += 1;
   try {
     authChannel()?.postMessage(message);
   } catch {

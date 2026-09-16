@@ -146,7 +146,7 @@ function memoryStorage(initial: Record<string, string> = {}) {
 
 type RagSessionApi = Readonly<{
   clearRagConversationDraft: (storage: ReturnType<typeof memoryStorage>) => void;
-  clearRagConversationSnapshot: (storage: ReturnType<typeof memoryStorage>) => void;
+  clearRagConversationSnapshot: (storage?: ReturnType<typeof memoryStorage>) => void;
   latestPendingRagJobId: (messages: ReadonlyArray<Record<string, unknown>>) => string | null;
   readRagConversationSnapshot: (
     storage: ReturnType<typeof memoryStorage>,
@@ -250,6 +250,36 @@ describe("9 functional RAG screens", () => {
     ragSessionApi.writeRagConversationDraft(storage, ownerUserId, draft);
     ragSessionApi.clearRagConversationSnapshot(storage);
     expect(ragSessionApi.readRagConversationDraft(storage, ownerUserId)).toBeNull();
+  });
+
+  it("인증 성공 처리에서 현재 탭의 대화와 초안을 직접 정리한다", () => {
+    const storage = memoryStorage({
+      "civic:rag-conversation:v1": "previous conversation",
+      "civic:rag-conversation-draft:v1": "previous draft",
+      "unrelated-preference": "keep",
+    });
+    vi.stubGlobal("window", { sessionStorage: storage });
+    try {
+      ragSessionApi.clearRagConversationSnapshot();
+      expect(storage.getItem("civic:rag-conversation:v1")).toBeNull();
+      expect(storage.getItem("civic:rag-conversation-draft:v1")).toBeNull();
+      expect(storage.getItem("unrelated-preference")).toBe("keep");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it("저장소 접근이 차단돼도 인증 성공 처리를 계속할 수 있다", () => {
+    vi.stubGlobal("window", {
+      get sessionStorage() {
+        throw new Error("storage disabled");
+      },
+    });
+    try {
+      expect(() => ragSessionApi.clearRagConversationSnapshot()).not.toThrow();
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 
   it("다른 사용자의 탭 대화는 복원하지 않고 저장소에서 제거한다", () => {
