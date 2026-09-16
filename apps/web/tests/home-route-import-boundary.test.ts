@@ -65,8 +65,12 @@ describe("home route import boundary", () => {
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
     expect(homeStyles).toContain('@import "../wireflow-base.css"');
     expect(homeStyles).toContain(".civic-opinion-hero-question");
+    expect(homeStyles).toContain(".civic-header-user-trigger");
+    expect(homeStyles).toContain(".civic-header-user-menu-item");
     expect(homeStyles).toContain(".wf-participant-home");
     expect(wireflowStyles).not.toContain(".civic-opinion-hero-question");
+    expect(wireflowStyles).not.toContain(".civic-header-user-trigger");
+    expect(wireflowStyles).not.toContain(".civic-header-user-menu-item");
     expect(wireflowStyles).not.toContain(".wf-home-welcome");
   });
 });
