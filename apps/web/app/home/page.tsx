@@ -12,15 +12,10 @@ import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { ParticipantShell } from "@/components/shell/participant-shell";
 import { PlatformNavigation } from "@/components/platform-shell";
 import { hasAccessCredential } from "@/lib/auth/require-access";
+import { homeMetadata, websiteJsonLd } from "@/lib/home-search";
 import { getScreenByRoute } from "@/lib/screens/registry";
 
-export const metadata: Metadata = {
-  robots: {
-    follow: true,
-    index: true,
-  },
-  title: "홈",
-};
+export const metadata: Metadata = homeMetadata;
 
 export default function HomePage() {
   const accessCredential = hasAccessCredential();
@@ -29,33 +24,41 @@ export default function HomePage() {
   const heading = screenFrameHeading(screen);
 
   return (
-    <ParticipantShell
-      activeRoute="/home"
-      bottomNavigation={
-        <Suspense fallback={<HomeBottomNavigation requiresLoginForProtectedLinks />}>
-          <ResolvedHomeBottomNavigation accessCredential={accessCredential} />
-        </Suspense>
-      }
-      headerActions={
-        <Suspense fallback={<HomeLoginLink />}>
-          <ResolvedHomeHeaderActions accessCredential={accessCredential} />
-        </Suspense>
-      }
-      headerTitle={<HomeBrandTitle />}
-      title={heading.title}
-    >
-      <Suspense fallback={null}>
-        <ResolvedHomeQueryRuntime accessCredential={accessCredential} />
-      </Suspense>
-      <ParticipantHomeScreen
-        homeActions={
-          <Suspense fallback={<ParticipantHomeActions requiresLoginForProtectedLinks />}>
-            <ResolvedParticipantHomeActions accessCredential={accessCredential} />
+    <>
+      <script
+        dangerouslySetInnerHTML={{
+          __html: JSON.stringify(websiteJsonLd).replace(/</gu, "\\u003c"),
+        }}
+        type="application/ld+json"
+      />
+      <ParticipantShell
+        activeRoute="/home"
+        bottomNavigation={
+          <Suspense fallback={<HomeBottomNavigation requiresLoginForProtectedLinks />}>
+            <ResolvedHomeBottomNavigation accessCredential={accessCredential} />
           </Suspense>
         }
-        screen={screen}
-      />
-    </ParticipantShell>
+        headerActions={
+          <Suspense fallback={<HomeLoginLink />}>
+            <ResolvedHomeHeaderActions accessCredential={accessCredential} />
+          </Suspense>
+        }
+        headerTitle={<HomeBrandTitle />}
+        title={heading.title}
+      >
+        <Suspense fallback={null}>
+          <ResolvedHomeQueryRuntime accessCredential={accessCredential} />
+        </Suspense>
+        <ParticipantHomeScreen
+          homeActions={
+            <Suspense fallback={<ParticipantHomeActions requiresLoginForProtectedLinks />}>
+              <ResolvedParticipantHomeActions accessCredential={accessCredential} />
+            </Suspense>
+          }
+          screen={screen}
+        />
+      </ParticipantShell>
+    </>
   );
 }
 

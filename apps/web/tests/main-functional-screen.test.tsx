@@ -76,6 +76,7 @@ import { mainScreenPrimaryActions } from "@/components/screens/main-screen-actio
 import { AdminShell } from "@/components/shell/admin-shell";
 import { ParticipantHomeSkeleton } from "@/components/shell/participant-home-skeleton";
 import { ParticipantShell } from "@/components/shell/participant-shell";
+import { HOME_SEARCH_DESCRIPTION } from "@/lib/home-search";
 import { screenRegistry } from "@/lib/screens/registry";
 
 const mainScreens = screenRegistry.filter(
@@ -1189,13 +1190,13 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html).toContain("civic-opinion-hero--animated");
+    expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
+    expect(html).toContain('data-nosnippet=""');
     expect(html).not.toContain("data-pwa-install-trigger");
     expect(html).toContain("배우고, 토론하고, 함께 결정합니다.");
-    expect(html).toContain(
-      "CIVIC.AI와 함께 자료 속 근거를 찾아보고, 다른 참여자와 이야기 나눈 다음, 나의 의견을 투표로 남겨보세요.",
-    );
+    expect(html).toContain(HOME_SEARCH_DESCRIPTION);
     expect(html).toContain("어떤 점부터 짚어볼까요?");
     expect(html).toContain("AI가 주제 자료에서 관련 내용을 찾아\n답변해 드려요.");
     expect(html).toContain("질문하기");
@@ -1215,6 +1216,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("지역마다 다른 전남광주 환승 요금,");
     expect(html).toContain("어떻게 하면 좋을까요?");
     expect(html).toContain('stroke="#e5e7eb"');
+    expect(html).toContain(HOME_SEARCH_DESCRIPTION);
+    expect(html).toContain('data-nosnippet=""');
     expect(html).not.toContain("civic-opinion-hero--animated");
     expect(html).not.toContain("차트 애니메이션 다시 재생");
   });

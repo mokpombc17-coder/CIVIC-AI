@@ -50,7 +50,11 @@ export function PlatformHeader({
       <div className={styles.headerRow}>
         {resolvedLeading ? <div className={styles.headerLeading}>{resolvedLeading}</div> : null}
         <h1 className={styles.headerTitle}>{title}</h1>
-        {actions ? <div className={styles.headerActions}>{actions}</div> : null}
+        {actions ? (
+          <div className={styles.headerActions} data-nosnippet="">
+            {actions}
+          </div>
+        ) : null}
       </div>
     </header>
   );

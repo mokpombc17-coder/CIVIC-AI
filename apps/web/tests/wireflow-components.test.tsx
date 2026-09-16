@@ -112,6 +112,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html.match(/data-platform-shell="true"/g)).toHaveLength(1);
     expect(html).toContain('data-participant-surface="true"');
     expect(html).toContain('aria-current="page"');
+    expect(html).toContain('<span data-nosnippet="">본문 바로가기</span>');
     expect(html).toContain(">홈<");
     expect(html).toContain(">AI<");
     expect(html).toContain(">토론방<");

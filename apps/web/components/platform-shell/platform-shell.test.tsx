@@ -60,6 +60,7 @@ describe("PlatformHeader", () => {
     expect(markup).toContain('href="/account"');
     expect(markup).toContain("내 정보 관리");
     expect(markup).toContain("추가 작업");
+    expect(markup).toMatch(/data-nosnippet="">.*추가 작업/su);
   });
 
   it("back action이 없으면 뒤로 가기 컨트롤을 렌더링하지 않는다", () => {
@@ -116,6 +117,7 @@ describe("PlatformBottomNavigation", () => {
     expect(markup).toContain('href="/"');
     expect(markup).toContain('href="/account"');
     expect(markup).toContain('aria-current="page"');
+    expect(markup.match(/data-nosnippet=""/gu)).toHaveLength(2);
   });
 
   it("client navigation은 Next Link를, document navigation은 anchor를 사용한다", () => {
