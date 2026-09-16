@@ -68,6 +68,8 @@ describe("home route import boundary", () => {
     expect(homeStyles).toContain(".civic-header-user-trigger");
     expect(homeStyles).toContain(".civic-header-user-menu-item");
     expect(homeStyles).toContain(".wf-participant-home");
+    expect(homeStyles).toContain('[data-wireflow-screen="U-HOME-001"] .wf-home-welcome');
+    expect(homeStyles).not.toMatch(/^\.wf-home-welcome/gmu);
     expect(wireflowStyles).not.toContain(".civic-opinion-hero-question");
     expect(wireflowStyles).not.toContain(".civic-header-user-trigger");
     expect(wireflowStyles).not.toContain(".civic-header-user-menu-item");
