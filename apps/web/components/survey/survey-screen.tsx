@@ -38,6 +38,7 @@ import {
   saveSurveyDraft,
   type SurveyDraftScope,
 } from "@/lib/survey/survey-draft-storage";
+import type { SurveyEntryType } from "@/lib/survey/survey-participation-analytics";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { getServiceEligibilityQueryOptions } from "@/lib/vote/service-eligibility";
 import {
@@ -50,6 +51,7 @@ import {
 } from "./survey-flow";
 import { SurveyLoadingStatus } from "./survey-loading";
 import { SurveySectionFields } from "./survey-question-fields";
+import { useSurveyParticipationAnalytics } from "./use-survey-participation-analytics";
 import styles from "./survey.module.css";
 
 const CONFIRMATION_STEP_TITLE = "필수 동의·확인";
@@ -198,6 +200,7 @@ function SurveyForm({
   const [validationScrollRequest, setValidationScrollRequest] = useState(0);
   const [draftReady, setDraftReady] = useState(false);
   const [draftScope, setDraftScope] = useState<SurveyDraftScope | null>(null);
+  const [entryType, setEntryType] = useState<SurveyEntryType | null>(null);
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
   const headerProgressVisibleRef = useRef(false);
@@ -209,9 +212,23 @@ function SurveyForm({
   const submitMutation = useSubmitSurveyMutation();
   const isSubmitting = acceptConsentMutation.isPending || submitMutation.isPending;
   const isRequiredConfirmationChecked = requiredConsentClickedAt !== null;
+  const currentSection = sections[currentStep - 1];
+  const currentStepId = isConfirmationStep
+    ? "confirmation"
+    : (currentSection?.sectionKey ?? `step-${currentStep}`);
+  const { trackStepExited, trackSubmissionAttempted } = useSurveyParticipationAnalytics({
+    currentStep,
+    entryType,
+    flowVisible: draftReady && entryType !== null && sections.length > 0,
+    stepId: currentStepId,
+    surveyId: roundId,
+    surveyVersion: contentVersionId,
+    totalSteps,
+  });
   const goToPreviousStep = useCallback(() => {
+    trackStepExited("previous");
     setCurrentStep((step) => Math.max(step - 1, 1));
-  }, []);
+  }, [trackStepExited]);
 
   useEffect(() => {
     let active = true;
@@ -223,8 +240,13 @@ function SurveyForm({
         if (draft) {
           setAnswers(draft.answers);
           setCurrentStep(draft.currentStep);
+          setEntryType("resumed");
+        } else {
+          setEntryType("new");
         }
         setDraftScope(scope);
+      } else {
+        setEntryType("new");
       }
       setDraftReady(true);
     });
@@ -295,7 +317,6 @@ function SurveyForm({
     return <SurveyStatus loading title="임시 저장된 답변을 확인하는 중입니다." />;
   }
 
-  const currentSection = sections[currentStep - 1];
   const stepTitle = isConfirmationStep
     ? CONFIRMATION_STEP_TITLE
     : (currentSection?.title ?? sections[0]!.title);
@@ -337,6 +358,7 @@ function SurveyForm({
       setValidationScrollRequest((request) => request + 1);
       return;
     }
+    trackStepExited("next");
     setCurrentStep((step) => Math.min(step + 1, totalSteps));
   }
 
@@ -351,6 +373,7 @@ function SurveyForm({
     }
 
     setSubmissionError(null);
+    trackSubmissionAttempted();
 
     try {
       let pendingConsent = prepareConsentAcceptance(
@@ -388,6 +411,7 @@ function SurveyForm({
         draftSaveTimeoutRef.current = null;
       }
       if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
+      trackStepExited("submit");
       onSubmitted(result);
     } catch (error) {
       if (error instanceof ConsentApiError) {

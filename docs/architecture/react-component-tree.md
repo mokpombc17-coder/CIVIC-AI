@@ -99,7 +99,9 @@ action만 제공하고 입력 폼을 조립하지 않는다. `PlatformShell`은 
 viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다시 보이면 숨는다. 작은 스크롤 경계
 여유를 두어 표시 상태가 빠르게 뒤집히지 않게 한다. `SurveyForm`은 현재 단계의 header back action을
 `SurveyScreen`으로 올려 1단계에서는 비활성 제어를 유지하고, 2~~8단계에서는 이전 설문 단계로
-이동하게 한다.
+이동하게 한다. 또한 `useSurveyParticipationAnalytics`를 통해 방문별 최초 단계 노출, 실제 foreground
+체류 구간의 종료 사유·시간, 실제 제출 mutation 직전의 시도 횟수를 GA4에 전달한다. 임시 답변 복원
+여부는 방문의 `entry_type`으로 구분하며 답변 내용은 분석 이벤트에 포함하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -116,18 +118,19 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │       └── PlatformShell [Server-compatible] [View] [scroll: child] [bottom navigation: omitted]
                 │           ├── PlatformHeader [Server-compatible] [View] [leading: step-aware back control]
                 │           │   └── SurveyHeaderProgress [Client graph] [View] [header actions]
-                │           ├── SurveyFlowLayout [Client graph] [View]
-                │               └── SurveyFlowViewport [Client graph] [View] [scroll]
-                │                   ├── SurveyProgress [Client graph] [View]
-                │                   ├── SurveyStepCard [Client graph] [View]
-                │                   │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
-                │                   │   │   ├── SurveySelect [Client] [Control] [single-choice and bounded number]
-                │                   │   │   │   └── SurveyDropdownSurface [Client] [View] [shared menu surface]
-                │                   │   │   └── SurveyMultiSelect [Client] [Control] [multiple-choice]
-                │                   │   │       └── SurveyDropdownSurface [Client] [View] [shared menu surface]
-                │                   │   └── SurveyConfirmation [Client graph] [Feature] [consent API-driven: step 8]
-                │                   │       └── SurveyStepActions [Client graph] [Feature] [inside card]
-                │                   └── SurveyStepActions [Client graph] [Feature] [step 1~7]
+                │           ├── SurveyForm [Client graph] [Feature control] [draft restore + participation analytics]
+                │           │   └── SurveyFlowLayout [Client graph] [View]
+                │           │       └── SurveyFlowViewport [Client graph] [View] [scroll]
+                │           │           ├── SurveyProgress [Client graph] [View]
+                │           │           ├── SurveyStepCard [Client graph] [View]
+                │           │           │   ├── SurveySectionFields [Client graph] [Feature] [API-driven: step 1~7]
+                │           │           │   │   ├── SurveySelect [Client] [Control] [single-choice and bounded number]
+                │           │           │   │   │   └── SurveyDropdownSurface [Client] [View] [shared menu surface]
+                │           │           │   │   └── SurveyMultiSelect [Client] [Control] [multiple-choice]
+                │           │           │   │       └── SurveyDropdownSurface [Client] [View] [shared menu surface]
+                │           │           │   └── SurveyConfirmation [Client graph] [Feature] [consent API-driven: step 8]
+                │           │           │       └── SurveyStepActions [Client graph] [Feature] [inside card]
+                │           │           └── SurveyStepActions [Client graph] [Feature] [step 1~7]
                 │           └── SurveySubmissionCompletion [Client graph] [Feature] [post-submit eligibility recheck]
                 └── route /survey/responses/latest, /survey/responses/[responseId]
                     └── SurveyResponseScreen [Client] [Screen] [latest/specific API response]
