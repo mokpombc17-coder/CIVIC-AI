@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   filterLoadedRoomInboxItems,
   getChatRoomListHref,
@@ -13,11 +13,14 @@ import {
   type ChatRoomListDetailSelection,
 } from "@/components/chat-room-list-detail";
 import { hasReachedChatUserActiveRoomLimit } from "@/components/chat-room-publishing";
+import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
 import { usePublicRoomSearch } from "@/components/use-public-room-search";
+import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import { usePublicRoomsQuery, useRoomInboxQuery } from "@/lib/chat/chat-room-queries";
 
 export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomInboxFilter = "ALL") {
   const router = useRouter();
+  const failureAnalytics = useFeatureFailureAnalytics("chat", "room-list");
   const [isCreateRoomOpen, setIsCreateRoomOpen] = useState(false);
   const participatingRoomFilter = initialParticipatingRoomFilter;
   const [selectedRoomDetail, setSelectedRoomDetail] = useState<ChatRoomListDetailSelection | null>(
@@ -45,6 +48,48 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
     () => filterLoadedRoomInboxItems(roomInbox.rooms, participatingRoomFilter),
     [participatingRoomFilter, roomInbox.rooms],
   );
+
+  useEffect(() => {
+    if (roomInbox.isError && roomInbox.rooms.length === 0) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(roomInbox.error, "api", "chat_room_list_load_failed"),
+        incidentKey: "participating-room-list-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, roomInbox.failureCount - 1),
+        surface: "room_list_participating",
+      });
+      return;
+    }
+    if (roomInbox.isSuccess) failureAnalytics.trackRecovered("participating-room-list-load");
+  }, [
+    failureAnalytics,
+    roomInbox.error,
+    roomInbox.failureCount,
+    roomInbox.isError,
+    roomInbox.isSuccess,
+    roomInbox.rooms.length,
+  ]);
+
+  useEffect(() => {
+    if (publicRooms.isError && publicRooms.rooms.length === 0) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(publicRooms.error, "api", "chat_public_room_list_load_failed"),
+        incidentKey: "public-room-list-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, publicRooms.failureCount - 1),
+        surface: "room_list_public",
+      });
+      return;
+    }
+    if (publicRooms.isSuccess) failureAnalytics.trackRecovered("public-room-list-load");
+  }, [
+    failureAnalytics,
+    publicRooms.error,
+    publicRooms.failureCount,
+    publicRooms.isError,
+    publicRooms.isSuccess,
+    publicRooms.rooms.length,
+  ]);
 
   const selectParticipatingRoomFilter = useCallback(
     (filter: ChatRoomInboxFilter) => {
@@ -118,7 +163,10 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
       isFetchingNextPage: roomInbox.isFetchingNextPage,
       isPending: roomInbox.isPending,
       loadMore: () => void roomInbox.fetchNextPage(),
-      retry: () => void roomInbox.refetch(),
+      retry: () => {
+        failureAnalytics.trackRecoveryAttempt("participating-room-list-load", "user_retry");
+        void roomInbox.refetch();
+      },
       rooms: filteredParticipatingRooms,
     },
     publicRooms: {
@@ -128,10 +176,12 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
       isFetchingNextPage: publicRooms.isFetchingNextPage,
       isPending: publicRooms.isPending,
       loadMore: () => void publicRooms.fetchNextPage(),
-      retry: () =>
+      retry: () => {
+        failureAnalytics.trackRecoveryAttempt("public-room-list-load", "user_retry");
         void (publicRooms.isFetchNextPageError
           ? publicRooms.fetchNextPage()
-          : publicRooms.refetch()),
+          : publicRooms.refetch());
+      },
       rooms: discoverableRooms,
     },
     publicRoomSearch,

@@ -14,14 +14,18 @@ import {
 import { shouldHoldChatRoomInitialEntry } from "@/components/chat-room-initial-entry";
 import { ChatRoomView } from "@/components/chat-room-view";
 import { ChatRealtimeSyncStatus } from "@/components/chat-realtime-sync-status";
+import { useChatOutgoingMessages } from "@/components/chat-realtime-provider";
+import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
 import { useChatRoomContentExperience } from "@/components/use-chat-room-content-experience";
 import { useChatRoomOverlayExperience } from "@/components/use-chat-room-overlay-experience";
 import { useChatRoomRealtimeExperience } from "@/components/use-chat-room-realtime-experience";
 import { useRoomMessageNavigation } from "@/components/use-room-message-context";
+import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 
 export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const [positionedViewportKey, setPositionedViewportKey] = useState<string | null>(null);
+  const failureAnalytics = useFeatureFailureAnalytics("chat", `room:${roomId}`);
   const roomQuery = useRoomDetailsQuery(roomId);
   const realtime = useChatRoomRealtimeExperience(roomId, {
     roomStatus: roomQuery.data?.status,
@@ -49,6 +53,132 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     roomActive: session.isActive,
     roomAvailable: content.room !== undefined,
   });
+  const outgoingMessages = useChatOutgoingMessages(roomId);
+  const messageHistoryErrorVisible = content.messageHistory.feedback?.kind === "error";
+  const expectedConnectionTransition =
+    session.connectionError?.code === "AUTHENTICATION_REQUIRED" ||
+    session.connectionError?.code === "CONNECTION_REPLACED" ||
+    session.connectionError?.code === "ROOM_ACCESS_REVOKED" ||
+    session.connectionError?.code === "ROOM_CLOSED";
+  const realtimeFailure =
+    (!expectedConnectionTransition &&
+      (session.connectionStatus === "error" ||
+        (session.connectionStatus === "disconnected" && session.connectionError !== null))) ||
+    (session.status === "error" &&
+      session.error?.code !== "INVALID_ROOM_ID" &&
+      session.error?.code !== "ROOM_CLOSED");
+
+  useEffect(() => {
+    if (roomQuery.isError) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(roomQuery.error, "api", "chat_room_load_failed"),
+        incidentKey: "room-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, roomQuery.failureCount - 1),
+        surface: "room",
+      });
+      return;
+    }
+    if (roomQuery.isSuccess) failureAnalytics.trackRecovered("room-load");
+  }, [
+    failureAnalytics,
+    roomQuery.error,
+    roomQuery.failureCount,
+    roomQuery.isError,
+    roomQuery.isSuccess,
+  ]);
+
+  useEffect(() => {
+    if (
+      messageHistoryErrorVisible &&
+      realtime.messageHistory.isError &&
+      !realtime.messageHistory.isFetchNextPageError
+    ) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(
+          realtime.messageHistory.error,
+          "api",
+          "chat_message_history_load_failed",
+        ),
+        incidentKey: "message-history-load",
+        operation: "screen_load",
+        surface: "room_history",
+      });
+      return;
+    }
+    if (realtime.messageHistory.status === "success") {
+      failureAnalytics.trackRecovered("message-history-load");
+    }
+  }, [
+    failureAnalytics,
+    messageHistoryErrorVisible,
+    realtime.messageHistory.error,
+    realtime.messageHistory.isError,
+    realtime.messageHistory.isFetchNextPageError,
+    realtime.messageHistory.status,
+  ]);
+
+  useEffect(() => {
+    if (realtimeFailure) {
+      const error = session.connectionError ?? session.error;
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(
+          error,
+          session.connectionError?.source === "worker" ? "client" : "websocket",
+          "realtime_connect_failed",
+        ),
+        incidentKey: "realtime-connect",
+        operation: "realtime_connect",
+        surface: "room",
+      });
+      return;
+    }
+    if (realtime.sessionView.kind === "active") {
+      failureAnalytics.trackRecovered("realtime-connect");
+    }
+  }, [
+    failureAnalytics,
+    realtime.sessionView.kind,
+    realtimeFailure,
+    session.connectionError,
+    session.error,
+  ]);
+
+  useEffect(() => {
+    for (const message of outgoingMessages) {
+      const incidentKey = `message-send:${message.clientMessageId}`;
+      if (message.status === "failed") {
+        failureAnalytics.trackFailure({
+          errorCode: "message_send_failed",
+          errorSource: "websocket",
+          incidentKey,
+          operation: "message_send",
+          retryCount: Math.max(0, message.attempt - 1),
+          retryable: true,
+          surface: "room",
+        });
+      } else if (message.status === "accepted") {
+        failureAnalytics.trackRecovered(incidentKey);
+      }
+    }
+  }, [failureAnalytics, outgoingMessages]);
+
+  const roomError = content.roomError
+    ? {
+        ...content.roomError,
+        onRetry: () => {
+          failureAnalytics.trackRecoveryAttempt("room-load", "user_retry");
+          content.roomError?.onRetry();
+        },
+      }
+    : null;
+  const messageHistory = {
+    ...content.messageHistory,
+    onRetry: () => {
+      failureAnalytics.trackRecoveryAttempt("message-history-load", "user_retry");
+      content.messageHistory.onRetry();
+    },
+  };
 
   return (
     <ChatRoomView
@@ -62,7 +192,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
       }
       headerAction={<ChatRoomScreenHeaderActions {...overlays.headerActions} />}
       initializing={initialEntryPending}
-      messageHistory={content.messageHistory}
+      messageHistory={messageHistory}
       onInitialViewportPositioned={setPositionedViewportKey}
       messageSearchPanel={
         overlays.messageSearchPanel.visible ? (
@@ -80,12 +210,18 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
           />
         ) : null
       }
-      roomError={content.roomError}
+      roomError={roomError}
       sessionIndicator={<ChatRoomSessionIndicator view={realtime.sessionView} />}
       sessionNotice={
         <ChatRoomSessionNotice
-          onReactivate={session.reactivate}
-          onReconnect={realtime.reconnect}
+          onReactivate={() => {
+            failureAnalytics.trackRecoveryAttempt("realtime-connect", "user_retry");
+            session.reactivate();
+          }}
+          onReconnect={() => {
+            failureAnalytics.trackRecoveryAttempt("realtime-connect", "user_retry");
+            realtime.reconnect();
+          }}
           view={realtime.sessionView}
         />
       }

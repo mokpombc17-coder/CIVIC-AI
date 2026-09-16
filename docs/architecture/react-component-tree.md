@@ -41,6 +41,10 @@ view와 독립 feature control 사이의 논리적 조립 관계를 정리한다
 소유하지 않고 bridge·update·analytics identity 같은 전역 runtime만 조립한다. Production의
 `GoogleAnalyticsUserIdentity`는 3000 앱이 `civic.analytics-user-id.v1` session storage key에 저장한
 사용자 UUID를 GA data layer에 설정하며, route 이동이나 일반 unmount에서는 값을 초기화하지 않는다.
+`useFeatureFailureAnalytics`는 Chat·Survey·Vote screen이 사용자에게 실제로 표시한 최종 실패를
+`feature_failure`로 한 번만 보내고, 같은 방문에서 해당 기능이 정상화되면 `feature_recovered`를 한 번만
+보내는 공통 client 경계다. 자동 재시도 중간 오류와 반복 render는 제외하고, 사용자 재시도가 다시
+실패한 경우에만 attempt를 증가시킨다. 원본 오류 메시지·응답 본문·사용자 입력은 전송하지 않는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -101,7 +105,9 @@ viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다�
 `SurveyScreen`으로 올려 1단계에서는 비활성 제어를 유지하고, 2~~8단계에서는 이전 설문 단계로
 이동하게 한다. 또한 `useSurveyParticipationAnalytics`를 통해 방문별 최초 단계 노출, 실제 foreground
 체류 구간의 종료 사유·시간, 실제 제출 mutation 직전의 시도 횟수를 GA4에 전달한다. 임시 답변 복원
-여부는 방문의 `entry_type`으로 구분하며 답변 내용은 분석 이벤트에 포함하지 않는다.
+여부는 방문의 `entry_type`으로 구분하며 답변 내용은 분석 이벤트에 포함하지 않는다. `SurveyScreen`과
+`SurveyForm`, 제출 완료 확인은 설문 조회·동의/설문 제출·eligibility 재확인의 사용자 노출 실패와 같은
+방문에서의 복구를 공통 failure analytics session으로 묶는다.
 
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
@@ -349,6 +355,10 @@ pagination, `INVALID_CURSOR` one-shot 복구를 조립한다. `RoomCreationReque
 `ChatRoomScreen`은 Room detail을 먼저 조회해 화면에 필요한 controller와 ViewModel을 조립하는
 container다. ACTIVE Room은 실시간 session을 시작하고, CLOSED Room은 구독을 시도하지 않은 채
 Message History만 읽기 전용으로 조회한다.
+`ChatRoomListScreen`과 `ChatRoomScreen`은 최초 목록·Room/Message History 조회 오류, 실제 연결 오류
+session view, Outbox의 최종 메시지 전송 실패만 failure analytics에 전달한다. 연결 준비·자동 재전송 같은
+중간 상태와 정상 이탈은 제외하며, 명시적 재조회·재연결 또는 동일 outgoing message의 후속 수락만 복구로
+기록한다.
 Room별 최초 진입에서 session view가 아직 `pending`이면 `ChatRoomScreen`은 준비 완료 여부를 기억하고
 `ChatRoomView`에 단일 초기화 상태를 전달한다. View는 이 동안 개별 구독·이력·입력 상태를 노출하지 않고
 고정된 message/composer skeleton을 표시하며, 준비가 길어질 때만 하나의 안내 문구를 보여준다. 한 번
@@ -468,6 +478,9 @@ Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경�
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
 mutation, 종료 bottom sheet를 소유한다. 또한 사용자 UUID가 설정된 방문에 대해 단계별 최초 노출,
 Prediction 참여 가능 상태의 최초 노출과 실제 제출 시도를 GA custom event로 기록한다.
+Vote 목록·참여·제출 응답·결과 screen의 사용자 노출 조회 실패와 Prediction 최종 실패, 제출 실패는
+공통 failure analytics로 기록하고, 같은 방문에서 재조회·Prediction 준비·멱등 제출이 성공한 경우에만
+복구를 기록한다. Prediction polling의 대기 상태와 자동 복구되는 중간 오류는 실패로 세지 않는다.
 Prediction 조회·생성 실패에는 사용자 주도의 재시도를 제공하고,
 session storage에 남은 미확정 제출은 자동 전송하지 않고 동일 key·body 재제출 또는 새 작성 선택을 받는다.
 이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를 활성화하고, 참여 폼 대신 4/4 읽기 전용

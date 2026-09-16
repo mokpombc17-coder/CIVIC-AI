@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
+import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
+import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
@@ -31,6 +33,7 @@ const VOTE_LOGIN_HREF = "/login?returnTo=%2Fvote";
 export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: VoteTaskListTab }) {
   const router = useRouter();
   const tab = initialTab;
+  const failureAnalytics = useFeatureFailureAnalytics("vote", `task-list:${tab}`);
   const [searchInput, setSearchInput] = useState("");
   const [query, setQuery] = useState("");
   const openTasksQuery = useOpenTasksQuery();
@@ -93,6 +96,39 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
     showingActiveLoading || (showingCompletedLoading && completedTasks.length === 0);
   const showingBlockingError =
     showingActiveError || (showingCompletedError && completedTasks.length === 0);
+  const visibleListError = tab === "active" ? openTasksQuery.isError : showingCompletedError;
+  const visibleListErrorValue = tab === "active" ? openTasksQuery.error : completedTasksQuery.error;
+  const visibleListFailureCount =
+    tab === "active" ? openTasksQuery.failureCount : completedTasksQuery.failureCount;
+  const visibleListSuccess =
+    tab === "active" ? openTasksQuery.isSuccess : completedTasksQuery.isSuccess;
+  const listSurface = tab === "active" ? "active_task_list" : "completed_task_list";
+
+  useEffect(() => {
+    if (visibleListError) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(visibleListErrorValue, "api", "vote_list_load_failed"),
+        incidentKey: "screen-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, visibleListFailureCount - 1),
+        surface: listSurface,
+      });
+      return;
+    }
+    if (visibleListSuccess) failureAnalytics.trackRecovered("screen-load");
+  }, [
+    failureAnalytics,
+    listSurface,
+    visibleListError,
+    visibleListErrorValue,
+    visibleListFailureCount,
+    visibleListSuccess,
+  ]);
+
+  function retryVisibleTaskList() {
+    failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
+    void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch());
+  }
 
   return (
     <PlatformShell
@@ -166,9 +202,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 ? getOpenTaskErrorMessage(openTasksQuery.error)
                 : getCompletedTaskErrorMessage(completedTasksQuery.error)
             }
-            onRetry={() =>
-              void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch())
-            }
+            onRetry={retryVisibleTaskList}
           />
         ) : null}
         {!showingBlockingLoading && !showingBlockingError ? (
@@ -224,7 +258,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 className={styles.listInlineFeedback!}
                 error={completedTasksQuery.error}
                 message={getCompletedTaskErrorMessage(completedTasksQuery.error)}
-                onRetry={() => void completedTasksQuery.refetch()}
+                onRetry={retryVisibleTaskList}
               />
             ) : null}
             {tab === "completed" ? (

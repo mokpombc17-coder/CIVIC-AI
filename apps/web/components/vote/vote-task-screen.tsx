@@ -9,6 +9,8 @@ import {
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
+import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
+import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { formatVoteDateTime } from "@/lib/vote/vote-format";
 import {
@@ -64,6 +66,7 @@ const SUBMISSION_LOADING_MIN_VISIBLE_MS = 300;
 
 export function VoteTaskScreen({ taskId }: { taskId: string }) {
   const queryClient = useQueryClient();
+  const failureAnalytics = useFeatureFailureAnalytics("vote", `task:${taskId}`);
   const taskQuery = useOpenTaskQuery(taskId);
   const { predictionQuery, ensureMutation } = useTaskPredictionCoordinator(
     taskId,
@@ -144,6 +147,83 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
   });
 
   useEffect(() => {
+    if (taskQuery.isError) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(taskQuery.error, "api", "vote_task_load_failed"),
+        incidentKey: "task-detail-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, taskQuery.failureCount - 1),
+        surface: "participation",
+      });
+      return;
+    }
+    if (taskQuery.isSuccess) failureAnalytics.trackRecovered("task-detail-load");
+  }, [
+    failureAnalytics,
+    taskQuery.error,
+    taskQuery.failureCount,
+    taskQuery.isError,
+    taskQuery.isSuccess,
+  ]);
+
+  useEffect(() => {
+    if (!isViewingSubmittedResponse) return;
+    if (taskSubmissionQuery.isError) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(
+          taskSubmissionQuery.error,
+          "api",
+          "vote_submission_view_load_failed",
+        ),
+        incidentKey: "submission-view-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, taskSubmissionQuery.failureCount - 1),
+        surface: "submitted_response",
+      });
+      return;
+    }
+    if (taskSubmissionQuery.isSuccess) failureAnalytics.trackRecovered("submission-view-load");
+  }, [
+    failureAnalytics,
+    isViewingSubmittedResponse,
+    taskSubmissionQuery.error,
+    taskSubmissionQuery.failureCount,
+    taskSubmissionQuery.isError,
+    taskSubmissionQuery.isSuccess,
+  ]);
+
+  useEffect(() => {
+    const predictionPreparationFailed =
+      predictionQuery.isError || ensureMutation.isError || predictionFailed;
+    if (predictionPreparationFailed) {
+      const error =
+        predictionQuery.error ??
+        ensureMutation.error ??
+        ({ code: predictionView?.failureCode ?? "prediction_failed", retryable: true } as const);
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(error, "api", "prediction_failed"),
+        incidentKey: "ai-preparation",
+        operation: "ai_preparation",
+        retryCount: Math.max(0, predictionQuery.failureCount - 1),
+        step: 1,
+        surface: "participation",
+      });
+      return;
+    }
+    if (participationReady) failureAnalytics.trackRecovered("ai-preparation");
+  }, [
+    ensureMutation.error,
+    ensureMutation.isError,
+    failureAnalytics,
+    participationReady,
+    predictionFailed,
+    predictionQuery.error,
+    predictionQuery.failureCount,
+    predictionQuery.isError,
+    predictionView?.failureCode,
+  ]);
+
+  useEffect(() => {
     if (taskDetail?.submission.submitted) clearPendingTaskSubmission(taskId);
   }, [taskDetail?.submission.submitted, taskId]);
 
@@ -204,15 +284,25 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       const pending = getOrCreatePendingTaskSubmission(taskId, command);
       await submitPendingTask(pending);
     } catch (error) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(error, "client", "vote_submission_prepare_failed"),
+        failureStage: "prepare",
+        incidentKey: "submission",
+        operation: "submission",
+        step,
+        surface: "participation",
+      });
       setSubmissionError(getTaskSubmissionErrorMessage(error));
     }
   }
 
   async function submitPendingTask(pending: PendingTaskSubmission) {
     setSubmissionError(null);
+    failureAnalytics.trackRecoveryAttempt("submission", "user_retry");
     trackSubmissionAttempted();
     try {
       await submissionMutation.mutateAsync(pending);
+      failureAnalytics.trackRecovered("submission");
       clearPendingTaskSubmission(taskId);
       setRecoverableSubmission(null);
       setStep(4);
@@ -221,6 +311,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         clearPendingTaskSubmission(taskId);
         setRecoverableSubmission(null);
         if (error.code === "TASK_ALREADY_SUBMITTED") {
+          failureAnalytics.trackRecovered("submission");
           setStep(1);
           void Promise.all([
             taskSubmissionQuery.refetch(),
@@ -250,11 +341,22 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       } else {
         setRecoverableSubmission(pending);
       }
+      if (!(error instanceof VoteApiError && error.code === "TASK_SUBMISSION_OPTION_MISMATCH")) {
+        failureAnalytics.trackFailure({
+          ...getFeatureFailureDetails(error, "api", "vote_submission_failed"),
+          failureStage: "submit",
+          incidentKey: "submission",
+          operation: "submission",
+          step,
+          surface: "participation",
+        });
+      }
       setSubmissionError(getTaskSubmissionErrorMessage(error));
     }
   }
 
   function retryPredictionPreparation() {
+    failureAnalytics.trackRecoveryAttempt("ai-preparation", "user_retry");
     if (predictionQuery.isError) {
       void predictionQuery.refetch();
       return;
@@ -286,7 +388,10 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         {taskQuery.isError ? (
           <TaskFeedback
             message={getTaskDetailErrorMessage(taskQuery.error)}
-            onRetry={() => void taskQuery.refetch()}
+            onRetry={() => {
+              failureAnalytics.trackRecoveryAttempt("task-detail-load", "user_retry");
+              void taskQuery.refetch();
+            }}
           />
         ) : null}
         {taskDetail && !isViewingSubmittedResponse ? <VoteProgress step={step} /> : null}
@@ -299,7 +404,10 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         taskSubmissionQuery.isError ? (
           <TaskFeedback
             message={getTaskSubmissionViewErrorMessage(taskSubmissionQuery.error)}
-            onRetry={() => void taskSubmissionQuery.refetch()}
+            onRetry={() => {
+              failureAnalytics.trackRecoveryAttempt("submission-view-load", "user_retry");
+              void taskSubmissionQuery.refetch();
+            }}
           />
         ) : null}
         {taskDetail &&

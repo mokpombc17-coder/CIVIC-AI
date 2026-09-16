@@ -14,6 +14,10 @@ import {
   prepareConsentAcceptance,
   type PendingConsentAcceptance,
 } from "@/lib/consent/consent-submission";
+import {
+  getFeatureFailureDetails,
+  type FeatureFailureAnalyticsSession,
+} from "@/lib/analytics/feature-failure-analytics";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
   buildSubmitSurveyRequest,
@@ -51,6 +55,7 @@ import {
 } from "./survey-flow";
 import { SurveyLoadingStatus } from "./survey-loading";
 import { SurveySectionFields } from "./survey-question-fields";
+import { useFeatureFailureAnalytics } from "../use-feature-failure-analytics";
 import { useSurveyParticipationAnalytics } from "./use-survey-participation-analytics";
 import styles from "./survey.module.css";
 
@@ -69,6 +74,7 @@ type SurveyHeaderProgressState = Readonly<{
 
 export function SurveyScreen({ returnTo }: { returnTo: string }) {
   const surveyQuery = useCurrentSurveyQuery();
+  const failureAnalytics = useFeatureFailureAnalytics("survey", "participation");
   const [headerBackAction, setHeaderBackAction] = useState<PlatformHeaderBackAction | null>(null);
   const [headerProgress, setHeaderProgress] = useState<SurveyHeaderProgressState | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResponse | null>(null);
@@ -83,6 +89,32 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
     setHeaderProgress(null);
     setSubmissionResult(result);
   }, []);
+
+  useEffect(() => {
+    if (surveyQuery.isError) {
+      if (
+        surveyQuery.error instanceof VoteApiError &&
+        surveyQuery.error.code === "SURVEY_ACTIVE_ROUND_UNAVAILABLE"
+      ) {
+        return;
+      }
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(surveyQuery.error, "api", "survey_load_failed"),
+        incidentKey: "screen-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, surveyQuery.failureCount - 1),
+        surface: "participation",
+      });
+      return;
+    }
+    if (surveyQuery.isSuccess) failureAnalytics.trackRecovered("screen-load");
+  }, [
+    failureAnalytics,
+    surveyQuery.error,
+    surveyQuery.failureCount,
+    surveyQuery.isError,
+    surveyQuery.isSuccess,
+  ]);
 
   useEffect(() => {
     const survey = surveyQuery.data;
@@ -126,7 +158,11 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
     >
       <div className={styles.screen} data-survey-screen="flow">
         {submissionResult ? (
-          <SurveySubmissionCompletion result={submissionResult} returnTo={returnTo} />
+          <SurveySubmissionCompletion
+            failureAnalytics={failureAnalytics}
+            result={submissionResult}
+            returnTo={returnTo}
+          />
         ) : (
           <>
             {surveyQuery.isPending ? <SurveyLoadingStatus /> : null}
@@ -135,7 +171,10 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
                 actions={
                   <button
                     className={`${styles.action} ${styles.primaryAction}`}
-                    onClick={() => void surveyQuery.refetch()}
+                    onClick={() => {
+                      failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
+                      void surveyQuery.refetch();
+                    }}
                     type="button"
                   >
                     다시 시도
@@ -153,6 +192,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
               <SurveyForm
                 cancelHref={returnTo}
                 contentVersionId={surveyQuery.data.contentVersionId}
+                failureAnalytics={failureAnalytics}
                 key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
                 onHeaderBackActionChange={updateHeaderBackAction}
                 onHeaderProgressChange={updateHeaderProgress}
@@ -172,6 +212,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
 function SurveyForm({
   cancelHref,
   contentVersionId,
+  failureAnalytics,
   onHeaderBackActionChange,
   onHeaderProgressChange,
   onRefresh,
@@ -181,6 +222,7 @@ function SurveyForm({
 }: {
   cancelHref: string;
   contentVersionId: string;
+  failureAnalytics: FeatureFailureAnalyticsSession;
   onHeaderBackActionChange: (action: PlatformHeaderBackAction | null) => void;
   onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
@@ -373,6 +415,7 @@ function SurveyForm({
     }
 
     setSubmissionError(null);
+    failureAnalytics.trackRecoveryAttempt("submission", "user_retry");
     trackSubmissionAttempted();
 
     try {
@@ -411,11 +454,20 @@ function SurveyForm({
         draftSaveTimeoutRef.current = null;
       }
       if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
+      failureAnalytics.trackRecovered("submission");
       trackStepExited("submit");
       onSubmitted(result);
     } catch (error) {
       if (error instanceof ConsentApiError) {
         const consentError = getConsentSubmissionError(error);
+        failureAnalytics.trackFailure({
+          ...getFeatureFailureDetails(error, "api", "consent_submission_failed"),
+          failureStage: "consent",
+          incidentKey: "submission",
+          operation: "submission",
+          step: currentStep,
+          surface: "participation",
+        });
         setSubmissionError(consentError.message);
         if (consentError.newAttempt) {
           pendingConsentAcceptance.current = null;
@@ -424,6 +476,20 @@ function SurveyForm({
         return;
       }
       const apiErrors = getSurveySubmissionErrors(error);
+      if (error instanceof VoteApiError && error.code === "CURRENT_SURVEY_ALREADY_SUBMITTED") {
+        failureAnalytics.trackRecovered("submission");
+      } else if (!(
+        error instanceof VoteApiError && error.code === "SURVEY_RESPONSE_VALIDATION_FAILED"
+      )) {
+        failureAnalytics.trackFailure({
+          ...getFeatureFailureDetails(error, "api", "survey_submission_failed"),
+          failureStage: "survey",
+          incidentKey: "submission",
+          operation: "submission",
+          step: currentStep,
+          surface: "participation",
+        });
+      }
       if (Object.keys(apiErrors.fieldErrors).length > 0) {
         setErrors(apiErrors.fieldErrors);
         setCurrentStep(findFirstInvalidSectionIndex(sections, apiErrors.fieldErrors) + 1);
@@ -550,9 +616,14 @@ function SurveySubmitted({ returnTo }: { returnTo: string }) {
 }
 
 function SurveySubmissionCompletion({
+  failureAnalytics,
   result,
   returnTo,
-}: Readonly<{ result: SubmissionResponse; returnTo: string }>) {
+}: Readonly<{
+  failureAnalytics: FeatureFailureAnalyticsSession;
+  result: SubmissionResponse;
+  returnTo: string;
+}>) {
   const eligibilityQuery = useQuery({
     ...getServiceEligibilityQueryOptions(),
     enabled: result.persisted,
@@ -562,6 +633,39 @@ function SurveySubmissionCompletion({
     eligibilityQuery.isSuccess &&
     !eligibilityQuery.isFetching &&
     canReturnAfterSurveySubmission(result, eligibilityQuery.data);
+
+  useEffect(() => {
+    if (!result.persisted || eligibilityQuery.isFetching) return;
+    if (canReturn) {
+      failureAnalytics.trackRecovered("post-submit-check");
+      return;
+    }
+    if (eligibilityQuery.isError || eligibilityQuery.isSuccess) {
+      const details = eligibilityQuery.isError
+        ? getFeatureFailureDetails(eligibilityQuery.error, "api", "eligibility_check_failed")
+        : {
+            errorCode: "eligibility_not_ready",
+            errorSource: "api" as const,
+            retryable: true,
+          };
+      failureAnalytics.trackFailure({
+        ...details,
+        incidentKey: "post-submit-check",
+        operation: "post_submit_check",
+        retryCount: Math.max(0, eligibilityQuery.failureCount - 1),
+        surface: "completion",
+      });
+    }
+  }, [
+    canReturn,
+    eligibilityQuery.error,
+    eligibilityQuery.failureCount,
+    eligibilityQuery.isError,
+    eligibilityQuery.isFetching,
+    eligibilityQuery.isSuccess,
+    failureAnalytics,
+    result.persisted,
+  ]);
 
   useEffect(() => {
     if (!canReturn) return;
@@ -593,7 +697,10 @@ function SurveySubmissionCompletion({
       actions={
         <button
           className={`${styles.action} ${styles.primaryAction}`}
-          onClick={() => void eligibilityQuery.refetch()}
+          onClick={() => {
+            failureAnalytics.trackRecoveryAttempt("post-submit-check", "user_retry");
+            void eligibilityQuery.refetch();
+          }}
           type="button"
         >
           다시 확인

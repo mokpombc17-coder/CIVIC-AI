@@ -1,8 +1,10 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
+import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
+import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import {
   calculateVotePercentage,
   type MyTaskResult,
@@ -60,6 +62,28 @@ export function VoteTaskResultScreen({
 
 function ApiVoteTaskResult({ taskId }: { taskId: string }) {
   const resultQuery = useTaskResultQuery(taskId);
+  const failureAnalytics = useFeatureFailureAnalytics("vote", `task-result:${taskId}`);
+
+  useEffect(() => {
+    if (!voteCompletedApiAvailable) return;
+    if (resultQuery.isError) {
+      failureAnalytics.trackFailure({
+        ...getFeatureFailureDetails(resultQuery.error, "api", "vote_result_load_failed"),
+        incidentKey: "screen-load",
+        operation: "screen_load",
+        retryCount: Math.max(0, resultQuery.failureCount - 1),
+        surface: "result",
+      });
+      return;
+    }
+    if (resultQuery.isSuccess) failureAnalytics.trackRecovered("screen-load");
+  }, [
+    failureAnalytics,
+    resultQuery.error,
+    resultQuery.failureCount,
+    resultQuery.isError,
+    resultQuery.isSuccess,
+  ]);
 
   return (
     <VoteTaskResultShell taskId={taskId}>
@@ -72,7 +96,10 @@ function ApiVoteTaskResult({ taskId }: { taskId: string }) {
       {voteCompletedApiAvailable && resultQuery.isError ? (
         <ResultFeedback
           message={getTaskResultErrorMessage(resultQuery.error)}
-          onRetry={() => void resultQuery.refetch()}
+          onRetry={() => {
+            failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
+            void resultQuery.refetch();
+          }}
         />
       ) : null}
       {voteCompletedApiAvailable && resultQuery.data ? (
