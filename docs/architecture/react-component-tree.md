@@ -463,7 +463,9 @@ Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경�
 
 `VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
-mutation, 종료 bottom sheet를 소유한다. Prediction 조회·생성 실패에는 사용자 주도의 재시도를 제공하고,
+mutation, 종료 bottom sheet를 소유한다. 또한 사용자 UUID가 설정된 방문에 대해 단계별 최초 노출,
+Prediction 참여 가능 상태의 최초 노출과 실제 제출 시도를 GA custom event로 기록한다.
+Prediction 조회·생성 실패에는 사용자 주도의 재시도를 제공하고,
 session storage에 남은 미확정 제출은 자동 전송하지 않고 동일 key·body 재제출 또는 새 작성 선택을 받는다.
 이미 제출한 열린 Task로 재진입하면 Task 기준 내 제출 Query를 활성화하고, 참여 폼 대신 4/4 읽기 전용
 응답 확인 화면을 조립한다. 참여 가능 여부는 Prediction capability를 그대로 사용하고, 제출 요청은 선택한

@@ -46,6 +46,7 @@ import {
   type UserTaskDetail,
   type MyTaskSubmission,
 } from "@/lib/vote/vote-task-contracts";
+import { useVoteParticipationAnalytics } from "./use-vote-participation-analytics";
 import { VoteTaskScreenLoading } from "./vote-task-screen-loading";
 import styles from "./vote.module.css";
 
@@ -130,6 +131,17 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       directReasonLength <= DIRECT_REASON_MAX_LENGTH),
   );
   const confirmationReason = selectedPredictedReason?.reason ?? trimmedDirectReason;
+  const participationFlowVisible = Boolean(
+    taskDetail && !isViewingSubmittedResponse && !isRecoveringSubmission,
+  );
+  const { trackSubmissionAttempted } = useVoteParticipationAnalytics({
+    flowVisible: participationFlowVisible,
+    participationReady,
+    predictionPreparationFailed:
+      predictionQuery.isError || ensureMutation.isError || predictionFailed,
+    step,
+    taskId,
+  });
 
   useEffect(() => {
     if (taskDetail?.submission.submitted) clearPendingTaskSubmission(taskId);
@@ -198,6 +210,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
 
   async function submitPendingTask(pending: PendingTaskSubmission) {
     setSubmissionError(null);
+    trackSubmissionAttempted();
     try {
       await submissionMutation.mutateAsync(pending);
       clearPendingTaskSubmission(taskId);
