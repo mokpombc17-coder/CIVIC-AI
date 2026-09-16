@@ -1,5 +1,7 @@
 "use client";
 
+import { sendAuthMessage } from "@/lib/auth/auth-session-events";
+
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
@@ -146,6 +148,7 @@ export function AuthFunctionalScreen({
       );
       return;
     }
+    sendAuthMessage("LOGIN");
     await redirectToRoleHome(returnTo);
   }
 
@@ -222,6 +225,7 @@ export function AuthFunctionalScreen({
           { code: data.get("code") },
         );
         if (verificationKind === "TWO_FACTOR") {
+          sendAuthMessage("LOGIN");
           await redirectToRoleHome(postLoginReturnTo ?? safeReturnTarget(location.search));
         } else {
           changeSignupStep("AUTH-004", "/signup/consent");
@@ -250,6 +254,7 @@ export function AuthFunctionalScreen({
           code: normalizePasswordResetCode(data.get("code")),
           new_password: data.get("new_password"),
         });
+        sendAuthMessage("LOGOUT");
         sessionStorage.removeItem(passwordResetEmailKey);
         sessionStorage.removeItem(passwordResetCodeKey);
         location.assign(authCompletionDestination(activeId) ?? "/login");

@@ -5,6 +5,7 @@
 ```text
 RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
+    ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 문서 이동]
     └── AppShell [Client]
         ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
         ├── NativeBridgeRuntime
@@ -15,6 +16,10 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
 업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
 리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
+
+`AuthSessionSync`는 `civic-ai:auth:v1` 채널을 전역에서 구독한다. 다른 문서의 `LOGIN`은
+`/home`, `LOGOUT`은 `/login`으로 전체 문서를 교체한다. 수신 시 인증 API를 추가 호출하지
+않으며 송신한 탭의 기존 성공 이동은 유지한다. [공통 규약](../integration/auth-session-sync-front-handoff.md)을 따른다.
 
 `StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
 RSC 이동·갱신 요청에서 새 nonce가 발급되어도 현재 문서의 CSP는 바뀌지 않으므로,

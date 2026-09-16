@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
 import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
+import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 
 export function LogoutButton() {
   const [busy, setBusy] = useState(false);
@@ -47,6 +48,7 @@ export async function requestLogout(
       clearRagConversationSnapshot(storage);
       clearAnalyticsUserId(storage);
     }
+    sendAuthMessage("LOGOUT");
     return true;
   } catch {
     return false;
