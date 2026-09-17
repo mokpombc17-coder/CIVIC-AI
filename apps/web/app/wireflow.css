@@ -6171,6 +6171,7 @@
   flex: none;
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
+  border-inline: 1px solid #d9e2f2;
   border-bottom: 1px solid #d9e2f2;
   background: #edf2f7;
   padding: 10px var(--civic-rag-inline-padding);

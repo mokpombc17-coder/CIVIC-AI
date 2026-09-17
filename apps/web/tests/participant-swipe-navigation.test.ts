@@ -51,4 +51,12 @@ describe("participant bottom navigation swipe", () => {
       /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-messages \{[^}]*touch-action: pan-y pinch-zoom;/u,
     );
   });
+
+  it("RAG 안내 배너는 swipe 중 보이는 좌우 경계선을 유지한다", () => {
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(wireflowStyles).toMatch(
+      /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-session-bar \{[^}]*border-inline: 1px solid #d9e2f2;/u,
+    );
+  });
 });
