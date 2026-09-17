@@ -6,6 +6,7 @@ export const participantSwipeDistanceThreshold = 80;
 export const participantSwipeFastDistanceThreshold = 40;
 export const participantSwipeVelocityThreshold = 0.5;
 export const participantSwipeResistance = 0.35;
+export const participantSwipeSoftCapStart = 28;
 export const participantSwipeMaximumVisualDistance = 40;
 export const participantSwipeBlockingOverlaySelector =
   'dialog[open], [aria-modal="true"], [data-swipe-navigation-blocking]';
@@ -31,10 +32,16 @@ export function participantSwipeDestination(
 }
 
 export function participantSwipeVisualOffset(deltaX: number): number {
-  return Math.max(
-    -participantSwipeMaximumVisualDistance,
-    Math.min(participantSwipeMaximumVisualDistance, deltaX * participantSwipeResistance),
-  );
+  const direction = Math.sign(deltaX);
+  const resistedDistance = Math.abs(deltaX) * participantSwipeResistance;
+  if (resistedDistance <= participantSwipeSoftCapStart) return deltaX * participantSwipeResistance;
+
+  const softRange = participantSwipeMaximumVisualDistance - participantSwipeSoftCapStart;
+  const overflow = resistedDistance - participantSwipeSoftCapStart;
+  const softenedDistance =
+    participantSwipeSoftCapStart + softRange * (1 - Math.exp(-overflow / softRange));
+
+  return direction * softenedDistance;
 }
 
 export function isParticipantSwipeNavigation(deltaX: number, velocityX: number): boolean {

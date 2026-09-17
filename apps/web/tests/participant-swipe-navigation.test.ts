@@ -8,6 +8,8 @@ import {
   participantSwipeBlockingOverlaySelector,
   participantSwipeDestination,
   participantSwipeDirectionSlop,
+  participantSwipeMaximumVisualDistance,
+  participantSwipeSoftCapStart,
   participantSwipeVisualOffset,
 } from "@/lib/participant-swipe-navigation";
 
@@ -47,11 +49,20 @@ describe("participant bottom navigation swipe", () => {
     expect(participantSwipeDestination("/mypage", -100)).toBeNull();
   });
 
-  it("손가락 이동에 저항을 적용하고 화면 이동을 40px로 제한한다", () => {
+  it("28px 이후 저항을 점진적으로 높여 화면 이동을 40px에 부드럽게 수렴시킨다", () => {
+    expect(participantSwipeSoftCapStart).toBe(28);
+    expect(participantSwipeMaximumVisualDistance).toBe(40);
     expect(participantSwipeVisualOffset(80)).toBe(28);
     expect(participantSwipeVisualOffset(-80)).toBe(-28);
-    expect(participantSwipeVisualOffset(200)).toBe(40);
-    expect(participantSwipeVisualOffset(-200)).toBe(-40);
+
+    const offsetAt120 = participantSwipeVisualOffset(120);
+    const offsetAt160 = participantSwipeVisualOffset(160);
+    const offsetAt200 = participantSwipeVisualOffset(200);
+    expect(offsetAt120).toBeGreaterThan(28);
+    expect(offsetAt160).toBeGreaterThan(offsetAt120);
+    expect(offsetAt200).toBeGreaterThan(offsetAt160);
+    expect(offsetAt200).toBeLessThan(40);
+    expect(participantSwipeVisualOffset(-200)).toBeCloseTo(-offsetAt200);
   });
 
   it("충분한 거리 또는 짧고 빠른 gesture만 navigation으로 판정한다", () => {
