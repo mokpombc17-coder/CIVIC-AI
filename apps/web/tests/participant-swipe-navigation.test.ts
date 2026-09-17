@@ -2,8 +2,10 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+  hasParticipantSwipeBlockingOverlay,
   isParticipantSwipeNavigation,
   normalizeParticipantLandingRoute,
+  participantSwipeBlockingOverlaySelector,
   participantSwipeDestination,
   participantSwipeDirectionSlop,
   participantSwipeVisualOffset,
@@ -12,6 +14,21 @@ import {
 const webRoot = join(__dirname, "..");
 
 describe("participant bottom navigation swipe", () => {
+  it("열린 modal과 bottom sheet가 있으면 swipe 시작을 차단한다", () => {
+    const openOverlayRoot = {
+      querySelector: () => ({ nodeType: 1 }),
+    } as unknown as ParentNode;
+    const emptyRoot = {
+      querySelector: () => null,
+    } as unknown as ParentNode;
+
+    expect(participantSwipeBlockingOverlaySelector).toContain("dialog[open]");
+    expect(participantSwipeBlockingOverlaySelector).toContain('[aria-modal="true"]');
+    expect(participantSwipeBlockingOverlaySelector).toContain("[data-swipe-navigation-blocking]");
+    expect(hasParticipantSwipeBlockingOverlay(openOverlayRoot)).toBe(true);
+    expect(hasParticipantSwipeBlockingOverlay(emptyRoot)).toBe(false);
+  });
+
   it("12px 이동 이후에 swipe 방향 판정을 시작한다", () => {
     expect(participantSwipeDirectionSlop).toBe(12);
   });

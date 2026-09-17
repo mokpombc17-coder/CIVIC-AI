@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import type { PlatformNavigationHref } from "@/lib/platform-navigation";
 import {
+  hasParticipantSwipeBlockingOverlay,
   isParticipantSwipeNavigation,
   normalizeParticipantLandingRoute,
   participantSwipeDestination,
@@ -113,6 +114,7 @@ export function ParticipantSwipeNavigationController({
       if (
         isNavigating ||
         gesture ||
+        hasParticipantSwipeBlockingOverlay(document) ||
         !event.isPrimary ||
         (event.pointerType === "mouse" && event.button !== 0) ||
         !isSupportedPointer(event)
