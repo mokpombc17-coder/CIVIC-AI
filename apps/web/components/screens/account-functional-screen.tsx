@@ -1,7 +1,7 @@
 "use client";
 
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
-import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
+import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
@@ -90,7 +90,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         redirectAfterPasswordChange();
       } else if (operation === "deactivate") {
         await mutation("/api/v1/account/deactivate", "POST", { password: data.get("password") });
-        clearRagConversationSnapshot();
+        clearAuthSessionData();
         sendAuthMessage("LOGOUT");
         location.assign("/reactivate");
       }
@@ -444,7 +444,7 @@ export function passwordConfirmationMatches(data: FormData): boolean {
 export function redirectAfterPasswordChange(
   navigate: (path: string) => void = (path) => location.assign(path),
 ): void {
-  clearRagConversationSnapshot();
+  clearAuthSessionData();
   sendAuthMessage("LOGOUT");
   navigate("/login");
 }
