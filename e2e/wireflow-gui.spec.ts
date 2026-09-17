@@ -841,6 +841,45 @@ test("참여자 Platform Shell 헤더는 자격 확인 전후와 주요 경로�
   expect(await headerHeight()).toBe(64);
 });
 
+test("RAG 대화에서는 메시지 목록만 세로 스크롤을 소유한다", async ({ context, page }) => {
+  await authenticate(context, "participant.payload.signature");
+  await page.goto("/rag");
+
+  const shellContent = page.locator('[data-platform-shell-content="true"]');
+  const messages = page.locator(".civic-rag-messages");
+  await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
+  await expect(shellContent).toHaveAttribute("data-scroll", "child");
+  await expect(shellContent).toHaveCSS("overflow-y", "hidden");
+
+  await messages.evaluate((element) => {
+    const filler = document.createElement("div");
+    filler.dataset.ragScrollFixture = "true";
+    filler.style.height = "1600px";
+    filler.style.flex = "none";
+    element.append(filler);
+  });
+
+  const dimensions = await page.evaluate(() => {
+    const shell = document.querySelector<HTMLElement>('[data-platform-shell-content="true"]');
+    const messageList = document.querySelector<HTMLElement>(".civic-rag-messages");
+    if (!shell || !messageList) throw new Error("RAG scroll containers are missing.");
+    messageList.scrollTop = 200;
+    return {
+      messageClientHeight: messageList.clientHeight,
+      messageScrollHeight: messageList.scrollHeight,
+      messageScrollTop: messageList.scrollTop,
+      shellClientHeight: shell.clientHeight,
+      shellScrollHeight: shell.scrollHeight,
+      shellScrollTop: shell.scrollTop,
+    };
+  });
+
+  expect(dimensions.messageScrollHeight).toBeGreaterThan(dimensions.messageClientHeight);
+  expect(dimensions.messageScrollTop).toBeGreaterThan(0);
+  expect(dimensions.shellScrollHeight).toBeLessThanOrEqual(dimensions.shellClientHeight + 1);
+  expect(dimensions.shellScrollTop).toBe(0);
+});
+
 test("RAG와 계정 루트 헤더의 뒤로 가기는 홈으로 이동한다", async ({ context, page }) => {
   await authenticate(context, "participant.payload.signature");
 

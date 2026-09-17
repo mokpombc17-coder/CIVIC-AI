@@ -5011,7 +5011,7 @@
   flex-direction: column;
 }
 
-.civic-platform-participant-body > [data-wireflow-screen^="U-RAG"] {
+.civic-platform-participant-body [data-wireflow-screen^="U-RAG"] {
   flex: 1;
 }
 
@@ -6149,8 +6149,8 @@
 }
 
 /* Figma Wire Flow 74:565 · U-RAG-001 document-grounded AI conversation. */
-.civic-platform-participant-body:has(> [data-wireflow-screen="U-RAG-001"]),
-.civic-platform-participant-body > [data-wireflow-screen="U-RAG-001"] {
+.civic-platform-participant-body:has([data-wireflow-screen="U-RAG-001"]),
+.civic-platform-participant-body [data-wireflow-screen="U-RAG-001"] {
   height: 100%;
   min-height: 0;
 }

@@ -1,7 +1,7 @@
 import type { Route } from "next";
 import type { ReactNode } from "react";
 import { PlatformPageShell } from "@/components/platform-page-shell";
-import { PlatformNavigation } from "@/components/platform-shell";
+import { PlatformNavigation, type PlatformShellScroll } from "@/components/platform-shell";
 
 export type ParticipantShellProps = Readonly<{
   activeRoute: string;
@@ -11,6 +11,7 @@ export type ParticipantShellProps = Readonly<{
   headerActions?: ReactNode;
   headerTitle?: ReactNode;
   requiresLoginForProtectedLinks?: boolean;
+  scroll?: PlatformShellScroll;
   title?: string;
 }>;
 
@@ -22,6 +23,7 @@ export function ParticipantShell({
   headerActions,
   headerTitle,
   requiresLoginForProtectedLinks = false,
+  scroll = "self",
   title,
 }: ParticipantShellProps) {
   const section = participantSection(activeRoute);
@@ -47,6 +49,7 @@ export function ParticipantShell({
       }
       contentClassName="civic-platform-participant-content"
       {...(headerActions !== undefined ? { headerActions } : {})}
+      scroll={scroll}
       title={headerTitle ?? title ?? section.title}
     >
       <a className="civic-skip-link" href="#civic-content">

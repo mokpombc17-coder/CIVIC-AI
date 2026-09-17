@@ -1132,6 +1132,11 @@ describe("25 functional Main/Auth screens", () => {
     const participantHtml = renderToStaticMarkup(
       <ParticipantShell activeRoute="/rag">본문</ParticipantShell>,
     );
+    const participantRagHtml = renderToStaticMarkup(
+      <ParticipantShell activeRoute="/rag" scroll="child">
+        본문
+      </ParticipantShell>,
+    );
     const adminHtml = renderToStaticMarkup(
       <AdminShell activeRoute="/admin/rag" permissions={["RAG_ADMIN"]}>
         본문
@@ -1141,6 +1146,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(participantHtml.match(/data-platform-shell="true"/g)).toHaveLength(1);
     expect(participantHtml).toContain('aria-label="참여자 주요 메뉴"');
     expect(participantHtml).toContain("AI");
+    expect(participantRagHtml.match(/data-scroll="child"/g)).toHaveLength(2);
     const mypageHtml = renderToStaticMarkup(
       <ParticipantShell activeRoute="/mypage">본문</ParticipantShell>,
     );
