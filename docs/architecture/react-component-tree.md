@@ -40,8 +40,9 @@ view와 독립 feature control 사이의 논리적 조립 관계를 정리한다
 화면용 `PlatformPageShell`을 조립한다. `AppShell`은 route UI를 감싸는 `main`이나 site header를
 소유하지 않고 bridge·update·analytics identity·인증 생명주기 같은 전역 runtime만 조립한다.
 `AuthenticationLifecycleBoundary`는 `civic-ai:auth:v1` BroadcastChannel의 `LOGOUT`에서 route
-children을 내린 뒤 Chat·Vote query cache와 투표 pending 제출을 제거한다. `LOGIN`과 BFCache 복원에서는
-투표 pending 제출을 제거하고 hard reload한다. GA4 User-ID와 사용자별 Survey draft는 제거하지 않는다. Production의
+children을 내린 뒤 Chat·Vote query cache와 투표 pending 제출을 제거하고 `/login`으로 document
+navigation한다. `LOGIN`과 BFCache 복원에서는 투표 pending 제출을 제거하고 hard reload한다. GA4
+User-ID와 사용자별 Survey draft는 제거하지 않는다. Production의
 `GoogleAnalyticsUserIdentity`는 3000 앱이 `civic.analytics-user-id.v1` session storage key에 저장한
 사용자 UUID를 GA data layer에 설정하며, route 이동이나 일반 unmount에서는 값을 초기화하지 않는다.
 `useFeatureFailureAnalytics`는 Chat·Survey·Vote screen이 사용자에게 실제로 표시한 최종 실패를
@@ -57,18 +58,18 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 │   └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
 │       ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
 │       └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
-│           ├── [LOGOUT] 로그아웃 안내 UI
-│           └── children [slot: App Router가 route child를 제공]
-│           ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
-│           └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
-│               ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
-│               │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
-│               │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-│               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-│               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
-│               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-│               ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
-│               └── LocalE2ELoginControl [Client] [Feature] [conditional: development] (apps/web/components/local-e2e-login-control.tsx)
+│           ├── [LOGOUT] route child를 내리고 `/login`으로 document navigation
+│           └── [authenticated] children [slot: App Router가 route child를 제공]
+│               ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
+│               └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
+│                   ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
+│                   │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
+│                   │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
+│                   │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+│                   │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+│                   │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
+│                   ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
+│                   └── LocalE2ELoginControl [Client] [Feature] [conditional: development] (apps/web/components/local-e2e-login-control.tsx)
 └── GoogleAnalytics [Client] [Runtime] [conditional: production] (@next/third-parties/google)
 ```
 

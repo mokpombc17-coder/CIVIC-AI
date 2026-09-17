@@ -11,10 +11,10 @@ import { clearAllPendingTaskSubmissions } from "@/lib/vote/vote-idempotent-submi
 import { getVoteQueryClient } from "@/lib/vote/vote-query-client";
 
 export function AuthenticationLifecycleBoundary({ children }: { children: ReactNode }) {
-  const [loggedOut, setLoggedOut] = useState(false);
+  const [routeBlocked, setRouteBlocked] = useState(false);
 
   useEffect(() => {
-    let reloadRequested = false;
+    let documentNavigationRequested = false;
 
     function clearVotePendingSubmissions() {
       try {
@@ -25,8 +25,8 @@ export function AuthenticationLifecycleBoundary({ children }: { children: ReactN
     }
 
     function hardReload() {
-      if (reloadRequested) return;
-      reloadRequested = true;
+      if (documentNavigationRequested) return;
+      documentNavigationRequested = true;
       clearVotePendingSubmissions();
       window.location.reload();
     }
@@ -35,10 +35,13 @@ export function AuthenticationLifecycleBoundary({ children }: { children: ReactN
       onBfcacheRestore: hardReload,
       onLogin: hardReload,
       onLogout: () => {
-        flushSync(() => setLoggedOut(true));
+        if (documentNavigationRequested) return;
+        documentNavigationRequested = true;
+        flushSync(() => setRouteBlocked(true));
         getChatQueryClient().clear();
         getVoteQueryClient().clear();
         clearVotePendingSubmissions();
+        window.location.replace("/login");
       },
     });
     let channel: BroadcastChannel | null = null;
@@ -61,24 +64,7 @@ export function AuthenticationLifecycleBoundary({ children }: { children: ReactN
     };
   }, []);
 
-  if (loggedOut) {
-    return (
-      <main className="mx-auto flex min-h-dvh w-full max-w-[393px] items-center justify-center bg-white px-6 text-center">
-        <section role="status">
-          <h1 className="text-xl font-bold text-slate-950">로그아웃되었습니다</h1>
-          <p className="mt-2 text-sm leading-6 text-slate-600">
-            다시 로그인하면 현재 화면을 새로 불러옵니다.
-          </p>
-          <a
-            className="mt-6 inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-semibold text-white"
-            href="/login"
-          >
-            로그인하기
-          </a>
-        </section>
-      </main>
-    );
-  }
+  if (routeBlocked) return null;
 
   return children;
 }
