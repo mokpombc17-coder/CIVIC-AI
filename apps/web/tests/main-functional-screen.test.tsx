@@ -1194,6 +1194,8 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html).toContain('data-home-hero-animate="true"');
+    expect(html).toContain('data-home-hero-replay=""');
+    expect(html).not.toContain("차트 애니메이션 다시 재생");
     expect(html).not.toContain("civic-opinion-hero--animated");
     expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);

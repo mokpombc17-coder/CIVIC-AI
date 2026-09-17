@@ -7,8 +7,10 @@ import {
   homeHeroAnimationCompletionName,
   homeHeroAnimationCompletionSelector,
   homeHeroAnimationEndMark,
+  homeHeroAnimationReplaySelector,
   homeHeroAnimationRootSelector,
   homeHeroAnimationStartMark,
+  replayHomeHeroAnimation,
 } from "@/lib/home-hero-animation";
 
 const heroAnimationFallbackMs = 1_500;
@@ -27,11 +29,13 @@ export function HomeHeroAnimationController() {
 
     let active = true;
     let completed = false;
+    let started = false;
     let firstFrameHandle = 0;
     let secondFrameHandle = 0;
     let completionFallbackHandle = 0;
     let cancelIdleStart: (() => void) | undefined;
     const animationTarget = hero.querySelector<HTMLElement>(homeHeroAnimationCompletionSelector);
+    const replayTarget = hero.querySelector<SVGElement>(homeHeroAnimationReplaySelector);
 
     const completeAnimation = () => {
       if (!active || completed) return;
@@ -50,6 +54,7 @@ export function HomeHeroAnimationController() {
 
     const startAnimation = () => {
       if (!active) return;
+      started = true;
       hero.dataset.homeHeroAnimationState = "running";
       performance.mark?.(homeHeroAnimationStartMark);
       animationTarget?.addEventListener("animationend", handleAnimationEnd);
@@ -63,7 +68,13 @@ export function HomeHeroAnimationController() {
       completionFallbackHandle = window.setTimeout(completeAnimation, heroAnimationFallbackMs);
     };
 
+    const replayAnimation = () => {
+      if (!active || !started) return;
+      replayHomeHeroAnimation(hero);
+    };
+
     hero.dataset.homeHeroAnimationState = "pending";
+    replayTarget?.addEventListener("click", replayAnimation);
     firstFrameHandle = window.requestAnimationFrame(() => {
       secondFrameHandle = window.requestAnimationFrame(() => {
         const idleWindow = window as IdleWindow;
@@ -87,6 +98,7 @@ export function HomeHeroAnimationController() {
       window.clearTimeout(completionFallbackHandle);
       cancelIdleStart?.();
       animationTarget?.removeEventListener("animationend", handleAnimationEnd);
+      replayTarget?.removeEventListener("click", replayAnimation);
     };
   }, []);
 
