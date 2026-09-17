@@ -1,10 +1,13 @@
 "use client";
 
 import { useEffect, useState, type ComponentType } from "react";
+import {
+  homeHeroAnimationCompleteEvent,
+  homeHeroAnimationRootSelector,
+  homeQueryRuntimeImportMark,
+} from "@/lib/home-hero-animation";
 
-const heroCompletionSelector = ".civic-opinion-hero--animated .civic-hero-label";
-const heroCompletionAnimationName = "civic-hero-content-reveal";
-const homeQueryRuntimeFallbackMs = 1_500;
+const homeQueryRuntimeFallbackMs = 3_000;
 const homeQueryRuntimeIdleTimeoutMs = 400;
 
 type HomeQueryRuntimeComponent = ComponentType<{ authenticated: boolean }>;
@@ -22,9 +25,10 @@ export function DeferredHomeQueryRuntime({ authenticated }: Readonly<{ authentic
     let active = true;
     let loadQueued = false;
     let cancelScheduledImport: (() => void) | undefined;
-    const animationTarget = document.querySelector<HTMLElement>(heroCompletionSelector);
+    const hero = document.querySelector<HTMLElement>(homeHeroAnimationRootSelector);
 
     const importRuntime = () => {
+      performance.mark?.(homeQueryRuntimeImportMark);
       void import("./home-query-runtime").then(({ HomeQueryRuntime }) => {
         if (active) setRuntime(() => HomeQueryRuntime);
       });
@@ -34,7 +38,7 @@ export function DeferredHomeQueryRuntime({ authenticated }: Readonly<{ authentic
       if (loadQueued) return;
       loadQueued = true;
       window.clearTimeout(fallbackHandle);
-      animationTarget?.removeEventListener("animationend", handleAnimationEnd);
+      window.removeEventListener(homeHeroAnimationCompleteEvent, queueRuntimeLoad);
 
       const idleWindow = window as IdleWindow;
       if (typeof idleWindow.requestIdleCallback === "function") {
@@ -49,15 +53,10 @@ export function DeferredHomeQueryRuntime({ authenticated }: Readonly<{ authentic
       cancelScheduledImport = () => window.clearTimeout(timeoutHandle);
     };
 
-    function handleAnimationEnd(event: Event) {
-      if ((event as AnimationEvent).animationName !== heroCompletionAnimationName) return;
-      queueRuntimeLoad();
-    }
-
     const fallbackHandle = window.setTimeout(queueRuntimeLoad, homeQueryRuntimeFallbackMs);
 
-    if (shouldWaitForHeroAnimation(animationTarget)) {
-      animationTarget?.addEventListener("animationend", handleAnimationEnd);
+    if (shouldWaitForHeroAnimation(hero)) {
+      window.addEventListener(homeHeroAnimationCompleteEvent, queueRuntimeLoad);
     } else {
       queueRuntimeLoad();
     }
@@ -65,7 +64,7 @@ export function DeferredHomeQueryRuntime({ authenticated }: Readonly<{ authentic
     return () => {
       active = false;
       window.clearTimeout(fallbackHandle);
-      animationTarget?.removeEventListener("animationend", handleAnimationEnd);
+      window.removeEventListener(homeHeroAnimationCompleteEvent, queueRuntimeLoad);
       cancelScheduledImport?.();
     };
   }, []);
@@ -73,11 +72,8 @@ export function DeferredHomeQueryRuntime({ authenticated }: Readonly<{ authentic
   return Runtime ? <Runtime authenticated={authenticated} /> : null;
 }
 
-function shouldWaitForHeroAnimation(target: HTMLElement | null): boolean {
-  if (!target) return false;
+function shouldWaitForHeroAnimation(hero: HTMLElement | null): boolean {
+  if (!hero) return false;
   if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return false;
-  if (typeof target.getAnimations !== "function") return true;
-  return target
-    .getAnimations()
-    .some((animation) => animation.pending || animation.playState === "running");
+  return hero.dataset.homeHeroAnimationState !== "complete";
 }

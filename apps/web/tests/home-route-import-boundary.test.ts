@@ -12,6 +12,10 @@ describe("home route import boundary", () => {
       join(webRoot, "components", "auth", "deferred-home-query-runtime.tsx"),
       "utf8",
     );
+    const animationController = readFileSync(
+      join(webRoot, "components", "screens", "home-hero-animation-controller.tsx"),
+      "utf8",
+    );
     const homeScreen = readFileSync(
       join(webRoot, "components", "screens", "participant-home-screen.tsx"),
       "utf8",
@@ -27,14 +31,19 @@ describe("home route import boundary", () => {
 
     expect(page).toContain("@/components/screens/participant-home-screen");
     expect(page).toContain("@/components/auth/deferred-home-query-runtime");
+    expect(page).toContain("@/components/screens/home-hero-animation-controller");
     expect(page).not.toContain("@/components/screens/main-functional-screen");
     expect(page).not.toContain("@/components/auth/participant-eligibility-guard");
     expect(page.match(/prefetch=\{false\}/gu)).toHaveLength(2);
     expect(rootLayout).not.toContain("AppQueryProvider");
     expect(participantShell).not.toMatch(/ParticipantEligibilityGuard|@tanstack\/react-query/u);
     expect(deferredRuntime).toContain('import("./home-query-runtime")');
-    expect(deferredRuntime).toContain('addEventListener("animationend"');
+    expect(deferredRuntime).toContain("homeHeroAnimationCompleteEvent");
     expect(deferredRuntime).toContain("window.setTimeout(queueRuntimeLoad");
+    expect(animationController).toContain("window.requestAnimationFrame");
+    expect(animationController).toContain("requestIdleCallback");
+    expect(animationController).toContain('addEventListener("animationend"');
+    expect(animationController).toContain("homeHeroAnimationStartMark");
     expect(homeScreen).not.toMatch(
       /account-functional-screen|admin-functional-screen|auth-functional-screen|@tanstack\/react-query/u,
     );

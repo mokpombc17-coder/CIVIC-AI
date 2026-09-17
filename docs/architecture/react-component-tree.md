@@ -77,16 +77,17 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            ├── DeferredHomeQueryRuntime [Client, 히어로 animationend 뒤 동적 import]
-            │   ├── animationend 누락: 1.5초 fallback 뒤 idle scheduling
+            ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
+            │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
             │   └── HomeQueryRuntime
             │       ├── AppQueryProvider [Client, 비로그인도 query runtime 준비]
             │       └── ParticipantEligibilityGuard [로그인 사용자만 백그라운드 확인]
             │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
             │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
             │           └── 필수 미제출: /survey?returnTo=/home hard navigation
+            ├── HomeHeroAnimationController [Client, 첫 paint 이후 idle 시 애니메이션 시작]
             └── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
-                ├── OpinionGatheringHero [SSR: 질문·회색 도넛, DOM 삽입 즉시 CSS 애니메이션]
+                ├── OpinionGatheringHero [SSR: 질문·회색 도넛, controller가 CSS 애니메이션 시작]
                 └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
 
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
@@ -238,8 +239,9 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 
 `/home` route는 `MainFunctionalScreen`을 거치지 않고 `ParticipantHomeScreen`을 직접 import한다.
 따라서 랜딩 초기 client graph에는 계정·인증 화면 및 React Query 코드가 포함되지 않는다. 홈은 인증
-여부와 관계없이 히어로의 마지막 `animationend` 이후 `HomeQueryRuntime`을 동적 import하며, 이벤트를
-놓치면 1.5초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
+여부와 관계없이 `HomeHeroAnimationController`가 두 번의 animation frame과 idle scheduling 이후
+애니메이션을 시작한다. 히어로 완료 신호 이후 `HomeQueryRuntime`을 동적 import하며, 신호를 놓치면
+3초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
 `ParticipantEligibilityGuard`를 실행한다. 보호 참여자 route는 `EligibleParticipantShell`에서
 `AppQueryProvider`와 guard를 즉시 조립하며 browser singleton query cache를 공유한다. 홈에 노출되는
 Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져오지 않도록 prefetch를 끈다.
