@@ -14,7 +14,7 @@ type OpinionItem = {
 type OpinionGatheringHeroProps = {
   /** false이면 SSR 초기 상태인 질문과 회색 도넛만 유지합니다. */
   animate?: boolean;
-  /** 차트를 클릭하거나 터치하면 애니메이션을 다시 재생합니다. */
+  /** 도넛을 클릭하거나 터치하면 애니메이션을 다시 재생합니다. */
   debugReplay?: boolean;
   /** 히어로 상단 질문 */
   question?: string;
@@ -197,9 +197,8 @@ export function OpinionGatheringHero({
 
       <div className="relative mt-3 aspect-[360/200] w-full">
         <svg
-          className={`block h-full w-full overflow-visible${animate && debugReplay ? " cursor-pointer" : ""}`}
+          className="block h-full w-full overflow-visible"
           viewBox="0 0 360 200"
-          data-home-hero-replay={animate && debugReplay ? "" : undefined}
           aria-hidden="true"
         >
           <defs>
@@ -291,6 +290,20 @@ export function OpinionGatheringHero({
               ))}
             </g>
           )}
+
+          {animate && debugReplay ? (
+            <circle
+              className="cursor-pointer"
+              cx={DONUT_CENTER_X}
+              cy={DONUT_CENTER_Y}
+              r={(outerRadius + innerRadius) / 2}
+              fill="none"
+              stroke="transparent"
+              strokeWidth={outerRadius - innerRadius}
+              pointerEvents="stroke"
+              data-home-hero-replay=""
+            />
+          ) : null}
         </svg>
 
         <ul className="pointer-events-none absolute inset-0 m-0 list-none p-0" aria-hidden="true">
