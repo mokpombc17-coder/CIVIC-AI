@@ -27,8 +27,8 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 브라우저의 공유 QueryClient 캐시를 함께 비운다. API 요청·메시지 송신·화면 이동은 호출부가 담당한다.
 `AuthSessionSync`는 `observeAuthMessages`로 받은 메시지에 따라 정리 후 이동한다.
 다음 로그인 후 역할·서비스 이용 자격을 새로 조회한다.
-`RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 대화를
-숨긴다. bfcache 저장 전에도 내용을 숨기고 복원 시 문서를 다시 로드한다. 브로드캐스트의
+`RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 별도 문구 없이 빈
+본문을 렌더링한다. bfcache 저장 전에도 대화를 언마운트하고 복원 시 문서를 다시 로드한다. 브로드캐스트의
 수신 이동에는 인증 조회를 추가하지 않는다. [RAG 계정 격리](../contracts/rag-session-isolation.md)를 따른다.
 
 `StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
