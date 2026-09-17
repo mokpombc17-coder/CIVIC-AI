@@ -81,8 +81,10 @@ root layout에 이미 `metadata` 또는 `viewport` export가 있다면 새 expor
 - Workbox, `next-pwa` 또는 다른 캐싱 라이브러리를 설치하지 않는다.
 - 3001 화면의 오프라인 캐시, background sync, push notification을 추가하지 않는다.
 
-3000 서비스 워커는 `/pwa/start`의 공개 시작 shell과 그 정적 리소스만 캐시하며, 3001 화면이나
-API 응답은 캐시하지 않는다.
+3000 서비스 워커는 `/pwa/start`의 공개 시작 shell과 해당 shell의 Next 정적 리소스를 캐시한다.
+여기에 3000이 소유하는 버전 지정 Pretendard GOV 폰트와 공통 하단 navigation 이미지를
+cache-first 자산으로 추가한다. 3001 화면, 일반 route의 추가 Next 정적 리소스 및 API 응답은
+캐시하지 않는다.
 
 ## Nginx 전제
 

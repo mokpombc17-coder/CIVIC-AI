@@ -180,7 +180,8 @@ export function OpinionGatheringHero({
 
   return (
     <section
-      className={`civic-opinion-hero${animate ? " civic-opinion-hero--animated" : ""} box-border w-full max-w-[402px] bg-white px-[22px] pb-0 pt-3 text-slate-900 max-[359px]:px-[18px] ${className}`.trim()}
+      className={`civic-opinion-hero box-border w-full max-w-[402px] bg-white px-[22px] pb-0 pt-3 text-slate-900 max-[359px]:px-[18px] ${className}`.trim()}
+      data-home-hero-animate={animate ? "true" : undefined}
       data-nosnippet=""
       style={style}
       aria-label={accessibleSummary}

@@ -52,6 +52,11 @@ RootLayout [Server, 문서 CSP nonce 읽기]
 
 IndexPage / [Server Route] [redirect: /home]
 
+RootLoading /loading.tsx [Server Route, route-neutral PlatformShell fallback]
+├── header: CIVIC.AI + 전남광주
+├── content: spinner + 준비 상태 안내
+└── bottom navigation: 현재 선택 상태 없이 공통 메뉴 유지
+
 PwaStartPage /pwa/start [Server Route, manifest start_url]
 └── PwaStartup [Client]
     ├── 일반 브라우저: /home 이동, Refresh 미실행
@@ -77,16 +82,17 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            ├── DeferredHomeQueryRuntime [Client, 히어로 animationend 뒤 동적 import]
-            │   ├── animationend 누락: 1.5초 fallback 뒤 idle scheduling
+            ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
+            │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
             │   └── HomeQueryRuntime
             │       ├── AppQueryProvider [Client, 비로그인도 query runtime 준비]
             │       └── ParticipantEligibilityGuard [로그인 사용자만 백그라운드 확인]
             │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
             │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
             │           └── 필수 미제출: /survey?returnTo=/home hard navigation
+            ├── HomeHeroAnimationController [Client, 첫 paint 이후 idle 시 애니메이션 시작]
             └── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
-                ├── OpinionGatheringHero [SSR: 질문·회색 도넛, DOM 삽입 즉시 CSS 애니메이션]
+                ├── OpinionGatheringHero [SSR: 질문·회색 도넛, controller가 CSS 애니메이션 시작]
                 └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
 
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
@@ -238,8 +244,9 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 
 `/home` route는 `MainFunctionalScreen`을 거치지 않고 `ParticipantHomeScreen`을 직접 import한다.
 따라서 랜딩 초기 client graph에는 계정·인증 화면 및 React Query 코드가 포함되지 않는다. 홈은 인증
-여부와 관계없이 히어로의 마지막 `animationend` 이후 `HomeQueryRuntime`을 동적 import하며, 이벤트를
-놓치면 1.5초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
+여부와 관계없이 `HomeHeroAnimationController`가 두 번의 animation frame과 idle scheduling 이후
+애니메이션을 시작한다. 히어로 완료 신호 이후 `HomeQueryRuntime`을 동적 import하며, 신호를 놓치면
+3초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
 `ParticipantEligibilityGuard`를 실행한다. 보호 참여자 route는 `EligibleParticipantShell`에서
 `AppQueryProvider`와 guard를 즉시 조립하며 browser singleton query cache를 공유한다. 홈에 노출되는
 Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져오지 않도록 prefetch를 끈다.
@@ -360,8 +367,9 @@ placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않
 
 ## App Router special UI
 
-root `loading.tsx`는 route-neutral `FullscreenStatus`를 사용한다. 참여자·관리자 route 내부의
-`loading.tsx`는 각 목적지 shell에 맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존
-`PlatformPageShell`을 사용한다. 이 special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지
-않는다. `/home/loading.tsx`는 관리자 skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해
-질문·회색 도넛·홈 카드의 초기 구조만 렌더링한다.
+root `loading.tsx`는 route-neutral `PlatformPageShell`에 브랜드 header, 준비 상태, 선택 상태가 없는
+공통 bottom navigation을 렌더링한다. 참여자·관리자 route 내부의 `loading.tsx`는 각 목적지 shell에
+맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존 `PlatformPageShell`을 사용한다. 이
+special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지 않는다. `/home/loading.tsx`는 관리자
+skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해 질문·회색 도넛·홈 카드의 초기 구조만
+렌더링한다.

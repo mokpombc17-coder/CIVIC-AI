@@ -6,6 +6,7 @@ import {
   ParticipantHomeActions,
   ParticipantHomeScreen,
 } from "@/components/screens/participant-home-screen";
+import { HomeHeroAnimationController } from "@/components/screens/home-hero-animation-controller";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { CurrentUserGreeting } from "@/components/shell/current-user-greeting";
 import { HomeBrandTitle } from "@/components/shell/home-brand-title";
@@ -49,6 +50,7 @@ export default function HomePage() {
         <Suspense fallback={null}>
           <ResolvedHomeQueryRuntime accessCredential={accessCredential} />
         </Suspense>
+        <HomeHeroAnimationController />
         <ParticipantHomeScreen
           homeActions={
             <Suspense fallback={<ParticipantHomeActions requiresLoginForProtectedLinks />}>

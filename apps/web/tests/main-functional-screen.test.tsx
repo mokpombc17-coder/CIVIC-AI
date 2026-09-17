@@ -1189,7 +1189,8 @@ describe("25 functional Main/Auth screens", () => {
     const html = renderToStaticMarkup(createElement(ParticipantHomeScreen, { screen: home }));
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
-    expect(html).toContain("civic-opinion-hero--animated");
+    expect(html).toContain('data-home-hero-animate="true"');
+    expect(html).not.toContain("civic-opinion-hero--animated");
     expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
@@ -1219,6 +1220,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain(HOME_SEARCH_DESCRIPTION);
     expect(html).toContain('data-nosnippet=""');
     expect(html).not.toContain("civic-opinion-hero--animated");
+    expect(html).not.toContain("data-home-hero-animate");
     expect(html).not.toContain("차트 애니메이션 다시 재생");
   });
 
