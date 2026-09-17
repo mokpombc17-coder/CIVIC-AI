@@ -7,6 +7,12 @@ export const participantSwipeFastDistanceThreshold = 40;
 export const participantSwipeVelocityThreshold = 0.5;
 export const participantSwipeResistance = 0.35;
 export const participantSwipeMaximumVisualDistance = 40;
+export const participantSwipeBlockingOverlaySelector =
+  'dialog[open], [aria-modal="true"], [data-swipe-navigation-blocking]';
+
+export function hasParticipantSwipeBlockingOverlay(root: ParentNode): boolean {
+  return root.querySelector(participantSwipeBlockingOverlaySelector) !== null;
+}
 
 export function normalizeParticipantLandingRoute(pathname: string): PlatformNavigationHref | null {
   const normalizedPathname = pathname.replace(/^\/account$/u, "/mypage");
