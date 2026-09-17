@@ -84,9 +84,8 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            ├── DeferredParticipantSwipeNavigation [Client loader, landing route의 swipe runtime 지연 로드]
-            │   ├── /home: 히어로 완료 신호 뒤 idle scheduling
-            │   └── ParticipantSwipeNavigationController [Client, 수평 의도 확인 뒤 현재 content surface drag/exit]
+            ├── ParticipantSwipeNavigationController [Client, 초기 hydration에서 listener 등록 후 ready 신호 발행]
+            │   └── 수평 의도 확인 뒤 현재 content surface drag/exit
             ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
             │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
             │   └── HomeQueryRuntime
@@ -95,7 +94,7 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
             │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
             │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
             │           └── 필수 미제출: /survey?returnTo=/home hard navigation
-            ├── HomeHeroAnimationController [Client, 첫 paint 이후 idle 시 시작·도넛 debug replay 제어]
+            ├── HomeHeroAnimationController [Client, swipe-ready 이후 첫 paint·idle 시 시작 및 도넛 debug replay 제어]
             └── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
                 ├── OpinionGatheringHero [SSR: 질문·회색 도넛·replay 표식, controller가 CSS 애니메이션 제어]
                 └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
@@ -252,8 +251,9 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 
 `/home` route는 `MainFunctionalScreen`을 거치지 않고 `ParticipantHomeScreen`을 직접 import한다.
 따라서 랜딩 초기 client graph에는 계정·인증 화면 및 React Query 코드가 포함되지 않는다. 홈은 인증
-여부와 관계없이 `HomeHeroAnimationController`가 두 번의 animation frame과 idle scheduling 이후
-애니메이션을 시작하고 도넛 click/touch debug replay를 제어한다. 히어로 완료 신호 이후
+여부와 관계없이 `ParticipantSwipeNavigationController`가 초기 hydration에서 listener를 먼저 등록하고
+ready 신호를 발행한다. `HomeHeroAnimationController`는 이 신호를 확인한 뒤 두 번의 animation frame과
+idle scheduling 이후 애니메이션을 시작하고 도넛 click/touch debug replay를 제어한다. 히어로 완료 신호 이후
 `HomeQueryRuntime`을 동적 import하며, 신호를 놓치면
 3초 fallback을 사용한다. 비로그인은 query runtime만 준비하고, 로그인 사용자만
 `ParticipantEligibilityGuard`를 실행한다. 보호 참여자 route는 `EligibleParticipantShell`에서
