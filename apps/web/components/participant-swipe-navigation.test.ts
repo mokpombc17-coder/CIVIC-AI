@@ -41,10 +41,19 @@ describe("participant swipe navigation", () => {
     expect(shouldCommitParticipantSwipe(39, 1)).toBe(false);
   });
 
-  it("visual drag에 resistance와 최대 40px 제한을 적용한다", () => {
-    expect(getParticipantSwipeVisualOffset(100)).toBe(35);
-    expect(getParticipantSwipeVisualOffset(200)).toBe(40);
-    expect(getParticipantSwipeVisualOffset(-200)).toBe(-40);
+  it("28px까지 기존 resistance를 유지하고 이후 40px soft cap에 점근한다", () => {
+    expect(getParticipantSwipeVisualOffset(40)).toBe(14);
+    expect(getParticipantSwipeVisualOffset(80)).toBe(28);
+
+    const softenedOffset = getParticipantSwipeVisualOffset(100);
+    const distantOffset = getParticipantSwipeVisualOffset(200);
+
+    expect(softenedOffset).toBeGreaterThan(28);
+    expect(softenedOffset).toBeLessThan(35);
+    expect(distantOffset).toBeGreaterThan(softenedOffset);
+    expect(distantOffset).toBeLessThan(40);
+    expect(getParticipantSwipeVisualOffset(-200)).toBeCloseTo(-distantOffset);
+    expect(getParticipantSwipeVisualOffset(10_000)).toBeCloseTo(40);
   });
 
   it("inert content나 blocking overlay가 있으면 swipe를 차단한다", () => {

@@ -9,6 +9,7 @@ export const PARTICIPANT_SWIPE_NAVIGATION_CONFIG = Object.freeze({
   followDurationMs: 70,
   maxVisualDragPx: 40,
   resistance: 0.35,
+  softCapStartPx: 28,
 });
 
 export type ParticipantSwipeAxis = "horizontal" | "pending" | "vertical";
@@ -34,10 +35,19 @@ export function classifyParticipantSwipe(deltaX: number, deltaY: number): Partic
 }
 
 export function getParticipantSwipeVisualOffset(deltaX: number): number {
-  const resistedOffset = deltaX * PARTICIPANT_SWIPE_NAVIGATION_CONFIG.resistance;
-  const maximumOffset = PARTICIPANT_SWIPE_NAVIGATION_CONFIG.maxVisualDragPx;
+  const direction = Math.sign(deltaX);
+  const resistedDistance = Math.abs(deltaX) * PARTICIPANT_SWIPE_NAVIGATION_CONFIG.resistance;
+  const softCapStart = PARTICIPANT_SWIPE_NAVIGATION_CONFIG.softCapStartPx;
 
-  return Math.max(-maximumOffset, Math.min(maximumOffset, resistedOffset));
+  if (resistedDistance <= softCapStart) {
+    return deltaX * PARTICIPANT_SWIPE_NAVIGATION_CONFIG.resistance;
+  }
+
+  const softRange = PARTICIPANT_SWIPE_NAVIGATION_CONFIG.maxVisualDragPx - softCapStart;
+  const overflow = resistedDistance - softCapStart;
+  const softenedDistance = softCapStart + softRange * (1 - Math.exp(-overflow / softRange));
+
+  return direction * softenedDistance;
 }
 
 export function isParticipantSwipeNavigationPath(pathname: string): boolean {
