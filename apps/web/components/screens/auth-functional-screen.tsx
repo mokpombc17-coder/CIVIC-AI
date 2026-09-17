@@ -1,8 +1,7 @@
 "use client";
 
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
-import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
-import { clearAppQueryCache } from "@/components/providers/app-query-provider";
+import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
@@ -150,7 +149,7 @@ export function AuthFunctionalScreen({
       );
       return;
     }
-    clearRagConversationSnapshot();
+    clearAuthSessionData();
     sendAuthMessage("LOGIN");
     await redirectToRoleHome(returnTo);
   }
@@ -228,7 +227,7 @@ export function AuthFunctionalScreen({
           { code: data.get("code") },
         );
         if (verificationKind === "TWO_FACTOR") {
-          clearRagConversationSnapshot();
+          clearAuthSessionData();
           sendAuthMessage("LOGIN");
           await redirectToRoleHome(postLoginReturnTo ?? safeReturnTarget(location.search));
         } else {
@@ -258,8 +257,7 @@ export function AuthFunctionalScreen({
           code: normalizePasswordResetCode(data.get("code")),
           new_password: data.get("new_password"),
         });
-        clearRagConversationSnapshot();
-        clearAppQueryCache();
+        clearAuthSessionData();
         sendAuthMessage("LOGOUT");
         sessionStorage.removeItem(passwordResetEmailKey);
         sessionStorage.removeItem(passwordResetCodeKey);

@@ -13,8 +13,8 @@
 ## 처리
 
 - 기존 인증 성공 처리와 `AuthSessionSync`의 메시지 수신 처리에서
-  `clearRagConversationSnapshot()`을 직접 호출해 대화 스냅샷과 초안을 삭제한다.
-  로그아웃은 기존 정리 코드를 재사용한다. RAG 밖에서 받은 메시지도 이동 전에 처리한다.
+  공통 `clearAuthSessionData()`를 호출한다. 이 함수가 `clearRagConversationSnapshot()`을
+  사용해 대화 스냅샷과 초안을 삭제한다. RAG 밖에서 받은 메시지도 이동 전에 처리한다.
 - 참여자 RAG 화면은 서버가 전달한 사용자 ID를 key로 하는 `RagSessionBoundary` 안에서 렌더링한다.
   최초 `/me` 확인 전에는 대화 컴포넌트를 마운트하지 않아 스냅샷을 노출하거나 이전 작업을 재개하지 않는다.
 - 탭 복귀/focus 때도 `/me`의 현재 사용자 ID·ACTIVE 상태를 확인한다. 확인 중에는 기존 대화와

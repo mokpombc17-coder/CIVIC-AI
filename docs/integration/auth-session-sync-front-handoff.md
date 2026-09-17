@@ -38,8 +38,8 @@
 로그인·공개 화면을 포함한 앱 루트에서 수신기를 한 번 등록한다. 수신 콜백은 메시지에 따라
 앱의 일반 화면 이동 방식인 `router.push()`를 호출한다.
 
-- `LOGIN` → `router.push("/home")`
-- `LOGOUT` → 사용자 조회 캐시 정리 후 `router.push("/login")`
+- `LOGIN` → 세션 데이터 정리 후 `router.push("/home")`
+- `LOGOUT` → 세션 데이터 정리 후 `router.push("/login")`
 
 인증과 권한 확인은 기존 페이지/API 로직이 담당하며, 수신 탭의 목적지는 위 두 경로로
 통일한다. 로그아웃 후 다시 로그인하면 `/login`을 거쳐 `/home`으로 이동한다.
@@ -49,10 +49,9 @@
 ```ts
 const channel = new BroadcastChannel("civic-ai:auth:v1");
 channel.onmessage = ({ data }) => {
-  if (data === "LOGIN") router.push("/home");
-  if (data === "LOGOUT") {
-    clearUserQueryCache();
-    router.push("/login");
+  if (data === "LOGIN" || data === "LOGOUT") {
+    clearAuthSessionData();
+    router.push(data === "LOGIN" ? "/home" : "/login");
   }
 };
 // 로그인 API의 최종 성공 응답을 처리한 뒤:
@@ -60,7 +59,7 @@ channel.postMessage("LOGIN");
 ```
 
 실제 앱에서는 위 오류 처리와 함께, 마지막 구독 해제 시 채널을 닫도록 구성한다.
-`clearUserQueryCache()`는 각 앱의 사용자 조회 캐시를 비우는 함수를 뜻한다.
+`clearAuthSessionData()`는 각 앱의 사용자 캐시와 저장된 세션 데이터를 정리하는 함수를 뜻한다.
 
 ## front2의 송신·수신과 데이터 정리
 
@@ -76,10 +75,15 @@ front2는 [auth-session-events.ts](../../apps/web/lib/auth/auth-session-events.t
 수신 탭은 [AuthSessionSync](../../apps/web/components/auth/auth-session-sync.tsx)에서
 메시지를 받아 필요한 데이터를 정리하고 고정 목적지로 이동한다.
 
-로그아웃 성공 처리와 `LOGOUT` 수신 처리에서는 화면 이동 전에 React Query 캐시를 비운다.
-front2는 `clearAppQueryCache()`로 현재 QueryClient의 조회·변경 캐시를 정리한다.
-이후 로그인한 계정의 역할과 필수 설문 완료 여부는 새로 조회한다. 비밀번호 변경·재설정,
-2FA 해제, 계정 비활성화처럼 세션을 끝내는 성공 처리에도 같은 규칙을 적용한다.
+front2는 [clearAuthSessionData()](../../apps/web/components/auth/auth-session-data.ts)로
+React Query 조회·변경 캐시, RAG 대화 스냅샷·초안, 분석용 사용자 ID를 함께 정리한다.
+로그인 최종 성공, 로그아웃·비밀번호 변경·재설정·2FA 해제·계정 비활성화 성공,
+`LOGIN`·`LOGOUT` 수신 처리에서 이 함수를 호출한다.
+
+직접 로그아웃한 탭은 API 성공 → 공통 데이터 정리 → `LOGOUT` 송신 → 화면 이동 순서로 처리한다.
+수신 탭은 공통 데이터 정리 → 화면 이동 순서로 처리한다.
+API 호출과 메시지 송신은 각 인증 동작이 담당하고, 공통 함수는 현재 탭의 데이터 정리를 담당한다.
+다음 계정의 역할과 필수 설문 완료 여부는 기존 페이지 로딩 과정에서 새로 조회한다.
 
 데이터 정리는 각 앱의 기존 함수를 재사용한다. RAG 대화 복원·계정 확인과 front의 Chat 연결
 정리는 해당 기능의 코드에서 관리한다.
