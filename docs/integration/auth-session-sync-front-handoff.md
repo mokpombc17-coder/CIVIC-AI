@@ -9,8 +9,8 @@
 
 | 상황             | 직접 실행한 탭 (송신 탭)                              | 알림을 받은 다른 탭 (수신 탭) |
 | ---------------- | ----------------------------------------------------- | ----------------------------- |
-| 로그인 최종 성공 | `LOGIN`을 보내고 기존 로그인 성공 코드가 이동 처리    | `/home`으로 전체 문서 이동    |
-| 로그아웃 성공    | `LOGOUT`을 보내고 기존 로그아웃 성공 코드가 이동 처리 | `/login`으로 전체 문서 이동   |
+| 로그인 최종 성공 | `LOGIN`을 보내고 기존 로그인 성공 코드가 이동 처리    | `router.push("/home")`        |
+| 로그아웃 성공    | `LOGOUT`을 보내고 기존 로그아웃 성공 코드가 이동 처리 | `router.push("/login")`       |
 
 예를 들어 A 탭이 `/login?returnTo=%2Frag`에서 로그인에 성공하면 `LOGIN`을 보낸 뒤
 기존 로그인 코드에 따라 `/rag`로 이동한다. 알림을 받은 B 탭은 `/home`으로 이동한다.
@@ -36,21 +36,21 @@
 ### 수신
 
 로그인·공개 화면을 포함한 앱 루트에서 수신기를 한 번 등록한다. 수신 콜백은 메시지에 따라
-`window.location.replace()`를 호출해 처리를 마친다.
+앱의 일반 화면 이동 방식인 `router.push()`를 호출한다.
 
-- `LOGIN` → `window.location.replace("/home")`
-- `LOGOUT` → `window.location.replace("/login")`
+- `LOGIN` → `router.push("/home")`
+- `LOGOUT` → `router.push("/login")`
 
-현재 URL이 목적지와 같아도 문서를 새로 연다. 인증과 권한 확인은 새 문서의 기존 페이지/API
-로직이 담당하며, 수신 탭의 목적지는 위 두 경로로 통일한다.
+인증과 권한 확인은 기존 페이지/API 로직이 담당하며, 수신 탭의 목적지는 위 두 경로로
+통일한다. 로그아웃 후 다시 로그인하면 `/login`을 거쳐 `/home`으로 이동한다.
 
-아래 코드는 송수신 흐름의 예시다.
+아래 코드는 송수신 흐름의 예시다. `router`는 앱에서 사용하는 라우터다.
 
 ```ts
 const channel = new BroadcastChannel("civic-ai:auth:v1");
 channel.onmessage = ({ data }) => {
-  if (data === "LOGIN") window.location.replace("/home");
-  if (data === "LOGOUT") window.location.replace("/login");
+  if (data === "LOGIN") router.push("/home");
+  if (data === "LOGOUT") router.push("/login");
 };
 // 로그인 API의 최종 성공 응답을 처리한 뒤:
 channel.postMessage("LOGIN");
@@ -83,7 +83,7 @@ front에서는 위 송수신 규약에 맞춰 앱 구조에 적합한 함수명�
   로컬에서 두 앱을 함께 검증할 때는 하나의 프록시 origin으로 접속한다.
 - BroadcastChannel 지원 환경에서 구독 중인 탭에 알림을 실시간으로 전달한다.
   새로 열거나 신호를 놓친 탭의 인증 확인은 앱의 진입·복귀 처리에서 다룬다.
-- `replace`는 현재 방문 기록을 교체한다. 이전 기록으로 돌아갈 때의 화면·캐시 복원은
+- `push`는 방문 기록을 추가한다. 이전 기록으로 돌아갈 때의 화면·캐시 복원은
   각 앱에서 처리한다. 사용자 캐시·대화·임시 입력 정리는 별도 변경으로 구현한다.
   front의 Chat은 연결/재접속·전송 대기열·대화 캐시를 현재 계정 기준으로 정리해야 한다.
 - 여러 탭에서 인증을 동시에 바꾸는 경우에도, 최종 접근 권한은 API가 현재 쿠키를 기준으로 판단한다.

@@ -5,7 +5,7 @@
 ```text
 RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
-    ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 문서 이동]
+    ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 router.push 이동]
     └── AppShell [Client]
         ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
         ├── NativeBridgeRuntime
@@ -18,8 +18,9 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
 
 `AuthSessionSync`는 `civic-ai:auth:v1` 채널을 전역에서 구독한다. 다른 문서의 `LOGIN`은
-`/home`, `LOGOUT`은 `/login`으로 전체 문서를 교체한다. 수신 시 인증 API를 추가 호출하지
-않으며 송신한 탭의 기존 성공 이동은 유지한다. [공통 규약](../integration/auth-session-sync-front-handoff.md)을 따른다.
+`/home`, `LOGOUT`은 `/login`으로 `router.push()`를 통해 이동한다. 인증 확인은 기존
+페이지/API 로직이 담당하고, 송신한 탭은 기존 성공 이동을 따른다.
+[공통 규약](../integration/auth-session-sync-front-handoff.md)을 따른다.
 
 기존 인증 성공 처리와 `AuthSessionSync`의 메시지 수신 처리에서
 `clearRagConversationSnapshot()`을 직접 호출해 저장된 대화와 임시 입력을 지운다.
