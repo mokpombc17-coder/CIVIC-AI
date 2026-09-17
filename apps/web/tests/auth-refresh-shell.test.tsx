@@ -4,14 +4,22 @@ import Loading from "@/app/loading";
 import RefreshPage from "@/app/auth/refresh/page";
 
 describe("authentication transition shells", () => {
-  it("does not render the participant mobile shell while the root route is loading", () => {
+  it("keeps the common platform shell while the root route is loading", () => {
     const markup = renderToStaticMarkup(<Loading />);
 
-    expect(markup).toContain('data-fullscreen-status="true"');
+    expect(markup).toContain('data-platform-shell="true"');
+    expect(markup).toContain('aria-label="CIVIC.AI 전남광주"');
     expect(markup).toContain('role="status"');
-    expect(markup).not.toContain("aria-busy");
-    expect(markup).not.toContain('data-platform-shell="true"');
-    expect(markup).not.toContain("civic-platform-participant");
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain("화면을 준비 중입니다.");
+    expect(markup).toContain("잠시만 기다려 주세요.");
+    expect(markup).toContain(">홈</span>");
+    expect(markup).toContain(">AI</span>");
+    expect(markup).toContain(">토론방</span>");
+    expect(markup).toContain(">투표</span>");
+    expect(markup).toContain(">계정</span>");
+    expect(markup).not.toContain('aria-current="page"');
+    expect(markup).not.toContain('data-fullscreen-status="true"');
   });
 
   it.each([

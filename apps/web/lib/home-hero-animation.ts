@@ -1,5 +1,4 @@
-export const homeHeroAnimationRootSelector =
-  '.civic-opinion-hero[data-home-hero-animate="true"]';
+export const homeHeroAnimationRootSelector = '.civic-opinion-hero[data-home-hero-animate="true"]';
 export const homeHeroAnimationClassName = "civic-opinion-hero--animated";
 export const homeHeroAnimationCompletionSelector = ".civic-hero-label";
 export const homeHeroAnimationCompletionName = "civic-hero-content-reveal";

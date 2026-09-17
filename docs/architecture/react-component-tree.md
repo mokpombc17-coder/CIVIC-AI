@@ -52,6 +52,11 @@ RootLayout [Server, 문서 CSP nonce 읽기]
 
 IndexPage / [Server Route] [redirect: /home]
 
+RootLoading /loading.tsx [Server Route, route-neutral PlatformShell fallback]
+├── header: CIVIC.AI + 전남광주
+├── content: spinner + 준비 상태 안내
+└── bottom navigation: 현재 선택 상태 없이 공통 메뉴 유지
+
 PwaStartPage /pwa/start [Server Route, manifest start_url]
 └── PwaStartup [Client]
     ├── 일반 브라우저: /home 이동, Refresh 미실행
@@ -362,8 +367,9 @@ placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않
 
 ## App Router special UI
 
-root `loading.tsx`는 route-neutral `FullscreenStatus`를 사용한다. 참여자·관리자 route 내부의
-`loading.tsx`는 각 목적지 shell에 맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존
-`PlatformPageShell`을 사용한다. 이 special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지
-않는다. `/home/loading.tsx`는 관리자 skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해
-질문·회색 도넛·홈 카드의 초기 구조만 렌더링한다.
+root `loading.tsx`는 route-neutral `PlatformPageShell`에 브랜드 header, 준비 상태, 선택 상태가 없는
+공통 bottom navigation을 렌더링한다. 참여자·관리자 route 내부의 `loading.tsx`는 각 목적지 shell에
+맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존 `PlatformPageShell`을 사용한다. 이
+special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지 않는다. `/home/loading.tsx`는 관리자
+skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해 질문·회색 도넛·홈 카드의 초기 구조만
+렌더링한다.
