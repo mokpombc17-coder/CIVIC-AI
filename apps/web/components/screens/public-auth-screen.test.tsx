@@ -17,14 +17,14 @@ describe("publicAuthHeaderState", () => {
     });
   });
 
-  it("같은 인증 화면도 가입과 2단계 인증의 제목·복귀 경로를 구분한다", () => {
+  it("같은 인증 화면도 가입과 로그인 2차 인증의 제목·복귀 경로를 구분한다", () => {
     expect(publicAuthHeaderState("AUTH-005", "SIGNUP")).toEqual({
       back: "/signup/account",
       title: "이메일 인증",
     });
     expect(publicAuthHeaderState("AUTH-005", "TWO_FACTOR")).toEqual({
       back: "/login",
-      title: "2단계 인증",
+      title: "로그인 2차 인증",
     });
   });
 
