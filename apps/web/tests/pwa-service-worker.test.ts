@@ -25,7 +25,7 @@ const persistentAssets = [
   ...["home", "ai", "chat", "vote", "account"].map((name) => ({
     file: `public/assets/platform-navigation/${name}.png`,
     publicPath: `/assets/platform-navigation/${name}.png`,
-    references: ["components/platform-shell/platform-navigation.tsx"],
+    references: ["lib/platform-navigation.ts"],
   })),
 ] as const;
 

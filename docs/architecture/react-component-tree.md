@@ -84,6 +84,9 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
+            ├── DeferredParticipantSwipeNavigation [Client loader, landing route의 swipe runtime 지연 로드]
+            │   ├── /home: 히어로 완료 신호 뒤 idle scheduling
+            │   └── ParticipantSwipeNavigationController [Client, 수평 의도 확인 뒤 현재 content surface drag/exit]
             ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
             │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
             │   └── HomeQueryRuntime
@@ -214,6 +217,8 @@ navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용�
 전환해 header와 composer를 고정한 채 `.civic-rag-messages`만 스크롤한다. 투표 화면은 `/vote`를 유일한 표준 주소로
 사용하며, 이관 전 계정 UI의 `/account` 주소만 같은 화면과 active menu에 매핑한다. 참여자 섹션 루트는 header 자리를 유지하는
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
+정확한 landing route에서는 지연 로드된 swipe controller가 중앙 content surface에만 pointer gesture를 연결하며,
+header와 하단 navigation은 고정된 상태로 실제 navigation link를 실행한다.
 
 계정 본문은 Figma `U-ACCOUNT-001..004`에 맞춰 `/mypage`, `/mypage/profile`,
 `/mypage/deactivate`로 나뉜다. 설문 정식 경로 `/survey`는 같은 공개 origin의 3001 Next.js
