@@ -6171,6 +6171,7 @@
   flex: none;
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
+  border-inline: 1px solid #d9e2f2;
   border-bottom: 1px solid #d9e2f2;
   background: #edf2f7;
   padding: 10px var(--civic-rag-inline-padding);
@@ -6284,6 +6285,7 @@
   flex: 1 1 auto;
   gap: 12px;
   overscroll-behavior: contain;
+  touch-action: pan-y pinch-zoom;
   margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
   border-radius: 0 0 4px 4px;

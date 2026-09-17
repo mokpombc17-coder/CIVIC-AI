@@ -1,3 +1,5 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
   isParticipantSwipeNavigation,
@@ -6,6 +8,8 @@ import {
   participantSwipeDirectionSlop,
   participantSwipeVisualOffset,
 } from "@/lib/participant-swipe-navigation";
+
+const webRoot = join(__dirname, "..");
 
 describe("participant bottom navigation swipe", () => {
   it("12px 이동 이후에 swipe 방향 판정을 시작한다", () => {
@@ -38,5 +42,21 @@ describe("participant bottom navigation swipe", () => {
     expect(isParticipantSwipeNavigation(40, 0.5)).toBe(true);
     expect(isParticipantSwipeNavigation(40, 0.49)).toBe(false);
     expect(isParticipantSwipeNavigation(39, 1)).toBe(false);
+  });
+
+  it("RAG 메시지 스크롤 영역은 세로 스크롤을 유지하며 수평 pointer gesture를 허용한다", () => {
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(wireflowStyles).toMatch(
+      /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-messages \{[^}]*touch-action: pan-y pinch-zoom;/u,
+    );
+  });
+
+  it("RAG 안내 배너는 swipe 중 보이는 좌우 경계선을 유지한다", () => {
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(wireflowStyles).toMatch(
+      /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-session-bar \{[^}]*border-inline: 1px solid #d9e2f2;/u,
+    );
   });
 });
