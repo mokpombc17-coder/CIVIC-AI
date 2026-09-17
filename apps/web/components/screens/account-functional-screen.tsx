@@ -82,7 +82,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         const updated = await loadAccountProfile();
         setProfile(updated);
         setSecurityIntent(null);
-        setMessage("2단계 인증이 설정되었습니다.");
+        setMessage("로그인 2차 인증이 설정되었습니다.");
       } else if (operation === "2fa-disable") {
         await mutation("/api/v1/account/2fa/disable", "POST", {
           password: data.get("current_password"),
@@ -226,16 +226,16 @@ function AccountManagementSurface({
           <SecurityAction
             actionLabel="변경하기"
             disabled={busy || !loaded}
-            description="비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다."
+            description="비밀번호 변경 시 모든 기기에서 로그아웃됩니다."
             onAction={() => onIntent(intent === "password" ? null : "password")}
             title="비밀번호 변경"
           />
           <SecurityAction
             actionLabel={profile?.two_factor_enabled ? "해제하기" : "설정하기"}
             disabled={busy || !loaded}
-            description="로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다."
+            description="로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다."
             onAction={() => onIntent(twoFactorFormOpen ? null : twoFactorIntent)}
-            title="2단계 인증"
+            title="로그인 2차 인증"
           />
         </div>
         {intent ? (

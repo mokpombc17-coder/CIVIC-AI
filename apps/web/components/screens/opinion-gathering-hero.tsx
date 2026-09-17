@@ -14,6 +14,8 @@ type OpinionItem = {
 type OpinionGatheringHeroProps = {
   /** false이면 SSR 초기 상태인 질문과 회색 도넛만 유지합니다. */
   animate?: boolean;
+  /** 차트를 클릭하거나 터치하면 애니메이션을 다시 재생합니다. */
+  debugReplay?: boolean;
   /** 히어로 상단 질문 */
   question?: string;
   /** 라벨 순서: 왼쪽 위(주민), 오른쪽 중간(지역), 왼쪽 아래(운영) */
@@ -106,6 +108,7 @@ function createDonutSegmentPath(
 
 export function OpinionGatheringHero({
   animate = true,
+  debugReplay = false,
   question = "지역마다 다른 전남광주 환승 요금,\n어떻게 하면 좋을까요?",
   items = DEFAULT_ITEMS,
   separatorWidth = 1.5,
@@ -194,8 +197,9 @@ export function OpinionGatheringHero({
 
       <div className="relative mt-3 aspect-[360/200] w-full">
         <svg
-          className="block h-full w-full overflow-visible"
+          className={`block h-full w-full overflow-visible${animate && debugReplay ? " cursor-pointer" : ""}`}
           viewBox="0 0 360 200"
+          data-home-hero-replay={animate && debugReplay ? "" : undefined}
           aria-hidden="true"
         >
           <defs>

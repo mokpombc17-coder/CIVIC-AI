@@ -65,7 +65,7 @@ export function publicAuthHeaderState(
   if (activeId === "AUTH-005") {
     return {
       back: verificationKind === "TWO_FACTOR" ? "/login" : "/signup/account",
-      title: verificationKind === "TWO_FACTOR" ? "2단계 인증" : "이메일 인증",
+      title: verificationKind === "TWO_FACTOR" ? "로그인 2차 인증" : "이메일 인증",
     };
   }
   if (activeId === "AUTH-006") return { back: "/signup/account", title: "이메일 인증" };

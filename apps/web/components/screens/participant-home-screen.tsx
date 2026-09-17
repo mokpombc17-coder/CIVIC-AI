@@ -23,7 +23,7 @@ export function ParticipantHomeScreen({
 
   return (
     <ScreenFrame screen={screen}>
-      <OpinionGatheringHero />
+      <OpinionGatheringHero debugReplay />
       <section className="wf-card wf-home-welcome">
         <WireflowBadge>참여 안내</WireflowBadge>
         <h2>배우고, 토론하고, 함께 결정합니다.</h2>

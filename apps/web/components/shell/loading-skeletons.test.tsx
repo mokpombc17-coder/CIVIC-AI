@@ -49,9 +49,9 @@ describe("route-aware loading skeletons", () => {
     expect(markup).toMatch(/<h1[^>]*>계정<\/h1>/);
     expect(markup).toContain('aria-label="이전 화면으로 돌아가기"');
     expect(markup).toContain('href="/mypage"');
-    expect(markup).toContain(
-      "비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다.",
-    );
+    expect(markup).toContain("비밀번호 변경 시 모든 기기에서 로그아웃됩니다.");
+    expect(markup).toContain("로그인 2차 인증");
+    expect(markup).toContain("로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다.");
     expect(markup).not.toContain("변경하면 모든 기기에서 다시 로그인해야 합니다.");
   });
 

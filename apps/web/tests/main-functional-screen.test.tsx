@@ -527,9 +527,7 @@ describe("25 functional Main/Auth screens", () => {
 
     const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
 
-    expect(html).toContain(
-      "로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다.",
-    );
+    expect(html).toContain("로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다.");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>설정하기<\/button>/u);
   });
 
@@ -1196,6 +1194,8 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html).toContain('data-home-hero-animate="true"');
+    expect(html).toContain('data-home-hero-replay=""');
+    expect(html).not.toContain("차트 애니메이션 다시 재생");
     expect(html).not.toContain("civic-opinion-hero--animated");
     expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
@@ -1241,11 +1241,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(hub).toContain('data-wireflow-layout="account-hub"');
     expect(hub).toContain('data-wireflow-layout="account-management"');
     expect(hub).toContain("비밀번호 변경");
-    expect(hub).toContain(
-      "비밀번호를 변경하면 기존에 로그인된 모든 기기에서 자동으로 로그아웃됩니다.",
-    );
+    expect(hub).toContain("비밀번호 변경 시 모든 기기에서 로그아웃됩니다.");
     expect(hub).not.toContain("변경하면 모든 기기에서 다시 로그인해야 합니다.");
-    expect(hub).toContain("2단계 인증");
+    expect(hub).toContain("로그인 2차 인증");
     expect(hub).toContain("계정 비활성화");
     expect(hub).not.toContain(
       "계정 비활성화의 영향과 복원 가능 범위를 확인한 뒤 진행할 수 있습니다.",
@@ -1261,7 +1259,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(management).not.toContain("선호 언어");
     expect(management).not.toContain("AI 답변 상세도");
     expect(management).toContain("비밀번호 변경");
-    expect(management).toContain("2단계 인증");
+    expect(management).toContain("로그인 2차 인증");
     expect(management).not.toContain("서비스 이용 동의");
     expect(management).not.toContain("계정 관리");
     expect(management).toContain("계정 비활성화");
