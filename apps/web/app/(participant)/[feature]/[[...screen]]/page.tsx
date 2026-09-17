@@ -4,6 +4,7 @@ import { EligibleParticipantShell } from "@/components/shell/eligible-participan
 import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { requireParticipantAccess } from "@/lib/auth/require-access";
+import { RagSessionBoundary } from "@/components/rag/rag-session-boundary";
 import { AdminShell } from "@/components/shell/admin-shell";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
@@ -90,7 +91,9 @@ export default async function ParticipantPlaceholderPage({
           : {})}
         title={heading.title}
       >
-        <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />
+        <RagSessionBoundary key={currentUser.userId} ownerUserId={currentUser.userId}>
+          <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />
+        </RagSessionBoundary>
       </EligibleParticipantShell>
     );
   }

@@ -5,6 +5,7 @@
 ```text
 RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
+    ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 문서 이동]
     └── AppShell [Client]
         ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
         ├── NativeBridgeRuntime
@@ -15,6 +16,17 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
 업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
 리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
+
+`AuthSessionSync`는 `civic-ai:auth:v1` 채널을 전역에서 구독한다. 다른 문서의 `LOGIN`은
+`/home`, `LOGOUT`은 `/login`으로 전체 문서를 교체한다. 수신 시 인증 API를 추가 호출하지
+않으며 송신한 탭의 기존 성공 이동은 유지한다. [공통 규약](../integration/auth-session-sync-front-handoff.md)을 따른다.
+
+기존 인증 성공 처리와 `AuthSessionSync`의 메시지 수신 처리에서
+`clearRagConversationSnapshot()`을 직접 호출해 저장된 대화와 임시 입력을 지운다.
+`AuthSessionSync`는 `observeAuthMessages`로 받은 메시지에 따라 정리 후 이동한다.
+`RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 대화를
+숨긴다. bfcache 저장 전에도 내용을 숨기고 복원 시 문서를 다시 로드한다. 브로드캐스트의
+수신 이동에는 인증 조회를 추가하지 않는다. [RAG 계정 격리](../contracts/rag-session-isolation.md)를 따른다.
 
 `StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
 RSC 이동·갱신 요청에서 새 nonce가 발급되어도 현재 문서의 CSP는 바뀌지 않으므로,
@@ -105,8 +117,9 @@ ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatc
 │       └── PlatformPageShell
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
 │               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
-│               └── RagFunctionalScreen
-│                   └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
+│               └── RagSessionBoundary [Client, 현재 계정 확인 전 대화 노출 차단]
+│                   └── RagFunctionalScreen
+│                       └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── EligibleParticipantShell

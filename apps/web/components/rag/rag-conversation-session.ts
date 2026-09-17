@@ -101,10 +101,12 @@ export function readRagConversationSnapshot(
   }
 }
 
-export function clearRagConversationSnapshot(storage: RagConversationRemovalStorage): void {
-  clearRagConversationDraft(storage);
+export function clearRagConversationSnapshot(storage?: RagConversationRemovalStorage): void {
   try {
-    storage.removeItem(RAG_CONVERSATION_STORAGE_KEY);
+    const target = storage ?? (typeof window === "undefined" ? null : window.sessionStorage);
+    if (!target) return;
+    clearRagConversationDraft(target);
+    target.removeItem(RAG_CONVERSATION_STORAGE_KEY);
   } catch {
     // Storage may be unavailable in a privacy-restricted browser.
   }

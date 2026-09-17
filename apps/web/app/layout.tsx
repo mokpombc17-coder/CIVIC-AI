@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import type { ReactNode } from "react";
 import "./globals.css";
 import { AppShell } from "@/components/app-shell";
+import { AuthSessionSync } from "@/components/auth/auth-session-sync";
 import { StyleNonceProvider } from "@/components/admin/console/style-nonce-context";
 import { resolveSiteUrl } from "@/lib/site-url";
 
@@ -78,6 +79,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
       </head>
       <body>
         <StyleNonceProvider nonce={nonce}>
+          <AuthSessionSync />
           <AppShell>{children}</AppShell>
         </StyleNonceProvider>
       </body>

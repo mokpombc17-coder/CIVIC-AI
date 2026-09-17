@@ -1,5 +1,8 @@
 "use client";
 
+import { sendAuthMessage } from "@/lib/auth/auth-session-events";
+import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
+
 import { useEffect, useRef, useState, type FormEvent } from "react";
 import Image from "next/image";
 import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
@@ -87,6 +90,8 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         redirectAfterPasswordChange();
       } else if (operation === "deactivate") {
         await mutation("/api/v1/account/deactivate", "POST", { password: data.get("password") });
+        clearRagConversationSnapshot();
+        sendAuthMessage("LOGOUT");
         location.assign("/reactivate");
       }
     } catch (error) {
@@ -439,6 +444,8 @@ export function passwordConfirmationMatches(data: FormData): boolean {
 export function redirectAfterPasswordChange(
   navigate: (path: string) => void = (path) => location.assign(path),
 ): void {
+  clearRagConversationSnapshot();
+  sendAuthMessage("LOGOUT");
   navigate("/login");
 }
 
