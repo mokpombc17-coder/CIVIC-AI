@@ -9,6 +9,7 @@ import {
   participantSwipeDestination,
   participantSwipeDirectionRatio,
   participantSwipeDirectionSlop,
+  participantSwipeReadyEvent,
   participantSwipeVisualOffset,
 } from "@/lib/participant-swipe-navigation";
 
@@ -233,6 +234,8 @@ export function ParticipantSwipeNavigationController({
     surface.addEventListener("pointercancel", handlePointerEnd);
     surface.addEventListener("click", handleClick, true);
     surface.addEventListener("dragstart", handleDragStart);
+    surface.dataset.participantSwipeReady = "true";
+    window.dispatchEvent(new Event(participantSwipeReadyEvent));
 
     return () => {
       window.cancelAnimationFrame(animationFrame);
@@ -245,6 +248,7 @@ export function ParticipantSwipeNavigationController({
       surface.removeEventListener("pointercancel", handlePointerEnd);
       surface.removeEventListener("click", handleClick, true);
       surface.removeEventListener("dragstart", handleDragStart);
+      delete surface.dataset.participantSwipeReady;
       Object.assign(surface.style, originalInlineStyles);
     };
   }, [activeRoute]);

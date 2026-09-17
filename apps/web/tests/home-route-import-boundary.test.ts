@@ -43,9 +43,15 @@ describe("home route import boundary", () => {
     expect(page.match(/prefetch=\{false\}/gu)).toHaveLength(2);
     expect(rootLayout).not.toContain("AppQueryProvider");
     expect(participantShell).not.toMatch(/ParticipantEligibilityGuard|@tanstack\/react-query/u);
+    expect(participantShell).toContain(
+      "@/components/shell/participant-swipe-navigation-controller",
+    );
+    expect(participantShell).not.toContain("deferred-participant-swipe-navigation");
     expect(deferredRuntime).toContain('import("./home-query-runtime")');
     expect(deferredRuntime).toContain("homeHeroAnimationCompleteEvent");
     expect(deferredRuntime).toContain("window.setTimeout(queueRuntimeLoad");
+    expect(animationController).toContain("participantSwipeReadyEvent");
+    expect(animationController).toContain("participantSwipeReady");
     expect(animationController).toContain("window.requestAnimationFrame");
     expect(animationController).toContain("requestIdleCallback");
     expect(animationController).toContain('addEventListener("animationend"');

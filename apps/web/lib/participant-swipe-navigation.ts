@@ -8,6 +8,7 @@ export const participantSwipeVelocityThreshold = 0.5;
 export const participantSwipeResistance = 0.35;
 export const participantSwipeSoftCapStart = 28;
 export const participantSwipeMaximumVisualDistance = 40;
+export const participantSwipeReadyEvent = "civic:participant-swipe-ready";
 export const participantSwipeBlockingOverlaySelector =
   'dialog[open], [aria-modal="true"], [data-swipe-navigation-blocking]';
 

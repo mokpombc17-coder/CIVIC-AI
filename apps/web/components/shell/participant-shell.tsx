@@ -2,7 +2,7 @@ import type { Route } from "next";
 import type { ReactNode } from "react";
 import { PlatformPageShell } from "@/components/platform-page-shell";
 import { PlatformNavigation, type PlatformShellScroll } from "@/components/platform-shell";
-import { DeferredParticipantSwipeNavigation } from "@/components/shell/deferred-participant-swipe-navigation";
+import { ParticipantSwipeNavigationController } from "@/components/shell/participant-swipe-navigation-controller";
 
 export type ParticipantShellProps = Readonly<{
   activeRoute: string;
@@ -63,7 +63,7 @@ export function ParticipantShell({
       >
         {children}
       </div>
-      <DeferredParticipantSwipeNavigation activeRoute={activeRoute} />
+      <ParticipantSwipeNavigationController activeRoute={activeRoute} />
     </PlatformPageShell>
   );
 }

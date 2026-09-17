@@ -12,9 +12,11 @@ import {
   homeHeroAnimationStartMark,
   replayHomeHeroAnimation,
 } from "@/lib/home-hero-animation";
+import { participantSwipeReadyEvent } from "@/lib/participant-swipe-navigation";
 
 const heroAnimationFallbackMs = 1_500;
 const heroAnimationIdleTimeoutMs = 500;
+const swipeReadyFallbackMs = 500;
 
 type IdleWindow = Window &
   typeof globalThis & {
@@ -33,7 +35,10 @@ export function HomeHeroAnimationController() {
     let firstFrameHandle = 0;
     let secondFrameHandle = 0;
     let completionFallbackHandle = 0;
+    let swipeReadyFallbackHandle = 0;
+    let animationStartQueued = false;
     let cancelIdleStart: (() => void) | undefined;
+    const participantSurface = hero.closest<HTMLElement>('[data-participant-surface="true"]');
     const animationTarget = hero.querySelector<HTMLElement>(homeHeroAnimationCompletionSelector);
     const replayTarget = hero.querySelector<SVGElement>(homeHeroAnimationReplaySelector);
 
@@ -73,30 +78,46 @@ export function HomeHeroAnimationController() {
       replayHomeHeroAnimation(hero);
     };
 
+    const queueAnimationStart = () => {
+      if (!active || animationStartQueued) return;
+      animationStartQueued = true;
+      window.clearTimeout(swipeReadyFallbackHandle);
+      window.removeEventListener(participantSwipeReadyEvent, queueAnimationStart);
+
+      firstFrameHandle = window.requestAnimationFrame(() => {
+        secondFrameHandle = window.requestAnimationFrame(() => {
+          const idleWindow = window as IdleWindow;
+          if (typeof idleWindow.requestIdleCallback === "function") {
+            const idleHandle = idleWindow.requestIdleCallback(startAnimation, {
+              timeout: heroAnimationIdleTimeoutMs,
+            });
+            cancelIdleStart = () => idleWindow.cancelIdleCallback?.(idleHandle);
+            return;
+          }
+
+          const timeoutHandle = window.setTimeout(startAnimation, 0);
+          cancelIdleStart = () => window.clearTimeout(timeoutHandle);
+        });
+      });
+    };
+
     hero.dataset.homeHeroAnimationState = "pending";
     replayTarget?.addEventListener("click", replayAnimation);
-    firstFrameHandle = window.requestAnimationFrame(() => {
-      secondFrameHandle = window.requestAnimationFrame(() => {
-        const idleWindow = window as IdleWindow;
-        if (typeof idleWindow.requestIdleCallback === "function") {
-          const idleHandle = idleWindow.requestIdleCallback(startAnimation, {
-            timeout: heroAnimationIdleTimeoutMs,
-          });
-          cancelIdleStart = () => idleWindow.cancelIdleCallback?.(idleHandle);
-          return;
-        }
-
-        const timeoutHandle = window.setTimeout(startAnimation, 0);
-        cancelIdleStart = () => window.clearTimeout(timeoutHandle);
-      });
-    });
+    window.addEventListener(participantSwipeReadyEvent, queueAnimationStart);
+    if (!participantSurface || participantSurface.dataset.participantSwipeReady === "true") {
+      queueAnimationStart();
+    } else {
+      swipeReadyFallbackHandle = window.setTimeout(queueAnimationStart, swipeReadyFallbackMs);
+    }
 
     return () => {
       active = false;
       window.cancelAnimationFrame(firstFrameHandle);
       window.cancelAnimationFrame(secondFrameHandle);
       window.clearTimeout(completionFallbackHandle);
+      window.clearTimeout(swipeReadyFallbackHandle);
       cancelIdleStart?.();
+      window.removeEventListener(participantSwipeReadyEvent, queueAnimationStart);
       animationTarget?.removeEventListener("animationend", handleAnimationEnd);
       replayTarget?.removeEventListener("click", replayAnimation);
     };
