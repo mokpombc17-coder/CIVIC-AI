@@ -49,6 +49,7 @@ export function PlatformBottomNavigationItem(props: PlatformBottomNavigationItem
         {...anchorProps}
         className={[styles.bottomNavigationItem, className].filter(Boolean).join(" ")}
         data-navigation-mode={navigationMode}
+        data-platform-navigation-route={href}
         href={href}
       >
         <PlatformBottomNavigationItemContent icon={icon} label={label} />
@@ -63,6 +64,7 @@ export function PlatformBottomNavigationItem(props: PlatformBottomNavigationItem
       {...linkProps}
       className={[styles.bottomNavigationItem, className].filter(Boolean).join(" ")}
       data-navigation-mode={navigationMode}
+      data-platform-navigation-route={href}
       href={{ pathname: href }}
     >
       <PlatformBottomNavigationItemContent icon={icon} label={label} />

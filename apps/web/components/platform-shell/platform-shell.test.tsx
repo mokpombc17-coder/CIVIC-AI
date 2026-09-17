@@ -148,6 +148,7 @@ describe("PlatformNavigation", () => {
       const anchor = markup.match(new RegExp(`<a[^>]*href="${href}"[^>]*>`))?.[0];
 
       expect(anchor).toContain(`data-navigation-mode="${navigationMode}"`);
+      expect(anchor).toContain(`data-platform-navigation-route="${href}"`);
       expect(markup).toContain(`>${label}</span>`);
 
       const previousItem = expectedItems[index - 1];

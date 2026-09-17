@@ -66,6 +66,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 │                   │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
 │                   │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
 │                   │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+│                   │           ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
 │                   │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
 │                   │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
 │                   ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
@@ -74,7 +75,13 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 ```
 
 `PlatformPageShell`은 일반 화면의 기본 header, `scroll="self"` content와 pathname 기반 하단
-내비게이션을 조립한다. 홈의 뒤로가기 control은 목적지가 없으므로 비활성 상태다.
+내비게이션을 조립한다. `PlatformNavigationClient`는 실제 하단 내비게이션과
+`ParticipantSwipeNavigationController`를 함께 조립한다. Controller는 `/chat`·`/vote`와 각 하위
+route에서만 content surface의 좌우 pointer gesture를 관찰하고, 성공한 gesture를 인접한 실제 하단
+내비게이션 link click으로 위임한다. header와 하단 내비게이션은 transform 대상에서 제외하며 세로
+gesture는 content의 기존 scroll에 맡긴다. Platform overlay 또는 `inert` 상태가 열려 있으면 새 gesture를
+받지 않고 진행 중 gesture와 예약된 이동도 취소한다. 홈의 뒤로가기 control은 목적지가 없으므로 비활성
+상태다.
 `ParticipantHome`은 홈 안내와 AI·토론방·투표 도메인 진입 action을 표현한다.
 개발 환경의 `LocalE2ELoginControl`은 `PlatformPageShell.headerActions`를 통해 홈 header 오른쪽에
 조립되며, 운영 build에는 포함되지 않는다. 내부의 조건부 UI는 intrinsic HTML element이므로 이
@@ -239,6 +246,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
                         │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                         │   │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                        │   │       │                   ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │       │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │       │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                         │   │       ├── route /chat/creation-requests: LegacyRoomCreationRequestsPage [Server] [Redirect → /chat] (apps/web/app/chat/creation-requests/page.tsx)
@@ -255,6 +263,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │               │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
                         │   │               │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
                         │   │               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
+                        │   │               │           ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                         │   │               ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
@@ -543,6 +552,8 @@ NotFound [Server] [Route] [conditional: unmatched route 또는 notFound()]
     └── PlatformShell [Server-compatible] [View] [scroll: self]
         ├── PlatformHeader [Server-compatible] [View]
         └── PlatformNavigationClient [Client] [View]
+            ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**]
+            └── PlatformNavigation [Server-compatible] [View]
 ```
 
 `Loading`과 `ErrorPage`는 프로젝트에서 정의한 다른 React 컴포넌트를 렌더링하지 않는다.
@@ -591,6 +602,7 @@ flowchart TD
     ChatRoomPlatformShell["PlatformShell [Server-compatible] [View] [scroll: child]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
     PlatformHeader["PlatformHeader [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-header.tsx"]
     PlatformNavigationClient["PlatformNavigationClient [Client] [View]<br/>apps/web/components/platform-navigation-client.tsx"]
+    ParticipantSwipeNavigationController["ParticipantSwipeNavigationController [Client] [Runtime]<br/>apps/web/components/participant-swipe-navigation-controller.tsx"]
     PlatformNavigation["PlatformNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
     PlatformBottomNavigation["PlatformBottomNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
     ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
@@ -698,6 +710,7 @@ flowchart TD
     CreateChatRoomForm -->|"request history view"| RoomCreationRequestListContent
     ChatListPlatformShell -->|"conditional overlay; surface inert"| ChatRoomListDetailDialog
     ChatListPlatformShell --> PlatformNavigationClient
+    PlatformNavigationClient -->|"active on /chat/** and /vote/**"| ParticipantSwipeNavigationController
     PlatformNavigationClient --> PlatformNavigation
     PlatformNavigation --> PlatformBottomNavigation
     ChatRoomListDetailDialog -->|"available room action"| JoinChatRoomControl
@@ -774,7 +787,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyScreenLoading,SurveyLoadingStatus,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```
