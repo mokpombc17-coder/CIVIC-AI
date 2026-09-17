@@ -6284,10 +6284,11 @@
   flex: 1 1 auto;
   gap: 12px;
   overscroll-behavior: contain;
+  margin-inline: calc(var(--civic-rag-inline-padding) * -1);
   border: 0;
   border-radius: 0 0 4px 4px;
   background: #fff;
-  padding: 12px 0 10px;
+  padding: 12px var(--civic-rag-inline-padding) 10px;
   scrollbar-gutter: stable;
 }
 
