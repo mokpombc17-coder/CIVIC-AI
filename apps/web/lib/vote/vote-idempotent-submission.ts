@@ -73,3 +73,15 @@ export function clearPendingTaskSubmission(
 ): void {
   storage.removeItem(`${STORAGE_PREFIX}${taskId}`);
 }
+
+export function clearAllPendingTaskSubmissions(
+  storage: Pick<Storage, "key" | "length" | "removeItem"> = sessionStorage,
+): void {
+  const pendingSubmissionKeys = Array.from({ length: storage.length }, (_, index) =>
+    storage.key(index),
+  ).filter((key): key is string => key?.startsWith(STORAGE_PREFIX) ?? false);
+
+  for (const key of pendingSubmissionKeys) {
+    storage.removeItem(key);
+  }
+}

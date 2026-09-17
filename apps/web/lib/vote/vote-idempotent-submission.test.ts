@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  clearAllPendingTaskSubmissions,
   clearPendingTaskSubmission,
   getOrCreatePendingTaskSubmission,
   readPendingTaskSubmission,
@@ -60,5 +61,28 @@ describe("pending Task submission", () => {
 
     expect(replay.idempotencyKey).toBe(first.idempotencyKey);
     expect(edited.idempotencyKey).toBe("second-key");
+  });
+
+  it("인증 경계에서는 다른 session key를 보존하고 모든 pending 제출만 삭제한다", () => {
+    const values = new Map([
+      ["civic.analytics-user-id.v1", "analytics-user-id"],
+      ["civic-ai:survey-draft:v1:owner:round", "survey-draft"],
+      ["civic-ai:vote:pending-task-submission:task-01", "pending-01"],
+      ["civic-ai:vote:pending-task-submission:task-02", "pending-02"],
+    ]);
+    const storage = {
+      get length() {
+        return values.size;
+      },
+      key: (index: number) => [...values.keys()][index] ?? null,
+      removeItem: (key: string) => values.delete(key),
+    };
+
+    clearAllPendingTaskSubmissions(storage);
+
+    expect([...values.entries()]).toEqual([
+      ["civic.analytics-user-id.v1", "analytics-user-id"],
+      ["civic-ai:survey-draft:v1:owner:round", "survey-draft"],
+    ]);
   });
 });

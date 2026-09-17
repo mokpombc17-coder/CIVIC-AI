@@ -38,7 +38,10 @@ view와 독립 feature control 사이의 논리적 조립 관계를 정리한다
 `RootLayout`의 `children`은 App Router가 현재 route segment에 맞게 제공한다. `/`의
 `IndexPage`는 표준 홈 경로인 `/home`으로 redirect하고, `/home`의 `HomePage`가 일반 플랫폼
 화면용 `PlatformPageShell`을 조립한다. `AppShell`은 route UI를 감싸는 `main`이나 site header를
-소유하지 않고 bridge·update·analytics identity 같은 전역 runtime만 조립한다. Production의
+소유하지 않고 bridge·update·analytics identity·인증 생명주기 같은 전역 runtime만 조립한다.
+`AuthenticationLifecycleBoundary`는 `civic-ai:auth:v1` BroadcastChannel의 `LOGOUT`에서 route
+children을 내린 뒤 Chat·Vote query cache와 투표 pending 제출을 제거한다. `LOGIN`과 BFCache 복원에서는
+투표 pending 제출을 제거하고 hard reload한다. GA4 User-ID와 사용자별 Survey draft는 제거하지 않는다. Production의
 `GoogleAnalyticsUserIdentity`는 3000 앱이 `civic.analytics-user-id.v1` session storage key에 저장한
 사용자 UUID를 GA data layer에 설정하며, route 이동이나 일반 unmount에서는 값을 초기화하지 않는다.
 `useFeatureFailureAnalytics`는 Chat·Survey·Vote screen이 사용자에게 실제로 표시한 최종 실패를
@@ -53,7 +56,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 │   ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
 │   └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
 │       ├── 조건: 필수 업데이트이면 안내 UI를 렌더링하고 전달받은 children은 렌더링하지 않음
-│       └── children [slot: App Router가 route child를 제공]
+│       └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
+│           ├── [LOGOUT] 로그아웃 안내 UI
+│           └── children [slot: App Router가 route child를 제공]
 │           ├── route /: IndexPage [Server] [Route] [redirect: /home] (apps/web/app/page.tsx)
 │           └── route /home: HomePage [Server] [Route] (apps/web/app/home/page.tsx)
 │               ├── PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
@@ -112,8 +117,9 @@ viewport 위로 완전히 사라졌을 때 나타나고, 본문 Progress가 다�
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
-    └── children [slot: App Router가 route child를 제공]
-        └── SurveyLayout [Server] [Route] (apps/web/app/survey/layout.tsx)
+    └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
+        └── children [slot: App Router가 route child를 제공]
+          └── SurveyLayout [Server] [Route] (apps/web/app/survey/layout.tsx)
             └── VoteQueryProvider [Client] [Provider]
               └── survey children [slot: nested page를 제공]
                 ├── route segment loading: SurveyLoading [Server] [Route] (apps/web/app/survey/loading.tsx)
@@ -209,8 +215,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
     ├── GoogleAnalyticsUserIdentity [Client] [Runtime] [conditional: production] (apps/web/components/google-analytics-user-identity.tsx)
     ├── NativeBridgeRuntime [Client] [Runtime] (apps/web/components/native-bridge-runtime.tsx)
     └── AppUpdateGate [Client] [Feature] [conditional] (apps/web/components/app-update-gate.tsx)
-        └── children [slot: App Router가 route child를 제공]
-            └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
+        └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
+            └── children [slot: App Router가 route child를 제공]
+              └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
                 └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
                     └── ChatAuthenticationBoundary [Client] [Boundary] (apps/web/components/chat-authentication-boundary.tsx)
                         ├── [eligibility loading via ServiceEligibilityGuard] ChatRoomListLoading [Server-compatible] [View] (apps/web/components/chat-room-list-loading.tsx)
@@ -495,8 +502,9 @@ Provider가 제공하는 client cache를 공유한다.
 ```text
 RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 └── AppShell [Server] [Container] (apps/web/components/app-shell.tsx)
-    └── children [slot: App Router가 route child를 제공]
-        └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
+    └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
+        └── children [slot: App Router가 route child를 제공]
+          └── VoteLayout [Server] [Route] (apps/web/app/vote/layout.tsx)
             └── VoteQueryProvider [Client] [Provider] (apps/web/components/vote/vote-query-provider.tsx)
                 └── ServiceEligibilityGuard [Client] [Boundary] (apps/web/components/service-eligibility-guard.tsx)
                     ├── [eligibility loading] VoteTaskListLoading [Server-compatible] [View] (apps/web/components/vote/vote-task-list-loading.tsx)
@@ -552,6 +560,7 @@ flowchart TD
     AppShell["AppShell [Server] [Container]<br/>apps/web/components/app-shell.tsx"]
     NativeBridgeRuntime["NativeBridgeRuntime [Client] [Runtime]<br/>apps/web/components/native-bridge-runtime.tsx"]
     AppUpdateGate["AppUpdateGate [Client] [Feature] [conditional]<br/>apps/web/components/app-update-gate.tsx"]
+    AuthenticationLifecycleBoundary["AuthenticationLifecycleBoundary [Client] [Boundary]<br/>apps/web/components/authentication-lifecycle-boundary.tsx"]
     ChildrenSlot["children slot<br/>App Router가 실제 자식을 결정"]
 
     IndexPage["IndexPage [Server] [Route] [redirect: /home]<br/>apps/web/app/page.tsx"]
@@ -646,7 +655,8 @@ flowchart TD
     RootLayout --> AppShell
     AppShell --> NativeBridgeRuntime
     AppShell -->|"update policy branch"| AppUpdateGate
-    AppUpdateGate --> ChildrenSlot
+    AppUpdateGate --> AuthenticationLifecycleBoundary
+    AuthenticationLifecycleBoundary --> ChildrenSlot
 
     ChildrenSlot -. "route /" .-> IndexPage
     ChildrenSlot -. "route /home" .-> HomePage
@@ -763,7 +773,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyScreenLoading,SurveyLoadingStatus,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformNavigationClient,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```
