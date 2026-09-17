@@ -1,11 +1,11 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import Loading from "@/app/loading";
 import RefreshPage from "@/app/auth/refresh/page";
+import ForbiddenLoading from "@/app/forbidden/loading";
 
 describe("authentication transition shells", () => {
-  it("keeps the common platform shell while the root route is loading", () => {
-    const markup = renderToStaticMarkup(<Loading />);
+  it("keeps the common platform shell while the forbidden route is loading", () => {
+    const markup = renderToStaticMarkup(<ForbiddenLoading />);
 
     expect(markup).toContain('data-platform-shell="true"');
     expect(markup).toContain('aria-label="CIVIC.AI 전남광주"');

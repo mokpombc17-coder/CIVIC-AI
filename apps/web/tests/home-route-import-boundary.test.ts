@@ -1,10 +1,16 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 const webRoot = join(__dirname, "..");
 
 describe("home route import boundary", () => {
+  it("루트 fallback 없이 home과 비동기 특수 route가 각 loading 경계를 소유한다", () => {
+    expect(existsSync(join(webRoot, "app", "loading.tsx"))).toBe(false);
+    expect(existsSync(join(webRoot, "app", "home", "loading.tsx"))).toBe(true);
+    expect(existsSync(join(webRoot, "app", "forbidden", "loading.tsx"))).toBe(true);
+  });
+
   it("홈 route가 계정·인증 화면 조립 모듈을 거치지 않는다", () => {
     const page = readFileSync(join(webRoot, "app", "home", "page.tsx"), "utf8");
     const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");

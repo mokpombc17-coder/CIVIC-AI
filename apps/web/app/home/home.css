@@ -250,19 +250,19 @@
 }
 
 .civic-opinion-hero--animated .civic-hero-reveal {
-  animation: civic-hero-donut-reveal 580ms cubic-bezier(0.22, 0.61, 0.36, 1) both;
+  animation: civic-hero-donut-reveal 520ms cubic-bezier(0.25, 0.5, 0.5, 1) both;
 }
 
 .civic-opinion-hero--animated .civic-hero-ratios {
-  animation: civic-hero-content-reveal 200ms 580ms ease-out both;
+  animation: civic-hero-content-reveal 200ms 520ms ease-out both;
 }
 
 .civic-opinion-hero--animated .civic-hero-line {
-  animation: civic-hero-connector-reveal 250ms 640ms ease-out both;
+  animation: civic-hero-connector-reveal 250ms 580ms ease-out both;
 }
 
 .civic-opinion-hero--animated .civic-hero-label {
-  animation: civic-hero-content-reveal 200ms 890ms ease-out both;
+  animation: civic-hero-content-reveal 200ms 830ms ease-out both;
 }
 
 @media (prefers-reduced-motion: reduce) {

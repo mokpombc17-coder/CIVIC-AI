@@ -54,11 +54,6 @@ RootLayout [Server, 문서 CSP nonce 읽기]
 
 IndexPage / [Server Route] [redirect: /home]
 
-RootLoading /loading.tsx [Server Route, route-neutral PlatformShell fallback]
-├── header: CIVIC.AI + 전남광주
-├── content: spinner + 준비 상태 안내
-└── bottom navigation: 현재 선택 상태 없이 공통 메뉴 유지
-
 PwaStartPage /pwa/start [Server Route, manifest start_url]
 └── PwaStartup [Client]
     ├── 일반 브라우저: /home 이동, Refresh 미실행
@@ -71,6 +66,11 @@ RefreshPage /auth/refresh [Server Route, 안전한 returnTo 기준 대기 surfac
 └── AccessTokenRefresh [Client, Access Token 갱신 후 returnTo로 복귀]
     ├── /rag 또는 /mypage 계열 갱신 중: ParticipantLoadingView [목적지 PlatformShell 유지]
     └── 관리자·기타 경로 갱신 중 또는 갱신 실패: FullscreenStatus [route-neutral]
+
+ForbiddenLoading /forbidden/loading.tsx [Server Route, route-neutral PlatformShell fallback]
+├── header: CIVIC.AI + 전남광주
+├── content: spinner + 준비 상태 안내
+└── bottom navigation: 현재 선택 상태 없이 공통 메뉴 유지
 
 HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Server Route]
 ├── HomeBrandTitle [CIVIC.AI + 고정 권역 광주/전남]
@@ -284,10 +284,11 @@ Protected Client request
 
 Refresh Token은 `/api/v1/auth` path로 제한되므로 일반 Server Component가 읽지 않는다. Access Token이
 없거나 만료된 Server Route는 `/auth/refresh`를 거쳐 브라우저가 갱신한다. Frontend는 JWT payload를
-해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다. `/auth/refresh`와 root `loading.tsx`는 갱신이
-끝나기 전에 참여자·관리자 목적지를 확정할 수 없으므로 어느 제품 shell에도 들어가지 않고
-`FullscreenStatus`만 렌더링한다. 이 경계는 관리자 갱신과 `/` redirect 중 참가자 mobile shell이 먼저
-노출되는 것을 막는다.
+해석하지 않고 `/me` 응답을 화면 접근 판정에 사용한다. `/auth/refresh`는 갱신이 끝나기 전에 안전한
+`returnTo`를 기준으로 participant 목적지에는 해당 shell을 유지하고, 관리자·기타 경로에는
+`FullscreenStatus`를 렌더링한다. `/forbidden/loading.tsx`는 사용자 조회가 끝나기 전 route-neutral
+`PlatformPageShell`을 제공한다. 루트에는 공통 `loading.tsx`를 두지 않으므로 `/home`의 초기 fallback은
+항상 `/home/loading.tsx`가 소유한다.
 
 ## BFF 책임
 
@@ -370,9 +371,9 @@ placeholder 화면은 REST mutation, WebSocket, SharedWorker를 시작하지 않
 
 ## App Router special UI
 
-root `loading.tsx`는 route-neutral `PlatformPageShell`에 브랜드 header, 준비 상태, 선택 상태가 없는
-공통 bottom navigation을 렌더링한다. 참여자·관리자 route 내부의 `loading.tsx`는 각 목적지 shell에
-맞는 skeleton을 사용하고, `error.tsx`와 `not-found.tsx`는 기존 `PlatformPageShell`을 사용한다. 이
-special UI들은 일반 제품 화면의 상태와 데이터 요청을 소유하지 않는다. `/home/loading.tsx`는 관리자
-skeleton과 분리된 `ParticipantHomeSkeleton`을 직접 사용해 질문·회색 도넛·홈 카드의 초기 구조만
-렌더링한다.
+루트에는 공통 `loading.tsx`를 두지 않는다. `/forbidden/loading.tsx`만 route-neutral
+`PlatformPageShell`에 브랜드 header, 준비 상태, 선택 상태가 없는 공통 bottom navigation을 렌더링한다.
+참여자·관리자 route 내부의 `loading.tsx`는 각 목적지 shell에 맞는 skeleton을 사용하고,
+`error.tsx`와 `not-found.tsx`는 기존 `PlatformPageShell`을 사용한다. 이 special UI들은 일반 제품
+화면의 상태와 데이터 요청을 소유하지 않는다. `/home/loading.tsx`는 관리자 skeleton과 분리된
+`ParticipantHomeSkeleton`을 직접 사용해 질문·회색 도넛·홈 카드의 초기 구조만 렌더링한다.
