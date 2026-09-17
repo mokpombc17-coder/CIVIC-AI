@@ -1,9 +1,11 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { observeAuthMessages } from "@/lib/auth/auth-session-events";
 import { clearRagConversationSnapshot } from "./rag-conversation-session";
 import { readRagSessionOwner } from "./rag-session-owner";
+
+const sessionOwnerRetryDelayMs = 3_000;
 
 /** Cached route props are not proof that the browser still belongs to this user. */
 export function RagSessionBoundary({
@@ -11,29 +13,32 @@ export function RagSessionBoundary({
   children,
 }: Readonly<{ ownerUserId: string; children: ReactNode }>) {
   const [admitted, setAdmitted] = useState(false);
-  const [status, setStatus] = useState<"checking" | "ready" | "unavailable">("checking");
-  const content = useRef<HTMLDivElement>(null);
-  const retry = useRef<() => void>(() => {});
 
   useEffect(() => {
     let disposed = false;
     let invalidated = false;
     let generation = 0;
     let pending: AbortController | undefined;
+    let retryTimer: number | undefined;
 
     const hide = () => {
-      // Synchronous DOM masking also survives bfcache before React can commit an update.
-      if (content.current) content.current.style.display = "none";
-      setStatus("checking");
+      setAdmitted(false);
+    };
+    const clearRetry = () => {
+      if (retryTimer === undefined) return;
+      window.clearTimeout(retryTimer);
+      retryTimer = undefined;
     };
     const suspend = () => {
       generation += 1;
       pending?.abort();
       pending = undefined;
+      clearRetry();
       hide();
     };
     const check = async () => {
       if (disposed || invalidated || pending || document.visibilityState === "hidden") return;
+      clearRetry();
       hide();
       const current = ++generation;
       const controller = new AbortController();
@@ -44,11 +49,12 @@ export function RagSessionBoundary({
       if (disposed || generation !== current) return;
       pending = undefined;
       if (result === "current") {
-        if (content.current) content.current.style.display = "contents";
         setAdmitted(true);
-        setStatus("ready");
       } else if (result === "unavailable") {
-        setStatus("unavailable");
+        retryTimer = window.setTimeout(() => {
+          retryTimer = undefined;
+          void check();
+        }, sessionOwnerRetryDelayMs);
       } else {
         invalidated = true;
         setAdmitted(false);
@@ -78,7 +84,6 @@ export function RagSessionBoundary({
       suspend();
       setAdmitted(false); // Unmount the conversation and abort its active request/stream.
     });
-    retry.current = () => void check();
     document.addEventListener("visibilitychange", visible);
     window.addEventListener("focus", focus);
     window.addEventListener("pagehide", leaving);
@@ -87,6 +92,7 @@ export function RagSessionBoundary({
     return () => {
       disposed = true;
       pending?.abort();
+      clearRetry();
       unsubscribe();
       document.removeEventListener("visibilitychange", visible);
       window.removeEventListener("focus", focus);
@@ -95,29 +101,5 @@ export function RagSessionBoundary({
     };
   }, [ownerUserId]);
 
-  return (
-    <>
-      {status !== "ready" ? (
-        <div role="status">
-          {status === "unavailable" ? (
-            <>
-              <p>로그인 상태를 확인하지 못했습니다. 다시 시도해 주세요.</p>
-              <button onClick={() => retry.current()} type="button">
-                다시 확인
-              </button>
-            </>
-          ) : (
-            <p>로그인 상태를 확인하고 있습니다.</p>
-          )}
-        </div>
-      ) : null}
-      <div
-        data-rag-session-content
-        style={{ display: status === "ready" ? "contents" : "none" }}
-        ref={content}
-      >
-        {admitted ? children : null}
-      </div>
-    </>
-  );
+  return admitted ? children : null;
 }

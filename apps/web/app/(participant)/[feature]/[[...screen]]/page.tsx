@@ -87,7 +87,7 @@ export default async function ParticipantPlaceholderPage({
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
         {...(definition.id === "U-RAG-001"
-          ? { headerActions: <RagNewQuestionHeaderAction /> }
+          ? { headerActions: <RagNewQuestionHeaderAction />, scroll: "child" as const }
           : {})}
         title={heading.title}
       >

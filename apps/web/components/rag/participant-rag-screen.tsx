@@ -270,7 +270,7 @@ function RagConversation({
       const submittedQuestion = exchange?.querySelector<HTMLElement>(".civic-rag-question");
       if (!submittedQuestion) return;
       submittedMessageIdToScroll.current = null;
-      scrollRagQuestionIntoView(submittedQuestion);
+      scrollRagQuestionIntoView(messages, submittedQuestion);
     });
     return () => window.cancelAnimationFrame(frame);
   }, [messages]);
@@ -721,10 +721,19 @@ export function RagMessage({
 }
 
 type RagMessagesScrollTarget = Pick<HTMLDivElement, "scrollHeight" | "scrollTo">;
-type RagQuestionScrollTarget = Pick<HTMLElement, "scrollIntoView">;
+type RagQuestionContainerScrollTarget = Pick<HTMLDivElement, "scrollTo" | "scrollTop"> &
+  Readonly<{ getBoundingClientRect: () => Pick<DOMRect, "top"> }>;
+type RagQuestionScrollTarget = Readonly<{
+  getBoundingClientRect: () => Pick<DOMRect, "top">;
+}>;
 
-export function scrollRagQuestionIntoView(question: RagQuestionScrollTarget): void {
-  question.scrollIntoView({ behavior: "smooth", block: "start", inline: "nearest" });
+export function scrollRagQuestionIntoView(
+  messages: RagQuestionContainerScrollTarget,
+  question: RagQuestionScrollTarget,
+): void {
+  const messageTop = messages.getBoundingClientRect().top;
+  const questionTop = question.getBoundingClientRect().top;
+  messages.scrollTo({ behavior: "smooth", top: messages.scrollTop + questionTop - messageTop });
 }
 
 export function scrollRagMessagesToLatest(messages: RagMessagesScrollTarget): void {

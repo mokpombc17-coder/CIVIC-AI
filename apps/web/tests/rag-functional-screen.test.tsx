@@ -444,16 +444,19 @@ describe("9 functional RAG screens", () => {
     expect(html).toContain('data-rag-message-id="streaming-job"');
   });
 
-  it("새 사용자 말풍선을 화면 안의 시작 위치로 부드럽게 이동한다", () => {
-    const scrollIntoView = vi.fn();
+  it("새 사용자 말풍선을 상위 shell이 아닌 대화 목록 안에서 부드럽게 이동한다", () => {
+    const scrollTo = vi.fn();
 
-    scrollRagQuestionIntoView({ scrollIntoView });
+    scrollRagQuestionIntoView(
+      {
+        getBoundingClientRect: () => ({ top: 120 }),
+        scrollTo,
+        scrollTop: 240,
+      },
+      { getBoundingClientRect: () => ({ top: 420 }) },
+    );
 
-    expect(scrollIntoView).toHaveBeenCalledWith({
-      behavior: "smooth",
-      block: "start",
-      inline: "nearest",
-    });
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 540 });
   });
 
   it("스트리밍 답변 조각이 추가되면 대화의 마지막 높이로 자동 스크롤한다", () => {

@@ -1,8 +1,20 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
+import { RagSessionBoundary } from "./rag-session-boundary";
 import { readRagSessionOwner } from "./rag-session-owner";
 
 describe("RAG conversation owner verification", () => {
   const signal = new AbortController().signal;
+  it("renders a blank content area before the current session is verified", () => {
+    const markup = renderToStaticMarkup(
+      <RagSessionBoundary ownerUserId="alice">
+        <p>private conversation</p>
+      </RagSessionBoundary>,
+    );
+
+    expect(markup).toBe("");
+  });
+
   it.each([
     [{ user_id: "alice", account_state: "ACTIVE" }, "current"],
     [{ user_id: "bob", account_state: "ACTIVE" }, "changed"],

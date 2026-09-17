@@ -27,8 +27,8 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 브라우저의 공유 QueryClient 캐시를 함께 비운다. API 요청·메시지 송신·화면 이동은 호출부가 담당한다.
 `AuthSessionSync`는 `observeAuthMessages`로 받은 메시지에 따라 정리 후 이동한다.
 다음 로그인 후 역할·서비스 이용 자격을 새로 조회한다.
-`RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 대화를
-숨긴다. bfcache 저장 전에도 내용을 숨기고 복원 시 문서를 다시 로드한다. 브로드캐스트의
+`RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 별도 문구 없이 빈
+본문을 렌더링한다. bfcache 저장 전에도 대화를 언마운트하고 복원 시 문서를 다시 로드한다. 브로드캐스트의
 수신 이동에는 인증 조회를 추가하지 않는다. [RAG 계정 격리](../contracts/rag-session-isolation.md)를 따른다.
 
 `StyleNonceProvider`는 최상위 문서 응답의 `x-nonce`를 처음 마운트된 값으로 고정한다.
@@ -123,12 +123,12 @@ ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatc
 ├── RAG
 │   ├── requireParticipantAccess
 │   └── EligibleParticipantShell
-│       └── PlatformPageShell
+│       └── PlatformPageShell [U-RAG-001은 child scroll]
 │           └── 기존 frontend2 PlatformShell [정확히 1개]
 │               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
 │               └── RagSessionBoundary [Client, 현재 계정 확인 전 대화 노출 차단]
 │                   └── RagFunctionalScreen
-│                       └── ParticipantRagScreen [header action event 수신·확인 dialog 소유]
+│                       └── ParticipantRagScreen [header action event 수신·확인 dialog·메시지 scroll 소유]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── EligibleParticipantShell
@@ -209,8 +209,9 @@ Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 
 `/admin/chat?roomId=...`에 반영하며 기존 상세·통계·Export route는 같은 Drawer 주소로 이동한다.
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
-adapter다. 기존 header, `self` scroll, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`,
-`/vote`, `/mypage` navigation을 그대로 사용한다. 투표 화면은 `/vote`를 유일한 표준 주소로
+adapter다. 기존 header, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`, `/vote`, `/mypage`
+navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용하고, `U-RAG-001`은 `child` scroll로
+전환해 header와 composer를 고정한 채 `.civic-rag-messages`만 스크롤한다. 투표 화면은 `/vote`를 유일한 표준 주소로
 사용하며, 이관 전 계정 UI의 `/account` 주소만 같은 화면과 active menu에 매핑한다. 참여자 섹션 루트는 header 자리를 유지하는
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
 
