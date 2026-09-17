@@ -39,7 +39,7 @@
 앱의 일반 화면 이동 방식인 `router.push()`를 호출한다.
 
 - `LOGIN` → `router.push("/home")`
-- `LOGOUT` → `router.push("/login")`
+- `LOGOUT` → 사용자 조회 캐시 정리 후 `router.push("/login")`
 
 인증과 권한 확인은 기존 페이지/API 로직이 담당하며, 수신 탭의 목적지는 위 두 경로로
 통일한다. 로그아웃 후 다시 로그인하면 `/login`을 거쳐 `/home`으로 이동한다.
@@ -50,13 +50,17 @@
 const channel = new BroadcastChannel("civic-ai:auth:v1");
 channel.onmessage = ({ data }) => {
   if (data === "LOGIN") router.push("/home");
-  if (data === "LOGOUT") router.push("/login");
+  if (data === "LOGOUT") {
+    clearUserQueryCache();
+    router.push("/login");
+  }
 };
 // 로그인 API의 최종 성공 응답을 처리한 뒤:
 channel.postMessage("LOGIN");
 ```
 
 실제 앱에서는 위 오류 처리와 함께, 마지막 구독 해제 시 채널을 닫도록 구성한다.
+`clearUserQueryCache()`는 각 앱의 사용자 조회 캐시를 비우는 함수를 뜻한다.
 
 ## front2의 송신·수신과 데이터 정리
 
@@ -72,6 +76,11 @@ front2는 [auth-session-events.ts](../../apps/web/lib/auth/auth-session-events.t
 수신 탭은 [AuthSessionSync](../../apps/web/components/auth/auth-session-sync.tsx)에서
 메시지를 받아 필요한 데이터를 정리하고 고정 목적지로 이동한다.
 
+로그아웃 성공 처리와 `LOGOUT` 수신 처리에서는 화면 이동 전에 React Query 캐시를 비운다.
+front2는 `clearAppQueryCache()`로 현재 QueryClient의 조회·변경 캐시를 정리한다.
+이후 로그인한 계정의 역할과 필수 설문 완료 여부는 새로 조회한다. 비밀번호 변경·재설정,
+2FA 해제, 계정 비활성화처럼 세션을 끝내는 성공 처리에도 같은 규칙을 적용한다.
+
 데이터 정리는 각 앱의 기존 함수를 재사용한다. RAG 대화 복원·계정 확인과 front의 Chat 연결
 정리는 해당 기능의 코드에서 관리한다.
 
@@ -84,7 +93,7 @@ front에서는 위 송수신 규약에 맞춰 앱 구조에 적합한 함수명�
 - BroadcastChannel 지원 환경에서 구독 중인 탭에 알림을 실시간으로 전달한다.
   새로 열거나 신호를 놓친 탭의 인증 확인은 앱의 진입·복귀 처리에서 다룬다.
 - `push`는 방문 기록을 추가한다. 이전 기록으로 돌아갈 때의 화면·캐시 복원은
-  각 앱에서 처리한다. 사용자 캐시·대화·임시 입력 정리는 별도 변경으로 구현한다.
+  각 앱에서 처리한다. 로그아웃 시 사용자 캐시·대화·임시 입력을 정리한다.
   front의 Chat은 연결/재접속·전송 대기열·대화 캐시를 현재 계정 기준으로 정리해야 한다.
 - 여러 탭에서 인증을 동시에 바꾸는 경우에도, 최종 접근 권한은 API가 현재 쿠키를 기준으로 판단한다.
 

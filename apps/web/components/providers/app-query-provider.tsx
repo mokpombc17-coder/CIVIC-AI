@@ -11,6 +11,10 @@ export function getAppQueryClient(): QueryClient {
   return browserQueryClient;
 }
 
+export function clearAppQueryCache(): void {
+  browserQueryClient?.clear();
+}
+
 export function AppQueryProvider({ children }: Readonly<{ children: ReactNode }>) {
   return <QueryClientProvider client={getAppQueryClient()}>{children}</QueryClientProvider>;
 }

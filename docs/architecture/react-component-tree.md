@@ -25,6 +25,8 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 기존 인증 성공 처리와 `AuthSessionSync`의 메시지 수신 처리에서
 `clearRagConversationSnapshot()`을 직접 호출해 저장된 대화와 임시 입력을 지운다.
 `AuthSessionSync`는 `observeAuthMessages`로 받은 메시지에 따라 정리 후 이동한다.
+로그아웃과 세션 무효화 성공 처리, `LOGOUT` 수신 처리에서는 `clearAppQueryCache()`로
+브라우저의 공유 QueryClient 캐시를 비운다. 다음 로그인 후 역할·서비스 이용 자격을 새로 조회한다.
 `RagSessionBoundary`는 RAG 진입·탭 복귀 시 현재 계정을 확인하고, 확인 중에는 대화를
 숨긴다. bfcache 저장 전에도 내용을 숨기고 복원 시 문서를 다시 로드한다. 브로드캐스트의
 수신 이동에는 인증 조회를 추가하지 않는다. [RAG 계정 격리](../contracts/rag-session-isolation.md)를 따른다.

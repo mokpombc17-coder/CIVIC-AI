@@ -2,6 +2,7 @@
 
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
+import { clearAppQueryCache } from "@/components/providers/app-query-provider";
 
 import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
@@ -258,6 +259,7 @@ export function AuthFunctionalScreen({
           new_password: data.get("new_password"),
         });
         clearRagConversationSnapshot();
+        clearAppQueryCache();
         sendAuthMessage("LOGOUT");
         sessionStorage.removeItem(passwordResetEmailKey);
         sessionStorage.removeItem(passwordResetCodeKey);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { clearAppQueryCache } from "@/components/providers/app-query-provider";
 import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
 import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
@@ -44,6 +45,7 @@ export async function requestLogout(
       body: "{}",
     });
     if (!response.ok) return false;
+    clearAppQueryCache();
     if (storage) {
       clearRagConversationSnapshot(storage);
       clearAnalyticsUserId(storage);
