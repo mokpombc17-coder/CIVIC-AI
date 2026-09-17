@@ -7,21 +7,22 @@
   font-style: normal;
   font-display: swap;
   font-weight: 400;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2") format("woff2");
+  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6")
+    format("woff2");
 }
 @font-face {
   font-family: "Pretendard GOV";
   font-style: normal;
   font-display: swap;
   font-weight: 500;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2") format("woff2");
+  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7") format("woff2");
 }
 @font-face {
   font-family: "Pretendard GOV";
   font-style: normal;
   font-display: swap;
   font-weight: 700;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2") format("woff2");
+  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5") format("woff2");
 }
 :root {
   --wf-ink: #101114;

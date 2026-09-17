@@ -45,6 +45,23 @@ describe("direct resource route boundary", () => {
     expect(assetPrefixForEnvironment("test")).toBeUndefined();
   });
 
+  it("버전 지정 폰트와 navigation 이미지에 immutable 브라우저 캐시를 적용한다", async () => {
+    const headers = await nextConfig.headers?.();
+    const immutableHeader = {
+      key: "Cache-Control",
+      value: "public, max-age=31536000, immutable",
+    };
+
+    expect(headers).toContainEqual({
+      source: "/fonts/pretendard-gov/:path*",
+      headers: [immutableHeader],
+    });
+    expect(headers).toContainEqual({
+      source: "/assets/platform-navigation/:path*",
+      headers: [immutableHeader],
+    });
+  });
+
   it("설치 브라우저 RAG rewrite에서는 SSE 조각을 버퍼링하는 Next 압축을 끈다", () => {
     expect(shouldCompressNextResponses(undefined)).toBe(true);
     expect(shouldCompressNextResponses("  ")).toBe(true);

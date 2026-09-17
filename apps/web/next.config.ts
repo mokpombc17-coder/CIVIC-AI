@@ -164,6 +164,14 @@ const nextConfig: NextConfig = {
         ],
       },
       {
+        source: "/fonts/pretendard-gov/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
+        source: "/assets/platform-navigation/:path*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=31536000, immutable" }],
+      },
+      {
         source: "/api/v1/rag/sources/:path*",
         headers: [
           { key: "X-Frame-Options", value: "SAMEORIGIN" },
