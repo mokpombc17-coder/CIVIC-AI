@@ -189,7 +189,8 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain('role="log"');
-    expect(html).toContain('aria-label="현재 RAG 대화"');
+    expect(html).toContain('aria-label="저장된 RAG 대화를 불러오는 중"');
+    expect(html).toContain('aria-busy="true"');
   });
 
   it("같은 사용자의 탭 대화는 질문·답변·인용과 RAG 세션을 복원한다", () => {
@@ -2500,6 +2501,9 @@ describe("9 functional RAG screens", () => {
     const participantHtml = renderToStaticMarkup(
       createElement(RagFunctionalScreen, { screen: participant }),
     );
+    const restoringParticipantHtml = renderToStaticMarkup(
+      createElement(RagFunctionalScreen, { screen: participant, userId: "participant-1" }),
+    );
     const headerActionHtml = renderToStaticMarkup(createElement(RagNewQuestionHeaderAction));
     const adminHtml = renderToStaticMarkup(createElement(RagFunctionalScreen, { screen: admin }));
 
@@ -2514,6 +2518,10 @@ describe("9 functional RAG screens", () => {
     expect(headerActionHtml).not.toContain(">새 대화</button>");
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
+    expect(restoringParticipantHtml).toContain('data-rag-conversation-restoring="true"');
+    expect(restoringParticipantHtml.match(/civic-skeleton-chat-question/gu)).toHaveLength(2);
+    expect(restoringParticipantHtml.match(/civic-skeleton-chat-answer/gu)).toHaveLength(2);
+    expect(restoringParticipantHtml).not.toContain("확인할 정책이나 자료를 질문하세요.");
     expect(adminHtml).toContain('data-wireflow-layout="rag-workspace"');
     expect(adminHtml).toContain("폴더 추가");
     expect(adminHtml).toContain("+ 문서 업로드");

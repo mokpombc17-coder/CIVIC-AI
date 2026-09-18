@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import { RagSessionBoundary } from "./rag-session-boundary";
+import { nextRagSessionAdmission, RagSessionBoundary } from "./rag-session-boundary";
 import { readRagSessionOwner } from "./rag-session-owner";
 
 describe("RAG conversation owner verification", () => {
@@ -13,6 +13,17 @@ describe("RAG conversation owner verification", () => {
     );
 
     expect(markup).toBe("");
+  });
+
+  it.each([
+    [false, "current", true],
+    [true, "current", true],
+    [false, "unavailable", false],
+    [true, "unavailable", true],
+    [true, "changed", false],
+    [true, "expired", false],
+  ] as const)("moves admission %s with %s to %s", (admitted, result, expected) => {
+    expect(nextRagSessionAdmission(admitted, result)).toBe(expected);
   });
 
   it.each([
