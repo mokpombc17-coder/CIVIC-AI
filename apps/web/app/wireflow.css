@@ -2075,13 +2075,13 @@
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3 {
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 500;
   line-height: 1.4;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading p {
-  font-size: 14px;
+  font-size: 15px;
   font-weight: 400;
   line-height: 1.45;
 }
@@ -2162,7 +2162,7 @@
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-copy strong {
   color: var(--wf-ink);
-  font-size: 15px;
+  font-size: 14px;
   font-weight: 600;
   line-height: 1.4;
   overflow-wrap: anywhere;
