@@ -169,7 +169,7 @@ describe("getChatRoomSessionView", () => {
         error: {
           code: "ROOM_CLOSED",
           serverCode: "ROOM_CLOSED",
-          message: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+          message: "채팅방이 종료되어 연결이 해제되었습니다.",
         },
       },
       "room-01",
@@ -177,7 +177,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "error",
-      description: "채팅방이 종료되어 실시간 연결이 해제되었습니다.",
+      description: "채팅방이 종료되어 연결이 해제되었습니다.",
       canDraft: false,
       canReactivate: false,
     });
