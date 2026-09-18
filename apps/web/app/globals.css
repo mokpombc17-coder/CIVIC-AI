@@ -2765,7 +2765,7 @@ th {
 .civic-pdf-page-list {
   display: grid;
   width: min(100%, 72rem);
-  gap: 1rem;
+  gap: 4px;
   margin: 0 auto;
 }
 
