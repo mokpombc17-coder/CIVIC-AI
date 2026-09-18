@@ -134,6 +134,7 @@ ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatc
 │               └── RagSessionBoundary [Client, 현재 계정 확인 전 대화 노출 차단]
 │                   └── RagFunctionalScreen
 │                       └── ParticipantRagScreen [header action event 수신·확인 dialog·메시지 scroll 소유]
+│                           └── ParticipantDocumentCatalog [Client, 빈 대화에서 참여자 문서 목록 조회]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── EligibleParticipantShell
@@ -368,6 +369,8 @@ Server로 직접 연결하며 provider API key나 JWT payload를 Client Componen
 같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
 `RagNewQuestionHeaderAction`은 `ParticipantShell`의 header action slot에 렌더링하고, 요청 event만
 `ParticipantRagScreen`에 전달한다. 대화 초기화와 확인 dialog 상태는 RAG client container가 계속 소유한다.
+`ParticipantDocumentCatalog`는 대화 복원이 끝났고 메시지가 없을 때만 mount되어
+`/api/v1/rag/documents/random`을 `authenticatedFetch`로 조회하며, 메시지가 생기면 대화 화면에서 제거된다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능

@@ -19,6 +19,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { RagCitationSources, SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { RagIntroBanner } from "./rag-intro-banner";
+import { ParticipantDocumentCatalog } from "./participant-document-catalog";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -493,13 +494,7 @@ function RagConversation({
           {!restored ? (
             <RagConversationRestorePlaceholder />
           ) : messages.length === 0 ? (
-            <div className="civic-rag-empty">
-              <span aria-hidden="true">✦</span>
-              <div>
-                <strong>확인할 정책이나 자료를 질문하세요.</strong>
-                <p>답변은 관리자가 등록한 문서의 실제 페이지 근거와 함께 표시됩니다.</p>
-              </div>
-            </div>
+            <div aria-hidden="true" className="civic-rag-empty" />
           ) : (
             messages.map((message) => (
               <RagMessage
@@ -518,6 +513,7 @@ function RagConversation({
           ) : null}
         </div>
         <RagNotice notice={notice} onLogin={preserveDraftForLogin} />
+        {restored && messages.length === 0 ? <ParticipantDocumentCatalog /> : null}
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">
             메시지 입력
