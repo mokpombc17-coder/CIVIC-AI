@@ -3,6 +3,7 @@
 import Link from "next/link";
 import type { Route } from "next";
 import {
+  useCallback,
   useEffect,
   useRef,
   useState,
@@ -19,7 +20,11 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { RagCitationSources, SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { RagIntroBanner } from "./rag-intro-banner";
-import { ParticipantDocumentCatalog } from "./participant-document-catalog";
+import {
+  participantDocumentPreviewPath,
+  ParticipantDocumentCatalog,
+  type ParticipantDocumentCatalogItem,
+} from "./participant-document-catalog";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import {
   clearRagConversationDraft,
@@ -242,6 +247,9 @@ function RagConversation({
   const [question, setQuestion] = useState("");
   const [messages, setMessages] = useState<Message[]>([]);
   const [activeCitation, setActiveCitation] = useState<Citation | null>(null);
+  const [activeCatalogDocument, setActiveCatalogDocument] =
+    useState<ParticipantDocumentCatalogItem | null>(null);
+  const [catalogRevision, setCatalogRevision] = useState(0);
   const [busy, setBusy] = useState(false);
   const [liveJobs, setLiveJobs] = useState<RagLiveJobs>({});
   const [restored, setRestored] = useState(!userId);
@@ -254,6 +262,11 @@ function RagConversation({
   const messagesRef = useRef<HTMLDivElement>(null);
   const submittedMessageIdToScroll = useRef<string | null>(null);
   const [notice, setNotice] = useState("");
+  const handleCatalogSourceUnavailable = useCallback(() => {
+    setActiveCatalogDocument(null);
+    setCatalogRevision((current) => current + 1);
+    setNotice("문서가 변경되어 목록을 새로 불러왔습니다.");
+  }, []);
   const streamedAnswerLength = Object.values(liveJobs).reduce(
     (total, liveJob) => total + liveJob.streamedAnswer.length,
     0,
@@ -401,6 +414,7 @@ function RagConversation({
     if (storage) clearRagConversationSnapshot(storage);
     setMessages([]);
     setLiveJobs({});
+    setActiveCatalogDocument(null);
     setQuestion("");
     setBusy(false);
     setNewQuestionDialogOpen(false);
@@ -513,7 +527,12 @@ function RagConversation({
           ) : null}
         </div>
         <RagNotice notice={notice} onLogin={preserveDraftForLogin} />
-        {restored && messages.length === 0 ? <ParticipantDocumentCatalog /> : null}
+        {restored && messages.length === 0 ? (
+          <ParticipantDocumentCatalog
+            key={catalogRevision}
+            onOpenDocument={setActiveCatalogDocument}
+          />
+        ) : null}
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">
             메시지 입력
@@ -555,6 +574,18 @@ function RagConversation({
             onClose={() => setActiveCitation(null)}
             sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(activeCitation.document_version_id)}/pages/${activeCitation.page_number}`}
             totalPages={citationTotalPages(activeCitation)}
+          />
+        </RagReferenceSurface>
+      ) : null}
+      {activeCatalogDocument ? (
+        <RagReferenceSurface>
+          <ReadOnlyPdfViewer
+            currentPage={1}
+            documentTitle={activeCatalogDocument.filename}
+            documentUrl={participantDocumentPreviewPath(activeCatalogDocument)}
+            onClose={() => setActiveCatalogDocument(null)}
+            onSourceUnavailable={handleCatalogSourceUnavailable}
+            totalPages={activeCatalogDocument.page_count}
           />
         </RagReferenceSurface>
       ) : null}

@@ -2077,6 +2077,10 @@
   line-height: 1.45;
 }
 
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3 {
+  font-weight: 500;
+}
+
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list {
   display: grid;
   gap: 6px;
@@ -2086,16 +2090,46 @@
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li {
-  display: flex;
   min-width: 0;
+  min-height: 52px;
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0;
+  box-shadow: 0 3px 12px rgb(31 45 61 / 8%);
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li.is-loading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 10px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li > button {
+  display: flex;
+  width: 100%;
   min-height: 52px;
   align-items: center;
   gap: 10px;
   border: 0;
-  border-radius: 10px;
-  background: #fff;
+  border-radius: inherit;
+  background: transparent;
+  color: inherit;
   padding: 8px 10px;
-  box-shadow: 0 3px 12px rgb(31 45 61 / 8%);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li > button:hover {
+  background: #fbfdff;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li > button:focus-visible {
+  outline: 2px solid var(--wf-focus-ring);
+  outline-offset: -2px;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-file-icon {

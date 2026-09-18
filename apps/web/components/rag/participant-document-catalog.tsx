@@ -19,7 +19,11 @@ type CatalogState =
   | Readonly<{ status: "ready"; items: readonly ParticipantDocumentCatalogItem[] }>
   | Readonly<{ status: "error" }>;
 
-export function ParticipantDocumentCatalog() {
+type ParticipantDocumentCatalogProps = Readonly<{
+  onOpenDocument: (item: ParticipantDocumentCatalogItem) => void;
+}>;
+
+export function ParticipantDocumentCatalog({ onOpenDocument }: ParticipantDocumentCatalogProps) {
   const [attempt, setAttempt] = useState(0);
   const [state, setState] = useState<CatalogState>({ status: "loading" });
 
@@ -59,19 +63,7 @@ export function ParticipantDocumentCatalog() {
       </header>
       {state.status === "loading" ? <ParticipantDocumentCatalogSkeleton /> : null}
       {state.status === "ready" && state.items.length > 0 ? (
-        <ul className="civic-rag-catalog-list">
-          {state.items.map((item) => (
-            <li key={`${item.document_id}:${item.document_version_id}`}>
-              <span aria-hidden="true" className="civic-rag-catalog-file-icon">
-                {documentKindLabel(item.filename)}
-              </span>
-              <span className="civic-rag-catalog-copy">
-                <strong>{item.filename}</strong>
-                <small>{item.page_count}페이지</small>
-              </span>
-            </li>
-          ))}
-        </ul>
+        <ParticipantDocumentCatalogList items={state.items} onOpenDocument={onOpenDocument} />
       ) : null}
       {state.status === "ready" && state.items.length === 0 ? (
         <p className="civic-rag-catalog-status">현재 참고할 수 있는 문서가 없습니다.</p>
@@ -86,6 +78,42 @@ export function ParticipantDocumentCatalog() {
       ) : null}
     </section>
   );
+}
+
+export function ParticipantDocumentCatalogList({
+  items,
+  onOpenDocument,
+}: Readonly<{
+  items: readonly ParticipantDocumentCatalogItem[];
+  onOpenDocument: (item: ParticipantDocumentCatalogItem) => void;
+}>) {
+  return (
+    <ul className="civic-rag-catalog-list">
+      {items.map((item) => (
+        <li key={`${item.document_id}:${item.document_version_id}`}>
+          <button
+            aria-label={`${item.filename} 미리보기 열기`}
+            onClick={() => onOpenDocument(item)}
+            type="button"
+          >
+            <span aria-hidden="true" className="civic-rag-catalog-file-icon">
+              {documentKindLabel(item.filename)}
+            </span>
+            <span className="civic-rag-catalog-copy">
+              <strong>{item.filename}</strong>
+              <small>{item.page_count}페이지</small>
+            </span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function participantDocumentPreviewPath(
+  item: Pick<ParticipantDocumentCatalogItem, "document_id" | "document_version_id">,
+): string {
+  return `/api/v1/rag/documents/${encodeURIComponent(item.document_id)}/versions/${encodeURIComponent(item.document_version_id)}/preview`;
 }
 
 function ParticipantDocumentCatalogSkeleton() {
