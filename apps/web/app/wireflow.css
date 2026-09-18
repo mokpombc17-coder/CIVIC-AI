@@ -2227,13 +2227,14 @@
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar {
   display: flex;
-  min-height: 72px;
+  min-height: 56px;
   flex: none;
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
   border-bottom: 1px solid var(--wf-line);
-  padding: 16px;
+  background: var(--wf-surface);
+  padding: 8px 12px;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2 {
@@ -2253,7 +2254,7 @@
   overflow: hidden;
   font-family: var(--wf-font);
   font-size: 18px;
-  font-weight: 600;
+  font-weight: 500;
   line-height: 1.4;
   text-overflow: ellipsis;
   white-space: nowrap;
@@ -2270,8 +2271,8 @@
 
 .wf-rag-dialog-close {
   display: grid;
-  width: 44px;
-  height: 44px;
+  width: 40px;
+  height: 40px;
   flex: none;
   place-items: center;
   border: 0;
