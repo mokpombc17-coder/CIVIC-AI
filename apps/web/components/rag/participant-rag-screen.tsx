@@ -23,6 +23,7 @@ import { RagIntroBanner } from "./rag-intro-banner";
 import {
   participantDocumentPreviewPath,
   ParticipantDocumentCatalog,
+  ParticipantDocumentCatalogLoading,
   type ParticipantDocumentCatalogItem,
 } from "./participant-document-catalog";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
@@ -229,14 +230,37 @@ export function ParticipantRagScreen({
   return <RagConversation screen={screen} {...(userId ? { userId } : {})} />;
 }
 
-function RagConversationRestorePlaceholder() {
+export function ParticipantRagSessionFallback({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   return (
-    <>
-      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-question" />
-      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-answer" />
-      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-question" />
-      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-answer" />
-    </>
+    <ScreenFrame screen={screen}>
+      <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
+        <RagIntroBanner />
+        <div
+          aria-busy="true"
+          aria-label="AI 대화를 준비하는 중"
+          className="civic-rag-messages"
+          role="log"
+        >
+          <div aria-hidden="true" className="civic-rag-empty" />
+        </div>
+        <ParticipantDocumentCatalogLoading />
+        <form className="civic-rag-composer">
+          <label className="sr-only" htmlFor="rag-pending-question">
+            메시지 입력
+          </label>
+          <textarea
+            disabled
+            id="rag-pending-question"
+            placeholder="궁금한 내용을 입력해 주세요"
+            rows={2}
+          />
+          <button aria-label={ragScreenPrimaryActions[screen.id]} disabled type="button">
+            전송
+          </button>
+        </form>
+        <span className="civic-screen-action-label">{ragScreenPrimaryActions[screen.id]}</span>
+      </section>
+    </ScreenFrame>
   );
 }
 
@@ -500,14 +524,12 @@ function RagConversation({
         <div
           aria-busy={!restored}
           aria-label={restored ? "현재 RAG 대화" : "저장된 RAG 대화를 불러오는 중"}
-          className={`civic-rag-messages${restored ? "" : " civic-loading-rag-messages"}`}
+          className="civic-rag-messages"
           data-rag-conversation-restoring={restored ? undefined : "true"}
           ref={messagesRef}
           role="log"
         >
-          {!restored ? (
-            <RagConversationRestorePlaceholder />
-          ) : messages.length === 0 ? (
+          {!restored || messages.length === 0 ? (
             <div aria-hidden="true" className="civic-rag-empty" />
           ) : (
             messages.map((message) => (
@@ -527,11 +549,15 @@ function RagConversation({
           ) : null}
         </div>
         <RagNotice notice={notice} onLogin={preserveDraftForLogin} />
-        {restored && messages.length === 0 ? (
-          <ParticipantDocumentCatalog
-            key={catalogRevision}
-            onOpenDocument={setActiveCatalogDocument}
-          />
+        {messages.length === 0 ? (
+          restored ? (
+            <ParticipantDocumentCatalog
+              key={catalogRevision}
+              onOpenDocument={setActiveCatalogDocument}
+            />
+          ) : (
+            <ParticipantDocumentCatalogLoading />
+          )
         ) : null}
         <form className="civic-rag-composer" onSubmit={submit}>
           <label className="sr-only" htmlFor="rag-question">

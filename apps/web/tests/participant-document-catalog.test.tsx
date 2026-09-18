@@ -103,6 +103,8 @@ describe("participant document catalog", () => {
     expect(html).not.toContain("AI가 참고하는 자료");
     expect(html).toContain("참고 문서를 불러오는 중");
     expect(html.match(/is-loading/gu)).toHaveLength(3);
+    expect(html.match(/<button/gu)).toHaveLength(3);
+    expect(html.match(/disabled=""/gu)).toHaveLength(3);
     expect(html).not.toContain(PARTICIPANT_DOCUMENT_CATALOG_PATH);
   });
 

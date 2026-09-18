@@ -9,7 +9,7 @@ import { ScreenFrame, screenFrameHeading } from "@/components/screens/screen-fra
 import { HomeBrandTitle } from "@/components/shell/home-brand-title";
 import { HomeLoadingSurface } from "@/components/shell/participant-home-skeleton";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
-import { RagIntroBanner } from "@/components/rag/rag-intro-banner";
+import { ParticipantRagSessionFallback } from "@/components/rag/participant-rag-screen";
 import { ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import { getScreenByRoute, type ScreenDefinition } from "@/lib/screens/registry";
 
@@ -61,6 +61,7 @@ export function ParticipantLoadingView({ pathname }: Readonly<{ pathname: string
       {...(screen.id === "U-RAG-001"
         ? { headerActions: <RagNewQuestionHeaderAction disabled /> }
         : {})}
+      {...(screen.id === "U-RAG-001" ? { scroll: "child" as const } : {})}
       title={screen.id === "U-HOME-001" ? <HomeBrandTitle /> : header.title}
     >
       {authRoute ? (
@@ -86,11 +87,11 @@ export function ParticipantLoadingView({ pathname }: Readonly<{ pathname: string
 function ParticipantLoadingContent({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   if (screen.id.startsWith("AUTH-")) return <AuthLoadingScreen screen={screen} />;
   if (screen.status === "PLACEHOLDER") return <ComingSoonScreen screen={screen} />;
+  if (screen.id === "U-RAG-001") return <ParticipantRagSessionFallback screen={screen} />;
 
   return (
     <ScreenFrame screen={screen}>
       {screen.id === "U-HOME-001" ? <HomeLoadingSurface /> : null}
-      {screen.id === "U-RAG-001" ? <RagConversationLoadingSurface /> : null}
       {screen.id === "U-RAG-002" || screen.id === "U-RAG-003" ? <RagSourceLoadingSurface /> : null}
       {screen.id === "U-ACCOUNT-001" ? <AccountHubLoadingSurface /> : null}
       {screen.id.startsWith("U-ACCOUNT-") && screen.id !== "U-ACCOUNT-001" ? (
@@ -101,40 +102,6 @@ function ParticipantLoadingContent({ screen }: Readonly<{ screen: ScreenDefiniti
       ) : null}
       {screen.id.startsWith("COMMON-") ? <ParticipantStateLoadingSurface /> : null}
     </ScreenFrame>
-  );
-}
-
-function RagConversationLoadingSurface() {
-  return (
-    <section
-      aria-busy="true"
-      aria-label="AI 대화를 불러오는 중"
-      className="civic-rag-conversation civic-loading-static-surface"
-      data-wireflow-layout="rag-conversation"
-    >
-      <RagIntroBanner />
-      <div aria-hidden="true" className="civic-rag-messages civic-loading-rag-messages">
-        <SkeletonBlock className="civic-skeleton-chat-question" />
-        <SkeletonBlock className="civic-skeleton-chat-answer" />
-        <SkeletonBlock className="civic-skeleton-chat-question" />
-        <SkeletonBlock className="civic-skeleton-chat-answer" />
-      </div>
-      <div className="civic-rag-composer">
-        <label className="sr-only" htmlFor="loading-rag-question">
-          메시지 입력
-        </label>
-        <textarea
-          disabled
-          id="loading-rag-question"
-          placeholder="궁금한 내용을 입력해 주세요"
-          rows={2}
-        />
-        <button aria-label="질문 전송" disabled type="button">
-          전송
-        </button>
-      </div>
-      <LoadingAnnouncement />
-    </section>
   );
 }
 

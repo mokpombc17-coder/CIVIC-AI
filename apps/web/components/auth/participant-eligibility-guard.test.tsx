@@ -19,6 +19,21 @@ describe("ParticipantEligibilityGuard", () => {
     expect(markup).not.toContain("이용 자격 확인 중…");
   });
 
+  it("uses a route-owned stable fallback while eligibility is pending", () => {
+    const markup = renderToStaticMarkup(
+      <EligibleParticipantShell
+        activeRoute="/rag"
+        eligibilityLoadingFallback={<p>empty RAG surface</p>}
+      >
+        protected RAG conversation
+      </EligibleParticipantShell>,
+    );
+
+    expect(markup).toContain("empty RAG surface");
+    expect(markup).not.toContain("protected RAG conversation");
+    expect(markup).not.toContain('data-eligibility-loading="true"');
+  });
+
   it("allows eligibility checks to run without replacing an independently rendered surface", () => {
     const queryClient = new QueryClient({
       defaultOptions: { queries: { retry: false } },

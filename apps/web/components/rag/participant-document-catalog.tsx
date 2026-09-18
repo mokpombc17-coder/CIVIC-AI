@@ -57,11 +57,8 @@ export function ParticipantDocumentCatalog({ onOpenDocument }: ParticipantDocume
 
   return (
     <section aria-labelledby="participant-document-catalog-title" className="civic-rag-catalog">
-      <header className="civic-rag-catalog-heading">
-        <h3 id="participant-document-catalog-title">어떤 점이 궁금한가요?</h3>
-        <p>관심 가는 문서에 대해 자유롭게 질문해 보세요.</p>
-      </header>
-      {state.status === "loading" ? <ParticipantDocumentCatalogSkeleton /> : null}
+      <ParticipantDocumentCatalogHeading />
+      {state.status === "loading" ? <ParticipantDocumentCatalogSkeletonList /> : null}
       {state.status === "ready" && state.items.length > 0 ? (
         <ParticipantDocumentCatalogList items={state.items} onOpenDocument={onOpenDocument} />
       ) : null}
@@ -77,6 +74,24 @@ export function ParticipantDocumentCatalog({ onOpenDocument }: ParticipantDocume
         </div>
       ) : null}
     </section>
+  );
+}
+
+export function ParticipantDocumentCatalogLoading() {
+  return (
+    <section aria-labelledby="participant-document-catalog-title" className="civic-rag-catalog">
+      <ParticipantDocumentCatalogHeading />
+      <ParticipantDocumentCatalogSkeletonList />
+    </section>
+  );
+}
+
+function ParticipantDocumentCatalogHeading() {
+  return (
+    <header className="civic-rag-catalog-heading">
+      <h3 id="participant-document-catalog-title">어떤 점이 궁금한가요?</h3>
+      <p>관심 가는 문서에 대해 자유롭게 질문해 보세요.</p>
+    </header>
   );
 }
 
@@ -116,16 +131,18 @@ export function participantDocumentPreviewPath(
   return `/api/v1/rag/documents/${encodeURIComponent(item.document_id)}/versions/${encodeURIComponent(item.document_version_id)}/preview`;
 }
 
-function ParticipantDocumentCatalogSkeleton() {
+function ParticipantDocumentCatalogSkeletonList() {
   return (
     <ul aria-label="참고 문서를 불러오는 중" aria-live="polite" className="civic-rag-catalog-list">
       {Array.from({ length: 3 }, (_, index) => (
         <li aria-hidden="true" className="is-loading" key={index}>
-          <span className="civic-skeleton civic-rag-catalog-icon-skeleton" />
-          <span className="civic-rag-catalog-copy">
-            <span className="civic-skeleton civic-rag-catalog-title-skeleton" />
-            <span className="civic-skeleton civic-rag-catalog-meta-skeleton" />
-          </span>
+          <button disabled tabIndex={-1} type="button">
+            <span className="civic-skeleton civic-rag-catalog-icon-skeleton" />
+            <span className="civic-rag-catalog-copy">
+              <span className="civic-skeleton civic-rag-catalog-title-skeleton" />
+              <span className="civic-skeleton civic-rag-catalog-meta-skeleton" />
+            </span>
+          </button>
         </li>
       ))}
     </ul>

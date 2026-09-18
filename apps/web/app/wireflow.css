@@ -2100,10 +2100,7 @@
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li.is-loading {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
+  pointer-events: none;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li > button {
@@ -2130,6 +2127,11 @@
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li > button:focus-visible {
   outline: 2px solid var(--wf-focus-ring);
   outline-offset: -2px;
+}
+
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list li.is-loading > button {
+  opacity: 1;
+  cursor: default;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-file-icon {

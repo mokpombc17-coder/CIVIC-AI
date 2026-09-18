@@ -19,7 +19,8 @@ export function nextRagSessionAdmission(admitted: boolean, result: RagSessionOwn
 export function RagSessionBoundary({
   ownerUserId,
   children,
-}: Readonly<{ ownerUserId: string; children: ReactNode }>) {
+  fallback = null,
+}: Readonly<{ ownerUserId: string; children: ReactNode; fallback?: ReactNode }>) {
   const [admitted, setAdmitted] = useState(false);
 
   useEffect(() => {
@@ -107,5 +108,5 @@ export function RagSessionBoundary({
     };
   }, [ownerUserId]);
 
-  return admitted ? children : null;
+  return admitted ? children : fallback;
 }

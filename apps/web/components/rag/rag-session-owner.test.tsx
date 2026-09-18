@@ -5,14 +5,15 @@ import { readRagSessionOwner } from "./rag-session-owner";
 
 describe("RAG conversation owner verification", () => {
   const signal = new AbortController().signal;
-  it("renders a blank content area before the current session is verified", () => {
+  it("renders a non-sensitive fallback before the current session is verified", () => {
     const markup = renderToStaticMarkup(
-      <RagSessionBoundary ownerUserId="alice">
+      <RagSessionBoundary fallback={<p>empty conversation</p>} ownerUserId="alice">
         <p>private conversation</p>
       </RagSessionBoundary>,
     );
 
-    expect(markup).toBe("");
+    expect(markup).toContain("empty conversation");
+    expect(markup).not.toContain("private conversation");
   });
 
   it.each([
