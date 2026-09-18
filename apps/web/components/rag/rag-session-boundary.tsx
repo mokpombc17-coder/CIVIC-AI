@@ -7,6 +7,14 @@ import { readRagSessionOwner } from "./rag-session-owner";
 
 const sessionOwnerRetryDelayMs = 3_000;
 
+type RagSessionOwnerResult = Awaited<ReturnType<typeof readRagSessionOwner>>;
+
+export function nextRagSessionAdmission(admitted: boolean, result: RagSessionOwnerResult): boolean {
+  if (result === "current") return true;
+  if (result === "unavailable") return admitted;
+  return false;
+}
+
 /** Cached route props are not proof that the browser still belongs to this user. */
 export function RagSessionBoundary({
   ownerUserId,
@@ -21,7 +29,7 @@ export function RagSessionBoundary({
     let pending: AbortController | undefined;
     let retryTimer: number | undefined;
 
-    const hide = () => {
+    const revoke = () => {
       setAdmitted(false);
     };
     const clearRetry = () => {
@@ -34,12 +42,10 @@ export function RagSessionBoundary({
       pending?.abort();
       pending = undefined;
       clearRetry();
-      hide();
     };
     const check = async () => {
       if (disposed || invalidated || pending || document.visibilityState === "hidden") return;
       clearRetry();
-      hide();
       const current = ++generation;
       const controller = new AbortController();
       pending = controller;
@@ -48,8 +54,9 @@ export function RagSessionBoundary({
       window.clearTimeout(timeout);
       if (disposed || generation !== current) return;
       pending = undefined;
+      setAdmitted((currentAdmission) => nextRagSessionAdmission(currentAdmission, result));
       if (result === "current") {
-        setAdmitted(true);
+        return;
       } else if (result === "unavailable") {
         retryTimer = window.setTimeout(() => {
           retryTimer = undefined;
@@ -57,7 +64,6 @@ export function RagSessionBoundary({
         }, sessionOwnerRetryDelayMs);
       } else {
         invalidated = true;
-        setAdmitted(false);
         if (result === "changed") clearRagConversationSnapshot();
         // An expired access token uses the existing refresh/login flow.
         const returnTo = window.location.pathname + window.location.search;
@@ -82,7 +88,7 @@ export function RagSessionBoundary({
     const unsubscribe = observeAuthMessages(() => {
       invalidated = true;
       suspend();
-      setAdmitted(false); // Unmount the conversation and abort its active request/stream.
+      revoke(); // A confirmed auth change must unmount the conversation and abort its active stream.
     });
     document.addEventListener("visibilitychange", visible);
     window.addEventListener("focus", focus);

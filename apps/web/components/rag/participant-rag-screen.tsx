@@ -223,6 +223,17 @@ export function ParticipantRagScreen({
   return <RagConversation screen={screen} {...(userId ? { userId } : {})} />;
 }
 
+function RagConversationRestorePlaceholder() {
+  return (
+    <>
+      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-question" />
+      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-answer" />
+      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-question" />
+      <span aria-hidden="true" className="civic-skeleton civic-skeleton-chat-answer" />
+    </>
+  );
+}
+
 function RagConversation({
   screen,
   userId,
@@ -471,8 +482,17 @@ function RagConversation({
     <ScreenFrame screen={screen}>
       <section className="civic-rag-conversation" data-wireflow-layout="rag-conversation">
         <RagIntroBanner />
-        <div aria-label="현재 RAG 대화" className="civic-rag-messages" ref={messagesRef} role="log">
-          {messages.length === 0 ? (
+        <div
+          aria-busy={!restored}
+          aria-label={restored ? "현재 RAG 대화" : "저장된 RAG 대화를 불러오는 중"}
+          className={`civic-rag-messages${restored ? "" : " civic-loading-rag-messages"}`}
+          data-rag-conversation-restoring={restored ? undefined : "true"}
+          ref={messagesRef}
+          role="log"
+        >
+          {!restored ? (
+            <RagConversationRestorePlaceholder />
+          ) : messages.length === 0 ? (
             <div className="civic-rag-empty">
               <span aria-hidden="true">✦</span>
               <div>
