@@ -54,8 +54,8 @@ export function ParticipantDocumentCatalog() {
   return (
     <section aria-labelledby="participant-document-catalog-title" className="civic-rag-catalog">
       <header className="civic-rag-catalog-heading">
-        <h3 id="participant-document-catalog-title">이런 주제는 어떠세요?</h3>
-        <p>궁금한 점이 있다면 자유롭게 질문해 보세요.</p>
+        <h3 id="participant-document-catalog-title">어떤 점이 궁금한가요?</h3>
+        <p>관심 가는 문서에 대해 자유롭게 질문해 보세요.</p>
       </header>
       {state.status === "loading" ? <ParticipantDocumentCatalogSkeleton /> : null}
       {state.status === "ready" && state.items.length > 0 ? (
