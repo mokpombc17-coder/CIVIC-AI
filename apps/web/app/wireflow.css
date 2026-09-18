@@ -2071,16 +2071,6 @@
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3,
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading p {
   margin: 0;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3 {
-  color: var(--wf-ink);
-  font-size: 15px;
-  font-weight: 500;
-  line-height: 1.4;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading p {
   color: var(--wf-muted);
   font-size: 13px;
   font-weight: 400;
