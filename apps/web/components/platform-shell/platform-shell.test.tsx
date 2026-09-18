@@ -13,7 +13,9 @@ describe("PlatformShell", () => {
     const markup = renderShell();
 
     expect(markup).toContain('data-platform-shell="true"');
+    expect(markup).toContain('data-keyboard-open="false"');
     expect(markup).toContain('data-platform-shell-content="true"');
+    expect(markup).toContain('data-platform-shell-bottom-navigation="true"');
     expect(markup.match(/data-scroll="self"/g)).toHaveLength(2);
     expect(markup.indexOf("공통 헤더")).toBeLessThan(markup.indexOf("도메인 콘텐츠"));
     expect(markup.indexOf("도메인 콘텐츠")).toBeLessThan(markup.indexOf("주요 메뉴"));

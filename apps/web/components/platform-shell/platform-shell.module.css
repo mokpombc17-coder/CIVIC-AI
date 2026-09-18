@@ -129,6 +129,14 @@
   overflow: hidden;
 }
 
+.bottomNavigationSlot {
+  min-width: 0;
+}
+
+.shell[data-keyboard-open="true"] .bottomNavigationSlot {
+  display: none;
+}
+
 .overlay {
   position: absolute;
   z-index: var(--platform-z-overlay);

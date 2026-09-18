@@ -163,8 +163,11 @@ modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 �
 설정하면 header, content와 navigation surface가 모두 비활성화된다.
 
 route나 도메인 화면은 실제 shell element에 직접 접근하지 않는다. 모바일 키보드에 따른 viewport
-보정은 공통 `PlatformShell` 경계가 소유한다. 일반 브라우저와 데스크톱은 기존 `100dvh` 규칙을
-유지한다. PWA standalone에서는
+보정은 공통 `PlatformShell` 내부의 `PlatformShellVisualViewportBoundary`가 소유한다. shell 안의
+편집 가능한 요소에 포커스가 있고 visual viewport가 기준 높이보다 80px 이상 줄었을 때 shell 높이와
+상단 offset을 실제 가시 영역에 맞추고 bottom navigation slot을 숨긴다. 포커스가 빠지거나 viewport가
+복원되면 모든 보정을 제거한다. `visualViewport`를 지원하지 않는 환경과 일반 브라우저·데스크톱은 기존
+`100dvh` 규칙을 유지한다. PWA standalone에서는
 `PlatformShell` stage 하나만 `100dvh`를 계산하고 내부 shell은 stage의 `100%`를 채운다.
 route나 도메인 화면에 별도의 `100dvh` wrapper를 추가하지 않는다.
 

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   calculatePlatformVisibleHeight,
   calculatePlatformVisualViewportLayout,
+  isPlatformTextEntry,
   shouldConstrainPlatformToVisualViewport,
 } from "./platform-visual-viewport";
 
@@ -96,5 +97,31 @@ describe("shouldConstrainPlatformToVisualViewport", () => {
         viewportHeight: 480,
       }),
     ).toBe(true);
+  });
+});
+
+describe("isPlatformTextEntry", () => {
+  it.each(["text", "search", "email", "password", "number"])(
+    "%s input은 키보드를 여는 입력 요소로 판단한다",
+    (inputType) => {
+      expect(isPlatformTextEntry({ inputType, tagName: "INPUT" })).toBe(true);
+    },
+  );
+
+  it("textarea와 contenteditable 요소를 입력 요소로 판단한다", () => {
+    expect(isPlatformTextEntry({ tagName: "textarea" })).toBe(true);
+    expect(isPlatformTextEntry({ contentEditable: true, tagName: "div" })).toBe(true);
+  });
+
+  it.each(["button", "checkbox", "file", "radio", "range"])(
+    "%s input은 키보드 입력 요소로 판단하지 않는다",
+    (inputType) => {
+      expect(isPlatformTextEntry({ inputType, tagName: "input" })).toBe(false);
+    },
+  );
+
+  it("disabled 또는 readOnly 입력은 키보드 입력 요소로 판단하지 않는다", () => {
+    expect(isPlatformTextEntry({ disabled: true, tagName: "input" })).toBe(false);
+    expect(isPlatformTextEntry({ readOnly: true, tagName: "textarea" })).toBe(false);
   });
 });

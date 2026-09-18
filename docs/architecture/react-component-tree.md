@@ -81,7 +81,9 @@ route에서만 content surface의 좌우 pointer gesture를 관찰하고, 성공
 내비게이션 link click으로 위임한다. header와 하단 내비게이션은 transform 대상에서 제외하며 세로
 gesture는 content의 기존 scroll에 맡긴다. Platform overlay 또는 `inert` 상태가 열려 있으면 새 gesture를
 받지 않고 진행 중 gesture와 예약된 이동도 취소한다. 홈의 뒤로가기 control은 목적지가 없으므로 비활성
-상태다.
+상태다. 모든 `PlatformShell`은 내부 `PlatformShellVisualViewportBoundary`를 조립하며, 이 Client
+runtime은 편집 가능한 요소에 포커스가 있는 동안 모바일 visual viewport가 충분히 줄면 shell 높이와
+상단 offset을 가시 영역에 맞추고 bottom navigation을 숨긴다.
 `ParticipantHome`은 홈 안내와 AI·토론방·투표 도메인 진입 action을 표현한다.
 개발 환경의 `LocalE2ELoginControl`은 `PlatformPageShell.headerActions`를 통해 홈 header 오른쪽에
 조립되며, 운영 build에는 포함되지 않는다. 내부의 조건부 UI는 intrinsic HTML element이므로 이
@@ -300,8 +302,11 @@ navigation anchor를 제공하며 현재 도메인에만 `aria-current="page"`�
 scroll·overlay 제어가 필요한 화면은 `PlatformShell`을 직접 조립한다.
 
 `PlatformShell`은 header, content, bottom navigation과 overlay slot의 배치, safe area, 공통
-z-index만 책임진다. modal overlay가 열리면 `contentInert`가 header·content·navigation surface를
-함께 비활성화한다. `PlatformHeader`는 공통 back icon의 link/button/disabled 표현을 소유하지만,
+z-index를 책임지고 내부 `PlatformShellVisualViewportBoundary`에 모바일 키보드 viewport 보정을
+위임한다. 이 runtime은 shell 내부의 편집 가능한 요소에 포커스가 있고 visual viewport가 기준보다
+80px 이상 줄었을 때만 shell을 가시 영역에 맞추고 bottom navigation slot을 숨긴다. modal overlay가
+열리면 `contentInert`가 header·content·navigation surface를 함께 비활성화한다. `PlatformHeader`는
+공통 back icon의 link/button/disabled 표현을 소유하지만,
 뒤로 갈 수 있는지는 추론하지 않고 화면이 `backAction`으로 목적지나 동작을 제공한다. 도메인은 route,
 active anchor, 동작과 overlay 상태를 계속 소유한다.
 
@@ -581,6 +586,7 @@ flowchart TD
     LocalE2ELoginControl["LocalE2ELoginControl [Client] [Feature] [conditional]<br/>apps/web/components/local-e2e-login-control.tsx"]
     PlatformPageShell["PlatformPageShell [Server-compatible] [View]<br/>apps/web/components/platform-page-shell.tsx"]
     DefaultPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
+    PlatformShellVisualViewportBoundary["PlatformShellVisualViewportBoundary [Client] [Runtime]<br/>apps/web/components/platform-shell/platform-shell-visual-viewport-boundary.tsx"]
 
     ChatLayout["ChatLayout [Server] [Route]<br/>apps/web/app/chat/layout.tsx"]
     ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat-query-provider.tsx"]
@@ -677,6 +683,7 @@ flowchart TD
     HomePage --> ParticipantHome
     HomePage -->|"development only"| LocalE2ELoginControl
     PlatformPageShell --> DefaultPlatformShell
+    DefaultPlatformShell --> PlatformShellVisualViewportBoundary
     DefaultPlatformShell --> PlatformHeader
     DefaultPlatformShell --> PlatformNavigationClient
 
@@ -704,6 +711,7 @@ flowchart TD
     ChatPage --> ChatRoomListScreen
     ChatRoomListScreen --> ChatRoomListView
     ChatRoomListView -->|"self scroll"| ChatListPlatformShell
+    ChatListPlatformShell --> PlatformShellVisualViewportBoundary
     ChatListPlatformShell --> PlatformHeader
     ChatListPlatformShell --> PublicRoomSearchForm
     ChatListPlatformShell -->|"conditional overlay; surface inert"| CreateChatRoomForm
@@ -719,6 +727,7 @@ flowchart TD
     ChatRoomPage --> ChatRoomScreen
     ChatRoomScreen --> ChatRoomView
     ChatRoomView -->|"child scroll"| ChatRoomPlatformShell
+    ChatRoomPlatformShell --> PlatformShellVisualViewportBoundary
     ChatRoomPlatformShell --> PlatformHeader
     ChatRoomPlatformShell -->|"room detail error"| ChatRoomEntryError
     ChatRoomPlatformShell --> ChatMessageViewport
@@ -746,6 +755,7 @@ flowchart TD
     VoteChildrenSlot -. "route /vote" .-> VotePage
     VotePage --> VoteTaskListScreen
     VoteTaskListScreen --> PlatformShell
+    PlatformShell --> PlatformShellVisualViewportBoundary
     VoteTaskListScreen --> PlatformNavigationClient
     VoteChildrenSlot -. "route /vote/[taskId]" .-> VoteTaskPage
     VoteTaskPage --> VoteTaskScreen
@@ -787,7 +797,7 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyScreenLoading,SurveyLoadingStatus,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformShellVisualViewportBoundary,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```

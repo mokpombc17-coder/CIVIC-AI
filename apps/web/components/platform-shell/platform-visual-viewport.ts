@@ -15,7 +15,27 @@ type PlatformVisualViewportConstraintOptions = Readonly<{
   viewportHeight: number;
 }>;
 
+type PlatformTextEntryOptions = Readonly<{
+  contentEditable?: boolean;
+  disabled?: boolean;
+  inputType?: string;
+  readOnly?: boolean;
+  tagName: string;
+}>;
+
 const MINIMUM_KEYBOARD_VIEWPORT_REDUCTION = 80;
+const NON_TEXT_INPUT_TYPES = new Set([
+  "button",
+  "checkbox",
+  "color",
+  "file",
+  "hidden",
+  "image",
+  "radio",
+  "range",
+  "reset",
+  "submit",
+]);
 
 export type PlatformVisualViewportLayout = Readonly<{
   alignSelf: "" | "start";
@@ -57,4 +77,24 @@ export function shouldConstrainPlatformToVisualViewport({
   const viewportReduction = viewportBaselineHeight - viewportHeight;
 
   return viewportReduction >= MINIMUM_KEYBOARD_VIEWPORT_REDUCTION;
+}
+
+export function isPlatformTextEntry({
+  contentEditable = false,
+  disabled = false,
+  inputType = "text",
+  readOnly = false,
+  tagName,
+}: PlatformTextEntryOptions): boolean {
+  if (disabled || readOnly) {
+    return false;
+  }
+
+  const normalizedTagName = tagName.toLowerCase();
+
+  if (normalizedTagName === "textarea" || contentEditable) {
+    return true;
+  }
+
+  return normalizedTagName === "input" && !NON_TEXT_INPUT_TYPES.has(inputType.toLowerCase());
 }
