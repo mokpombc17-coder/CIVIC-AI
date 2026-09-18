@@ -53,7 +53,7 @@ export function ReadOnlyPdfViewer({
             aria-label={`현재 ${visiblePage} / ${safeTotalPages}페이지`}
             className="civic-pdf-toolbar-page"
           >
-            {visiblePage}/{safeTotalPages}
+            p. {visiblePage}/{safeTotalPages}
           </span>
         </div>
         {onClose ? (

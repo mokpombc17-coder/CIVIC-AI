@@ -15,7 +15,7 @@ describe("read-only immutable citation viewer", () => {
 
     expect(html).toContain("합성 정책 미리보기");
     expect(html).toContain('class="civic-pdf-toolbar-page"');
-    expect(html).toContain("3/7");
+    expect(html).toContain("p. 3/7");
     expect(html).not.toContain("wf-rag-document-meta");
     expect(html).not.toContain("연속 스크롤");
     expect(html).toContain('data-pdf-scroll-mode="continuous"');
