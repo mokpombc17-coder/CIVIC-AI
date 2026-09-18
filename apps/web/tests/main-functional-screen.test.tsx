@@ -1212,7 +1212,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("같은 주제로 나누는 생각들");
     expect(html).toContain("관심 있는 주제를 골라 함께\n이야기해 보세요.");
     expect(html).toContain("토론하기");
-    expect(html).toContain("내 의견을 더하는 투표");
+    expect(html).toContain("논의에 보태는 내 의견");
     expect(html).toContain("이유까지 담아 생각을 표현해 보세요.\nAI가 이유 작성을 도와드려요.");
     expect(html).toContain("투표하기");
     expect(html).not.toMatch(/[▣◇▤›]/);
