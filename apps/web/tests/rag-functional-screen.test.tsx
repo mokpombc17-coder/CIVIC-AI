@@ -1284,6 +1284,7 @@ describe("7 functional RAG screens", () => {
       createElement(RagNotice, { notice: RAG_SESSION_EXPIRED_MESSAGE }),
     );
     expect(noticeHtml).toContain("세션이 만료되었습니다. 다시 로그인 해주세요.");
+    expect(noticeHtml).toContain('hidden=""');
     expect(noticeHtml).toContain('href="/login?returnTo=%2Frag"');
   });
 

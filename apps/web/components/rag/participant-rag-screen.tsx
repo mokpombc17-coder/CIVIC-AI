@@ -645,7 +645,7 @@ function browserRagConversationStorage(): Storage | null {
 export function RagNotice({ notice, onLogin }: Readonly<{ notice: string; onLogin?: () => void }>) {
   if (!notice) return null;
   return (
-    <p aria-live="polite" className="civic-form-message">
+    <p aria-live="polite" className="civic-form-message" hidden>
       {notice}
       {notice === RAG_SESSION_EXPIRED_MESSAGE ? (
         <>
