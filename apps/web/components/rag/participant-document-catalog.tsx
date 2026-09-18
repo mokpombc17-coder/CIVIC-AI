@@ -52,14 +52,8 @@ export function ParticipantDocumentCatalog() {
   }, [attempt]);
 
   return (
-    <section aria-labelledby="participant-document-catalog-title" className="civic-rag-catalog">
-      <header className="civic-rag-catalog-heading">
-        <div>
-          <span aria-hidden="true">자료</span>
-          <h3 id="participant-document-catalog-title">AI가 참고하는 자료</h3>
-        </div>
-        <p>등록된 문서 중 일부를 보여드려요.</p>
-      </header>
+    <section aria-label="질문할 수 있는 참고 자료" className="civic-rag-catalog">
+      <p className="civic-rag-catalog-prompt">이런 자료에 관해 질문해 보세요</p>
       {state.status === "loading" ? <ParticipantDocumentCatalogSkeleton /> : null}
       {state.status === "ready" && state.items.length > 0 ? (
         <ul className="civic-rag-catalog-list">

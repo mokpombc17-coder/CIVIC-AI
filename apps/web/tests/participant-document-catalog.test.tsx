@@ -82,8 +82,8 @@ describe("participant document catalog", () => {
   it("첫 렌더에서 composer 위에 안정적인 목록 skeleton을 제공한다", () => {
     const html = renderToStaticMarkup(<ParticipantDocumentCatalog />);
 
-    expect(html).toContain("AI가 참고하는 자료");
-    expect(html).toContain("등록된 문서 중 일부를 보여드려요.");
+    expect(html).toContain("이런 자료에 관해 질문해 보세요");
+    expect(html).not.toContain("AI가 참고하는 자료");
     expect(html).toContain("참고 문서를 불러오는 중");
     expect(html.match(/is-loading/gu)).toHaveLength(3);
     expect(html).not.toContain(PARTICIPANT_DOCUMENT_CATALOG_PATH);

@@ -2059,49 +2059,16 @@
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog {
   display: grid;
-  gap: 10px;
-  margin: 0 16px 10px;
+  gap: 8px;
+  margin: 0 0 10px;
 }
 
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading {
-  display: grid;
-  gap: 3px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading > div {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 7px;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading span {
-  flex: none;
-  border-radius: 999px;
-  background: var(--wf-blue-soft);
-  color: var(--wf-blue-dark);
-  padding: 3px 7px;
-  font-size: 11px;
-  font-weight: 700;
-  line-height: 1.2;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3,
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading p {
+[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-prompt {
   margin: 0;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading h3 {
-  color: var(--wf-ink);
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 1.35;
-}
-
-[data-wireflow-screen^="U-RAG"] .civic-rag-catalog-heading p {
   color: var(--wf-muted);
-  font-size: 12px;
-  line-height: 1.4;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1.45;
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-list {
@@ -2118,10 +2085,11 @@
   min-height: 52px;
   align-items: center;
   gap: 10px;
-  border: 1px solid var(--wf-line);
-  border-radius: 9px;
-  background: var(--wf-surface);
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
   padding: 8px 10px;
+  box-shadow: 0 3px 12px rgb(31 45 61 / 8%);
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-file-icon {
@@ -2131,7 +2099,7 @@
   flex: none;
   place-items: center;
   border-radius: 7px;
-  background: #fff;
+  background: var(--wf-blue-soft);
   color: var(--wf-blue-dark);
   font-size: 10px;
   font-weight: 800;
@@ -2166,12 +2134,13 @@
   justify-content: space-between;
   gap: 8px;
   margin: 0;
-  border: 1px solid var(--wf-line);
-  border-radius: 9px;
-  background: var(--wf-surface);
+  border: 0;
+  border-radius: 10px;
+  background: #fff;
   color: var(--wf-muted);
   padding: 10px 12px;
   font-size: 12px;
+  box-shadow: 0 3px 12px rgb(31 45 61 / 8%);
 }
 
 [data-wireflow-screen^="U-RAG"] .civic-rag-catalog-status button {
