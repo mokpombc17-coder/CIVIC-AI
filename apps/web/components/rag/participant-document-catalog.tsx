@@ -115,7 +115,7 @@ export function ParticipantDocumentCatalogList({
               {documentKindLabel(item.filename)}
             </span>
             <span className="civic-rag-catalog-copy">
-              <strong>{item.filename}</strong>
+              <strong>{documentDisplayName(item.filename)}</strong>
               <small>{item.page_count}페이지</small>
             </span>
           </button>
@@ -188,6 +188,11 @@ export function documentKindLabel(filename: string): string {
   const extension = filename.match(/\.([\p{L}\p{N}]+)$/u)?.[1];
   if (!extension || extension.length > 5) return "문서";
   return extension.toLocaleUpperCase("ko-KR");
+}
+
+export function documentDisplayName(filename: string): string {
+  const match = filename.match(/^(.+)\.[\p{L}\p{N}]+$/u);
+  return match?.[1] || filename;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

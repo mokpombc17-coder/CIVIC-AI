@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
+  documentDisplayName,
   documentKindLabel,
   participantDocumentSourcePath,
   parseParticipantDocumentCatalog,
@@ -93,6 +94,15 @@ describe("participant document catalog", () => {
     expect(documentKindLabel("확장자없음")).toBe("문서");
   });
 
+  it.each([
+    ["정책자료.pdf", "정책자료"],
+    ["설계.drawio.png", "설계.drawio"],
+    ["확장자없음", "확장자없음"],
+    [".gitignore", ".gitignore"],
+  ])("목록 제목에서 마지막 확장자만 제거한다: %s", (filename, expected) => {
+    expect(documentDisplayName(filename)).toBe(expected);
+  });
+
   it("첫 렌더에서 composer 위에 안정적인 목록 skeleton을 제공한다", () => {
     const html = renderToStaticMarkup(
       <ParticipantDocumentCatalog onOpenDocument={() => undefined} />,
@@ -114,6 +124,7 @@ describe("participant document catalog", () => {
     );
 
     expect(html).toContain("정책자료.pdf 미리보기 열기");
+    expect(html).toContain("<strong>정책자료</strong>");
     expect(html).toContain("<button");
     expect(html).toContain("2페이지");
   });
