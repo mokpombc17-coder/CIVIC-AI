@@ -21,7 +21,7 @@ import { RagCitationSources, SafeMarkdownAnswer } from "./safe-markdown-answer";
 import { RAG_NEW_QUESTION_REQUEST_EVENT } from "./rag-new-question-header-action";
 import { RagIntroBanner } from "./rag-intro-banner";
 import {
-  participantDocumentPreviewPath,
+  participantDocumentSourcePath,
   ParticipantDocumentCatalog,
   type ParticipantDocumentCatalogItem,
 } from "./participant-document-catalog";
@@ -418,7 +418,7 @@ function RagConversation({
     setQuestion("");
     setBusy(false);
     setNewQuestionDialogOpen(false);
-    setNotice("새 대화를 시작했습니다.");
+    setNotice("");
   }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
@@ -582,9 +582,9 @@ function RagConversation({
           <ReadOnlyPdfViewer
             currentPage={1}
             documentTitle={activeCatalogDocument.filename}
-            documentUrl={participantDocumentPreviewPath(activeCatalogDocument)}
             onClose={() => setActiveCatalogDocument(null)}
             onSourceUnavailable={handleCatalogSourceUnavailable}
+            sourceUrl={participantDocumentSourcePath(activeCatalogDocument)}
             totalPages={activeCatalogDocument.page_count}
           />
         </RagReferenceSurface>

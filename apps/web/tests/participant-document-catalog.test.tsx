@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import {
   documentKindLabel,
-  participantDocumentPreviewPath,
+  participantDocumentSourcePath,
   parseParticipantDocumentCatalog,
   PARTICIPANT_DOCUMENT_CATALOG_PATH,
   ParticipantDocumentCatalog,
@@ -21,8 +21,8 @@ const catalogItem = {
 describe("participant document catalog", () => {
   it("참여자 전용 랜덤 문서 목록 경로를 사용한다", () => {
     expect(PARTICIPANT_DOCUMENT_CATALOG_PATH).toBe("/api/v1/rag/documents/random");
-    expect(participantDocumentPreviewPath(catalogItem)).toBe(
-      "/api/v1/rag/documents/11111111-1111-4111-8111-111111111111/versions/22222222-2222-4222-8222-222222222222/preview",
+    expect(participantDocumentSourcePath(catalogItem)).toBe(
+      "/api/v1/rag/sources/22222222-2222-4222-8222-222222222222/pages/1",
     );
   });
 

@@ -110,10 +110,11 @@ export function ParticipantDocumentCatalogList({
   );
 }
 
-export function participantDocumentPreviewPath(
-  item: Pick<ParticipantDocumentCatalogItem, "document_id" | "document_version_id">,
+export function participantDocumentSourcePath(
+  item: Pick<ParticipantDocumentCatalogItem, "document_version_id">,
+  page = 1,
 ): string {
-  return `/api/v1/rag/documents/${encodeURIComponent(item.document_id)}/versions/${encodeURIComponent(item.document_version_id)}/preview`;
+  return `/api/v1/rag/sources/${encodeURIComponent(item.document_version_id)}/pages/${page}`;
 }
 
 function ParticipantDocumentCatalogSkeleton() {
