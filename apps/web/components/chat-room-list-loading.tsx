@@ -29,7 +29,7 @@ export function ChatRoomListLoading() {
 
         <ChatRoomLoadingSection title="참여한 방">
           <ChatRoomListSkeleton
-            ariaLabel="참여 중인 채팅방을 불러오는 중"
+            ariaLabel="참여 중인 토론방을 불러오는 중"
             keys={PARTICIPATING_ROOM_SKELETON_KEYS}
             listClassName={PARTICIPATING_ROOM_LIST_CLASS_NAME}
             message="참여 중인 방을 불러오고 있습니다."
@@ -41,7 +41,7 @@ export function ChatRoomListLoading() {
 
           <ChatRoomLoadingSection title="참여 가능한 방">
             <ChatRoomListSkeleton
-              ariaLabel="참여 가능한 채팅방을 불러오는 중"
+              ariaLabel="참여 가능한 토론방을 불러오는 중"
               keys={PUBLIC_ROOM_SKELETON_KEYS}
               listClassName={PUBLIC_ROOM_LIST_CLASS_NAME}
               message="공개 방을 불러오고 있습니다."
@@ -92,7 +92,7 @@ function ChatRoomListLoadingInboxControls() {
 function ChatRoomListLoadingSearch() {
   return (
     <form
-      aria-label="공개 채팅방 검색"
+      aria-label="공개 토론방 검색"
       className="grid gap-3"
       data-chat-room-list-loading-search="true"
       role="search"

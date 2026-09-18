@@ -519,7 +519,7 @@ describe("SharedWorkerTransport", () => {
       roomId: "room-01",
       generation: 4,
       code: "ROOM_CLOSED",
-      message: "채팅방이 종료되어 연결이 해제되었습니다.",
+      message: "토론방이 종료되어 연결이 해제되었습니다.",
     });
 
     expect(transport.getRoomSnapshot()).toEqual({
@@ -532,7 +532,7 @@ describe("SharedWorkerTransport", () => {
       error: {
         code: "ROOM_CLOSED",
         serverCode: "ROOM_CLOSED",
-        message: "채팅방이 종료되어 연결이 해제되었습니다.",
+        message: "토론방이 종료되어 연결이 해제되었습니다.",
       },
     });
   });

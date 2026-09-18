@@ -1,12 +1,12 @@
 import { ChatApiError } from "./chat-fetch";
 
-const ROOM_MEMBER_LIMIT_EXCEEDED_MESSAGE = "참여 인원이 가득 찬 채팅방입니다.";
+const ROOM_MEMBER_LIMIT_EXCEEDED_MESSAGE = "참여 인원이 가득 찬 토론방입니다.";
 const USER_ACTIVE_ROOM_LIMIT_EXCEEDED_MESSAGE =
-  "참여 가능한 채팅방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
+  "참여 가능한 토론방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
 const JOIN_ROOM_ERROR_MESSAGES = {
-  ROOM_CLOSED: "종료된 채팅방에는 참여할 수 없습니다.",
-  JOIN_POLICY_NOT_OPEN: "현재 직접 참여할 수 없는 채팅방입니다.",
-  MEMBERSHIP_BANNED: "이 채팅방에서 차단되어 참여할 수 없습니다.",
+  ROOM_CLOSED: "종료된 토론방에는 참여할 수 없습니다.",
+  JOIN_POLICY_NOT_OPEN: "현재 직접 참여할 수 없는 토론방입니다.",
+  MEMBERSHIP_BANNED: "이 토론방에서 차단되어 참여할 수 없습니다.",
 } as const;
 
 export function getCreateRoomErrorMessage(error: unknown): string {

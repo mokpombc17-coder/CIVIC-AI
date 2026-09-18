@@ -166,7 +166,7 @@ export function ChatRoomSettingsInlineForm({
             onChange={(event) =>
               setDraft((current) => ({ ...current, description: event.target.value }))
             }
-            placeholder="채팅방 소개가 없습니다."
+            placeholder="토론방 소개가 없습니다."
             rows={2}
             value={draft.description}
           />
@@ -230,7 +230,7 @@ function ChatRoomInformationCard({ onEdit, room }: { onEdit?: () => void; room: 
             {room.name}
           </h3>
           <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-[var(--chat-publishing-color-muted)]">
-            {room.description || "채팅방 소개가 없습니다."}
+            {room.description || "토론방 소개가 없습니다."}
           </p>
         </div>
         {onEdit ? (

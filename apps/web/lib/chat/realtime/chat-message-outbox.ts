@@ -179,7 +179,7 @@ export class ChatMessageOutbox {
       case "cancelled":
         this.update(event.clientMessageId, {
           attempt: event.attempt,
-          message: "채팅방 연결 상태가 변경되어 메시지 전송이 취소되었습니다.",
+          message: "토론방 연결 상태가 변경되어 메시지 전송이 취소되었습니다.",
           retryAt: null,
           status: "cancelled",
         });
@@ -264,7 +264,7 @@ function getDeliveryFailureMessage(reason: string | null): string {
     case "COMMAND_RESULT_TIMEOUT":
       return "채팅 서버의 메시지 처리 결과를 시간 안에 받지 못했습니다.";
     case "DELIVERY_CONTEXT_STALE":
-      return "현재 채팅방 상태가 변경되어 메시지를 전송하지 못했습니다.";
+      return "현재 토론방 상태가 변경되어 메시지를 전송하지 못했습니다.";
     default:
       return "메시지를 전송하지 못했습니다.";
   }

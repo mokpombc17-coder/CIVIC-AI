@@ -98,8 +98,8 @@ const COMMAND_LABEL: Record<ChatRoomManagementCommandKind, string> = {
 };
 
 const COMMAND_SUCCESS_MESSAGE: Record<ChatRoomManagementCommandKind, string> = {
-  leave: "채팅방에서 나갔습니다.",
-  close: "채팅방을 종료했습니다.",
+  leave: "토론방에서 나갔습니다.",
+  close: "토론방을 종료했습니다.",
   transfer: "방장을 위임했습니다.",
   ban: "멤버를 차단했습니다.",
   unban: "멤버의 차단을 해제했습니다.",
@@ -176,8 +176,8 @@ export function useChatRoomMembershipPanel(
   function startRoomCommand(kind: "leave" | "close") {
     const prompt =
       kind === "leave"
-        ? "이 채팅방에서 나갈까요?"
-        : "채팅방을 종료할까요? 종료한 방은 다시 활성화할 수 없습니다.";
+        ? "이 토론방에서 나갈까요?"
+        : "토론방을 종료할까요? 종료한 방은 다시 활성화할 수 없습니다.";
 
     if (!window.confirm(prompt)) {
       return;

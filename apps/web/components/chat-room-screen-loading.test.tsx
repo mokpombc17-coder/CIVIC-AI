@@ -13,7 +13,7 @@ describe("ChatRoomScreenLoading", () => {
 
     expect(markup).toContain('data-platform-shell="true"');
     expect(markup).toContain('href="/chat"');
-    expect(markup).toContain(">채팅방</h1>");
+    expect(markup).toContain(">토론방</h1>");
     expect(markup).toContain('data-chat-room-screen-loading="true"');
     expect(markup).toContain('data-chat-room-composer-skeleton="true"');
     expect(markup).toContain('data-chat-room-loading-spinner="true"');

@@ -44,8 +44,8 @@ export function getChatRoomSessionView(
   if (roomStatus === "CLOSED") {
     return {
       kind: "closed",
-      title: "종료된 채팅방입니다.",
-      description: "종료된 채팅방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
+      title: "종료된 토론방입니다.",
+      description: "종료된 토론방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,
@@ -136,7 +136,7 @@ export function getChatRoomSessionView(
     return {
       kind: "active",
       title: "이 탭에서 실시간 채팅을 사용 중입니다.",
-      description: "다른 탭에서 채팅방을 활성화하면 이 탭의 입력이 중지됩니다.",
+      description: "다른 탭에서 토론방을 활성화하면 이 탭의 입력이 중지됩니다.",
       canDraft: true,
       canReactivate: false,
       canReconnect: false,
@@ -149,7 +149,7 @@ export function getChatRoomSessionView(
   if (snapshot.status === "replaced" && snapshot.roomId === roomId) {
     return {
       kind: "replaced",
-      title: "다른 탭에서 채팅방을 사용 중입니다.",
+      title: "다른 탭에서 토론방을 사용 중입니다.",
       description:
         "작성 중인 내용은 유지되며, 이 탭을 다시 활성화하면 다른 탭의 입력이 중지됩니다.",
       canDraft: false,
@@ -164,7 +164,7 @@ export function getChatRoomSessionView(
   if (snapshot.status === "error" && snapshot.roomId === roomId) {
     return {
       kind: "error",
-      title: "채팅방 실시간 연결을 활성화하지 못했습니다.",
+      title: "토론방 실시간 연결을 활성화하지 못했습니다.",
       description: snapshot.error?.message ?? "잠시 후 이 탭에서 다시 활성화해 주세요.",
       canDraft: false,
       canReactivate: canReactivateRoomError(snapshot.error),
@@ -177,7 +177,7 @@ export function getChatRoomSessionView(
 
   return {
     kind: "pending",
-    title: "채팅방 실시간 연결을 준비하고 있습니다.",
+    title: "토론방 실시간 연결을 준비하고 있습니다.",
     description: "방 구독이 완료될 때까지 메시지 입력을 잠시 기다려 주세요.",
     canDraft: false,
     canReactivate: snapshot.status === "idle",

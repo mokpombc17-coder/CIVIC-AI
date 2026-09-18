@@ -60,7 +60,7 @@ export function ChatRoomView({
       header={
         <PlatformHeader
           actions={roomError || initializing ? undefined : headerAction}
-          backAction={{ ariaLabel: "채팅방 목록으로 돌아가기", href: "/chat" }}
+          backAction={{ ariaLabel: "토론방 목록으로 돌아가기", href: "/chat" }}
           title={header.title}
         />
       }

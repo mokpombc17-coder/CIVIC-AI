@@ -10,7 +10,7 @@ type RoomCreationRequestPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "채팅방 생성 신청",
+  title: "토론방 생성 신청",
 };
 
 export default async function RoomCreationRequestPage({ params }: RoomCreationRequestPageProps) {

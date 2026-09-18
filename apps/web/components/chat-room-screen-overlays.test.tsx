@@ -26,7 +26,7 @@ describe("ChatRoomScreen overlay presentation", () => {
     expect(searchTrigger).toBeDefined();
     expect(searchTrigger).not.toContain('aria-haspopup="dialog"');
     expect(markup).toContain("search.png");
-    expect(markup).toContain('aria-label="채팅방 메뉴"');
+    expect(markup).toContain('aria-label="토론방 메뉴"');
     expect(markup).toContain('aria-expanded="false"');
     expect(markup).toContain("disabled");
   });

@@ -35,12 +35,12 @@ export function createRoomMessageSearchErrorPresentation(
     case "ACCESS_DENIED":
       return terminalPresentation(
         "메시지를 검색할 수 없습니다.",
-        "현재 채팅방의 메시지에 접근할 수 없습니다.",
+        "현재 토론방의 메시지에 접근할 수 없습니다.",
       );
     case "MESSAGE_SEARCH_NOT_AVAILABLE":
       return terminalPresentation(
         "메시지 검색을 종료했습니다.",
-        "종료된 채팅방에서는 메시지를 검색할 수 없습니다.",
+        "종료된 토론방에서는 메시지를 검색할 수 없습니다.",
       );
     case "MESSAGE_SEARCH_RATE_LIMITED":
       return nonRetryablePresentation(
@@ -88,7 +88,7 @@ export function createRoomMessageContextErrorPresentation(
     case "ACCESS_DENIED":
       return terminalPresentation(
         "주변 대화를 볼 수 없습니다.",
-        "현재 채팅방의 메시지에 접근할 수 없습니다.",
+        "현재 토론방의 메시지에 접근할 수 없습니다.",
       );
     case "MESSAGE_NOT_FOUND":
       return nonRetryablePresentation(
@@ -98,7 +98,7 @@ export function createRoomMessageContextErrorPresentation(
     case "MESSAGE_SEARCH_NOT_AVAILABLE":
       return terminalPresentation(
         "주변 대화 조회를 종료했습니다.",
-        "종료된 채팅방에서는 주변 대화를 조회할 수 없습니다.",
+        "종료된 토론방에서는 주변 대화를 조회할 수 없습니다.",
       );
     case "MESSAGE_SEARCH_UNAVAILABLE":
       return {

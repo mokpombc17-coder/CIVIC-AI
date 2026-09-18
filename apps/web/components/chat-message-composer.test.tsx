@@ -6,13 +6,13 @@ describe("ChatMessageComposer", () => {
   it("지속되는 비활성 상태의 사유와 중립 상태를 표시한다", () => {
     const html = renderComposer({
       disabled: true,
-      disabledMessage: "종료된 채팅방에는 메시지를 보낼 수 없습니다.",
+      disabledMessage: "종료된 토론방에는 메시지를 보낼 수 없습니다.",
     });
 
     expect(html).toContain('data-chat-message-composer-state="disabled"');
     expect(html).toContain('data-chat-message-composer-state="disabled-form"');
     expect(html).toContain('role="status"');
-    expect(html).toContain("종료된 채팅방에는 메시지를 보낼 수 없습니다.");
+    expect(html).toContain("종료된 토론방에는 메시지를 보낼 수 없습니다.");
     expect(html.match(/disabled=""/g)).toHaveLength(2);
     expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
   });

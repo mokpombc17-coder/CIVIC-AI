@@ -945,7 +945,7 @@ export class ChatSharedWorkerRuntime {
         command.request.clientMessageId,
         "ROOM_NOT_ACTIVE",
         true,
-        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
       );
       return;
     }
@@ -1011,7 +1011,7 @@ export class ChatSharedWorkerRuntime {
         clientMutationId,
         "ROOM_NOT_ACTIVE",
         true,
-        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
       );
       return;
     }
@@ -1159,7 +1159,7 @@ export class ChatSharedWorkerRuntime {
         true,
         cause instanceof Error && cause.message.trim()
           ? cause.message
-          : "채팅방 구독 준비 sync 요청을 전송하지 못했습니다.",
+          : "토론방 구독 준비 sync 요청을 전송하지 못했습니다.",
       );
     }
   }
@@ -1229,7 +1229,7 @@ export class ChatSharedWorkerRuntime {
         message:
           cause instanceof Error && cause.message.trim()
             ? cause.message
-            : "기존 채팅방 STOMP 구독 해제에 실패했습니다.",
+            : "기존 토론방 STOMP 구독 해제에 실패했습니다.",
       });
     }
   }
@@ -1357,7 +1357,7 @@ export class ChatSharedWorkerRuntime {
     const message =
       cause instanceof Error && cause.message.trim()
         ? cause.message
-        : "채팅방 STOMP 구독을 설정하지 못했습니다.";
+        : "토론방 STOMP 구독을 설정하지 못했습니다.";
     const pending = this.pendingRoomActivation;
     const lease = this.activeRoomLease;
 
@@ -1642,8 +1642,8 @@ export class ChatSharedWorkerRuntime {
       rejection.code,
       rejection.retryable,
       rejection.retryable
-        ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
-        : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
+        ? "토론방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
+        : "토론방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
     );
   }
 

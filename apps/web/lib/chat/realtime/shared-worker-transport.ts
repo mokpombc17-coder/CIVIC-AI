@@ -370,7 +370,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     if (this.roomSnapshot.status !== "active" || this.roomSnapshot.roomId !== roomId) {
       throw new ChatMessageSendError(
         "ROOM_NOT_ACTIVE",
-        "현재 탭에서 활성화된 채팅방이 아니어서 메시지를 전송할 수 없습니다.",
+        "현재 탭에서 활성화된 토론방이 아니어서 메시지를 전송할 수 없습니다.",
         true,
       );
     }
@@ -422,7 +422,7 @@ export class SharedWorkerTransport implements ChatRealtimeTransport {
     if (this.roomSnapshot.status !== "active" || this.roomSnapshot.roomId !== command.roomId) {
       throw new ChatMessageMutationError(
         "ROOM_NOT_ACTIVE",
-        "현재 탭에서 활성화된 채팅방이 아니어서 메시지를 변경할 수 없습니다.",
+        "현재 탭에서 활성화된 토론방이 아니어서 메시지를 변경할 수 없습니다.",
         true,
       );
     }

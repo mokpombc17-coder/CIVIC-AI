@@ -48,7 +48,7 @@ export function getChatRoomComposerPresentation(
             : "채팅을 사용할 수 없습니다.";
 
   return {
-    disabledMessage: view.kind === "closed" ? "종료된 채팅방에는 메시지를 보낼 수 없습니다." : null,
+    disabledMessage: view.kind === "closed" ? "종료된 토론방에는 메시지를 보낼 수 없습니다." : null,
     placeholder,
   };
 }

@@ -75,7 +75,7 @@ export function ChatRoomMembershipPanelView({
     <section className="px-5 pt-2 pb-6">
       <div className="flex min-h-11 items-start justify-between gap-4">
         <h2 className="min-w-0 pt-2 text-xl font-semibold leading-7" id={headingId}>
-          채팅방 메뉴
+          토론방 메뉴
         </h2>
         <div className="flex flex-wrap items-center justify-end gap-2">{headerAction}</div>
       </div>

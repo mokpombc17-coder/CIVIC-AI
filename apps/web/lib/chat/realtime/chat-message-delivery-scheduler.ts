@@ -560,7 +560,7 @@ export function getChatMessageDeliveryFailureMessage(
     case "COMMAND_RESULT_TIMEOUT":
       return "채팅 서버의 메시지 처리 결과를 시간 안에 받지 못했습니다.";
     case "CONTEXT_VALIDATION_FAILED":
-      return "현재 채팅방 전송 상태를 확인하지 못해 메시지 전송을 중단했습니다.";
+      return "현재 토론방 전송 상태를 확인하지 못해 메시지 전송을 중단했습니다.";
     case "MAX_ATTEMPTS_REACHED":
       return "메시지 자동 재전송 횟수를 초과했습니다.";
     case "MAX_ELAPSED_TIME_REACHED":

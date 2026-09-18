@@ -75,7 +75,7 @@ describe("ChatRoomView platform shell integration", () => {
     expect(markup).toContain('inert=""');
     expect(markup).toContain("invisible");
     expect(markup).toContain('aria-busy="true"');
-    expect(markup).toContain("채팅방을 준비하고 있어요.");
+    expect(markup).toContain("토론방을 준비하고 있어요.");
     expect(markup).toContain('data-chat-room-composer-skeleton="true"');
     expect(markup).not.toContain("방 정보");
   });

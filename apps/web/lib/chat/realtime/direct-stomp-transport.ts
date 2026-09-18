@@ -574,7 +574,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     } catch (cause) {
       this.setSnapshot("error", {
         source: "stomp",
-        message: getSubscriptionErrorMessage(cause, "기존 채팅방 STOMP 구독 해제에 실패했습니다."),
+        message: getSubscriptionErrorMessage(cause, "기존 토론방 STOMP 구독 해제에 실패했습니다."),
       });
     } finally {
       const releasedGeneration = this.roomSnapshot.generation + 1;
@@ -651,7 +651,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     ) {
       throw new ChatMessageSendError(
         "ROOM_NOT_ACTIVE",
-        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
         true,
       );
     }
@@ -719,7 +719,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     ) {
       throw new ChatMessageMutationError(
         "ROOM_NOT_ACTIVE",
-        "현재 탭의 채팅방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
         true,
       );
     }
@@ -1428,7 +1428,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         generation,
         "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
         true,
-        getSubscriptionErrorMessage(cause, "채팅방 구독 준비 sync 요청을 전송하지 못했습니다."),
+        getSubscriptionErrorMessage(cause, "토론방 구독 준비 sync 요청을 전송하지 못했습니다."),
       );
     }
   }
@@ -1504,8 +1504,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       rejection.code,
       rejection.retryable,
       rejection.retryable
-        ? "채팅방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
-        : "채팅방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
+        ? "토론방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
+        : "토론방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
     );
   }
 

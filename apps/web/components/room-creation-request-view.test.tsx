@@ -10,7 +10,7 @@ describe("RoomCreationRequestView", () => {
     expect(markup).toContain('data-room-creation-request-status="APPROVED"');
     expect(markup).toContain('href="/chat/room-01"');
     expect(markup).toContain('href="/chat"');
-    expect(markup).toContain("생성된 채팅방으로 이동");
+    expect(markup).toContain("생성된 토론방으로 이동");
     expect(markup).toContain("최신 상태 확인");
   });
 
@@ -20,7 +20,7 @@ describe("RoomCreationRequestView", () => {
     expect(markup).toContain("도시 정책 토론방");
     expect(markup).toContain("종료됨");
     expect(markup).toContain("생성된 토론방의 운영이 종료되었습니다.");
-    expect(markup).not.toContain("생성된 채팅방으로 이동");
+    expect(markup).not.toContain("생성된 토론방으로 이동");
   });
 
   it("반려 상태에는 반려 사유를 표시하고 Room 이동을 숨긴다", () => {
@@ -28,7 +28,7 @@ describe("RoomCreationRequestView", () => {
 
     expect(markup).toContain('data-room-creation-request-status="REJECTED"');
     expect(markup).toContain("운영 정책과 맞지 않습니다.");
-    expect(markup).not.toContain("생성된 채팅방으로 이동");
+    expect(markup).not.toContain("생성된 토론방으로 이동");
   });
 
   it("조회 오류의 재시도 동작을 표시한다", () => {

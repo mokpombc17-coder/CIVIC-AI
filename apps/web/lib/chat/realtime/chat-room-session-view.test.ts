@@ -23,7 +23,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "closed",
-      title: "종료된 채팅방입니다.",
+      title: "종료된 토론방입니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,
@@ -97,7 +97,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "replaced",
-      title: "다른 탭에서 채팅방을 사용 중입니다.",
+      title: "다른 탭에서 토론방을 사용 중입니다.",
       canDraft: false,
       canReactivate: true,
       indicatorLabel: "다른 탭 사용 중",
@@ -169,7 +169,7 @@ describe("getChatRoomSessionView", () => {
         error: {
           code: "ROOM_CLOSED",
           serverCode: "ROOM_CLOSED",
-          message: "채팅방이 종료되어 연결이 해제되었습니다.",
+          message: "토론방이 종료되어 연결이 해제되었습니다.",
         },
       },
       "room-01",
@@ -177,7 +177,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "error",
-      description: "채팅방이 종료되어 연결이 해제되었습니다.",
+      description: "토론방이 종료되어 연결이 해제되었습니다.",
       canDraft: false,
       canReactivate: false,
     });

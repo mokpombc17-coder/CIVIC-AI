@@ -102,7 +102,7 @@ export function createChatRoomHeaderViewModel({
   return {
     description:
       memberCount === undefined
-        ? "채팅방 정보를 불러오고 있습니다."
+        ? "토론방 정보를 불러오고 있습니다."
         : `참여자 ${memberCount}명 · 방 상태 ${roomStatus} · 내 상태 ${participationStatus}`,
     statusLabel:
       status === "success" ? "REST 연동" : status === "error" ? "방 정보 조회 실패" : "조회 중",

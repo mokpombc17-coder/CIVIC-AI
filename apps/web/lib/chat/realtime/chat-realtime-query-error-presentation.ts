@@ -54,8 +54,8 @@ export function getChatRealtimeQueryErrorPresentation(
       return {
         action: null,
         actionLabel: null,
-        description: "현재 사용자는 이 채팅방의 메시지 이력을 조회할 수 없습니다.",
-        title: "채팅방 접근 권한이 없습니다.",
+        description: "현재 사용자는 이 토론방의 메시지 이력을 조회할 수 없습니다.",
+        title: "토론방 접근 권한이 없습니다.",
       };
     }
 
@@ -91,7 +91,7 @@ function getCoordinatorErrorPresentation(
     case "ROOM_EVENT_JOURNAL_MISMATCH":
     case "ROOM_EVENT_CONFLICT":
       return reloadPresentation(
-        "채팅방 상태 이벤트가 서로 일치하지 않습니다.",
+        "토론방 상태 이벤트가 서로 일치하지 않습니다.",
         "잘못된 방 상태를 표시하지 않도록 현재 세션을 초기화해야 합니다.",
       );
     case "MESSAGE_HISTORY_NOT_READY":

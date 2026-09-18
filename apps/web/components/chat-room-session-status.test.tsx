@@ -10,7 +10,7 @@ describe("ChatRoomSessionNotice", () => {
     );
 
     expect(html).toContain('data-chat-session-notice="replaced"');
-    expect(html).toContain("다른 탭에서 채팅방을 사용 중입니다.");
+    expect(html).toContain("다른 탭에서 토론방을 사용 중입니다.");
     expect(html).toContain("이 탭에서 다시 활성화");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain("bg-red-50");
@@ -34,7 +34,7 @@ describe("ChatRoomSessionNotice", () => {
     );
 
     expect(html).toContain('data-chat-session-notice="closed"');
-    expect(html).toContain("종료된 채팅방입니다.");
+    expect(html).toContain("종료된 토론방입니다.");
     expect(html).toContain("지난 대화 내역을 확인할 수 없습니다.");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain(">다시 연결</button>");
@@ -58,7 +58,7 @@ const REPLACED_VIEW = {
   indicatorTone: "pending",
   kind: "replaced",
   showNotice: true,
-  title: "다른 탭에서 채팅방을 사용 중입니다.",
+  title: "다른 탭에서 토론방을 사용 중입니다.",
 } satisfies ChatRoomSessionView;
 
 const ERROR_VIEW = {
@@ -77,12 +77,12 @@ const CLOSED_VIEW = {
   canDraft: false,
   canReactivate: false,
   canReconnect: false,
-  description: "종료된 채팅방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
+  description: "종료된 토론방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
   indicatorLabel: "종료됨",
   indicatorTone: "pending",
   kind: "closed",
   showNotice: true,
-  title: "종료된 채팅방입니다.",
+  title: "종료된 토론방입니다.",
 } satisfies ChatRoomSessionView;
 
 const ACTIVE_VIEW = {

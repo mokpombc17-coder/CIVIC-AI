@@ -84,7 +84,7 @@ export function RoomCreationRequestListContent({
       ) : null}
 
       {requests.length > 0 ? (
-        <ol aria-label="채팅방 생성 신청 내역" className="grid gap-3">
+        <ol aria-label="토론방 생성 신청 내역" className="grid gap-3">
           {requests.map((request) => (
             <li key={request.creationRequestId}>
               <RoomCreationRequestListItem request={request} />

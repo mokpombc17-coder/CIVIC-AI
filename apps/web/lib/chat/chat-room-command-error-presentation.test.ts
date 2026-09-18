@@ -7,7 +7,7 @@ import {
 } from "./chat-room-command-error-presentation";
 
 const USER_QUOTA_MESSAGE =
-  "참여 가능한 채팅방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
+  "참여 가능한 토론방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
 
 describe("getJoinRoomErrorMessage", () => {
   it("정원 초과 오류를 사용자 문구로 변환한다", () => {
@@ -30,7 +30,7 @@ describe("getJoinRoomErrorMessage", () => {
 
     expect(error.code).toBe("ROOM_MEMBER_LIMIT_EXCEEDED");
     expect(error.retryable).toBe(false);
-    expect(getJoinRoomErrorMessage(error)).toBe("참여 인원이 가득 찬 채팅방입니다.");
+    expect(getJoinRoomErrorMessage(error)).toBe("참여 인원이 가득 찬 토론방입니다.");
   });
 
   it.each([false, true])(
@@ -56,9 +56,9 @@ describe("getJoinRoomErrorMessage", () => {
   );
 
   it.each([
-    ["ROOM_CLOSED", "종료된 채팅방에는 참여할 수 없습니다."],
-    ["JOIN_POLICY_NOT_OPEN", "현재 직접 참여할 수 없는 채팅방입니다."],
-    ["MEMBERSHIP_BANNED", "이 채팅방에서 차단되어 참여할 수 없습니다."],
+    ["ROOM_CLOSED", "종료된 토론방에는 참여할 수 없습니다."],
+    ["JOIN_POLICY_NOT_OPEN", "현재 직접 참여할 수 없는 토론방입니다."],
+    ["MEMBERSHIP_BANNED", "이 토론방에서 차단되어 참여할 수 없습니다."],
   ] as const)("%s 오류를 참여 상황에 맞게 안내한다", (code, message) => {
     expect(getJoinRoomErrorMessage(createJoinError(code))).toBe(message);
   });

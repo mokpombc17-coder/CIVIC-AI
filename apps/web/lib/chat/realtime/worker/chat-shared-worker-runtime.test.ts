@@ -536,7 +536,7 @@ describe("ChatSharedWorkerRuntime", () => {
       error: {
         source: "websocket",
         code: "ROOM_ACCESS_REVOKED",
-        message: "채팅방 접근 권한을 확인하고 있습니다.",
+        message: "토론방 접근 권한을 확인하고 있습니다.",
       },
     });
     expect(runtime.getRealtimeBufferSnapshot()).toMatchObject({
@@ -612,7 +612,7 @@ describe("ChatSharedWorkerRuntime", () => {
       roomId: "room-01",
       generation: 2,
       code: "ROOM_CLOSED",
-      message: "채팅방이 종료되어 연결이 해제되었습니다.",
+      message: "토론방이 종료되어 연결이 해제되었습니다.",
     });
 
     await Promise.resolve();

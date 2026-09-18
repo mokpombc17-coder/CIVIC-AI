@@ -43,8 +43,8 @@ export function createChatRoomExportErrorPresentation(
       );
     case "ROOM_NOT_FOUND":
       return nonRetryablePresentation(
-        "채팅방을 찾을 수 없습니다.",
-        "채팅방이 존재하는지 확인해 주세요.",
+        "토론방을 찾을 수 없습니다.",
+        "토론방이 존재하는지 확인해 주세요.",
       );
     case "CHAT_EXPORT_ALREADY_RUNNING":
       return retryablePresentation(

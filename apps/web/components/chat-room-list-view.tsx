@@ -257,7 +257,7 @@ export function ChatRoomListView({
 
           {participatingRooms.isPending && participatingRooms.rooms.length === 0 ? (
             <ChatRoomListSkeleton
-              ariaLabel="참여 중인 채팅방을 불러오는 중"
+              ariaLabel="참여 중인 토론방을 불러오는 중"
               keys={PARTICIPATING_ROOM_SKELETON_KEYS}
               listClassName={PARTICIPATING_ROOM_LIST_CLASS_NAME}
               message="참여 중인 방을 불러오고 있습니다."
@@ -287,7 +287,7 @@ export function ChatRoomListView({
             />
           ) : participatingRooms.rooms.length > 0 ? (
             <ul
-              aria-label="참여 중인 채팅방"
+              aria-label="참여 중인 토론방"
               className={PARTICIPATING_ROOM_LIST_CLASS_NAME}
               tabIndex={0}
             >
@@ -330,7 +330,7 @@ export function ChatRoomListView({
 
             {publicRooms.isPending && publicRooms.rooms.length === 0 ? (
               <ChatRoomListSkeleton
-                ariaLabel="참여 가능한 채팅방을 불러오는 중"
+                ariaLabel="참여 가능한 토론방을 불러오는 중"
                 keys={PUBLIC_ROOM_SKELETON_KEYS}
                 listClassName={PUBLIC_ROOM_LIST_CLASS_NAME}
                 message="공개 방을 불러오고 있습니다."
@@ -354,7 +354,7 @@ export function ChatRoomListView({
             ) : publicRooms.rooms.length > 0 ? (
               <div className="relative">
                 <ul
-                  aria-label="공개 채팅방"
+                  aria-label="공개 토론방"
                   className={PUBLIC_ROOM_LIST_CLASS_NAME}
                   onScroll={updatePublicRoomBottomGradient}
                   ref={publicRoomListRef}
@@ -436,13 +436,13 @@ export function MyRoomCard({
       data-room-id={room.roomId}
     >
       <Link
-        aria-label={`${room.name} 채팅방 입장`}
+        aria-label={`${room.name} 토론방 입장`}
         className="peer absolute inset-0 z-0 cursor-pointer select-none rounded-[var(--chat-publishing-radius-card)] [-webkit-touch-callout:none] focus-visible:outline-none"
         draggable={false}
         href={`/chat/${room.roomId}`}
         onContextMenu={preventMobileLinkContextMenu}
       >
-        <span className="sr-only">{room.name} 채팅방 입장</span>
+        <span className="sr-only">{room.name} 토론방 입장</span>
       </Link>
       <RoomCardInteractionSurface>
         <span className="min-w-0 flex-1">

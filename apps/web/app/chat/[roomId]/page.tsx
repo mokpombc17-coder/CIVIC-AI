@@ -10,7 +10,7 @@ type ChatRoomPageProps = {
 };
 
 export const metadata: Metadata = {
-  title: "채팅방",
+  title: "토론방",
 };
 
 export default async function ChatRoomPage({ params }: ChatRoomPageProps) {

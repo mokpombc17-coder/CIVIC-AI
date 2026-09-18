@@ -36,10 +36,10 @@ export const CHAT_AUTHENTICATION_REQUIRED_MESSAGE =
   "채팅 연결 인증이 유효하지 않습니다. 다시 로그인해 주세요.";
 export const CHAT_ROOM_ACCESS_REVOKED_CLOSE_CODE = 4002;
 export const CHAT_ROOM_ACCESS_REVOKED_REASON = "ROOM_ACCESS_REVOKED";
-export const CHAT_ROOM_ACCESS_REVOKED_MESSAGE = "채팅방 접근 권한을 확인하고 있습니다.";
+export const CHAT_ROOM_ACCESS_REVOKED_MESSAGE = "토론방 접근 권한을 확인하고 있습니다.";
 export const CHAT_ROOM_CLOSED_CLOSE_CODE = 4003;
 export const CHAT_ROOM_CLOSED_REASON = "ROOM_CLOSED";
-export const CHAT_ROOM_CLOSED_MESSAGE = "채팅방이 종료되어 연결이 해제되었습니다.";
+export const CHAT_ROOM_CLOSED_MESSAGE = "토론방이 종료되어 연결이 해제되었습니다.";
 
 export function isChatConnectionReplacedCloseEvent(event: Pick<CloseEvent, "code">): boolean {
   return event.code === CHAT_CONNECTION_REPLACED_CLOSE_CODE;

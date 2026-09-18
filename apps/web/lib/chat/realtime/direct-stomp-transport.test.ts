@@ -273,7 +273,7 @@ describe("DirectStompTransport", () => {
       error: {
         source: "websocket",
         code: "ROOM_ACCESS_REVOKED",
-        message: "채팅방 접근 권한을 확인하고 있습니다.",
+        message: "토론방 접근 권한을 확인하고 있습니다.",
       },
     });
     expect(transport.getRoomSnapshot()).toMatchObject({
@@ -1101,7 +1101,7 @@ describe("DirectStompTransport", () => {
           content: "아직 보내면 안 됩니다.",
         },
       }),
-    ).toThrow("현재 탭의 채팅방 동기화가 완료되지 않아");
+    ).toThrow("현재 탭의 토론방 동기화가 완료되지 않아");
   });
 
   it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {

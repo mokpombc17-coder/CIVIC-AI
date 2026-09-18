@@ -14,7 +14,7 @@ export function ChatRoomEntryError({ error }: { error: ChatRoomEntryErrorViewMod
         action={
           error.action === "return-to-list" ? (
             <Link className={CHAT_ERROR_CARD_ACTION_CLASS_NAME} href="/chat">
-              채팅방 목록
+              토론방 목록
             </Link>
           ) : (
             <button

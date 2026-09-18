@@ -30,7 +30,7 @@ describe("chat room list publishing layout", () => {
     ].map((match) => match[1] ?? "");
     const filterIndex = html.indexOf('aria-label="참여한 방 필터"');
     const participatingRoomsIndex = html.indexOf(">참여한 방</h2>");
-    const publicRoomSearchIndex = html.indexOf('aria-label="공개 채팅방 검색"');
+    const publicRoomSearchIndex = html.indexOf('aria-label="공개 토론방 검색"');
     const availableRoomsIndex = html.indexOf(">참여 가능한 방</h2>");
 
     expect(html).toContain(">토론방</h1>");
@@ -85,7 +85,7 @@ describe("chat room list publishing layout", () => {
     expect(html).toContain('href="/mypage"');
     expect(html).toContain(">AI</span>");
     expect(html).toContain(">계정</span>");
-    expect(html).not.toContain("채팅방 생성 신청 내역");
+    expect(html).not.toContain("토론방 생성 신청 내역");
     expect(html).not.toContain("Chat Resource Server");
   });
 
@@ -185,7 +185,7 @@ describe("chat room list publishing layout", () => {
     const indicatorClassName = /class="([^"]+)" data-public-room-scroll-indicator="down"/.exec(
       html,
     )?.[1];
-    const roomListClassName = /aria-label="공개 채팅방" class="([^"]+)"/.exec(html)?.[1] ?? "";
+    const roomListClassName = /aria-label="공개 토론방" class="([^"]+)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain('data-public-room-scroll-indicator="down"');
     expect(html).not.toContain('data-public-room-scroll-indicator="up"');
@@ -219,8 +219,8 @@ describe("chat room list publishing layout", () => {
     expect(loadingHtml.match(/data-chat-room-list-state="loading"/g)).toHaveLength(2);
     expect(loadingHtml.match(/role="status"/g)).toHaveLength(2);
     expect(loadingHtml.match(/data-chat-room-card-skeleton="true"/g)).toHaveLength(5);
-    expect(loadingHtml).toContain('aria-label="참여 중인 채팅방을 불러오는 중"');
-    expect(loadingHtml).toContain('aria-label="참여 가능한 채팅방을 불러오는 중"');
+    expect(loadingHtml).toContain('aria-label="참여 중인 토론방을 불러오는 중"');
+    expect(loadingHtml).toContain('aria-label="참여 가능한 토론방을 불러오는 중"');
     expect(loadingHtml).toContain("max-h-[252px]");
     expect(loadingHtml).toContain("max-h-[384px]");
     expect(loadingHtml).toContain("motion-safe:animate-pulse");
@@ -286,7 +286,7 @@ describe("chat room list cards", () => {
   it("참여 Room card에 제목, 정원·unread 상태와 분리된 입장·상세 action을 표시한다", () => {
     const html = renderMyRoomCard(createRoomInboxItem());
     const cardClass = /<article class="([^"]+)"/.exec(html)?.[1];
-    const entryLinkClass = /aria-label="프로젝트 회의방 채팅방 입장" class="([^"]+)"/.exec(
+    const entryLinkClass = /aria-label="프로젝트 회의방 토론방 입장" class="([^"]+)"/.exec(
       html,
     )?.[1];
     const detailButtonClass = /aria-label="프로젝트 회의방 상세 정보 보기" class="([^"]+)"/.exec(
@@ -301,7 +301,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("5 / 50명");
     expect(html).toContain('aria-label="읽지 않은 메시지 4개"');
     expect(html).toContain('aria-label="현재 참여 인원 5명, 최대 50명"');
-    expect(html).toContain('aria-label="프로젝트 회의방 채팅방 입장"');
+    expect(html).toContain('aria-label="프로젝트 회의방 토론방 입장"');
     expect(html).toContain('href="/chat/room-01"');
     expect(html).toContain("상세보기");
     expect(html).toContain('id="chat-room-list-detail-trigger-room-01"');
@@ -448,7 +448,7 @@ describe("chat room list cards", () => {
     expect(html).toContain("3 / 50명");
     expect(html).toContain('aria-label="카테고리: 정책"');
     expect(html).toContain("참여하기");
-    expect(html).toContain('aria-label="채팅방 상세 닫기"');
+    expect(html).toContain('aria-label="토론방 상세 닫기"');
   });
 
   it("참여 중인 Room 상세 sheet에는 join 대신 입장 action을 표시한다", () => {

@@ -44,7 +44,7 @@ export function RoomCreationRequestView({
           <Image alt="" aria-hidden="true" height={24} src="/assets/chat/back.png" width={24} />
         </Link>
         <h1 className="min-w-0 flex-1 truncate text-xl font-bold leading-7 tracking-[-0.025em]">
-          채팅방 생성 신청
+          토론방 생성 신청
         </h1>
       </header>
 
@@ -93,7 +93,7 @@ function RoomCreationRequestError({
           </button>
         ) : (
           <Link className="primary-button inline-flex items-center justify-center" href="/chat">
-            채팅방 목록
+            토론방 목록
           </Link>
         )}
       </div>
@@ -163,7 +163,7 @@ function RoomCreationRequestDetails({
             className="primary-button inline-flex items-center justify-center"
             href={`/chat/${request.roomId}`}
           >
-            생성된 채팅방으로 이동
+            생성된 토론방으로 이동
           </Link>
         ) : null}
         <button

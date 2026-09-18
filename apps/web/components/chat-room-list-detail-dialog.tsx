@@ -76,7 +76,7 @@ export function ChatRoomListDetailDialog({
             {room.name}
           </h2>
           <button
-            aria-label="채팅방 상세 닫기"
+            aria-label="토론방 상세 닫기"
             autoFocus
             className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
             onClick={onClose}

@@ -16,7 +16,7 @@ export const ChatRoomMembershipDialogTrigger = forwardRef<
     <button
       aria-expanded={isOpen}
       aria-haspopup="dialog"
-      aria-label="채팅방 메뉴"
+      aria-label="토론방 메뉴"
       className="inline-flex size-11 shrink-0 items-center justify-center rounded-full text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
       onClick={onOpen}
       ref={ref}
@@ -102,7 +102,7 @@ export function ChatRoomMembershipDialog({
         <ChatRoomMembershipPanel
           headerAction={
             <button
-              aria-label="채팅방 메뉴 닫기"
+              aria-label="토론방 메뉴 닫기"
               autoFocus
               className="flex size-11 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
               onClick={onClose}

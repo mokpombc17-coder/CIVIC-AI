@@ -117,7 +117,7 @@ export function ChatRoomMessageSearchPanel({
           메시지 검색
         </h2>
         <form
-          aria-label="채팅방 메시지 검색"
+          aria-label="토론방 메시지 검색"
           className="min-w-0 flex-1"
           onSubmit={handleSubmit}
           role="search"

@@ -26,7 +26,7 @@ vi.mock("@/components/chat-room-settings-control", () => ({
     <section>
       방 정보
       <strong>{room.name}</strong>
-      <p>{room.description || "채팅방 소개가 없습니다."}</p>
+      <p>{room.description || "토론방 소개가 없습니다."}</p>
       {canEdit ? <button type="button">수정하기</button> : null}
     </section>
   ),

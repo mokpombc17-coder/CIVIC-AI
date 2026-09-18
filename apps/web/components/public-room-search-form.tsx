@@ -17,7 +17,7 @@ export function PublicRoomSearchForm({ controller }: PublicRoomSearchFormProps) 
 
   return (
     <form
-      aria-label="공개 채팅방 검색"
+      aria-label="공개 토론방 검색"
       className="grid gap-3"
       onSubmit={(event) => {
         event.preventDefault();

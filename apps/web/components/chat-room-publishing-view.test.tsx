@@ -191,9 +191,9 @@ describe("chat room publishing view", () => {
       createElement(ChatRoomEntryError, {
         error: {
           action: "return-to-list",
-          detail: "방장에 의해 채팅방에서 퇴장되었습니다.",
+          detail: "방장에 의해 토론방에서 퇴장되었습니다.",
           onRetry: vi.fn(),
-          title: "채팅방에 참여할 수 없습니다.",
+          title: "토론방에 참여할 수 없습니다.",
         },
       }),
     );
@@ -204,10 +204,10 @@ describe("chat room publishing view", () => {
     expect(html).toContain("pt-[18px] pb-[18px]");
     expect(html).toContain("mt-auto flex flex-wrap gap-2 pt-4");
     expect(html).toContain("h-12 min-w-[131px]");
-    expect(html).toContain("채팅방에 참여할 수 없습니다.");
-    expect(html).toContain("방장에 의해 채팅방에서 퇴장되었습니다.");
+    expect(html).toContain("토론방에 참여할 수 없습니다.");
+    expect(html).toContain("방장에 의해 토론방에서 퇴장되었습니다.");
     expect(html).toContain('href="/chat"');
-    expect(html).toContain(">채팅방 목록</a>");
+    expect(html).toContain(">토론방 목록</a>");
   });
 
   it("일시 조회 실패는 같은 공통 error card에서 재시도를 제공한다", () => {
@@ -217,12 +217,12 @@ describe("chat room publishing view", () => {
           action: "retry",
           detail: "네트워크 연결을 확인해 주세요.",
           onRetry: vi.fn(),
-          title: "채팅방 정보를 불러오지 못했습니다.",
+          title: "토론방 정보를 불러오지 못했습니다.",
         },
       }),
     );
 
-    expect(html).toContain("채팅방 정보를 불러오지 못했습니다.");
+    expect(html).toContain("토론방 정보를 불러오지 못했습니다.");
     expect(html).toContain(">다시 시도</button>");
     expect(html).not.toContain('href="/chat"');
   });

@@ -9,8 +9,8 @@ export function ChatRoomScreenLoading() {
       className="chat-publishing-surface text-[var(--chat-publishing-color-text)]"
       header={
         <PlatformHeader
-          backAction={{ ariaLabel: "채팅방 목록으로 돌아가기", href: "/chat" }}
-          title="채팅방"
+          backAction={{ ariaLabel: "토론방 목록으로 돌아가기", href: "/chat" }}
+          title="토론방"
         />
       }
       headerSize="compact"
@@ -30,7 +30,7 @@ export function ChatRoomScreenLoadingContent() {
       data-chat-room-screen-loading="true"
     >
       <div className="flex min-h-0 flex-1 items-center justify-center" role="status">
-        <span className="sr-only">채팅방을 준비하고 있어요.</span>
+        <span className="sr-only">토론방을 준비하고 있어요.</span>
         <ChatRoomLoadingSpinner />
       </div>
       <div

@@ -11,7 +11,7 @@ describe("chat room composer presentation", () => {
 
   it("종료된 방처럼 지속되는 상태에는 비활성 사유를 표시한다", () => {
     expect(getChatRoomComposerPresentation({ canDraft: false, kind: "closed" })).toEqual({
-      disabledMessage: "종료된 채팅방에는 메시지를 보낼 수 없습니다.",
+      disabledMessage: "종료된 토론방에는 메시지를 보낼 수 없습니다.",
       placeholder: "메시지를 입력해 주세요.",
     });
   });

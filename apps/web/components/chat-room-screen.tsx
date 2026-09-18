@@ -186,7 +186,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
         initialEntryPending
           ? {
               ...content.header,
-              title: "채팅방",
+              title: "토론방",
             }
           : content.header
       }

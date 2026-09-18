@@ -13,7 +13,7 @@ vi.mock("@/components/chat-room-membership-panel", () => ({
     headingId: string;
   }) => (
     <section aria-labelledby={headingId} className="panel">
-      <h2 id={headingId}>채팅방 메뉴</h2>
+      <h2 id={headingId}>토론방 메뉴</h2>
       {headerAction}
     </section>
   ),
@@ -30,7 +30,7 @@ describe("ChatRoomMembershipDialog", () => {
     expect(html).toContain("rounded-t-[20px]");
     expect(html).toContain("max-w-[393px]");
     expect(html).toContain("overflow-x-hidden");
-    expect(html).toContain('aria-label="채팅방 메뉴 닫기"');
+    expect(html).toContain('aria-label="토론방 메뉴 닫기"');
     expect(html).toContain("close.png");
   });
 });

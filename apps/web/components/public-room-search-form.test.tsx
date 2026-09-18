@@ -14,7 +14,7 @@ describe("public Room search form", () => {
     const inputClass = /<input[^>]*class="([^"]+)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain('role="search"');
-    expect(html).toContain('aria-label="공개 채팅방 검색"');
+    expect(html).toContain('aria-label="공개 토론방 검색"');
     expect(html).toContain("토론방 이름 검색");
     expect(html).toContain('<span class="font-bold">토론방 이름 검색</span>');
     expect(labelClass).not.toContain("font-bold");

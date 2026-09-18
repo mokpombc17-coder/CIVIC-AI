@@ -44,7 +44,7 @@ function getServerCommandFailureMessage(
     case "MESSAGE_TOO_LARGE":
       return "메시지는 UTF-8 8,192 bytes를 초과할 수 없습니다.";
     case "ROOM_SEND_FORBIDDEN":
-      return "현재 사용자는 이 채팅방에 메시지를 전송할 수 없습니다.";
+      return "현재 사용자는 이 토론방에 메시지를 전송할 수 없습니다.";
     case "USER_RATE_LIMITED":
       return "메시지를 너무 빠르게 전송했습니다. 잠시 후 다시 시도해 주세요.";
     case "IDEMPOTENCY_CONFLICT":
@@ -52,7 +52,7 @@ function getServerCommandFailureMessage(
     case "SERVER_BUSY":
       return "채팅 서버가 혼잡합니다. 잠시 후 다시 시도해 주세요.";
     case "ROOM_AUTHORIZATION_UNAVAILABLE":
-      return "채팅방 권한을 일시적으로 확인할 수 없습니다.";
+      return "토론방 권한을 일시적으로 확인할 수 없습니다.";
     case "CHAT_PIPELINE_UNAVAILABLE":
       return "채팅 처리 파이프라인을 일시적으로 사용할 수 없습니다.";
     case "PERSISTENCE_FAILED":

@@ -24,7 +24,7 @@ export function useRoomCreationRequestScreen(creationRequestId: string) {
       return;
     }
 
-    if (!window.confirm("채팅방 생성 신청을 취소할까요?")) {
+    if (!window.confirm("토론방 생성 신청을 취소할까요?")) {
       return;
     }
 
@@ -56,7 +56,7 @@ export function useRoomCreationRequestScreen(creationRequestId: string) {
 
     setCancellationFeedback(
       result.kind === "canceled"
-        ? "채팅방 생성 신청을 취소했습니다."
+        ? "토론방 생성 신청을 취소했습니다."
         : "다른 처리가 먼저 완료되어 최신 상태로 갱신했습니다.",
     );
   }
