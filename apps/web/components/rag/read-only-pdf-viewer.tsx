@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
 import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
+
+const PAGE_VISIBILITY_THRESHOLDS = Array.from({ length: 101 }, (_, index) => index / 100);
 
 type ReadOnlyPdfViewerProps = Readonly<{
   documentTitle: string;
@@ -24,6 +26,18 @@ export function ReadOnlyPdfViewer({
   const safeTotalPages = Math.max(1, totalPages);
   const safePage = Math.max(1, Math.min(currentPage, safeTotalPages));
   const documentSource = sourceUrl.endsWith("/document") ? sourceUrl : `${sourceUrl}/document`;
+  const viewerKey = `${documentSource}:${safePage}`;
+  const canvasRef = useRef<HTMLDivElement>(null);
+  const [visibleLocation, setVisibleLocation] = useState({ key: viewerKey, page: safePage });
+  const visiblePage = visibleLocation.key === viewerKey ? visibleLocation.page : safePage;
+  const handleVisiblePageChange = useCallback(
+    (page: number) => {
+      setVisibleLocation((current) =>
+        current.key === viewerKey && current.page === page ? current : { key: viewerKey, page },
+      );
+    },
+    [viewerKey],
+  );
 
   return (
     <section
@@ -33,7 +47,15 @@ export function ReadOnlyPdfViewer({
       data-pdf-scroll-mode="continuous"
     >
       <header className="civic-pdf-toolbar">
-        <h2>참조 문서</h2>
+        <div className="civic-pdf-toolbar-copy">
+          <h2 title={`${documentTitle} 미리보기`}>{documentTitle} 미리보기</h2>
+          <span
+            aria-label={`현재 ${visiblePage} / ${safeTotalPages}페이지`}
+            className="civic-pdf-toolbar-page"
+          >
+            {visiblePage}/{safeTotalPages}
+          </span>
+        </div>
         {onClose ? (
           <button
             aria-label="참조 문서 닫기"
@@ -50,22 +72,18 @@ export function ReadOnlyPdfViewer({
         )}
       </header>
       <div className="wf-rag-document-card">
-        <div className="civic-pdf-canvas">
+        <div className="civic-pdf-canvas" ref={canvasRef}>
           <AuthenticatedPdfPages
             currentPage={safePage}
             documentSource={documentSource}
             documentTitle={documentTitle}
+            onVisiblePageChange={handleVisiblePageChange}
+            scrollRootRef={canvasRef}
             totalPages={safeTotalPages}
           />
         </div>
-        <footer className="wf-rag-document-meta">
-          <h3>{documentTitle}</h3>
-          <p>
-            전체 {safeTotalPages}페이지 · 인용 {safePage}페이지
-          </p>
-        </footer>
         <strong aria-live="polite" className="sr-only">
-          인용 {safePage} / {safeTotalPages}페이지
+          현재 {visiblePage} / {safeTotalPages}페이지
         </strong>
       </div>
     </section>
@@ -76,6 +94,8 @@ type AuthenticatedPdfPagesProps = Readonly<{
   currentPage: number;
   documentSource: string;
   documentTitle: string;
+  onVisiblePageChange: (page: number) => void;
+  scrollRootRef: RefObject<HTMLDivElement | null>;
   totalPages: number;
 }>;
 
@@ -83,13 +103,15 @@ function AuthenticatedPdfPages({
   currentPage,
   documentSource,
   documentTitle,
+  onVisiblePageChange,
+  scrollRootRef,
   totalPages,
 }: AuthenticatedPdfPagesProps) {
   const [authorization, setAuthorization] = useState<{
     source: string;
     state: "checking" | "ready" | "unavailable";
   }>({ source: documentSource, state: "checking" });
-  const citedPageRef = useRef<HTMLElement>(null);
+  const pageListRef = useRef<HTMLDivElement>(null);
   const state = authorization.source === documentSource ? authorization.state : "checking";
 
   useEffect(() => {
@@ -110,10 +132,72 @@ function AuthenticatedPdfPages({
   useEffect(() => {
     if (state !== "ready") return;
     const frame = window.requestAnimationFrame(() => {
-      citedPageRef.current?.scrollIntoView({ block: "start" });
+      pageListRef.current
+        ?.querySelector<HTMLElement>(`[data-pdf-page="${currentPage}"]`)
+        ?.scrollIntoView({ block: "start" });
     });
     return () => window.cancelAnimationFrame(frame);
   }, [currentPage, state]);
+
+  useEffect(() => {
+    if (state !== "ready" || typeof IntersectionObserver === "undefined") return;
+
+    const root = scrollRootRef.current;
+    const pages = Array.from(
+      pageListRef.current?.querySelectorAll<HTMLElement>("[data-pdf-page]") ?? [],
+    );
+    if (!root || pages.length === 0) return;
+
+    const visibleAreas = new Map<number, number>();
+    for (const page of pages) {
+      visibleAreas.set(Number(page.dataset.pdfPage), 0);
+    }
+
+    let observer: IntersectionObserver | null = null;
+    const frame = window.requestAnimationFrame(() => {
+      observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            const page = Number((entry.target as HTMLElement).dataset.pdfPage);
+            const visibleArea = entry.intersectionRect.width * entry.intersectionRect.height;
+            visibleAreas.set(page, entry.isIntersecting ? visibleArea : 0);
+          }
+
+          const rootCenter = root.getBoundingClientRect().top + root.clientHeight / 2;
+          let nextPage = currentPage;
+          let greatestArea = 0;
+          let closestCenterDistance = Number.POSITIVE_INFINITY;
+
+          for (const pageElement of pages) {
+            const page = Number(pageElement.dataset.pdfPage);
+            const visibleArea = visibleAreas.get(page) ?? 0;
+            const rect = pageElement.getBoundingClientRect();
+            const centerDistance = Math.abs(rect.top + rect.height / 2 - rootCenter);
+            if (
+              visibleArea > greatestArea ||
+              (visibleArea === greatestArea &&
+                visibleArea > 0 &&
+                centerDistance < closestCenterDistance)
+            ) {
+              nextPage = page;
+              greatestArea = visibleArea;
+              closestCenterDistance = centerDistance;
+            }
+          }
+
+          if (greatestArea > 0) onVisiblePageChange(nextPage);
+        },
+        { root, threshold: PAGE_VISIBILITY_THRESHOLDS },
+      );
+
+      for (const page of pages) observer.observe(page);
+    });
+
+    return () => {
+      window.cancelAnimationFrame(frame);
+      observer?.disconnect();
+    };
+  }, [currentPage, onVisiblePageChange, scrollRootRef, state, totalPages]);
 
   const title = `${documentTitle} 전체 문서, ${currentPage}페이지 인용 위치`;
   if (state !== "ready") {
@@ -127,7 +211,7 @@ function AuthenticatedPdfPages({
   }
 
   return (
-    <div aria-label={title} className="civic-pdf-page-list">
+    <div aria-label={title} className="civic-pdf-page-list" ref={pageListRef}>
       {Array.from({ length: totalPages }, (_, index) => {
         const page = index + 1;
         return (
@@ -135,7 +219,6 @@ function AuthenticatedPdfPages({
             isCited={page === currentPage}
             key={page}
             page={page}
-            {...(page === currentPage ? { pageRef: citedPageRef } : {})}
             source={`${documentSource}/pages/${page}.png`}
             title={documentTitle}
           />
@@ -148,12 +231,11 @@ function AuthenticatedPdfPages({
 type PdfPageImageProps = Readonly<{
   isCited: boolean;
   page: number;
-  pageRef?: RefObject<HTMLElement | null>;
   source: string;
   title: string;
 }>;
 
-function PdfPageImage({ isCited, page, pageRef, source, title }: PdfPageImageProps) {
+function PdfPageImage({ isCited, page, source, title }: PdfPageImageProps) {
   const [retry, setRetry] = useState(0);
   const [failed, setFailed] = useState(false);
   const imageSource = retry === 0 ? source : `${source}?retry=${retry}`;
@@ -163,11 +245,7 @@ function PdfPageImage({ isCited, page, pageRef, source, title }: PdfPageImagePro
       aria-label={`${page}페이지${isCited ? ", 인용 페이지" : ""}`}
       className={`civic-pdf-page${isCited ? " is-cited" : ""}`}
       data-pdf-page={page}
-      ref={pageRef}
     >
-      <span className="civic-pdf-page-number">
-        {page} / {title}
-      </span>
       {failed ? (
         <div className="civic-pdf-page-error" role="alert">
           <span>{page}페이지를 불러오지 못했습니다.</span>

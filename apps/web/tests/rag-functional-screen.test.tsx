@@ -2534,10 +2534,12 @@ describe("9 functional RAG screens", () => {
     );
 
     expect(html).toContain('data-wireflow-layout="rag-reference-modal"');
-    expect(html).toContain('role="dialog"');
-    expect(html).toContain('aria-modal="true"');
-    expect(html).toContain("참조 문서");
-    expect(html).toContain("3 / 12");
+    expect(html).toContain('data-rag-reference-surface="true"');
+    expect(html).not.toContain('aria-modal="true"');
+    expect(html).not.toContain("wf-rag-reference-scrim");
+    expect(html).not.toContain("wf-rag-reference-backdrop");
+    expect(html).toContain("복지정책.pdf 미리보기");
+    expect(html).toContain("3/12");
     expect(html).toContain("읽기 전용");
     expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
     expect(html).not.toContain("iframe");

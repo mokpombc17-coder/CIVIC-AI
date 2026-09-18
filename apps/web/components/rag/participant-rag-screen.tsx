@@ -2,7 +2,14 @@
 
 import Link from "next/link";
 import type { Route } from "next";
-import { useEffect, useRef, useState, type FormEvent, type MouseEvent } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+  type MouseEvent,
+  type ReactNode,
+} from "react";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import type { RagQuery } from "./rag-functional-screen";
 import { ragScreenPrimaryActions } from "./rag-screen-actions";
@@ -201,23 +208,14 @@ export function ParticipantRagScreen({
     const title = one(query.title) || "인용 문서";
     return (
       <ScreenFrame screen={screen}>
-        <ConversationBackdrop />
-        <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
-          <div aria-hidden="true" className="wf-rag-reference-scrim" />
-          <div
-            aria-label="참조 문서"
-            aria-modal="true"
-            className="wf-rag-reference-dialog"
-            role="dialog"
-          >
-            <ReadOnlyPdfViewer
-              currentPage={page}
-              documentTitle={title}
-              sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(versionId)}/pages/${page}`}
-              totalPages={Math.max(page, total)}
-            />
-          </div>
-        </div>
+        <RagReferenceSurface>
+          <ReadOnlyPdfViewer
+            currentPage={page}
+            documentTitle={title}
+            sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(versionId)}/pages/${page}`}
+            totalPages={Math.max(page, total)}
+          />
+        </RagReferenceSurface>
         <span className="civic-screen-action-label">{ragScreenPrimaryActions[screen.id]}</span>
       </ScreenFrame>
     );
@@ -534,25 +532,31 @@ function RagConversation({
         title="새 대화를 시작할까요?"
       />
       {activeCitation ? (
-        <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
-          <div aria-hidden="true" className="wf-rag-reference-scrim" />
-          <div
-            aria-label="참조 문서"
-            aria-modal="true"
-            className="wf-rag-reference-dialog"
-            role="dialog"
-          >
-            <ReadOnlyPdfViewer
-              currentPage={activeCitation.page_number}
-              documentTitle={activeCitation.title ?? "인용 문서"}
-              onClose={() => setActiveCitation(null)}
-              sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(activeCitation.document_version_id)}/pages/${activeCitation.page_number}`}
-              totalPages={citationTotalPages(activeCitation)}
-            />
-          </div>
-        </div>
+        <RagReferenceSurface>
+          <ReadOnlyPdfViewer
+            currentPage={activeCitation.page_number}
+            documentTitle={activeCitation.title ?? "인용 문서"}
+            onClose={() => setActiveCitation(null)}
+            sourceUrl={`/api/v1/rag/sources/${encodeURIComponent(activeCitation.document_version_id)}/pages/${activeCitation.page_number}`}
+            totalPages={citationTotalPages(activeCitation)}
+          />
+        </RagReferenceSurface>
       ) : null}
     </ScreenFrame>
+  );
+}
+
+function RagReferenceSurface({ children }: Readonly<{ children: ReactNode }>) {
+  return (
+    <div className="wf-rag-reference-layer" data-wireflow-layout="rag-reference-modal">
+      <section
+        aria-label="참조 문서"
+        className="wf-rag-reference-dialog"
+        data-rag-reference-surface="true"
+      >
+        {children}
+      </section>
+    </div>
   );
 }
 
@@ -637,23 +641,6 @@ export async function parseQuerySubmissionResponse(
     throw new TypeError("RAG accepted query response is invalid");
   }
   return { kind: "accepted", job: value as RagJob };
-}
-
-function ConversationBackdrop() {
-  return (
-    <section
-      aria-hidden="true"
-      className="civic-rag-conversation wf-rag-reference-backdrop"
-      data-wireflow-layout="rag-conversation"
-    >
-      <RagIntroBanner dismissible={false} />
-      <div className="civic-rag-messages" />
-      <div className="civic-rag-composer">
-        <span>궁금한 내용을 입력해 주세요</span>
-        <span>전송</span>
-      </div>
-    </section>
-  );
 }
 
 export function RagMessage({
