@@ -267,8 +267,19 @@
 }
 
 .bottomNavigationItem[aria-current="page"] {
-  border-top-color: var(--platform-shell-color-primary);
+  border-top-color: transparent;
   color: var(--platform-shell-color-primary-emphasis);
+}
+
+.bottomNavigationItem[aria-current="page"]::before {
+  position: absolute;
+  top: -7px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: var(--platform-shell-color-primary);
+  content: "";
+  pointer-events: none;
 }
 
 .bottomNavigationItem:focus-visible {
