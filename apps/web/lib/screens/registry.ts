@@ -24,7 +24,7 @@ const allowedStatuses = new Set<ScreenStatus>(["FUNCTIONAL", "PLACEHOLDER"]);
 const allowedOwners = new Set<ScreenOwner>(["MAIN_AUTH", "RAG", "CHAT", "DECISION", "SIMULATION"]);
 
 function readGeneratedRegistry(): readonly ScreenDefinition[] {
-  if (generatedRegistry.version !== 1 || generatedRegistry.screens.length !== 70) {
+  if (generatedRegistry.version !== 1 || generatedRegistry.screens.length !== 68) {
     throw new Error("Unsupported CIVIC screen registry artifact.");
   }
 

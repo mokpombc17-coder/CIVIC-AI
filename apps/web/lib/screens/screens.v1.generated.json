@@ -110,24 +110,6 @@
       "source_heading": "### U-RAG-001 RAG 대화"
     },
     {
-      "id": "U-RAG-002",
-      "canonical_title": "참조 PDF 열람",
-      "audience": "PARTICIPANT",
-      "route": "/rag/source",
-      "status": "FUNCTIONAL",
-      "owner": "RAG",
-      "source_heading": "### U-RAG-002 참조 PDF 열람"
-    },
-    {
-      "id": "U-RAG-003",
-      "canonical_title": "참조 PDF 페이지 이동",
-      "audience": "PARTICIPANT",
-      "route": "/rag/source/page",
-      "status": "FUNCTIONAL",
-      "owner": "RAG",
-      "source_heading": "### U-RAG-003 참조 PDF 페이지 이동"
-    },
-    {
       "id": "U-CHAT-001",
       "canonical_title": "활성 채팅방 목록",
       "audience": "PARTICIPANT",

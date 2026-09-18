@@ -117,8 +117,6 @@ const ragScreens = screenRegistry.filter(
 
 const latestWireflowTitles = Object.freeze({
   "U-RAG-001": "AI",
-  "U-RAG-002": "AI",
-  "U-RAG-003": "AI",
   "A-RAG-001": "문서 관리",
   "A-RAG-002": "문서 관리",
   "A-RAG-003": "문서 관리",
@@ -169,7 +167,7 @@ type RagSessionApi = Readonly<{
 
 const ragSessionApi = participantRagSession as unknown as RagSessionApi;
 
-describe("9 functional RAG screens", () => {
+describe("7 functional RAG screens", () => {
   it("상단 안내를 닫으면 현재 브라우저 세션에 상태를 유지한다", () => {
     const storage = memoryStorage();
 
@@ -2424,8 +2422,8 @@ describe("9 functional RAG screens", () => {
     expect(readFailedRagJobs({ failed: -1 })).toBeNull();
   });
 
-  it("registry와 구현 action map이 정확히 9개 화면을 공유한다", () => {
-    expect(ragScreens).toHaveLength(9);
+  it("registry와 구현 action map이 정확히 7개 화면을 공유한다", () => {
+    expect(ragScreens).toHaveLength(7);
     expect(Object.keys(ragScreenPrimaryActions).sort()).toEqual(
       ragScreens.map((screen) => screen.id).sort(),
     );
@@ -2434,8 +2432,6 @@ describe("9 functional RAG screens", () => {
   it("Wire Flow의 첫 번째 RAG 행동 문구를 그대로 사용한다", () => {
     expect(ragScreenPrimaryActions).toEqual({
       "U-RAG-001": "질문 전송",
-      "U-RAG-002": "연속 스크롤",
-      "U-RAG-003": "인용 페이지 위치 보기",
       "A-RAG-001": "폴더 추가·수정",
       "A-RAG-002": "폴더 저장",
       "A-RAG-003": "이 폴더에 업로드",
@@ -2528,29 +2524,6 @@ describe("9 functional RAG screens", () => {
     expect(adminHtml).not.toContain('data-rag-inline-upload="true"');
     expect(adminHtml).not.toContain('type="file"');
     expect(adminHtml).not.toContain('class="civic-document-inspector"');
-  });
-
-  it.each(["U-RAG-002", "U-RAG-003"])("%s는 대화 위 읽기 전용 참조 문서 모달이다", (screenId) => {
-    const screen = ragScreens.find((item) => item.id === screenId);
-    if (!screen) throw new Error(`${screenId} missing`);
-
-    const html = renderToStaticMarkup(
-      createElement(RagFunctionalScreen, {
-        screen,
-        query: { versionId: "version-1", page: "3", total: "12", title: "복지정책.pdf" },
-      }),
-    );
-
-    expect(html).toContain('data-wireflow-layout="rag-reference-modal"');
-    expect(html).toContain('data-rag-reference-surface="true"');
-    expect(html).not.toContain('aria-modal="true"');
-    expect(html).not.toContain("wf-rag-reference-scrim");
-    expect(html).not.toContain("wf-rag-reference-backdrop");
-    expect(html).toContain("복지정책.pdf 미리보기");
-    expect(html).toContain("3/12");
-    expect(html).toContain("읽기 전용");
-    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
-    expect(html).not.toContain("iframe");
   });
 
   it.each([

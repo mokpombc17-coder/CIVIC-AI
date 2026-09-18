@@ -2246,14 +2246,14 @@
   min-width: 0;
   flex: 1;
   align-items: baseline;
-  gap: 8px;
+  gap: 6px;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2 {
   min-width: 0;
   font-family: var(--wf-font);
-  font-size: 13px;
-  font-weight: 400;
+  font-size: 15px;
+  font-weight: 500;
   line-height: 1.4;
   overflow-wrap: anywhere;
   white-space: normal;

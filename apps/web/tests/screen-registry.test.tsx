@@ -7,10 +7,10 @@ import { ComingSoonScreen } from "@/components/screens/coming-soon-screen";
 import { getScreenByRoute, screenRegistry, type ScreenDefinition } from "@/lib/screens/registry";
 
 describe("canonical screen registry adapter", () => {
-  it("70개 route와 54/16 상태를 손실 없이 제공한다", () => {
-    expect(screenRegistry).toHaveLength(70);
-    expect(new Set(screenRegistry.map((screen) => screen.route))).toHaveLength(70);
-    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(54);
+  it("68개 route와 52/16 상태를 손실 없이 제공한다", () => {
+    expect(screenRegistry).toHaveLength(68);
+    expect(new Set(screenRegistry.map((screen) => screen.route))).toHaveLength(68);
+    expect(screenRegistry.filter((screen) => screen.status === "FUNCTIONAL")).toHaveLength(52);
     expect(screenRegistry.filter((screen) => screen.status === "PLACEHOLDER")).toHaveLength(16);
   });
 
@@ -21,6 +21,8 @@ describe("canonical screen registry adapter", () => {
     expect(getScreenByRoute("/mypage/profile")?.id).toBe("U-ACCOUNT-002");
     expect(getScreenByRoute("/mypage/security")?.id).toBe("U-ACCOUNT-002");
     expect(getScreenByRoute("/mypage/survey")?.id).toBe("U-ACCOUNT-003");
+    expect(getScreenByRoute("/rag/source")).toBeUndefined();
+    expect(getScreenByRoute("/rag/source/page")).toBeUndefined();
     expect(getScreenByRoute("/CHAT")).toBeUndefined();
     expect(getScreenByRoute("/unknown")).toBeUndefined();
   });
