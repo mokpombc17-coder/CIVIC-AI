@@ -13,12 +13,10 @@ describe("read-only immutable citation viewer", () => {
       />,
     );
 
-    expect(html).toContain("합성 정책");
-    expect(html).toContain("전체 7페이지 · 인용 3페이지");
-    expect(html).toContain('<footer class="wf-rag-document-meta">');
-    expect(html.indexOf('class="civic-pdf-canvas"')).toBeLessThan(
-      html.indexOf('class="wf-rag-document-meta"'),
-    );
+    expect(html).toContain("합성 정책 미리보기");
+    expect(html).toContain('class="civic-pdf-toolbar-page"');
+    expect(html).toContain("3/7");
+    expect(html).not.toContain("wf-rag-document-meta");
     expect(html).not.toContain("연속 스크롤");
     expect(html).toContain('data-pdf-scroll-mode="continuous"');
     expect(html).toContain('data-pdf-zoom-mode="pinch"');

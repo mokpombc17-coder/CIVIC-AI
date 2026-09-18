@@ -2189,36 +2189,28 @@
   background: #aeb7c2;
 }
 
-.wf-rag-reference-backdrop {
-  filter: none;
-}
-
 .wf-rag-reference-layer {
   position: absolute;
   z-index: 60;
   inset: 0;
-  display: grid;
-  place-items: center;
-}
-
-.wf-rag-reference-scrim {
-  position: absolute;
-  inset: 0;
-  background: rgb(16 17 20 / 50%);
+  display: flex;
+  min-height: 0;
+  overflow: hidden;
+  background: #fff;
 }
 
 .wf-rag-reference-dialog {
   position: relative;
-  z-index: 1;
   display: flex;
-  width: calc(100% - 16px);
-  height: calc(100% - 32px);
+  width: 100%;
+  height: 100%;
+  min-height: 0;
   flex-direction: column;
-  overflow: auto;
-  border: 1px solid var(--wf-line-strong);
-  border-radius: 12px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 0;
   background: #fff;
-  box-shadow: 0 16px 32px rgb(16 17 20 / 24%);
+  box-shadow: none;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-viewer {
@@ -2240,27 +2232,69 @@
   flex-direction: row;
   align-items: center;
   justify-content: space-between;
-  border: 0;
-  padding: 12px 16px 4px;
-}
-
-[data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2,
-[data-wireflow-layout="rag-reference-modal"] .wf-rag-document-card h3,
-[data-wireflow-layout="rag-reference-modal"] .wf-rag-document-card p {
-  margin: 0;
+  border-bottom: 1px solid var(--wf-line);
+  padding: 8px 12px;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2 {
+  margin: 0;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar-copy {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: baseline;
+  gap: 8px;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar h2 {
+  min-width: 0;
+  overflow: hidden;
   font-family: var(--wf-font);
-  font-size: 22px;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+[data-wireflow-layout="rag-reference-modal"] .civic-pdf-toolbar-page {
+  flex: none;
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  line-height: 1.4;
 }
 
 .wf-rag-dialog-close {
-  color: #2b3138;
-  font-size: 38px;
+  display: grid;
+  width: 40px;
+  height: 40px;
+  flex: none;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--wf-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 32px;
   font-weight: 300;
   line-height: 1;
   text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.wf-rag-dialog-close:is(:hover, :active) {
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+}
+
+.wf-rag-dialog-close:focus-visible {
+  outline: 2px solid var(--wf-focus-ring);
+  outline-offset: 1px;
 }
 
 .wf-rag-document-card {
@@ -2268,35 +2302,24 @@
   min-height: 0;
   flex: 1;
   flex-direction: column;
-  margin: 4px 12px 12px;
+  margin: 0;
   border: 0;
   border-radius: 0;
   padding: 0;
 }
 
-.wf-rag-document-card h3 {
-  font-size: 16px;
-}
-
-.wf-rag-document-card p {
-  margin-top: 4px;
-  color: var(--wf-muted);
-  font-size: 14px;
-}
-
-[data-wireflow-layout="rag-reference-modal"] .wf-rag-document-meta {
-  flex: none;
-  padding-top: 12px;
-}
-
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-canvas {
   display: flex;
-  min-height: 45dvh;
+  min-height: 0;
   flex: 1;
   margin: 0;
-  border: 1px solid var(--wf-line);
-  background: #f4f5f6;
-  padding: 6px;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  border: 0;
+  background: var(--wf-surface);
+  padding: 0 8px;
+  -webkit-overflow-scrolling: touch;
 }
 
 [data-wireflow-layout="rag-reference-modal"] .civic-pdf-canvas iframe {
@@ -4437,12 +4460,6 @@
   font-size: 13px;
 }
 
-/* PDF 뷰어 문서 메타 */
-.wf-rag-document-meta {
-  display: grid;
-  gap: 4px;
-}
-
 /* B2: 네이티브 파일 입력 숨김 + 찾아보기 버튼 표현 */
 .civic-upload-dropzone input[type="file"] {
   position: absolute;
@@ -5012,6 +5029,8 @@
 }
 
 .civic-platform-participant-body [data-wireflow-screen^="U-RAG"] {
+  position: relative;
+  min-height: 0;
   flex: 1;
 }
 
