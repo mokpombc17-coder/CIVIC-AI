@@ -30,6 +30,7 @@ import { PublicRoomSearchForm } from "@/components/public-room-search-form";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import type { PublicRoomSearchController } from "@/components/use-public-room-search";
+import { useChatRoomVisualViewportHeight } from "@/components/use-chat-room-visual-viewport";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
 import {
   createCurrentChatLoginHref,
@@ -90,6 +91,7 @@ export function ChatRoomListView({
   roomDetail,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
+  const chatRoomShellRef = useChatRoomVisualViewportHeight<HTMLDivElement>(0);
   const publicRoomListRef = useRef<HTMLUListElement>(null);
   const publicRoomLoadRequestRef = useRef<PublicRoomLoadRequest | null>(null);
   const [publicRoomLoadFeedback, setPublicRoomLoadFeedback] = useState<PublicRoomLoadFeedback>({
@@ -223,6 +225,7 @@ export function ChatRoomListView({
       header={<PlatformHeader backAction={{ ariaLabel: "홈으로", href: "/home" }} title="토론방" />}
       headerSize="compact"
       overlay={overlay}
+      shellRef={chatRoomShellRef}
     >
       <div className="grid gap-5 px-4 pb-4 pt-5">
         <section

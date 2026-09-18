@@ -30,7 +30,7 @@ describe("calculateChatRoomVisualViewportLayout", () => {
     expect(
       calculateChatRoomVisualViewportLayout({
         bottomGap: 0,
-        layoutViewportHeight: 852,
+        viewportBaselineHeight: 852,
         viewportHeight: 480.8,
         viewportOffsetTop: 22.9,
       }),
@@ -45,7 +45,7 @@ describe("calculateChatRoomVisualViewportLayout", () => {
     expect(
       calculateChatRoomVisualViewportLayout({
         bottomGap: 0,
-        layoutViewportHeight: 852,
+        viewportBaselineHeight: 852,
         viewportHeight: 852,
         viewportOffsetTop: 0,
       }),
@@ -62,9 +62,8 @@ describe("shouldConstrainChatRoomToVisualViewport", () => {
     expect(
       shouldConstrainChatRoomToVisualViewport({
         hasFocusedTextEntry: false,
-        layoutViewportHeight: 852,
+        viewportBaselineHeight: 852,
         viewportHeight: 480,
-        viewportOffsetTop: 0,
       }),
     ).toBe(false);
   });
@@ -73,9 +72,8 @@ describe("shouldConstrainChatRoomToVisualViewport", () => {
     expect(
       shouldConstrainChatRoomToVisualViewport({
         hasFocusedTextEntry: true,
-        layoutViewportHeight: 852,
+        viewportBaselineHeight: 852,
         viewportHeight: 820,
-        viewportOffsetTop: 0,
       }),
     ).toBe(false);
   });
@@ -84,9 +82,18 @@ describe("shouldConstrainChatRoomToVisualViewport", () => {
     expect(
       shouldConstrainChatRoomToVisualViewport({
         hasFocusedTextEntry: true,
-        layoutViewportHeight: 852,
+        viewportBaselineHeight: 852,
         viewportHeight: 480,
-        viewportOffsetTop: 22,
+      }),
+    ).toBe(true);
+  });
+
+  it("layout viewport도 함께 줄어드는 resize 모드에서 최초 높이를 기준으로 보정한다", () => {
+    expect(
+      shouldConstrainChatRoomToVisualViewport({
+        hasFocusedTextEntry: true,
+        viewportBaselineHeight: 852,
+        viewportHeight: 480,
       }),
     ).toBe(true);
   });

@@ -5,15 +5,14 @@ type ChatRoomVisibleHeightOptions = Readonly<{
 
 type ChatRoomVisualViewportLayoutOptions = ChatRoomVisibleHeightOptions &
   Readonly<{
-    layoutViewportHeight: number;
+    viewportBaselineHeight: number;
     viewportOffsetTop: number;
   }>;
 
 type ChatRoomVisualViewportConstraintOptions = Readonly<{
   hasFocusedTextEntry: boolean;
-  layoutViewportHeight: number;
+  viewportBaselineHeight: number;
   viewportHeight: number;
-  viewportOffsetTop: number;
 }>;
 
 const MINIMUM_KEYBOARD_VIEWPORT_REDUCTION = 80;
@@ -33,11 +32,11 @@ export function calculateChatRoomVisibleHeight({
 
 export function calculateChatRoomVisualViewportLayout({
   bottomGap,
-  layoutViewportHeight,
+  viewportBaselineHeight,
   viewportHeight,
   viewportOffsetTop,
 }: ChatRoomVisualViewportLayoutOptions): ChatRoomVisualViewportLayout {
-  const isVisualViewportConstrained = viewportHeight < layoutViewportHeight;
+  const isVisualViewportConstrained = viewportHeight < viewportBaselineHeight;
 
   return {
     alignSelf: isVisualViewportConstrained ? "start" : "",
@@ -48,16 +47,14 @@ export function calculateChatRoomVisualViewportLayout({
 
 export function shouldConstrainChatRoomToVisualViewport({
   hasFocusedTextEntry,
-  layoutViewportHeight,
+  viewportBaselineHeight,
   viewportHeight,
-  viewportOffsetTop,
 }: ChatRoomVisualViewportConstraintOptions): boolean {
   if (!hasFocusedTextEntry) {
     return false;
   }
 
-  const visibleViewportBottom = viewportHeight + Math.max(0, viewportOffsetTop);
-  const viewportReduction = layoutViewportHeight - visibleViewportBottom;
+  const viewportReduction = viewportBaselineHeight - viewportHeight;
 
   return viewportReduction >= MINIMUM_KEYBOARD_VIEWPORT_REDUCTION;
 }

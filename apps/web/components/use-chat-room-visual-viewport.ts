@@ -13,7 +13,13 @@ export function useChatRoomVisualViewportHeight<TElement extends HTMLElement = H
 
   useEffect(() => {
     const visualViewport = window.visualViewport;
+
+    if (!visualViewport) {
+      return;
+    }
+
     let frame: number | null = null;
+    let viewportBaselineHeight = Math.max(window.innerHeight, visualViewport.height);
 
     const clearViewportLayout = () => {
       const element = elementRef.current;
@@ -35,13 +41,27 @@ export function useChatRoomVisualViewportHeight<TElement extends HTMLElement = H
         return;
       }
 
+      const activeElement = document.activeElement;
+      const hasFocusedTextEntry =
+        element.contains(activeElement) && isTextEntryElement(activeElement);
+
+      if (!hasFocusedTextEntry) {
+        viewportBaselineHeight = Math.max(window.innerHeight, visualViewport.height);
+        clearViewportLayout();
+        return;
+      }
+
+      viewportBaselineHeight = Math.max(
+        viewportBaselineHeight,
+        window.innerHeight,
+        visualViewport.height,
+      );
+
       if (
-        !visualViewport ||
         !shouldConstrainChatRoomToVisualViewport({
-          hasFocusedTextEntry: isTextEntryElement(document.activeElement),
-          layoutViewportHeight: window.innerHeight,
+          hasFocusedTextEntry,
+          viewportBaselineHeight,
           viewportHeight: visualViewport.height,
-          viewportOffsetTop: visualViewport.offsetTop,
         })
       ) {
         clearViewportLayout();
@@ -50,7 +70,7 @@ export function useChatRoomVisualViewportHeight<TElement extends HTMLElement = H
 
       const layout = calculateChatRoomVisualViewportLayout({
         bottomGap,
-        layoutViewportHeight: window.innerHeight,
+        viewportBaselineHeight,
         viewportHeight: visualViewport.height,
         viewportOffsetTop: visualViewport.offsetTop,
       });
@@ -64,7 +84,6 @@ export function useChatRoomVisualViewportHeight<TElement extends HTMLElement = H
         cancelAnimationFrame(frame);
       }
 
-      clearViewportLayout();
       frame = requestAnimationFrame(updateViewportLayout);
     };
 
@@ -72,15 +91,15 @@ export function useChatRoomVisualViewportHeight<TElement extends HTMLElement = H
     window.addEventListener("focusin", scheduleViewportLayoutUpdate);
     window.addEventListener("focusout", scheduleViewportLayoutUpdate);
     window.addEventListener("resize", scheduleViewportLayoutUpdate);
-    visualViewport?.addEventListener("resize", scheduleViewportLayoutUpdate);
-    visualViewport?.addEventListener("scroll", scheduleViewportLayoutUpdate);
+    visualViewport.addEventListener("resize", scheduleViewportLayoutUpdate);
+    visualViewport.addEventListener("scroll", scheduleViewportLayoutUpdate);
 
     return () => {
       window.removeEventListener("focusin", scheduleViewportLayoutUpdate);
       window.removeEventListener("focusout", scheduleViewportLayoutUpdate);
       window.removeEventListener("resize", scheduleViewportLayoutUpdate);
-      visualViewport?.removeEventListener("resize", scheduleViewportLayoutUpdate);
-      visualViewport?.removeEventListener("scroll", scheduleViewportLayoutUpdate);
+      visualViewport.removeEventListener("resize", scheduleViewportLayoutUpdate);
+      visualViewport.removeEventListener("scroll", scheduleViewportLayoutUpdate);
 
       if (frame !== null) {
         cancelAnimationFrame(frame);
