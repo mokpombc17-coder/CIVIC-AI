@@ -47,6 +47,9 @@ viewport의 `100dvh`를 따른다.
 canonical route를 조회하고 화면 owner·audience·status에 따라 실제 기능 화면 또는 준비 중 화면을
 선택한다.
 
+참여자 RAG 기능 route는 `/rag`만 등록한다. 참조 문서는 이 화면 안의 `RagReferenceSurface`에서
+열며, 이전 임시 route인 `/rag/source`와 `/rag/source/page`는 레지스트리에 없어 404를 반환한다.
+
 ```text
 RootLayout [Server, 문서 CSP nonce 읽기]
 └── StyleNonceProvider [Client, nonce 고정]
