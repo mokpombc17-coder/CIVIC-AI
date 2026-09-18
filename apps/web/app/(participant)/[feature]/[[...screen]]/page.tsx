@@ -9,6 +9,7 @@ import { AdminShell } from "@/components/shell/admin-shell";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { RagFunctionalScreen, type RagQuery } from "@/components/rag/rag-functional-screen";
 import { RagNewQuestionHeaderAction } from "@/components/rag/rag-new-question-header-action";
+import { ParticipantRagSessionFallback } from "@/components/rag/participant-rag-screen";
 import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
@@ -82,16 +83,22 @@ export default async function ParticipantPlaceholderPage({
 
   if (definition.status === "FUNCTIONAL" && definition.owner === "RAG") {
     const currentUser = await requireParticipantAccess(ragReturnTarget(pathname, query));
+    const loadingFallback = <ParticipantRagSessionFallback screen={definition} />;
     return (
       <EligibleParticipantShell
         {...(heading.backHref ? { backHref: heading.backHref } : {})}
         activeRoute={pathname}
+        eligibilityLoadingFallback={loadingFallback}
         {...(definition.id === "U-RAG-001"
           ? { headerActions: <RagNewQuestionHeaderAction />, scroll: "child" as const }
           : {})}
         title={heading.title}
       >
-        <RagSessionBoundary key={currentUser.userId} ownerUserId={currentUser.userId}>
+        <RagSessionBoundary
+          fallback={loadingFallback}
+          key={currentUser.userId}
+          ownerUserId={currentUser.userId}
+        >
           <RagFunctionalScreen query={query} screen={definition} userId={currentUser.userId} />
         </RagSessionBoundary>
       </EligibleParticipantShell>
