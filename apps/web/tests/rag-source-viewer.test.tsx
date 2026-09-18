@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { pdfDocumentFrameSource, ReadOnlyPdfViewer } from "@/components/rag/read-only-pdf-viewer";
+import { ReadOnlyPdfViewer } from "@/components/rag/read-only-pdf-viewer";
 
 describe("read-only immutable citation viewer", () => {
   it("exact citation으로 승인한 전체 문서를 핀치 줌 가능한 연속 스크롤로 제공한다", () => {
@@ -54,25 +54,22 @@ describe("read-only immutable citation viewer", () => {
     expect(html).not.toContain('href="/rag"');
   });
 
-  it("문서 목록 미리보기는 정규화 PDF를 인증 요청한 뒤 같은 viewer에서 연다", () => {
+  it("문서 목록 미리보기도 페이지 PNG를 같은 연속 스크롤 viewer에서 연다", () => {
     const html = renderToStaticMarkup(
       <ReadOnlyPdfViewer
         currentPage={1}
         documentTitle="정책자료.pdf"
-        documentUrl="/api/v1/rag/documents/document-1/versions/version-1/preview"
         onClose={() => undefined}
+        sourceUrl="/api/v1/rag/sources/version-1/pages/1"
         totalPages={12}
       />,
     );
 
     expect(html).toContain("정책자료.pdf 미리보기");
-    expect(html).toContain("전체 12페이지");
-    expect(html).toContain("문서 미리보기를 불러오는 중입니다.");
-    expect(html).not.toContain("/api/v1/rag/documents/document-1");
+    expect(html).toContain("p. 1/12");
+    expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
+    expect(html).toContain('data-pdf-scroll-mode="continuous"');
     expect(html).not.toContain("<iframe");
-    expect(pdfDocumentFrameSource("blob:preview")).toBe(
-      "blob:preview#toolbar=0&navpanes=0&scrollbar=1&view=FitH",
-    );
   });
 
   it.each(["설계.drawio.png", "운영지침.hwp", "정책표.xlsx"])(

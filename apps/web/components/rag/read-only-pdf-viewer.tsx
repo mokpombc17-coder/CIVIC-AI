@@ -4,42 +4,24 @@ import Link from "next/link";
 import type { Route } from "next";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RefObject } from "react";
-import { authenticatedFetch, ensureAccessToken } from "@/lib/auth/authenticated-fetch";
+import { ensureAccessToken } from "@/lib/auth/authenticated-fetch";
 
 const PAGE_VISIBILITY_THRESHOLDS = Array.from({ length: 101 }, (_, index) => index / 100);
 
-type ReadOnlyPdfViewerBaseProps = Readonly<{
+type ReadOnlyPdfViewerProps = Readonly<{
   documentTitle: string;
   currentPage: number;
-  totalPages: number;
   onClose?: () => void;
+  onSourceUnavailable?: () => void;
+  sourceUrl: string;
+  totalPages: number;
 }>;
 
-type ReadOnlyPdfViewerProps = ReadOnlyPdfViewerBaseProps &
-  (
-    | Readonly<{
-        sourceUrl: string;
-        documentUrl?: never;
-        onSourceUnavailable?: never;
-      }>
-    | Readonly<{
-        documentUrl: string;
-        sourceUrl?: never;
-        onSourceUnavailable?: () => void;
-      }>
-  );
-
 export function ReadOnlyPdfViewer(props: ReadOnlyPdfViewerProps) {
-  const { documentTitle, currentPage, totalPages, onClose } = props;
+  const { documentTitle, currentPage, onClose, onSourceUnavailable, sourceUrl, totalPages } = props;
   const safeTotalPages = Math.max(1, totalPages);
   const safePage = Math.max(1, Math.min(currentPage, safeTotalPages));
-  const previewSource = props.documentUrl;
-  const citationSource = props.sourceUrl;
-  const documentSource = citationSource
-    ? citationSource.endsWith("/document")
-      ? citationSource
-      : `${citationSource}/document`
-    : (previewSource ?? "");
+  const documentSource = sourceUrl.endsWith("/document") ? sourceUrl : `${sourceUrl}/document`;
   const viewerKey = `${documentSource}:${safePage}`;
   const canvasRef = useRef<HTMLDivElement>(null);
   const [visibleLocation, setVisibleLocation] = useState({ key: viewerKey, page: safePage });
@@ -64,14 +46,10 @@ export function ReadOnlyPdfViewer(props: ReadOnlyPdfViewerProps) {
         <div className="civic-pdf-toolbar-copy">
           <h2 title={`${documentTitle} 미리보기`}>{documentTitle} 미리보기</h2>
           <span
-            aria-label={
-              previewSource
-                ? `전체 ${safeTotalPages}페이지`
-                : `현재 ${visiblePage} / ${safeTotalPages}페이지`
-            }
+            aria-label={`현재 ${visiblePage} / ${safeTotalPages}페이지`}
             className="civic-pdf-toolbar-page"
           >
-            {previewSource ? `전체 ${safeTotalPages}페이지` : `p. ${visiblePage}/${safeTotalPages}`}
+            p. {visiblePage}/{safeTotalPages}
           </span>
         </div>
         {onClose ? (
@@ -91,124 +69,22 @@ export function ReadOnlyPdfViewer(props: ReadOnlyPdfViewerProps) {
       </header>
       <div className="wf-rag-document-card">
         <div className="civic-pdf-canvas" ref={canvasRef}>
-          {previewSource ? (
-            <AuthenticatedPdfDocumentFrame
-              documentTitle={documentTitle}
-              source={previewSource}
-              {...(props.onSourceUnavailable
-                ? { onSourceUnavailable: props.onSourceUnavailable }
-                : {})}
-            />
-          ) : (
-            <AuthenticatedPdfPages
-              currentPage={safePage}
-              documentSource={documentSource}
-              documentTitle={documentTitle}
-              onVisiblePageChange={handleVisiblePageChange}
-              scrollRootRef={canvasRef}
-              totalPages={safeTotalPages}
-            />
-          )}
+          <AuthenticatedPdfPages
+            currentPage={safePage}
+            documentSource={documentSource}
+            documentTitle={documentTitle}
+            onVisiblePageChange={handleVisiblePageChange}
+            {...(onSourceUnavailable ? { onSourceUnavailable } : {})}
+            scrollRootRef={canvasRef}
+            totalPages={safeTotalPages}
+          />
         </div>
         <strong aria-live="polite" className="sr-only">
-          {previewSource
-            ? `전체 ${safeTotalPages}페이지`
-            : `현재 ${visiblePage} / ${safeTotalPages}페이지`}
+          현재 {visiblePage} / {safeTotalPages}페이지
         </strong>
       </div>
     </section>
   );
-}
-
-type PdfDocumentFrameState =
-  | Readonly<{ source: string; status: "loading" }>
-  | Readonly<{ source: string; status: "ready"; objectUrl: string }>
-  | Readonly<{ source: string; status: "error" }>;
-
-function AuthenticatedPdfDocumentFrame({
-  documentTitle,
-  onSourceUnavailable,
-  source,
-}: Readonly<{
-  documentTitle: string;
-  onSourceUnavailable?: () => void;
-  source: string;
-}>) {
-  const [attempt, setAttempt] = useState(0);
-  const [resource, setResource] = useState<PdfDocumentFrameState>({
-    source,
-    status: "loading",
-  });
-  const current = resource.source === source ? resource : ({ source, status: "loading" } as const);
-
-  useEffect(() => {
-    const controller = new AbortController();
-    let active = true;
-    let objectUrl: string | undefined;
-    queueMicrotask(() => {
-      if (active) setResource({ source, status: "loading" });
-    });
-
-    void authenticatedFetch(source, { cache: "no-store", signal: controller.signal })
-      .then(async (response) => {
-        if (response.status === 404) {
-          if (active && onSourceUnavailable) onSourceUnavailable();
-          else if (active) setResource({ source, status: "error" });
-          return;
-        }
-        if (!response.ok)
-          throw new Error(`Participant document preview failed: ${response.status}`);
-        const contentType = response.headers.get("content-type")?.toLowerCase() ?? "";
-        if (!contentType.includes("application/pdf")) {
-          throw new TypeError(`Unexpected participant document preview type: ${contentType}`);
-        }
-        const blob = await response.blob();
-        if (!active) return;
-        objectUrl = URL.createObjectURL(blob);
-        setResource({ source, status: "ready", objectUrl });
-      })
-      .catch((error: unknown) => {
-        if (error instanceof DOMException && error.name === "AbortError") return;
-        if (active) setResource({ source, status: "error" });
-      });
-
-    return () => {
-      active = false;
-      controller.abort();
-      if (objectUrl) URL.revokeObjectURL(objectUrl);
-    };
-  }, [attempt, onSourceUnavailable, source]);
-
-  if (current.status === "ready") {
-    return (
-      <iframe
-        className="civic-pdf-document-frame"
-        src={pdfDocumentFrameSource(current.objectUrl)}
-        title={`${documentTitle} 미리보기`}
-      />
-    );
-  }
-
-  if (current.status === "error") {
-    return (
-      <div className="civic-pdf-page-error civic-pdf-page-status" role="alert">
-        <span>문서 미리보기를 불러오지 못했습니다.</span>
-        <button onClick={() => setAttempt((currentAttempt) => currentAttempt + 1)} type="button">
-          다시 시도
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div aria-live="polite" className="civic-pdf-page-status" role="status">
-      문서 미리보기를 불러오는 중입니다.
-    </div>
-  );
-}
-
-export function pdfDocumentFrameSource(objectUrl: string): string {
-  return `${objectUrl}#toolbar=0&navpanes=0&scrollbar=1&view=FitH`;
 }
 
 type AuthenticatedPdfPagesProps = Readonly<{
@@ -216,6 +92,7 @@ type AuthenticatedPdfPagesProps = Readonly<{
   documentSource: string;
   documentTitle: string;
   onVisiblePageChange: (page: number) => void;
+  onSourceUnavailable?: () => void;
   scrollRootRef: RefObject<HTMLDivElement | null>;
   totalPages: number;
 }>;
@@ -224,6 +101,7 @@ function AuthenticatedPdfPages({
   currentPage,
   documentSource,
   documentTitle,
+  onSourceUnavailable,
   onVisiblePageChange,
   scrollRootRef,
   totalPages,
@@ -339,6 +217,7 @@ function AuthenticatedPdfPages({
           <PdfPageImage
             isCited={page === currentPage}
             key={page}
+            {...(page === 1 && onSourceUnavailable ? { onSourceUnavailable } : {})}
             page={page}
             source={`${documentSource}/pages/${page}.png`}
             title={documentTitle}
@@ -351,12 +230,13 @@ function AuthenticatedPdfPages({
 
 type PdfPageImageProps = Readonly<{
   isCited: boolean;
+  onSourceUnavailable?: () => void;
   page: number;
   source: string;
   title: string;
 }>;
 
-function PdfPageImage({ isCited, page, source, title }: PdfPageImageProps) {
+function PdfPageImage({ isCited, onSourceUnavailable, page, source, title }: PdfPageImageProps) {
   const [retry, setRetry] = useState(0);
   const [failed, setFailed] = useState(false);
   const imageSource = retry === 0 ? source : `${source}?retry=${retry}`;
@@ -388,7 +268,10 @@ function PdfPageImage({ isCited, page, source, title }: PdfPageImageProps) {
           alt={`${title} ${page}페이지`}
           decoding="async"
           loading={isCited ? "eager" : "lazy"}
-          onError={() => setFailed(true)}
+          onError={() => {
+            if (onSourceUnavailable) onSourceUnavailable();
+            else setFailed(true);
+          }}
           src={imageSource}
         />
       )}

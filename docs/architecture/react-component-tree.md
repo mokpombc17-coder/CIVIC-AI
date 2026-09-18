@@ -374,8 +374,8 @@ Server로 직접 연결하며 provider API key나 JWT payload를 Client Componen
 `ParticipantDocumentCatalog`는 대화 복원이 끝났고 메시지가 없을 때만 mount되어
 `/api/v1/rag/documents/random`을 `authenticatedFetch`로 조회하며, 메시지가 생기면 대화 화면에서 제거된다.
 문서 선택 상태와 reference surface 조립은 `ParticipantRagScreen`이 소유한다. 선택한 문서는 목록 응답의
-문서·버전 ID로 `/api/v1/rag/documents/{document_id}/versions/{document_version_id}/preview`를 요청하고,
-`ReadOnlyPdfViewer`가 정규화 PDF blob URL을 생성·해제해 기존 읽기 전용 미리보기 surface에 표시한다.
+버전 ID로 `/api/v1/rag/sources/{document_version_id}/pages/1`을 기준 source로 사용하고,
+`ReadOnlyPdfViewer`가 답변 citation과 동일한 페이지 PNG 목록을 기존 읽기 전용 미리보기 surface에 표시한다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능
