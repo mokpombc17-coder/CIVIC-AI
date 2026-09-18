@@ -133,7 +133,9 @@ ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatc
 │               ├── RagNewQuestionHeaderAction [U-RAG-001 header action]
 │               └── RagSessionBoundary [Client, 현재 계정 확인 전 대화 노출 차단]
 │                   └── RagFunctionalScreen
-│                       └── ParticipantRagScreen [header action event 수신·확인 dialog·메시지 scroll 소유]
+│                       └── ParticipantRagScreen [header action event 수신·확인 dialog·메시지 scroll·문서 미리보기 상태 소유]
+│                           ├── ParticipantDocumentCatalog [Client, 빈 대화에서 참여자 문서 목록 조회·미리보기 선택 전달]
+│                           └── ReadOnlyPdfViewer [Client, 인용 페이지 이미지 또는 목록 문서의 정규화 PDF 표시]
 └── PLACEHOLDER
     ├── requireParticipantAccess
     └── EligibleParticipantShell
@@ -368,6 +370,11 @@ Server로 직접 연결하며 provider API key나 JWT payload를 Client Componen
 같은 탭의 질문·답변·인용·후속 질문 제안을 `sessionStorage`에서 복원하고 `새 질문`에서 삭제한다.
 `RagNewQuestionHeaderAction`은 `ParticipantShell`의 header action slot에 렌더링하고, 요청 event만
 `ParticipantRagScreen`에 전달한다. 대화 초기화와 확인 dialog 상태는 RAG client container가 계속 소유한다.
+`ParticipantDocumentCatalog`는 대화 복원이 끝났고 메시지가 없을 때만 mount되어
+`/api/v1/rag/documents/random`을 `authenticatedFetch`로 조회하며, 메시지가 생기면 대화 화면에서 제거된다.
+문서 선택 상태와 reference surface 조립은 `ParticipantRagScreen`이 소유한다. 선택한 문서는 목록 응답의
+문서·버전 ID로 `/api/v1/rag/documents/{document_id}/versions/{document_version_id}/preview`를 요청하고,
+`ReadOnlyPdfViewer`가 정규화 PDF blob URL을 생성·해제해 기존 읽기 전용 미리보기 surface에 표시한다.
 Crawler 상세 설정과 실행 UI는 현재 컴포넌트 트리에 포함하지 않는다.
 
 ## 현재 비활성 기능
