@@ -2505,8 +2505,8 @@ describe("7 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain("어떤 점이 궁금한가요?");
-    expect(restoringParticipantHtml).toContain("어떤 점이 궁금한가요?");
+    expect(participantHtml).toContain("이런 문서는 어떠세요?");
+    expect(restoringParticipantHtml).toContain("이런 문서는 어떠세요?");
     expect(participantHtml).not.toContain("문서에서 궁금한 내용을 물어보세요.");
     expect(participantHtml).not.toContain("AI가 관련 내용을 찾아 답변해 드립니다.");
     expect(participantHtml).not.toContain('aria-label="새 대화"');

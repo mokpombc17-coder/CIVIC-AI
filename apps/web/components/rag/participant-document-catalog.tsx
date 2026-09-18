@@ -89,7 +89,7 @@ export function ParticipantDocumentCatalogLoading() {
 function ParticipantDocumentCatalogHeading() {
   return (
     <header className="civic-rag-catalog-heading">
-      <h3 id="participant-document-catalog-title">어떤 점이 궁금한가요?</h3>
+      <h3 id="participant-document-catalog-title">이런 문서는 어떠세요?</h3>
       <p>관심 가는 문서에 대해 자유롭게 질문해 보세요.</p>
     </header>
   );

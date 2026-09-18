@@ -23,7 +23,7 @@ describe("route-aware loading skeletons", () => {
     expect(markup).toMatch(/<h1[^>]*>AI<\/h1>/);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/rag"/);
     expect(markup).toContain('placeholder="궁금한 내용을 입력해 주세요"');
-    expect(markup).toContain("어떤 점이 궁금한가요?");
+    expect(markup).toContain("이런 문서는 어떠세요?");
     expect(markup.match(/is-loading/gu)).toHaveLength(3);
     expect(markup).not.toContain("civic-skeleton-chat-question");
     expect(markup).not.toContain("civic-skeleton-chat-answer");
