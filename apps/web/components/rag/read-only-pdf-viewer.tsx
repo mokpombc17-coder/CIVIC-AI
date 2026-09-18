@@ -243,7 +243,7 @@ function PdfPageImage({ isCited, page, source, title }: PdfPageImageProps) {
   return (
     <article
       aria-label={`${page}페이지${isCited ? ", 인용 페이지" : ""}`}
-      className={`civic-pdf-page${isCited ? " is-cited" : ""}`}
+      className="civic-pdf-page"
       data-pdf-page={page}
     >
       {failed ? (
