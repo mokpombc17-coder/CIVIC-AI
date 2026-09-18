@@ -44,7 +44,7 @@ Next.js 애플리케이션에 둔다.
 | 일반 목록, 홈, 설정, 404                                | `PlatformPageShell`                              |
 | 여러 route가 같은 title, navigation, scroll 설정을 공유 | 가장 가까운 `layout.tsx`에서 `PlatformPageShell` |
 | 채팅방, 가상화 목록, 자체 scroll viewport               | `PlatformShell scroll="child"` 직접 조립         |
-| overlay, `shellRef`, `contentInert` 제어가 필요한 화면  | `PlatformShell` 직접 조립                        |
+| overlay, `contentInert` 제어가 필요한 화면              | `PlatformShell` 직접 조립                        |
 | 이미 상위에서 shell을 제공하는 하위 route               | shell을 추가하지 않고 content만 렌더링           |
 
 ## 일반 화면
@@ -162,8 +162,9 @@ root layout에는 HTML, 전역 runtime과 provider만 두며 완성된 시각 sh
 modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 때 `contentInert`를 함께
 설정하면 header, content와 navigation surface가 모두 비활성화된다.
 
-채팅 composer처럼 모바일 키보드에 맞춰 실제 shell 높이를 보정해야 하면 `shellRef`를 사용한다.
-일반 브라우저와 데스크톱은 기존 `100dvh` 규칙을 유지한다. PWA standalone에서는
+route나 도메인 화면은 실제 shell element에 직접 접근하지 않는다. 모바일 키보드에 따른 viewport
+보정은 공통 `PlatformShell` 경계가 소유한다. 일반 브라우저와 데스크톱은 기존 `100dvh` 규칙을
+유지한다. PWA standalone에서는
 `PlatformShell` stage 하나만 `100dvh`를 계산하고 내부 shell은 stage의 `100%`를 채운다.
 route나 도메인 화면에 별도의 `100dvh` wrapper를 추가하지 않는다.
 

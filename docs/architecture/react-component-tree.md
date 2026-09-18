@@ -431,10 +431,8 @@ membership 불일치에서는 generation별 한 번만 Room detail과 receipt를
 실시간 generation이 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
 `ChatRoomListView`와 `ChatRoomView`는 각 container가 만든 UI 전용 ViewModel과 callback 또는 ReactNode
 slot을 공통 `PlatformShell`에 배치하는 View 경계다. 두 View는 `PlatformNavigationClient`를 하단 slot에
-제공하고, 키보드 입력에 포커스가 있는 동안 visual viewport의 기준 높이와 위치를 shell ref에 반영해
-header·content·bottom navigation을 보이는 영역 안에 유지한다. `ChatRoomView`는 `PlatformHeader`에
-`/chat` back action, 제목과 도메인 action을 전달한다. 최초 진입 중에는 실제 message viewport를
-inert·비가시 상태로 배치해 초기 위치
+제공한다. `ChatRoomView`는 `PlatformHeader`에 `/chat` back action, 제목과 도메인 action을 전달한다.
+최초 진입 중에는 실제 message viewport를 inert·비가시 상태로 배치해 초기 위치
 측정은 허용하되 loading content가 이를 덮고, viewport의 위치 보정 완료 callback을 받은 뒤 완성된 화면을
 한 번에 노출한다. 이때 read-state 보고는 실제 화면이 노출될 때까지 보류한다. overlay 존재 여부는
 공통 surface의 inert 상태와 read-state pause 신호에 함께 전달한다. session indicator처럼 받은 값을

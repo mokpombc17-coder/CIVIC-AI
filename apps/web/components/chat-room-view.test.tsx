@@ -19,10 +19,6 @@ vi.mock("@/components/chat-message-viewport", () => ({
   ),
 }));
 
-vi.mock("@/components/use-chat-room-visual-viewport", () => ({
-  useChatRoomVisualViewportHeight: () => ({ current: null }),
-}));
-
 vi.mock("next/navigation", () => ({
   usePathname: () => "/chat/room-01",
 }));

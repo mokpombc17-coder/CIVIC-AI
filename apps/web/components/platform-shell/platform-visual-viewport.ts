@@ -1,15 +1,15 @@
-type ChatRoomVisibleHeightOptions = Readonly<{
+type PlatformVisibleHeightOptions = Readonly<{
   bottomGap: number;
   viewportHeight: number;
 }>;
 
-type ChatRoomVisualViewportLayoutOptions = ChatRoomVisibleHeightOptions &
+type PlatformVisualViewportLayoutOptions = PlatformVisibleHeightOptions &
   Readonly<{
     viewportBaselineHeight: number;
     viewportOffsetTop: number;
   }>;
 
-type ChatRoomVisualViewportConstraintOptions = Readonly<{
+type PlatformVisualViewportConstraintOptions = Readonly<{
   hasFocusedTextEntry: boolean;
   viewportBaselineHeight: number;
   viewportHeight: number;
@@ -17,39 +17,39 @@ type ChatRoomVisualViewportConstraintOptions = Readonly<{
 
 const MINIMUM_KEYBOARD_VIEWPORT_REDUCTION = 80;
 
-export type ChatRoomVisualViewportLayout = Readonly<{
+export type PlatformVisualViewportLayout = Readonly<{
   alignSelf: "" | "start";
   height: number;
   marginTop: string;
 }>;
 
-export function calculateChatRoomVisibleHeight({
+export function calculatePlatformVisibleHeight({
   bottomGap,
   viewportHeight,
-}: ChatRoomVisibleHeightOptions): number {
+}: PlatformVisibleHeightOptions): number {
   return Math.max(0, Math.floor(viewportHeight - bottomGap));
 }
 
-export function calculateChatRoomVisualViewportLayout({
+export function calculatePlatformVisualViewportLayout({
   bottomGap,
   viewportBaselineHeight,
   viewportHeight,
   viewportOffsetTop,
-}: ChatRoomVisualViewportLayoutOptions): ChatRoomVisualViewportLayout {
+}: PlatformVisualViewportLayoutOptions): PlatformVisualViewportLayout {
   const isVisualViewportConstrained = viewportHeight < viewportBaselineHeight;
 
   return {
     alignSelf: isVisualViewportConstrained ? "start" : "",
-    height: calculateChatRoomVisibleHeight({ bottomGap, viewportHeight }),
+    height: calculatePlatformVisibleHeight({ bottomGap, viewportHeight }),
     marginTop: isVisualViewportConstrained ? `${Math.max(0, Math.floor(viewportOffsetTop))}px` : "",
   };
 }
 
-export function shouldConstrainChatRoomToVisualViewport({
+export function shouldConstrainPlatformToVisualViewport({
   hasFocusedTextEntry,
   viewportBaselineHeight,
   viewportHeight,
-}: ChatRoomVisualViewportConstraintOptions): boolean {
+}: PlatformVisualViewportConstraintOptions): boolean {
   if (!hasFocusedTextEntry) {
     return false;
   }

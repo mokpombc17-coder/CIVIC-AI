@@ -13,7 +13,6 @@ import { ChatRoomScreenLoadingContent } from "@/components/chat-room-screen-load
 import type { ChatRoomHeaderViewModel } from "@/components/chat-room-view-model";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
-import { useChatRoomVisualViewportHeight } from "@/components/use-chat-room-visual-viewport";
 
 export type ChatMessageHistoryViewModel = Omit<ChatMessageViewportViewModel, "readStatePaused">;
 
@@ -46,7 +45,6 @@ export function ChatRoomView({
   sessionControls,
   syncStatus,
 }: ChatRoomViewProps) {
-  const chatRoomShellRef = useChatRoomVisualViewportHeight<HTMLDivElement>(0);
   const hasOverlay =
     !initializing &&
     roomError === null &&
@@ -69,7 +67,6 @@ export function ChatRoomView({
       headerSize="compact"
       overlay={roomError || initializing ? null : overlay}
       scroll="child"
-      shellRef={chatRoomShellRef}
     >
       <section className="flex h-full min-h-0 flex-col overflow-hidden" data-chat-room-view="true">
         <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">

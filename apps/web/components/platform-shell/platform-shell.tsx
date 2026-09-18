@@ -1,4 +1,4 @@
-import type { ReactNode, Ref } from "react";
+import type { ReactNode } from "react";
 import styles from "./platform-shell.module.css";
 
 export type PlatformShellScroll = "self" | "child";
@@ -13,7 +13,6 @@ export type PlatformShellProps = Readonly<{
   headerSize?: "compact";
   overlay?: ReactNode;
   scroll?: PlatformShellScroll;
-  shellRef?: Ref<HTMLDivElement>;
 }>;
 
 export function PlatformShell({
@@ -26,7 +25,6 @@ export function PlatformShell({
   headerSize,
   overlay,
   scroll = "self",
-  shellRef,
 }: PlatformShellProps) {
   return (
     <div className={styles.stage} data-platform-shell-stage="true">
@@ -35,7 +33,6 @@ export function PlatformShell({
         data-header-size={headerSize}
         data-platform-shell="true"
         data-scroll={scroll}
-        ref={shellRef}
       >
         <div
           aria-hidden={contentInert ? true : undefined}
