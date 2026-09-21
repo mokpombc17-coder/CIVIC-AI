@@ -88,7 +88,9 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            ├── ParticipantSwipeNavigationController [Client, 초기 hydration에서 listener 등록 후 ready 신호 발행]
+            ├── participant-swipe-bootstrap.js [external defer, hydration 전 swipe listener 등록]
+            │   └── React controller ready 신호 뒤 listener·임시 style 정리
+            ├── ParticipantSwipeNavigationController [Client, hydration에서 listener 등록 후 bootstrap takeover]
             │   └── 수평 의도 확인 뒤 현재 content surface drag/exit
             ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
             │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
@@ -98,10 +100,11 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
             │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
             │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
             │           └── 필수 미제출: /survey?returnTo=/home hard navigation
-            ├── HomeHeroAnimationController [Client, swipe-ready 이후 첫 paint·idle 시 시작 및 도넛 debug replay 제어]
-            └── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
-                ├── OpinionGatheringHero [SSR: 질문·회색 도넛·replay 표식, controller가 CSS 애니메이션 제어]
-                └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
+            ├── HomeHeroAnimationController [Client, 도넛 debug replay 및 inline bootstrap 미실행 시 fallback]
+            ├── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
+            │   ├── OpinionGatheringHero [SSR: 질문·회색 도넛·replay 표식]
+            │   └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
+            └── HomeHeroAnimationBootstrap [Server, Hero 뒤 nonce inline script로 double RAF 시작·완료 계약 소유]
 
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
