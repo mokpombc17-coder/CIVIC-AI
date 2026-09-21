@@ -26,6 +26,8 @@ type IdleWindow = Window &
 
 export function HomeHeroAnimationController() {
   useEffect(() => {
+    performance.mark?.("civic-home-hero-controller-effect");
+
     const hero = document.querySelector<HTMLElement>(homeHeroAnimationRootSelector);
     if (!hero) return;
 

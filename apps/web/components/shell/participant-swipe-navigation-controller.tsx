@@ -234,6 +234,9 @@ export function ParticipantSwipeNavigationController({
     surface.addEventListener("pointercancel", handlePointerEnd);
     surface.addEventListener("click", handleClick, true);
     surface.addEventListener("dragstart", handleDragStart);
+
+    performance.mark?.("civic-participant-swipe-ready");
+
     surface.dataset.participantSwipeReady = "true";
     window.dispatchEvent(new Event(participantSwipeReadyEvent));
 
