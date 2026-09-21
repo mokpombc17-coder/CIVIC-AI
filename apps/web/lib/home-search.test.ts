@@ -7,8 +7,11 @@ import {
 } from "@/lib/home-search";
 
 describe("home search metadata", () => {
-  it("uses an absolute title and a complete description for the home page", () => {
+  it("uses canonical search metadata for the home page", () => {
     expect(homeMetadata).toMatchObject({
+      alternates: {
+        canonical: "https://civic-ai.co.kr/home",
+      },
       description: HOME_SEARCH_DESCRIPTION,
       robots: {
         follow: true,
