@@ -22,6 +22,11 @@ const persistentAssets = [
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2",
     references: ["app/layout.tsx", "app/wireflow-base.css"],
   },
+  {
+    file: "public/assets/participant-swipe-bootstrap.js",
+    publicPath: "/assets/participant-swipe-bootstrap.js",
+    references: ["components/shell/participant-shell.tsx"],
+  },
   ...["home", "ai", "chat", "vote", "account"].map((name) => ({
     file: `public/assets/platform-navigation/${name}.png`,
     publicPath: `/assets/platform-navigation/${name}.png`,
@@ -30,11 +35,11 @@ const persistentAssets = [
 ] as const;
 
 describe("PWA service worker", () => {
-  it("PWA 시작 shell과 버전 지정 폰트·공통 이미지만 캐시한다", () => {
+  it("PWA 시작 shell과 버전 지정 공통 자산만 캐시한다", () => {
     const source = readFileSync(workerPath, "utf8");
 
     expect(source).toContain('const PWA_START_URL = "/pwa/start"');
-    expect(source).toContain("const PWA_CACHE = `${PWA_CACHE_PREFIX}v2`");
+    expect(source).toContain("const PWA_CACHE = `${PWA_CACHE_PREFIX}v3`");
     expect(source).toContain("key.startsWith(PWA_CACHE_PREFIX)");
     expect(source).toContain("isPersistentAsset(url.pathname)");
     expect(source).toContain("isPwaBuildAsset(url.pathname)");
@@ -52,7 +57,7 @@ describe("PWA service worker", () => {
     expect(buildCacheFunction).not.toContain("cache.put");
   });
 
-  it("폰트와 navigation 이미지의 URL 버전을 실제 콘텐츠 해시와 동기화한다", () => {
+  it("persistent asset URL 버전을 실제 콘텐츠 해시와 동기화한다", () => {
     const worker = readFileSync(workerPath, "utf8");
 
     for (const asset of persistentAssets) {
