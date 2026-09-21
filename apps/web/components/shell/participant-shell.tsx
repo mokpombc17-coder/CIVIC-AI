@@ -36,35 +36,39 @@ export function ParticipantShell({
       : undefined;
 
   return (
-    <PlatformPageShell
-      {...(backAction ? { backAction } : {})}
-      bottomNavigation={
-        bottomNavigation === undefined ? (
-          <PlatformNavigation
-            currentPathname={activeRoute}
-            requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
-          />
-        ) : (
-          bottomNavigation
-        )
-      }
-      contentClassName="civic-platform-participant-content"
-      {...(headerActions !== undefined ? { headerActions } : {})}
-      scroll={scroll}
-      title={headerTitle ?? title ?? section.title}
-    >
-      <a className="civic-skip-link" href="#civic-content">
-        <span data-nosnippet="">본문 바로가기</span>
-      </a>
-      <div
-        className="civic-platform-participant-body"
-        data-participant-surface="true"
-        id="civic-content"
+    <>
+      <PlatformPageShell
+        {...(backAction ? { backAction } : {})}
+        bottomNavigation={
+          bottomNavigation === undefined ? (
+            <PlatformNavigation
+              currentPathname={activeRoute}
+              requiresLoginForProtectedLinks={requiresLoginForProtectedLinks}
+            />
+          ) : (
+            bottomNavigation
+          )
+        }
+        contentClassName="civic-platform-participant-content"
+        {...(headerActions !== undefined ? { headerActions } : {})}
+        scroll={scroll}
+        title={headerTitle ?? title ?? section.title}
       >
-        {children}
-      </div>
+        <a className="civic-skip-link" href="#civic-content">
+          <span data-nosnippet="">본문 바로가기</span>
+        </a>
+        <div
+          className="civic-platform-participant-body"
+          data-participant-surface="true"
+          id="civic-content"
+          style={{ touchAction: "pan-y pinch-zoom" }}
+        >
+          {children}
+        </div>
+      </PlatformPageShell>
+      <script defer src="/assets/participant-swipe-bootstrap.js" />
       <ParticipantSwipeNavigationController activeRoute={activeRoute} />
-    </PlatformPageShell>
+    </>
   );
 }
 
