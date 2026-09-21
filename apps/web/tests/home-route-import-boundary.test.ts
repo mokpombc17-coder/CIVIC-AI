@@ -64,6 +64,7 @@ describe("home route import boundary", () => {
     expect(animationBootstrap).toContain("homeHeroAnimationBootstrapReadyMark");
     expect(animationBootstrap).toContain('initialState === "pending"');
     expect(animationBootstrap).toContain('addEventListener("animationend"');
+    expect(animationBootstrap).toContain("if (!hero.isConnected) return;");
     expect(animationBootstrap).toContain("window.requestAnimationFrame");
     expect(animationController).not.toContain("participantSwipeReadyEvent");
     expect(animationController).not.toContain("participantSwipeReady");

@@ -9,13 +9,16 @@
     document.querySelectorAll('[data-participant-surface="true"]'),
   ).filter((candidate) => candidate instanceof HTMLElement);
   const surface = participantSurfaces[participantSurfaces.length - 1];
-  const participantShell = surface?.closest('[data-platform-shell="true"]');
+  if (!(surface instanceof HTMLElement)) return;
+  if (surface.dataset.participantSwipeReady === "true") return;
+
+  const participantShell = surface.closest('[data-platform-shell="true"]');
   const navigationLinks = Array.from(
     participantShell?.querySelectorAll("[data-platform-navigation-route]") ?? [],
   ).filter((link) => link instanceof HTMLAnchorElement);
   const activeLink = navigationLinks.find((link) => link.getAttribute("aria-current") === "page");
   const currentRoute = activeLink?.dataset.platformNavigationRoute;
-  if (!(surface instanceof HTMLElement) || !currentRoute || navigationLinks.length === 0) return;
+  if (!currentRoute || navigationLinks.length === 0) return;
 
   const cancelDurationMs = 180;
   const dragFollowDurationMs = 70;

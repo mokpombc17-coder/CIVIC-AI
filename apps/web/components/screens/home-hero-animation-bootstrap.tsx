@@ -36,6 +36,7 @@ const bootstrapSource = `(() => {
     completed = true;
     window.clearTimeout(completionFallbackHandle);
     animationTarget?.removeEventListener("animationend", handleAnimationEnd);
+    if (!hero.isConnected) return;
     hero.dataset.homeHeroAnimationState = "complete";
     performance.mark?.(${JSON.stringify(homeHeroAnimationEndMark)});
     window.dispatchEvent(new Event(${JSON.stringify(homeHeroAnimationCompleteEvent)}));

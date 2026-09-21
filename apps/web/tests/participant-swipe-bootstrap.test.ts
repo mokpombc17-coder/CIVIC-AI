@@ -117,7 +117,7 @@ class TestAnchor extends TestElement {
   }
 }
 
-function createHarness() {
+function createHarness({ reactReady = false }: Readonly<{ reactReady?: boolean }> = {}) {
   const bootstrap = readFileSync(
     join(__dirname, "..", "public", "assets", "participant-swipe-bootstrap.js"),
     "utf8",
@@ -126,6 +126,7 @@ function createHarness() {
   const shell = new TestElement();
   const homeLink = new TestAnchor("/home", true);
   const ragLink = new TestAnchor("/rag", false);
+  if (reactReady) surface.dataset.participantSwipeReady = "true";
   shell.querySelectorAll = () => [homeLink, ragLink];
   surface.shell = shell;
 
@@ -201,6 +202,14 @@ function createHarness() {
 }
 
 describe("pre-hydration participant swipe takeover", () => {
+  it("does not install bootstrap listeners after React already owns the surface", () => {
+    const harness = createHarness({ reactReady: true });
+
+    expect(harness.bootstrapActive()).toBe(false);
+    expect(harness.marks).toEqual([]);
+    expect(harness.surface.listeners.size).toBe(0);
+  });
+
   it("cleans up immediately when React becomes ready without an active gesture", () => {
     const harness = createHarness();
 
