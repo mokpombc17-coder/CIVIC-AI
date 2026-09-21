@@ -14,6 +14,9 @@ export const websiteJsonLd = {
 } as const;
 
 export const homeMetadata = {
+  alternates: {
+    canonical: "https://civic-ai.co.kr/home",
+  },
   robots: {
     follow: true,
     index: true,
