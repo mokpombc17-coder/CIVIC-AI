@@ -41,6 +41,8 @@
   const reducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
   let gesture = null;
   let isNavigating = false;
+  let interactionSettling = false;
+  let takeoverRequested = false;
   let animationFrame = 0;
   let navigationFallback = 0;
   let temporaryStyleReset = 0;
@@ -63,12 +65,21 @@
     surface.style.willChange = originalInlineStyles.willChange;
   };
 
+  const finishInteraction = () => {
+    interactionSettling = false;
+    if (takeoverRequested) cleanup();
+  };
+
   const cancelGesture = () => {
+    interactionSettling = true;
     surface.style.transition = reducedMotion ? "none" : `transform ${cancelDurationMs}ms ease-out`;
     writeVisualOffset(0);
     window.clearTimeout(temporaryStyleReset);
     temporaryStyleReset = window.setTimeout(
-      clearTemporaryStyles,
+      () => {
+        clearTemporaryStyles();
+        finishInteraction();
+      },
       reducedMotion ? 0 : cancelDurationMs,
     );
   };
@@ -105,9 +116,11 @@
   };
 
   const finishNavigation = (targetLink) => {
+    if (!interactionSettling) return;
     window.clearTimeout(navigationFallback);
     removeTransitionListener?.();
     targetLink.click();
+    finishInteraction();
   };
 
   const navigateTo = (targetRoute, direction) => {
@@ -118,6 +131,7 @@
     }
 
     isNavigating = true;
+    interactionSettling = true;
     if (reducedMotion) {
       finishNavigation(targetLink);
       return;
@@ -145,6 +159,11 @@
   };
 
   const handlePointerDown = (event) => {
+    if (takeoverRequested && !gesture) {
+      event.stopImmediatePropagation();
+      return;
+    }
+
     if (
       isNavigating ||
       gesture ||
@@ -222,6 +241,7 @@
 
     if (completedGesture.intent !== "horizontal") {
       clearTemporaryStyles();
+      if (takeoverRequested) cleanup();
       return;
     }
 
@@ -263,6 +283,11 @@
     if (gesture) event.preventDefault();
   };
 
+  const handleReactReady = () => {
+    takeoverRequested = true;
+    if (!gesture && !interactionSettling) cleanup();
+  };
+
   const cleanup = () => {
     if (cleaned) return;
     cleaned = true;
@@ -271,13 +296,18 @@
     window.clearTimeout(temporaryStyleReset);
     window.clearTimeout(suppressClickReset);
     removeTransitionListener?.();
+    if (gesture && surface.hasPointerCapture?.(gesture.pointerId)) {
+      surface.releasePointerCapture?.(gesture.pointerId);
+    }
+    gesture = null;
+    interactionSettling = false;
     surface.removeEventListener("pointerdown", handlePointerDown);
     surface.removeEventListener("pointermove", handlePointerMove);
     surface.removeEventListener("pointerup", handlePointerEnd);
     surface.removeEventListener("pointercancel", handlePointerEnd);
     surface.removeEventListener("click", handleClick, true);
     surface.removeEventListener("dragstart", handleDragStart);
-    window.removeEventListener(reactReadyEvent, cleanup);
+    window.removeEventListener(reactReadyEvent, handleReactReady);
     Object.assign(surface.style, originalInlineStyles);
     if (window[bootstrapKey]?.cleanup === cleanup) delete window[bootstrapKey];
   };
@@ -288,7 +318,7 @@
   surface.addEventListener("pointercancel", handlePointerEnd);
   surface.addEventListener("click", handleClick, true);
   surface.addEventListener("dragstart", handleDragStart);
-  window.addEventListener(reactReadyEvent, cleanup);
+  window.addEventListener(reactReadyEvent, handleReactReady);
 
   window[bootstrapKey] = { cleanup, originalInlineStyles };
   performance.mark?.("civic-participant-swipe-bootstrap-ready");
