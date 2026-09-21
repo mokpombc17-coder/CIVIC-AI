@@ -5,9 +5,13 @@
   const reactReadyEvent = "civic:participant-swipe-react-ready";
   if (window[bootstrapKey]) return;
 
-  const surface = document.querySelector('[data-participant-surface="true"]');
+  const participantSurfaces = Array.from(
+    document.querySelectorAll('[data-participant-surface="true"]'),
+  ).filter((candidate) => candidate instanceof HTMLElement);
+  const surface = participantSurfaces[participantSurfaces.length - 1];
+  const participantShell = surface?.closest('[data-platform-shell="true"]');
   const navigationLinks = Array.from(
-    document.querySelectorAll("[data-platform-navigation-route]"),
+    participantShell?.querySelectorAll("[data-platform-navigation-route]") ?? [],
   ).filter((link) => link instanceof HTMLAnchorElement);
   const activeLink = navigationLinks.find((link) => link.getAttribute("aria-current") === "page");
   const currentRoute = activeLink?.dataset.platformNavigationRoute;
