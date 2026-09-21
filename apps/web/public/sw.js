@@ -1,5 +1,5 @@
 const PWA_CACHE_PREFIX = "civic-ai-pwa-start-";
-const PWA_CACHE = `${PWA_CACHE_PREFIX}v2`;
+const PWA_CACHE = `${PWA_CACHE_PREFIX}v3`;
 const PWA_START_URL = "/pwa/start";
 const PERSISTENT_ASSETS = [
   "/icons/civic-ai-192.png",
@@ -13,6 +13,7 @@ const PERSISTENT_ASSETS = [
   "/assets/platform-navigation/chat.png?v=088425758cd1",
   "/assets/platform-navigation/vote.png?v=21e61dc6c498",
   "/assets/platform-navigation/account.png?v=b19ca424bf3c",
+  "/assets/participant-swipe-bootstrap.js?v=99f9880d58fb",
 ];
 
 self.addEventListener("install", (event) => {
@@ -104,7 +105,8 @@ function isPersistentAsset(pathname) {
   return (
     pathname.startsWith("/icons/") ||
     pathname.startsWith("/fonts/pretendard-gov/") ||
-    pathname.startsWith("/assets/platform-navigation/")
+    pathname.startsWith("/assets/platform-navigation/") ||
+    pathname === "/assets/participant-swipe-bootstrap.js"
   );
 }
 

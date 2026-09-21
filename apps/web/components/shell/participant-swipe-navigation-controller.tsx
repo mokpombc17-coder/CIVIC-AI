@@ -10,6 +10,7 @@ import {
   participantSwipeDirectionRatio,
   participantSwipeDirectionSlop,
   participantSwipeReadyEvent,
+  participantSwipeReactReadyEvent,
   participantSwipeVisualOffset,
 } from "@/lib/participant-swipe-navigation";
 
@@ -33,6 +34,21 @@ type ActiveGesture = {
   startY: number;
 };
 
+type ParticipantSwipeInlineStyles = {
+  touchAction: string;
+  transform: string;
+  transition: string;
+  userSelect: string;
+  willChange: string;
+};
+
+type ParticipantSwipeBootstrapWindow = Window &
+  typeof globalThis & {
+    __civicParticipantSwipeBootstrap?: {
+      originalInlineStyles?: ParticipantSwipeInlineStyles;
+    };
+  };
+
 export function ParticipantSwipeNavigationController({
   activeRoute,
 }: Readonly<{ activeRoute: string }>) {
@@ -41,7 +57,9 @@ export function ParticipantSwipeNavigationController({
     const surface = document.querySelector<HTMLElement>(participantSurfaceSelector);
     if (!currentRoute || !surface) return;
 
-    const originalInlineStyles = {
+    const bootstrapState = (window as ParticipantSwipeBootstrapWindow)
+      .__civicParticipantSwipeBootstrap;
+    const originalInlineStyles = bootstrapState?.originalInlineStyles ?? {
       touchAction: surface.style.touchAction,
       transform: surface.style.transform,
       transition: surface.style.transition,
@@ -234,8 +252,13 @@ export function ParticipantSwipeNavigationController({
     surface.addEventListener("pointercancel", handlePointerEnd);
     surface.addEventListener("click", handleClick, true);
     surface.addEventListener("dragstart", handleDragStart);
+
+    performance.mark?.("civic-participant-swipe-ready");
+
     surface.dataset.participantSwipeReady = "true";
     window.dispatchEvent(new Event(participantSwipeReadyEvent));
+    window.dispatchEvent(new Event(participantSwipeReactReadyEvent));
+    surface.style.touchAction = "pan-y pinch-zoom";
 
     return () => {
       window.cancelAnimationFrame(animationFrame);

@@ -187,6 +187,7 @@ export function OpinionGatheringHero({
       data-home-hero-animate={animate ? "true" : undefined}
       data-nosnippet=""
       style={style}
+      suppressHydrationWarning
       aria-label={accessibleSummary}
     >
       <h2

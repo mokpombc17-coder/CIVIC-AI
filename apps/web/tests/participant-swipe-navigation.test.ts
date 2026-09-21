@@ -9,6 +9,7 @@ import {
   participantSwipeDestination,
   participantSwipeDirectionSlop,
   participantSwipeMaximumVisualDistance,
+  participantSwipeReactReadyEvent,
   participantSwipeSoftCapStart,
   participantSwipeVisualOffset,
 } from "@/lib/participant-swipe-navigation";
@@ -70,6 +71,31 @@ describe("participant bottom navigation swipe", () => {
     expect(isParticipantSwipeNavigation(40, 0.5)).toBe(true);
     expect(isParticipantSwipeNavigation(40, 0.49)).toBe(false);
     expect(isParticipantSwipeNavigation(39, 1)).toBe(false);
+  });
+
+  it("hydration 전 bootstrap은 동일한 pointer 입력을 처리하고 React takeover를 기다린다", () => {
+    const bootstrap = readFileSync(
+      join(webRoot, "public", "assets", "participant-swipe-bootstrap.js"),
+      "utf8",
+    );
+
+    expect(participantSwipeReactReadyEvent).toBe("civic:participant-swipe-react-ready");
+    expect(bootstrap).toContain("civic-participant-swipe-bootstrap-ready");
+    expect(bootstrap).toContain(participantSwipeReactReadyEvent);
+    for (const eventName of [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "click",
+      "dragstart",
+    ]) {
+      expect(bootstrap).toContain(`addEventListener(\"${eventName}\"`);
+      expect(bootstrap).toContain(`removeEventListener(\"${eventName}\"`);
+    }
+    expect(bootstrap).toContain("targetLink.click()");
+    expect(bootstrap).not.toContain("history.pushState");
+    expect(bootstrap).not.toContain("router.push");
   });
 
   it("RAG 메시지 스크롤 영역은 세로 스크롤을 유지하며 수평 pointer gesture를 허용한다", () => {

@@ -22,6 +22,10 @@ describe("home route import boundary", () => {
       join(webRoot, "components", "screens", "home-hero-animation-controller.tsx"),
       "utf8",
     );
+    const animationBootstrap = readFileSync(
+      join(webRoot, "components", "screens", "home-hero-animation-bootstrap.tsx"),
+      "utf8",
+    );
     const homeScreen = readFileSync(
       join(webRoot, "components", "screens", "participant-home-screen.tsx"),
       "utf8",
@@ -37,7 +41,11 @@ describe("home route import boundary", () => {
 
     expect(page).toContain("@/components/screens/participant-home-screen");
     expect(page).toContain("@/components/auth/deferred-home-query-runtime");
+    expect(page).toContain("@/components/screens/home-hero-animation-bootstrap");
     expect(page).toContain("@/components/screens/home-hero-animation-controller");
+    expect(page.indexOf("<ParticipantHomeScreen")).toBeLessThan(
+      page.indexOf("<HomeHeroAnimationBootstrap"),
+    );
     expect(page).not.toContain("@/components/screens/main-functional-screen");
     expect(page).not.toContain("@/components/auth/participant-eligibility-guard");
     expect(page.match(/prefetch=\{false\}/gu)).toHaveLength(2);
@@ -50,12 +58,21 @@ describe("home route import boundary", () => {
     expect(deferredRuntime).toContain('import("./home-query-runtime")');
     expect(deferredRuntime).toContain("homeHeroAnimationCompleteEvent");
     expect(deferredRuntime).toContain("window.setTimeout(queueRuntimeLoad");
-    expect(animationController).toContain("participantSwipeReadyEvent");
-    expect(animationController).toContain("participantSwipeReady");
+    expect(animationBootstrap).not.toContain('"use client"');
+    expect(animationBootstrap).toContain('headers()).get("x-nonce")');
+    expect(animationBootstrap).toContain("dangerouslySetInnerHTML");
+    expect(animationBootstrap).toContain("homeHeroAnimationBootstrapReadyMark");
+    expect(animationBootstrap).toContain('initialState === "pending"');
+    expect(animationBootstrap).toContain('addEventListener("animationend"');
+    expect(animationBootstrap).toContain("if (!hero.isConnected) return;");
+    expect(animationBootstrap).toContain("window.requestAnimationFrame");
+    expect(animationController).not.toContain("participantSwipeReadyEvent");
+    expect(animationController).not.toContain("participantSwipeReady");
     expect(animationController).toContain("window.requestAnimationFrame");
-    expect(animationController).toContain("requestIdleCallback");
+    expect(animationController).not.toContain("requestIdleCallback");
     expect(animationController).toContain('addEventListener("animationend"');
     expect(animationController).toContain("homeHeroAnimationStartMark");
+    expect(animationController).toContain('initialState === "pending"');
     expect(homeScreen).not.toMatch(
       /account-functional-screen|admin-functional-screen|auth-functional-screen|@tanstack\/react-query/u,
     );
@@ -63,6 +80,7 @@ describe("home route import boundary", () => {
     expect(opinionHero).not.toMatch(/["']use client["']/u);
     expect(opinionHero).toContain("useId");
     expect(opinionHero).not.toMatch(/use(?:Effect|State)|window\.|document\./u);
+    expect(opinionHero).toContain("suppressHydrationWarning");
   });
 
   it("홈 initial CSS에서 participant 전체·admin stylesheet를 제외한다", () => {

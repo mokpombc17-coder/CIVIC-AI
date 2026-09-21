@@ -6,6 +6,7 @@ import {
   ParticipantHomeActions,
   ParticipantHomeScreen,
 } from "@/components/screens/participant-home-screen";
+import { HomeHeroAnimationBootstrap } from "@/components/screens/home-hero-animation-bootstrap";
 import { HomeHeroAnimationController } from "@/components/screens/home-hero-animation-controller";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { CurrentUserGreeting } from "@/components/shell/current-user-greeting";
@@ -59,6 +60,7 @@ export default function HomePage() {
           }
           screen={screen}
         />
+        <HomeHeroAnimationBootstrap />
       </ParticipantShell>
     </>
   );
