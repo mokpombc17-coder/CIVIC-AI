@@ -527,8 +527,6 @@ th {
 
 .civic-shell {
   min-height: 100dvh;
-  color: var(--civic-ink);
-  font-family: Pretendard, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
 }
 
 .civic-skip-link {
@@ -1004,33 +1002,6 @@ th {
   place-items: start center;
 }
 
-.civic-shell {
-  color: var(--civic-ink);
-  font-family: "Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif;
-}
-
-.civic-functional-screen {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-  border: 0;
-  background: var(--civic-paper-strong);
-  padding: 0;
-  box-shadow: none;
-  animation: none;
-}
-
-.civic-public-screen {
-  width: min(100%, 24.6rem);
-  min-height: min(53.25rem, 100dvh);
-  margin: 0 auto;
-  border-radius: 0.75rem;
-  box-shadow: var(--civic-shadow);
-}
-
 .civic-functional-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -1161,18 +1132,6 @@ th {
   padding: 1.25rem;
 }
 
-.civic-form-card,
-.civic-action-panel,
-.civic-user-detail {
-  display: grid;
-  gap: 1rem;
-  border: 1px solid var(--civic-line);
-  border-radius: var(--civic-radius);
-  background: #fff;
-  padding: 1.05rem;
-  box-shadow: none;
-}
-
 .civic-card-heading {
   display: grid;
   gap: 0.25rem;
@@ -1226,49 +1185,12 @@ th {
   padding: 0.72rem;
 }
 
-.civic-primary-action,
-.civic-secondary-action,
-.civic-danger-action,
-.civic-icon-action,
-.civic-admin-search button {
-  display: inline-flex;
-  min-height: 3rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid transparent;
-  border-radius: 0.38rem;
-  padding: 0.65rem 0.9rem;
-  font-weight: 700;
-  text-align: center;
-  text-decoration: none;
-  cursor: pointer;
-  transition: background-color 140ms ease;
-}
-
-.civic-primary-action,
-.civic-admin-search button {
-  background: var(--civic-blue);
-  color: #fff;
-}
-
 .civic-primary-action:hover,
 .civic-primary-action:focus-visible,
 .civic-admin-search button:hover {
   transform: none;
   background: var(--civic-blue-dark);
   box-shadow: none;
-}
-
-.civic-secondary-action,
-.civic-icon-action {
-  border-color: var(--civic-blue);
-  background: #ecf2fe;
-  color: var(--civic-blue-dark);
-}
-
-.civic-danger-action {
-  background: var(--civic-danger);
-  color: #fff;
 }
 
 .civic-auth-support {
@@ -1287,14 +1209,8 @@ th {
   padding: 0.9rem 1rem;
 }
 
-.civic-auth-support article > span,
 .civic-auth-support article > strong {
   font-size: 0.82rem;
-}
-
-.civic-auth-support article > span {
-  color: var(--civic-blue-dark);
-  font-weight: 700;
 }
 
 .civic-auth-support article > a,
@@ -1700,8 +1616,7 @@ th {
   grid-template-columns: minmax(15rem, 0.7fr) minmax(22rem, 1.3fr);
 }
 
-.civic-user-ledger li button,
-.civic-user-detail {
+.civic-user-ledger li button {
   border-color: var(--civic-line);
   border-radius: var(--civic-radius);
 }
@@ -2081,7 +1996,6 @@ th {
 }
 
 @media (max-width: 720px) {
-  .civic-public-screen,
   .civic-shell-participant {
     width: 100%;
     min-height: 100dvh;
@@ -2134,26 +2048,6 @@ th {
   .civic-admin-cards {
     grid-template-columns: 1fr;
   }
-}
-
-/* Functional milestone: an editorial civic ledger, not a generic dashboard. */
-.civic-functional-screen {
-  display: grid;
-  gap: clamp(1.25rem, 3vw, 2.5rem);
-  min-height: min(48rem, calc(100dvh - 10rem));
-  border: 1px solid var(--civic-ink);
-  background:
-    linear-gradient(
-      90deg,
-      transparent 0 4.5rem,
-      rgba(18, 33, 29, 0.08) 4.5rem 4.56rem,
-      transparent 4.56rem
-    ),
-    repeating-linear-gradient(0deg, transparent 0 2.6rem, rgba(18, 33, 29, 0.035) 2.6rem 2.66rem),
-    var(--civic-paper-strong);
-  padding: clamp(1.2rem, 4vw, 3.5rem);
-  box-shadow: 12px 12px 0 color-mix(in srgb, var(--civic-ink) 13%, transparent);
-  animation: civic-rise 320ms ease-out both;
 }
 
 .civic-functional-heading {
@@ -2224,17 +2118,6 @@ th {
   line-height: 1.7;
 }
 
-.civic-form-card,
-.civic-action-panel,
-.civic-user-detail {
-  display: grid;
-  gap: 1rem;
-  border: 1px solid var(--civic-ink);
-  background: rgba(255, 255, 255, 0.86);
-  padding: clamp(1.1rem, 4vw, 2.3rem);
-  box-shadow: 7px 7px 0 var(--civic-sky);
-}
-
 .civic-field {
   display: grid;
   gap: 0.45rem;
@@ -2293,35 +2176,11 @@ th {
   accent-color: var(--civic-coral);
 }
 
-.civic-primary-action,
-.civic-danger-action,
-.civic-admin-search button {
-  display: inline-flex;
-  min-height: 3.2rem;
-  align-items: center;
-  justify-content: space-between;
-  border: 1px solid var(--civic-ink);
-  border-radius: 0;
-  background: var(--civic-ink);
-  color: var(--civic-paper-strong);
-  padding: 0.78rem 1rem;
-  font-weight: 850;
-  text-decoration: none;
-  cursor: pointer;
-  transition:
-    transform 130ms ease,
-    box-shadow 130ms ease;
-}
-
 .civic-primary-action:hover,
 .civic-primary-action:focus-visible,
 .civic-admin-search button:hover {
   transform: translate(-3px, -3px);
   box-shadow: 5px 5px 0 var(--civic-coral);
-}
-
-.civic-danger-action {
-  background: #a62f24;
 }
 
 .civic-form-message {
@@ -2512,10 +2371,6 @@ th {
   .civic-admin-search {
     grid-template-columns: 1fr;
   }
-  .civic-functional-screen {
-    background: var(--civic-paper-strong);
-    box-shadow: 7px 7px 0 color-mix(in srgb, var(--civic-ink) 13%, transparent);
-  }
 }
 
 /* RAG vertical slice: source-first conversation and document ledger. */
@@ -2683,35 +2538,6 @@ th {
   cursor: not-allowed;
 }
 
-.civic-primary-action,
-.civic-secondary-action,
-.civic-danger-action,
-.civic-icon-action {
-  display: inline-flex;
-  min-height: 2.75rem;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid var(--civic-ink);
-  border-radius: 0;
-  padding: 0.65rem 0.9rem;
-  font-weight: 850;
-  text-decoration: none;
-  cursor: pointer;
-}
-
-.civic-primary-action {
-  background: var(--civic-blue);
-  color: white;
-}
-.civic-secondary-action,
-.civic-icon-action {
-  background: #fffef9;
-  color: var(--civic-ink);
-}
-.civic-danger-action {
-  background: var(--civic-coral);
-  color: white;
-}
 .civic-primary-action:disabled,
 .civic-secondary-action:disabled,
 .civic-danger-action:disabled,
@@ -3156,8 +2982,11 @@ th {
   }
 }
 
-/* Keep Wire Flow product rules above the legacy milestone declarations. */
-[data-wireflow-screen].civic-functional-screen {
+/* Standalone common routes do not load wireflow-base.css. */
+:is(
+  [data-wireflow-screen="COMMON-001"],
+  [data-wireflow-screen="COMMON-004"]
+).civic-functional-screen {
   display: flex;
   min-height: 0;
   flex: 1;
@@ -3173,19 +3002,6 @@ th {
 
 [data-wireflow-screen].civic-coming-soon {
   animation: none;
-}
-
-[data-wireflow-screen] .civic-danger-action {
-  background: var(--civic-danger);
-  color: #fff;
-}
-
-[data-wireflow-screen].civic-public-screen {
-  width: min(100%, 24.6rem);
-  min-height: min(53.25rem, 100dvh);
-  margin: 0 auto;
-  border-radius: 0.75rem;
-  box-shadow: var(--civic-shadow);
 }
 
 [data-wireflow-screen] .civic-functional-heading {
@@ -3528,12 +3344,6 @@ th {
 }
 
 @media (max-width: 720px) {
-  [data-wireflow-screen].civic-public-screen {
-    width: 100%;
-    min-height: 100dvh;
-    border-radius: 0;
-  }
-
   [data-wireflow-shell="admin"] .civic-admin-cards {
     grid-template-columns: 1fr;
   }

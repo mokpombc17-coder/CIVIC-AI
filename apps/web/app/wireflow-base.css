@@ -67,6 +67,21 @@ body {
   overflow: hidden;
   background: #fff;
 }
+
+[data-wireflow-screen].civic-functional-screen {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 0;
+  background: #fff;
+  padding: 0;
+  box-shadow: none;
+  animation: none;
+}
+
 .civic-public-screen {
   width: min(100%, 394px);
   min-height: min(853px, 100dvh);
@@ -75,6 +90,23 @@ body {
   border-radius: 12px;
   box-shadow: none;
 }
+
+[data-wireflow-screen].civic-public-screen {
+  width: min(100%, 24.6rem);
+  min-height: min(53.25rem, 100dvh);
+  margin: 0 auto;
+  border-radius: 0.75rem;
+  box-shadow: var(--civic-shadow);
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-screen].civic-public-screen {
+    width: 100%;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
 .wf-screen-heading {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
@@ -205,6 +237,13 @@ body {
   color: #fff;
 }
 
+.civic-primary-action,
+.civic-admin-search button {
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease;
+}
+
 .wf-button-secondary,
 .civic-secondary-action,
 .civic-icon-action {
@@ -213,10 +252,25 @@ body {
   color: var(--wf-blue-dark);
 }
 
+.civic-secondary-action,
+.civic-icon-action {
+  transition: background-color 140ms ease;
+}
+
 .wf-button-danger,
 .civic-danger-action {
   background: var(--wf-danger);
   color: #fff;
+}
+
+.civic-danger-action {
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease;
+}
+
+[data-wireflow-screen] .civic-danger-action {
+  background: var(--civic-danger);
 }
 
 .wf-button:focus-visible,
