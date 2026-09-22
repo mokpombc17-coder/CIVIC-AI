@@ -38,6 +38,10 @@ describe("home route import boundary", () => {
       join(webRoot, "components", "shell", "participant-shell.tsx"),
       "utf8",
     );
+    const currentUserGreeting = readFileSync(
+      join(webRoot, "components", "shell", "current-user-greeting.tsx"),
+      "utf8",
+    );
 
     expect(page).toContain("@/components/screens/participant-home-screen");
     expect(page).toContain("@/components/auth/deferred-home-query-runtime");
@@ -55,6 +59,15 @@ describe("home route import boundary", () => {
       "@/components/shell/participant-swipe-navigation-controller",
     );
     expect(participantShell).not.toContain("deferred-participant-swipe-navigation");
+    expect(currentUserGreeting).toContain('import("./current-user-menu-panel")');
+    expect(currentUserGreeting).toContain('import("@/components/pwa/pwa-install-guide-dialog")');
+    expect(currentUserGreeting).toContain('await import("@/components/auth/logout-button")');
+    expect(currentUserGreeting).not.toContain(
+      'import { PwaInstallGuideDialog } from "@/components/pwa/pwa-install-guide-dialog"',
+    );
+    expect(currentUserGreeting).not.toContain(
+      'import { requestLogout } from "@/components/auth/logout-button"',
+    );
     expect(deferredRuntime).toContain('import("./home-query-runtime")');
     expect(deferredRuntime).toContain("homeHeroAnimationCompleteEvent");
     expect(deferredRuntime).toContain("window.setTimeout(queueRuntimeLoad");
@@ -81,6 +94,16 @@ describe("home route import boundary", () => {
     expect(opinionHero).toContain("useId");
     expect(opinionHero).not.toMatch(/use(?:Effect|State)|window\.|document\./u);
     expect(opinionHero).toContain("suppressHydrationWarning");
+  });
+
+  it("Pretendard GOV는 font-face를 유지하되 root layout에서 preload하지 않는다", () => {
+    const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");
+    const wireflowBase = readFileSync(join(webRoot, "app", "wireflow-base.css"), "utf8");
+
+    expect(rootLayout).not.toContain('rel="preload"');
+    expect(rootLayout).not.toContain("PretendardGOV-");
+    expect(wireflowBase.match(/font-family: "Pretendard GOV"/gu)).toHaveLength(3);
+    expect(wireflowBase.match(/font-display: swap/gu)).toHaveLength(3);
   });
 
   it("홈 initial CSS에서 participant 전체·admin stylesheet를 제외한다", () => {

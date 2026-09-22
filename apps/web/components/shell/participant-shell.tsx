@@ -66,7 +66,6 @@ export function ParticipantShell({
           {children}
         </div>
       </PlatformPageShell>
-      <script defer src="/assets/participant-swipe-bootstrap.js?v=99f9880d58fb" />
       <ParticipantSwipeNavigationController activeRoute={activeRoute} />
     </>
   );

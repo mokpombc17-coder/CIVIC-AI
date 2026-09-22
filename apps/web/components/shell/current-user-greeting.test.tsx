@@ -1,9 +1,9 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import { HomeBrandTitle, HOME_SERVICE_REGION_LABEL } from "./home-brand-title";
+import { CurrentUserMenuPanel } from "./current-user-menu-panel";
 import {
   CurrentUserHeaderIdentity,
-  CurrentUserMenuPanel,
   greetingNameFromEmail,
   isAdministratorRole,
 } from "./current-user-greeting";

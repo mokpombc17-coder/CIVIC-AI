@@ -119,10 +119,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain(">투표<");
     expect(html).toContain(">계정<");
     expect(html).toContain("/assets/platform-navigation/account.png");
-    expect(html).toContain("/assets/participant-swipe-bootstrap.js");
-    expect(html.lastIndexOf("data-platform-navigation-route")).toBeLessThan(
-      html.indexOf("/assets/participant-swipe-bootstrap.js"),
-    );
+    expect(html).not.toContain("/assets/participant-swipe-bootstrap.js");
   });
 
   it("renders the latest admin navigation without the legacy auth explainer", () => {
