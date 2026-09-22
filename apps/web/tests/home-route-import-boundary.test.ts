@@ -120,9 +120,12 @@ describe("home route import boundary", () => {
     const homeStyles = readFileSync(join(webRoot, "app", "home", "home.css"), "utf8");
     const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
 
-    expect(rootLayout).not.toMatch(/import "\.\/(?:wireflow-base|wireflow|admin-console)\.css"/u);
+    expect(rootLayout).not.toMatch(
+      /import "\.\/(?:wireflow-base|wireflow|admin-base|admin-console)\.css"/u,
+    );
     expect(homeLayout).toContain('import "./home.css"');
     expect(participantLayout).toContain('import "..\/wireflow.css"');
+    expect(adminLayout).toContain('import "..\/..\/admin-base.css"');
     expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
     expect(homeStyles).toContain('@import "../wireflow-base.css"');
