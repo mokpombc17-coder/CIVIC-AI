@@ -96,14 +96,37 @@ describe("home route import boundary", () => {
     expect(opinionHero).toContain("suppressHydrationWarning");
   });
 
+  it("전역 auth session sync가 React Query와 RAG runtime을 static import하지 않는다", () => {
+    const authSessionData = readFileSync(
+      join(webRoot, "components", "auth", "auth-session-data.ts"),
+      "utf8",
+    );
+    const queryCacheControl = readFileSync(
+      join(webRoot, "components", "providers", "query-cache-control.ts"),
+      "utf8",
+    );
+    const ragStorage = readFileSync(
+      join(webRoot, "components", "rag", "rag-conversation-storage.ts"),
+      "utf8",
+    );
+
+    expect(authSessionData).toContain("@/components/providers/query-cache-control");
+    expect(authSessionData).toContain("@/components/rag/rag-conversation-storage");
+    expect(authSessionData).not.toMatch(
+      /app-query-provider|rag-conversation-session|@tanstack\/react-query/u,
+    );
+    expect(queryCacheControl).not.toContain("@tanstack/react-query");
+    expect(ragStorage).not.toContain("rag-conversation-session");
+  });
+
   it("Pretendard GOV는 font-face를 유지하되 root layout에서 preload하지 않는다", () => {
     const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");
-    const wireflowBase = readFileSync(join(webRoot, "app", "wireflow-base.css"), "utf8");
+    const wireflowCore = readFileSync(join(webRoot, "app", "wireflow-core.css"), "utf8");
 
     expect(rootLayout).not.toContain('rel="preload"');
     expect(rootLayout).not.toContain("PretendardGOV-");
-    expect(wireflowBase.match(/font-family: "Pretendard GOV"/gu)).toHaveLength(3);
-    expect(wireflowBase.match(/font-display: swap/gu)).toHaveLength(3);
+    expect(wireflowCore.match(/font-family: "Pretendard GOV"/gu)).toHaveLength(3);
+    expect(wireflowCore.match(/font-display: swap/gu)).toHaveLength(3);
   });
 
   it("홈 initial CSS에서 participant 전체·admin stylesheet를 제외한다", () => {
@@ -120,12 +143,16 @@ describe("home route import boundary", () => {
     const homeStyles = readFileSync(join(webRoot, "app", "home", "home.css"), "utf8");
     const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
 
-    expect(rootLayout).not.toMatch(/import "\.\/(?:wireflow-base|wireflow|admin-console)\.css"/u);
+    expect(rootLayout).not.toMatch(
+      /import "\.\/(?:wireflow-base|wireflow|admin-base|admin-console)\.css"/u,
+    );
     expect(homeLayout).toContain('import "./home.css"');
     expect(participantLayout).toContain('import "..\/wireflow.css"');
+    expect(adminLayout).toContain('import "..\/..\/admin-base.css"');
     expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
-    expect(homeStyles).toContain('@import "../wireflow-base.css"');
+    expect(homeStyles).toContain('@import "../wireflow-core.css"');
+    expect(homeStyles).not.toContain("wireflow-base.css");
     expect(homeStyles).toContain(".civic-opinion-hero-question");
     expect(homeStyles).toContain(".civic-header-user-trigger");
     expect(homeStyles).toContain(".civic-header-user-menu-item");

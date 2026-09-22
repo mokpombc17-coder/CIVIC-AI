@@ -1,4 +1,4 @@
-@import "../wireflow-base.css";
+@import "../wireflow-core.css";
 
 /* Home route styles
  * Keep shared primitives here so route-scoped CSS does not duplicate them.

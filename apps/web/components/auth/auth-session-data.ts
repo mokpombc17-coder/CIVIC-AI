@@ -1,11 +1,11 @@
 "use client";
 
-import { clearAppQueryCache } from "@/components/providers/app-query-provider";
-import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-session";
+import { clearAppQueryCacheIfLoaded } from "@/components/providers/query-cache-control";
+import { clearRagConversationSnapshot } from "@/components/rag/rag-conversation-storage";
 import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
 
 export function clearAuthSessionData(storage?: Pick<Storage, "removeItem"> | null): void {
-  clearAppQueryCache();
+  clearAppQueryCacheIfLoaded();
   if (storage === null) return;
   clearRagConversationSnapshot(storage);
   clearAnalyticsUserId(storage);

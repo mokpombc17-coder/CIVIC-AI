@@ -3,7 +3,8 @@ import { AuthSessionSync } from "./auth-session-sync";
 import { clearAuthSessionData } from "./auth-session-data";
 import { requestLogout } from "./logout-button";
 import { redirectAfterPasswordChange } from "@/components/screens/account-functional-screen";
-import { clearAppQueryCache, getAppQueryClient } from "@/components/providers/app-query-provider";
+import { getAppQueryClient } from "@/components/providers/app-query-provider";
+import { clearAppQueryCacheIfLoaded } from "@/components/providers/query-cache-control";
 import { serviceEligibilityQueryKey } from "@/lib/vote/service-eligibility";
 
 const hooks = vi.hoisted(() => ({
@@ -33,12 +34,12 @@ beforeEach(() => {
   });
   vi.stubGlobal("BroadcastChannel", undefined);
   hooks.push.mockReset();
-  clearAppQueryCache();
+  clearAppQueryCacheIfLoaded();
 });
 afterEach(() => {
   cleanup?.();
   cleanup = undefined;
-  clearAppQueryCache();
+  clearAppQueryCacheIfLoaded();
   vi.unstubAllGlobals();
 });
 

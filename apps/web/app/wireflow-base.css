@@ -1,85 +1,17 @@
-/* Shared wireflow foundations
- * Keep shared primitives here so route-scoped CSS does not duplicate them.
- */
+@import "./wireflow-core.css";
 
-@font-face {
-  font-family: "Pretendard GOV";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 400;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6")
-    format("woff2");
-}
-@font-face {
-  font-family: "Pretendard GOV";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 500;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7") format("woff2");
-}
-@font-face {
-  font-family: "Pretendard GOV";
-  font-style: normal;
-  font-display: swap;
-  font-weight: 700;
-  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5") format("woff2");
-}
-:root {
-  --wf-ink: #101114;
-  --wf-muted: #5d6670;
-  --wf-line: #cfd3d7;
-  --wf-line-strong: #59636e;
-  --wf-blue: #286cf4;
-  --wf-blue-dark: #0755cf;
-  --wf-blue-soft: #edf3ff;
-  --wf-navy: #0b417b;
-  --wf-navy-deep: #053b73;
-  --wf-danger: #c51d1d;
-  --wf-danger-soft: #fdeeee;
-  --wf-success: #23753c;
-  --wf-success-soft: #ebf6ee;
-  --wf-surface: #f4f7fb;
-  --wf-focus-ring: #8eb4ff;
-  --wf-radius: 8px;
-  --wf-font: "Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif;
-}
-html,
-body {
-  color: var(--wf-ink);
-  font-family: var(--wf-font);
-}
-.app-shell:has([data-wireflow-screen]),
+/* Full wireflow foundations used outside the standalone /home route. */
+
 .app-shell:has([data-wireflow-shell]) {
   display: block;
   min-height: 100dvh;
   padding: 0;
 }
+
 .wf-product-surface,
-.civic-shell,
-.civic-functional-screen {
+.civic-shell {
   color: var(--wf-ink);
   font-family: var(--wf-font);
-}
-.civic-functional-screen {
-  display: flex;
-  min-height: 100%;
-  flex-direction: column;
-  overflow: hidden;
-  background: #fff;
-}
-
-[data-wireflow-screen].civic-functional-screen {
-  display: flex;
-  min-height: 0;
-  flex: 1;
-  flex-direction: column;
-  gap: 0;
-  overflow: hidden;
-  border: 0;
-  background: #fff;
-  padding: 0;
-  box-shadow: none;
-  animation: none;
 }
 
 .civic-public-screen {
@@ -107,46 +39,10 @@ body {
   }
 }
 
-.wf-screen-heading {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) auto;
-  min-height: 65px;
-  align-items: center;
-  gap: 14px;
-  border-bottom: 1px solid var(--wf-line);
-  padding: 17px;
-}
-.wf-screen-heading-leading {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 14px;
-}
-.wf-screen-heading-copy {
-  display: grid;
-  min-width: 0;
-  gap: 3px;
-}
 .wf-screen-heading-action {
   display: flex;
   align-items: center;
   justify-content: flex-end;
-}
-[data-platform-shell="true"] .civic-functional-screen > .wf-screen-heading {
-  min-height: 0;
-  border-bottom: 0;
-  padding: 12px 17px 0;
-}
-
-[data-platform-shell="true"]
-  .civic-functional-screen
-  > .wf-screen-heading[data-platform-heading="HIDDEN"]:not(:has(p)),
-[data-platform-shell="true"]
-  .civic-functional-screen
-  > .wf-screen-heading[data-platform-heading="HIDDEN"]
-  h1,
-[data-platform-shell="true"] .civic-functional-screen > .wf-screen-heading .wf-heading-back {
-  display: none;
 }
 
 [data-platform-shell="true"] .civic-public-screen {
@@ -155,6 +51,7 @@ body {
   border: 0;
   border-radius: 0;
 }
+
 :is(
     [data-wireflow-screen="AUTH-002"],
     [data-wireflow-screen="AUTH-003"],
@@ -181,7 +78,6 @@ body {
   line-height: 1;
 }
 
-.wf-card,
 .wf-auth-form,
 .civic-form-card,
 .civic-action-panel,
@@ -195,7 +91,6 @@ body {
   box-shadow: none;
 }
 
-.wf-badge,
 .civic-auth-support article > span {
   display: inline-flex;
   width: fit-content;
@@ -209,7 +104,6 @@ body {
   font-weight: 800;
 }
 
-.wf-button,
 .civic-primary-action,
 .civic-secondary-action,
 .civic-danger-action,
@@ -230,7 +124,6 @@ body {
   cursor: pointer;
 }
 
-.wf-button-primary,
 .civic-primary-action,
 .civic-admin-search button {
   background: var(--wf-blue);
@@ -273,39 +166,12 @@ body {
   background: var(--civic-danger);
 }
 
-.wf-button:focus-visible,
-.civic-shell :where(a, button, input, textarea, select):focus-visible,
-.civic-functional-screen :where(a, button, input, textarea, select):focus-visible {
+.civic-shell :where(a, button, input, textarea, select):focus-visible {
   outline: 3px solid #8eb4ff;
   outline-offset: 2px;
 }
 
-.wf-action-card {
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: center;
-}
-
-.wf-action-copy {
-  display: grid;
-  gap: 8px;
-}
-
-.wf-action-copy h2,
-.wf-action-copy p {
-  margin: 0;
-}
-
-.wf-action-copy h2 {
-  font-size: 20px;
-}
-
-.wf-action-copy p {
-  color: var(--wf-muted);
-  font-size: 15px;
-}
-
-/* Tailwind preflight로 사라진 UA 헤딩 크기의 안전 기본값 (명시 규칙이 항상 우선) */
-:where([data-wireflow-shell="admin"], [data-wireflow-screen]) h2 {
+:where([data-wireflow-shell="admin"]) h2 {
   font-size: 20px;
   font-weight: 800;
 }

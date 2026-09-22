@@ -1,0 +1,200 @@
+/* Minimal wireflow foundation shared by /home and the full wireflow routes. */
+
+@font-face {
+  font-family: "Pretendard GOV";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 400;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6")
+    format("woff2");
+}
+@font-face {
+  font-family: "Pretendard GOV";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 500;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7") format("woff2");
+}
+@font-face {
+  font-family: "Pretendard GOV";
+  font-style: normal;
+  font-display: swap;
+  font-weight: 700;
+  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5") format("woff2");
+}
+
+:root {
+  --wf-ink: #101114;
+  --wf-muted: #5d6670;
+  --wf-line: #cfd3d7;
+  --wf-line-strong: #59636e;
+  --wf-blue: #286cf4;
+  --wf-blue-dark: #0755cf;
+  --wf-blue-soft: #edf3ff;
+  --wf-navy: #0b417b;
+  --wf-navy-deep: #053b73;
+  --wf-danger: #c51d1d;
+  --wf-danger-soft: #fdeeee;
+  --wf-success: #23753c;
+  --wf-success-soft: #ebf6ee;
+  --wf-surface: #f4f7fb;
+  --wf-focus-ring: #8eb4ff;
+  --wf-radius: 8px;
+  --wf-font: "Pretendard GOV", Pretendard, "Apple SD Gothic Neo", sans-serif;
+}
+
+html,
+body {
+  color: var(--wf-ink);
+  font-family: var(--wf-font);
+}
+
+.app-shell:has([data-wireflow-screen]) {
+  display: block;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.civic-functional-screen {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  overflow: hidden;
+  background: #fff;
+  color: var(--wf-ink);
+  font-family: var(--wf-font);
+}
+
+[data-wireflow-screen].civic-functional-screen {
+  display: flex;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  overflow: hidden;
+  border: 0;
+  background: #fff;
+  padding: 0;
+  box-shadow: none;
+  animation: none;
+}
+
+.wf-screen-heading {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 65px;
+  align-items: center;
+  gap: 14px;
+  border-bottom: 1px solid var(--wf-line);
+  padding: 17px;
+}
+
+.wf-screen-heading-leading {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 14px;
+}
+
+.wf-screen-heading-copy {
+  display: grid;
+  min-width: 0;
+  gap: 3px;
+}
+
+[data-platform-shell="true"] .civic-functional-screen > .wf-screen-heading {
+  min-height: 0;
+  border-bottom: 0;
+  padding: 12px 17px 0;
+}
+
+[data-platform-shell="true"]
+  .civic-functional-screen
+  > .wf-screen-heading[data-platform-heading="HIDDEN"]:not(:has(p)),
+[data-platform-shell="true"]
+  .civic-functional-screen
+  > .wf-screen-heading[data-platform-heading="HIDDEN"]
+  h1,
+[data-platform-shell="true"] .civic-functional-screen > .wf-screen-heading .wf-heading-back {
+  display: none;
+}
+
+.wf-card {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 20px;
+  box-shadow: none;
+}
+
+.wf-badge {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 5px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.wf-button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.wf-button-primary {
+  background: var(--wf-blue);
+  color: #fff;
+}
+
+.wf-button:focus-visible,
+.civic-functional-screen :where(a, button, input, textarea, select):focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 2px;
+}
+
+.wf-action-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.wf-action-copy {
+  display: grid;
+  gap: 8px;
+}
+
+.wf-action-copy h2,
+.wf-action-copy p {
+  margin: 0;
+}
+
+.wf-action-copy h2 {
+  font-size: 20px;
+}
+
+.wf-action-copy p {
+  color: var(--wf-muted);
+  font-size: 15px;
+}
+
+/* Tailwind preflight로 사라진 UA 헤딩 크기의 안전 기본값 (명시 규칙이 항상 우선) */
+:where([data-wireflow-screen]) h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
