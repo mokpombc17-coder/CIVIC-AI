@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import "../../admin-base.css";
 import "../../wireflow.css";
 import "../../admin-console.css";
 import { AdminShell } from "@/components/shell/admin-shell";
