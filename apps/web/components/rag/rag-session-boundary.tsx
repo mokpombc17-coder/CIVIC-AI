@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { observeAuthMessages } from "@/lib/auth/auth-session-events";
-import { clearRagConversationSnapshot } from "./rag-conversation-session";
+import { clearRagConversationSnapshot } from "./rag-conversation-storage";
 import { readRagSessionOwner } from "./rag-session-owner";
 
 const sessionOwnerRetryDelayMs = 3_000;

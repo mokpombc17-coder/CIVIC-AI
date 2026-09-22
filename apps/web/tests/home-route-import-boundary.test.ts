@@ -96,6 +96,29 @@ describe("home route import boundary", () => {
     expect(opinionHero).toContain("suppressHydrationWarning");
   });
 
+  it("전역 auth session sync가 React Query와 RAG runtime을 static import하지 않는다", () => {
+    const authSessionData = readFileSync(
+      join(webRoot, "components", "auth", "auth-session-data.ts"),
+      "utf8",
+    );
+    const queryCacheControl = readFileSync(
+      join(webRoot, "components", "providers", "query-cache-control.ts"),
+      "utf8",
+    );
+    const ragStorage = readFileSync(
+      join(webRoot, "components", "rag", "rag-conversation-storage.ts"),
+      "utf8",
+    );
+
+    expect(authSessionData).toContain("@/components/providers/query-cache-control");
+    expect(authSessionData).toContain("@/components/rag/rag-conversation-storage");
+    expect(authSessionData).not.toMatch(
+      /app-query-provider|rag-conversation-session|@tanstack\/react-query/u,
+    );
+    expect(queryCacheControl).not.toContain("@tanstack/react-query");
+    expect(ragStorage).not.toContain("rag-conversation-session");
+  });
+
   it("Pretendard GOV는 font-face를 유지하되 root layout에서 preload하지 않는다", () => {
     const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");
     const wireflowCore = readFileSync(join(webRoot, "app", "wireflow-core.css"), "utf8");
