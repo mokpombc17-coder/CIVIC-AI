@@ -10,17 +10,17 @@ const persistentAssets = [
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2",
-    references: ["app/wireflow-base.css"],
+    references: ["app/wireflow-core.css"],
   },
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2",
-    references: ["app/wireflow-base.css"],
+    references: ["app/wireflow-core.css"],
   },
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2",
-    references: ["app/wireflow-base.css"],
+    references: ["app/wireflow-core.css"],
   },
   ...["home", "ai", "chat", "vote", "account"].map((name) => ({
     file: `public/assets/platform-navigation/${name}.png`,

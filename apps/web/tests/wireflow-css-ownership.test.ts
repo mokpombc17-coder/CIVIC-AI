@@ -46,23 +46,32 @@ function selectorProperties(css: string) {
 
 describe("wireflow CSS ownership", () => {
   const globals = readFileSync(join(appRoot, "globals.css"), "utf8");
+  const home = readFileSync(join(appRoot, "home", "home.css"), "utf8");
   const wireflowBase = readFileSync(join(appRoot, "wireflow-base.css"), "utf8");
+  const wireflowCore = readFileSync(join(appRoot, "wireflow-core.css"), "utf8");
 
   it("globals와 wireflow base가 canonical selector의 같은 property를 다시 정의하지 않는다", () => {
     const globalProperties = selectorProperties(globals);
-    const baseProperties = selectorProperties(wireflowBase);
+    const wireflowProperties = selectorProperties(`${wireflowCore}\n${wireflowBase}`);
 
     const overlaps = canonicalSelectors.flatMap((selector) =>
       [...(globalProperties.get(selector) ?? [])]
-        .filter((property) => baseProperties.get(selector)?.has(property))
+        .filter((property) => wireflowProperties.get(selector)?.has(property))
         .map((property) => `${selector}: ${property}`),
     );
 
     expect(overlaps).toEqual([]);
   });
 
-  it("wireflow base가 ScreenFrame reset을 소유하고 독립 common route만 global fallback을 쓴다", () => {
-    expect(wireflowBase).toContain("[data-wireflow-screen].civic-functional-screen");
+  it("wireflow core가 /home과 전체 wireflow route의 공통 foundation을 소유한다", () => {
+    expect(home).toContain('@import "../wireflow-core.css";');
+    expect(home).not.toContain("wireflow-base.css");
+    expect(wireflowBase).toContain('@import "./wireflow-core.css";');
+    expect(wireflowCore).toContain("[data-wireflow-screen].civic-functional-screen");
+    expect(wireflowCore).toContain(".wf-button:focus-visible");
+  });
+
+  it("독립 common route만 global ScreenFrame fallback을 쓴다", () => {
     expect(globals).toContain('[data-wireflow-screen="COMMON-001"]');
     expect(globals).toContain('[data-wireflow-screen="COMMON-004"]');
     expect(globals).not.toMatch(/^\[data-wireflow-screen\]\.civic-functional-screen\s*\{/gmu);

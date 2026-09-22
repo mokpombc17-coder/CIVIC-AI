@@ -98,12 +98,12 @@ describe("home route import boundary", () => {
 
   it("Pretendard GOV는 font-face를 유지하되 root layout에서 preload하지 않는다", () => {
     const rootLayout = readFileSync(join(webRoot, "app", "layout.tsx"), "utf8");
-    const wireflowBase = readFileSync(join(webRoot, "app", "wireflow-base.css"), "utf8");
+    const wireflowCore = readFileSync(join(webRoot, "app", "wireflow-core.css"), "utf8");
 
     expect(rootLayout).not.toContain('rel="preload"');
     expect(rootLayout).not.toContain("PretendardGOV-");
-    expect(wireflowBase.match(/font-family: "Pretendard GOV"/gu)).toHaveLength(3);
-    expect(wireflowBase.match(/font-display: swap/gu)).toHaveLength(3);
+    expect(wireflowCore.match(/font-family: "Pretendard GOV"/gu)).toHaveLength(3);
+    expect(wireflowCore.match(/font-display: swap/gu)).toHaveLength(3);
   });
 
   it("홈 initial CSS에서 participant 전체·admin stylesheet를 제외한다", () => {
@@ -125,7 +125,8 @@ describe("home route import boundary", () => {
     expect(participantLayout).toContain('import "..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
-    expect(homeStyles).toContain('@import "../wireflow-base.css"');
+    expect(homeStyles).toContain('@import "../wireflow-core.css"');
+    expect(homeStyles).not.toContain("wireflow-base.css");
     expect(homeStyles).toContain(".civic-opinion-hero-question");
     expect(homeStyles).toContain(".civic-header-user-trigger");
     expect(homeStyles).toContain(".civic-header-user-menu-item");
