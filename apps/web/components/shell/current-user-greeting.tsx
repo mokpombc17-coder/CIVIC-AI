@@ -1,9 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
-import { requestLogout } from "@/components/auth/logout-button";
-import { PwaInstallGuideDialog } from "@/components/pwa/pwa-install-guide-dialog";
+import { lazy, Suspense, useEffect, useRef, useState } from "react";
 import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { isNativeShell } from "@/lib/native/bridge-client";
@@ -17,6 +14,17 @@ import { isStandalonePwa } from "@/lib/pwa/runtime";
 
 const USER_MENU_ID = "civic-home-user-menu";
 type InstallMode = "browser-prompt" | "ios-guide" | null;
+
+const LazyCurrentUserMenuPanel = lazy(() =>
+  import("./current-user-menu-panel").then(({ CurrentUserMenuPanel }) => ({
+    default: CurrentUserMenuPanel,
+  })),
+);
+const LazyPwaInstallGuideDialog = lazy(() =>
+  import("@/components/pwa/pwa-install-guide-dialog").then(({ PwaInstallGuideDialog }) => ({
+    default: PwaInstallGuideDialog,
+  })),
+);
 
 /** 이메일 로컬파트를 표시 이름으로 사용한다 (auth/me 계약에 이름 필드가 없음). */
 export function greetingNameFromEmail(email: unknown): string | null {
@@ -163,6 +171,7 @@ export function CurrentUserHeaderIdentity({
     setLogoutBusy(true);
     setLogoutFailed(false);
 
+    const { requestLogout } = await import("@/components/auth/logout-button");
     if (await requestLogout()) {
       window.location.replace("/home");
       return;
@@ -199,76 +208,44 @@ export function CurrentUserHeaderIdentity({
         </button>
 
         {menuOpen ? (
-          <CurrentUserMenuPanel
-            installAvailable={installMode !== null}
-            installOpensDialog={installMode === "ios-guide"}
-            isAdministrator={isAdministrator}
-            logoutBusy={logoutBusy}
-            logoutFailed={logoutFailed}
-            onClose={() => setMenuOpen(false)}
-            onInstall={install}
-            onLogout={() => void logout()}
-          />
+          <Suspense fallback={<CurrentUserMenuFallback />}>
+            <LazyCurrentUserMenuPanel
+              id={USER_MENU_ID}
+              installAvailable={installMode !== null}
+              installOpensDialog={installMode === "ios-guide"}
+              isAdministrator={isAdministrator}
+              logoutBusy={logoutBusy}
+              logoutFailed={logoutFailed}
+              onClose={() => setMenuOpen(false)}
+              onInstall={install}
+              onLogout={() => void logout()}
+            />
+          </Suspense>
         ) : null}
       </div>
-      <PwaInstallGuideDialog
-        onClose={() => setInstallGuideOpen(false)}
-        open={installGuideOpen}
-        returnFocusRef={triggerRef}
-      />
+      {installGuideOpen ? (
+        <Suspense fallback={null}>
+          <LazyPwaInstallGuideDialog
+            onClose={() => setInstallGuideOpen(false)}
+            open
+            returnFocusRef={triggerRef}
+          />
+        </Suspense>
+      ) : null}
     </>
   );
 }
 
-export function CurrentUserMenuPanel({
-  installAvailable,
-  installOpensDialog = false,
-  isAdministrator,
-  logoutBusy,
-  logoutFailed,
-  onClose,
-  onInstall,
-  onLogout,
-}: Readonly<{
-  installAvailable: boolean;
-  installOpensDialog?: boolean;
-  isAdministrator: boolean;
-  logoutBusy: boolean;
-  logoutFailed: boolean;
-  onClose: () => void;
-  onInstall: () => void;
-  onLogout: () => void;
-}>) {
+function CurrentUserMenuFallback() {
   return (
-    <div aria-label="사용자 메뉴" className="civic-header-user-menu" id={USER_MENU_ID} role="group">
-      {isAdministrator ? (
-        <Link className="civic-header-user-menu-item" href="/admin" onClick={onClose}>
-          관리자 페이지
-        </Link>
-      ) : null}
-      {installAvailable ? (
-        <button
-          aria-haspopup={installOpensDialog ? "dialog" : undefined}
-          className="civic-header-user-menu-item"
-          onClick={onInstall}
-          type="button"
-        >
-          앱 설치
-        </button>
-      ) : null}
-      <button
-        className="civic-header-user-menu-item"
-        disabled={logoutBusy}
-        onClick={onLogout}
-        type="button"
-      >
-        {logoutBusy ? "로그아웃 중…" : "로그아웃"}
-      </button>
-      {logoutFailed ? (
-        <p className="civic-header-user-menu-error" role="status">
-          로그아웃하지 못했습니다.
-        </p>
-      ) : null}
+    <div
+      aria-busy="true"
+      aria-label="사용자 메뉴"
+      className="civic-header-user-menu"
+      id={USER_MENU_ID}
+      role="group"
+    >
+      <span className="civic-header-user-menu-item">메뉴 불러오는 중…</span>
     </div>
   );
 }

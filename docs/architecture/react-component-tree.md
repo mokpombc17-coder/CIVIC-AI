@@ -82,15 +82,14 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
     ├── headerActions Suspense [fallback: Login Link]
     │   └── hasAccessCredential
     │       ├── 비로그인: Login Link
-    │       └── CurrentUserGreeting [Client, 사용자 팝업·PWA 설치·로그아웃]
-    │           └── 관리자 역할: 관리자 페이지 Link 추가
+    │       └── CurrentUserGreeting [Client, 사용자 이름·팝업 trigger·PWA 설치 이벤트]
+    │           ├── CurrentUserMenuPanel [Client, 최초 open 시 lazy load, 설치·로그아웃·관리자 Link]
+    │           └── PwaInstallGuideDialog [Client, iOS 설치 안내 open 시 lazy load]
     ├── bottomNavigation Suspense [fallback: 보호 메뉴를 /login?returnTo=...로 연결]
     │   └── hasAccessCredential 결과로 보호 메뉴 목적지만 교체, 히어로 전 Link prefetch 비활성
     └── PlatformPageShell
         └── 기존 frontend2 PlatformShell
-            ├── participant-swipe-bootstrap.js [external defer, hydration 전 swipe listener 등록]
-            │   └── React controller ready 신호 뒤 listener·임시 style 정리
-            ├── ParticipantSwipeNavigationController [Client, hydration에서 listener 등록 후 bootstrap takeover]
+            ├── ParticipantSwipeNavigationController [Client, hydration에서 swipe listener 등록]
             │   └── 수평 의도 확인 뒤 현재 content surface drag/exit
             ├── DeferredHomeQueryRuntime [Client, 히어로 완료 신호 뒤 동적 import]
             │   ├── 완료 신호 누락: 3초 fallback 뒤 idle scheduling
@@ -105,6 +104,9 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
             │   ├── OpinionGatheringHero [SSR: 질문·회색 도넛·replay 표식]
             │   └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
             └── HomeHeroAnimationBootstrap [Server, Hero 뒤 nonce inline script로 double RAF 시작·완료 계약 소유]
+
+`participant-swipe-bootstrap.js`는 모바일 성능 비교를 위해 소스만 보존한다. 현재
+`ParticipantShell`은 이를 주입하지 않으며 PWA persistent asset에도 포함하지 않는다.
 
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
@@ -247,9 +249,11 @@ navigation은 `ParticipantShell`이 계속 소유한다.
 `ParticipantLayout`에서 전체 `wireflow.css`를, 관리자 route는 `AdminLayout`에서 `wireflow.css`와
 `admin-console.css`를 가져오므로 `/home` 초기 dependency에는 두 전체 stylesheet가 포함되지 않는다.
 
-`CurrentUserGreeting`은 로그인 사용자 이름을 팝업 trigger로 표시한다. Chromium 계열에서는
-`beforeinstallprompt`를 캡처해 `앱 설치` 동작으로 연결하고, iOS·iPadOS 일반 브라우저에서는 같은
-메뉴에서 `PwaInstallGuideDialog`를 열어 Safari의 공유 메뉴와 `홈 화면에 추가` 절차를 안내한다.
+`CurrentUserGreeting`은 로그인 사용자 이름과 팝업 trigger만 초기 client graph에 유지한다. 팝업의
+`CurrentUserMenuPanel`은 최초 open 시 lazy load하고, `PwaInstallGuideDialog`는 iOS 설치 안내가 실제로
+열릴 때 lazy load한다. Chromium 계열의 `beforeinstallprompt`는 초기 listener에서 계속 캡처해 이후
+동적으로 로드된 메뉴의 `앱 설치` 동작으로 연결하고, iOS·iPadOS 일반 브라우저에서는 같은 메뉴에서
+Safari의 공유 메뉴와 `홈 화면에 추가` 절차를 안내한다.
 설치된 PWA와 네이티브 셸에서는 설치 동작을 제공하지 않으며, `appinstalled` 이후에도 다시 숨긴다.
 관리자는 같은 팝업에서 관리자 페이지로 이동한다. 홈의 참여 안내 카드는 설치 동작을 소유하지
 않는다. 앱스토어 이동을 위한 별도 시각 CTA는 제공하지 않는다.

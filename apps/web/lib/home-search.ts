@@ -8,7 +8,7 @@ export const HOME_SEARCH_DESCRIPTION =
 export const websiteJsonLd = {
   "@context": "https://schema.org",
   "@type": "WebSite",
-  name: "CIVIC.AI",
+  name: "CIVIC AI",
   alternateName: "CIVIC.AI 전남광주",
   url: "https://civic-ai.co.kr/",
 } as const;

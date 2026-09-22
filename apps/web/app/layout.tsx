@@ -54,29 +54,6 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
 
   return (
     <html lang="ko">
-      <head>
-        <link
-          as="font"
-          crossOrigin="anonymous"
-          href="/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6"
-          rel="preload"
-          type="font/woff2"
-        />
-        <link
-          as="font"
-          crossOrigin="anonymous"
-          href="/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5"
-          rel="preload"
-          type="font/woff2"
-        />
-        <link
-          as="font"
-          crossOrigin="anonymous"
-          href="/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7"
-          rel="preload"
-          type="font/woff2"
-        />
-      </head>
       <body>
         <StyleNonceProvider nonce={nonce}>
           <AuthSessionSync />

@@ -10,22 +10,17 @@ const persistentAssets = [
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2",
-    references: ["app/layout.tsx", "app/wireflow-base.css"],
+    references: ["app/wireflow-base.css"],
   },
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2",
-    references: ["app/layout.tsx", "app/wireflow-base.css"],
+    references: ["app/wireflow-base.css"],
   },
   {
     file: "public/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2",
     publicPath: "/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2",
-    references: ["app/layout.tsx", "app/wireflow-base.css"],
-  },
-  {
-    file: "public/assets/participant-swipe-bootstrap.js",
-    publicPath: "/assets/participant-swipe-bootstrap.js",
-    references: ["components/shell/participant-shell.tsx"],
+    references: ["app/wireflow-base.css"],
   },
   ...["home", "ai", "chat", "vote", "account"].map((name) => ({
     file: `public/assets/platform-navigation/${name}.png`,
@@ -49,6 +44,7 @@ describe("PWA service worker", () => {
     expect(source).not.toContain("/api/v1/auth/refresh");
     expect(source).not.toContain("civic_ai_access_token");
     expect(source).not.toContain("civic_ai_refresh_token");
+    expect(source).not.toContain("/assets/participant-swipe-bootstrap.js");
 
     const buildCacheFunction = source.match(
       /async function cachedPwaBuildAsset\(request\) \{[\s\S]*?\n\}/u,
