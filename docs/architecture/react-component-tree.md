@@ -14,8 +14,9 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
-업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 해당 정적
-리소스만 캐시하고 API 응답이나 인증 정보를 캐시하지 않는다.
+업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 전용 CSS·JavaScript를
+하나의 필수 cache 단위로 저장한다. 버전이 지정된 기존 공통 이미지·폰트 cache는 유지하지만 API 응답이나
+인증 정보는 캐시하지 않는다.
 
 `AuthSessionSync`는 `civic-ai:auth:v1` 채널을 전역에서 구독한다. 다른 문서의 `LOGIN`은
 `/home`, `LOGOUT`은 `/login`으로 `router.push()`를 통해 이동한다. 인증 확인은 기존
@@ -58,13 +59,14 @@ RootLayout [Server, 문서 CSP nonce 읽기]
 
 IndexPage / [Server Route] [redirect: /home]
 
-PwaStartPage /pwa/start [Server Route, manifest start_url]
-└── PwaStartup [Client]
+PwaStartRouteHandler /pwa/start [Route Handler, manifest start_url, 독립 HTML document]
+├── /pwa-start/start.css [startup 전용 style]
+└── /pwa-start/start.js [React 비의존 startup runtime]
     ├── 일반 브라우저: /home 이동, Refresh 미실행
     └── installed PWA: 최소 1.5초 splash + 세션 초기화
         ├── 인증 성공: /home 이동
-        ├── 인증 실패: /login 이동
-        └── 네트워크·일시 오류: 로그인 상태를 지우지 않고 재시도
+        ├── 인증 실패: analytics session 정리 후 /login 이동
+        └── 네트워크·일시 오류: 로그인 상태를 지우지 않고 수동·online 재시도
 
 RefreshPage /auth/refresh [Server Route, 안전한 returnTo 기준 대기 surface 선택]
 └── AccessTokenRefresh [Client, Access Token 갱신 후 returnTo로 복귀]
@@ -273,11 +275,11 @@ idle scheduling 이후 애니메이션을 시작하고 도넛 click/touch debug 
 `AppQueryProvider`와 guard를 즉시 조립하며 browser singleton query cache를 공유한다. 홈에 노출되는
 Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져오지 않도록 prefetch를 끈다.
 
-`PwaStartup`의 세션 초기화는 `/pwa/start`에서만 실행한다. standalone display mode 또는 iOS
-standalone flag가 없으면 Refresh를 호출하지 않는다. API 계약 의존부는
-`lib/pwa/session-bootstrap.ts`에 격리하며, Refresh 결과와 최소 splash 시간을 함께 기다린다. 토큰은
-브라우저 JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의 HttpOnly cookie
-계약을 유지한다.
+`/pwa/start`는 RootLayout과 React hydration을 거치지 않는 Route Handler HTML이다. 전용
+`start.js`는 standalone display mode 또는 iOS standalone flag가 없으면 Refresh를 호출하지 않고
+`/home`으로 이동한다. installed PWA에서는 Refresh 결과와 최소 splash 시간을 함께 기다리며,
+401·403만 비인증으로 처리하고 네트워크·429·서버 오류는 재시도 상태로 유지한다. 토큰은 브라우저
+JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의 HttpOnly cookie 계약을 유지한다.
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,

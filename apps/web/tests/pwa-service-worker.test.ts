@@ -30,27 +30,28 @@ const persistentAssets = [
 ] as const;
 
 describe("PWA service worker", () => {
-  it("PWA 시작 shell과 버전 지정 공통 자산만 캐시한다", () => {
+  it("독립 PWA 시작 shell을 원자적으로 캐시하고 API와 Next build 자산은 제외한다", () => {
     const source = readFileSync(workerPath, "utf8");
 
     expect(source).toContain('const PWA_START_URL = "/pwa/start"');
-    expect(source).toContain("const PWA_CACHE = `${PWA_CACHE_PREFIX}v3`");
+    expect(source).toContain("const PWA_CACHE = `${PWA_CACHE_PREFIX}v4`");
+    expect(source).toContain('"/pwa-start/start.css"');
+    expect(source).toContain('"/pwa-start/start.js"');
+    expect(source).toContain("cache.addAll(PWA_SHELL_ASSETS)");
+    expect(source).toContain("PWA_SHELL_ASSETS.includes(url.pathname)");
+    expect(source).toContain("cacheFirstPwaShellAsset(event.request)");
     expect(source).toContain("key.startsWith(PWA_CACHE_PREFIX)");
     expect(source).toContain("isPersistentAsset(url.pathname)");
-    expect(source).toContain("isPwaBuildAsset(url.pathname)");
     expect(source).toContain("cache.put(request, response.clone())");
-    expect(source).toContain("isPwaBuildAsset(asset.pathname)");
     expect(source).toContain('url.pathname.startsWith("/api/")');
+    expect(source).not.toContain("cachePwaShell().catch");
+    expect(source).not.toContain("isPwaBuildAsset");
+    expect(source).not.toContain("/_next/static/");
+    expect(source).not.toContain("/main-assets/_next/static/");
     expect(source).not.toContain("/api/v1/auth/refresh");
     expect(source).not.toContain("civic_ai_access_token");
     expect(source).not.toContain("civic_ai_refresh_token");
     expect(source).not.toContain("/assets/participant-swipe-bootstrap.js");
-
-    const buildCacheFunction = source.match(
-      /async function cachedPwaBuildAsset\(request\) \{[\s\S]*?\n\}/u,
-    )?.[0];
-    expect(buildCacheFunction).toBeDefined();
-    expect(buildCacheFunction).not.toContain("cache.put");
   });
 
   it("persistent asset URL 버전을 실제 콘텐츠 해시와 동기화한다", () => {
