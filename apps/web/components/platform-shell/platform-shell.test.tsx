@@ -139,19 +139,20 @@ describe("PlatformNavigation", () => {
     const markup = renderToStaticMarkup(<PlatformNavigation currentPathname="/vote/results" />);
 
     const expectedItems = [
-      ["/home", "홈", "document"],
-      ["/rag", "AI", "document"],
-      ["/chat", "토론방", "client"],
-      ["/vote", "투표", "client"],
-      ["/mypage", "계정", "document"],
+      ["/home", "홈", "document", "/assets/platform-navigation/home.png?v=18ffbf61c717"],
+      ["/rag", "AI", "document", "/assets/platform-navigation/ai.png?v=40d07e5abe75"],
+      ["/chat", "토론방", "client", "/assets/platform-navigation/chat.png?v=088425758cd1"],
+      ["/vote", "투표", "client", "/assets/platform-navigation/vote.png?v=21e61dc6c498"],
+      ["/mypage", "계정", "document", "/assets/platform-navigation/account.png?v=b19ca424bf3c"],
     ] as const;
 
-    expectedItems.forEach(([href, label, navigationMode], index) => {
+    expectedItems.forEach(([href, label, navigationMode, iconSrc], index) => {
       const anchor = markup.match(new RegExp(`<a[^>]*href="${href}"[^>]*>`))?.[0];
 
       expect(anchor).toContain(`data-navigation-mode="${navigationMode}"`);
       expect(anchor).toContain(`data-platform-navigation-route="${href}"`);
       expect(markup).toContain(`>${label}</span>`);
+      expect(markup).toContain(iconSrc);
 
       const previousItem = expectedItems[index - 1];
 
@@ -162,7 +163,6 @@ describe("PlatformNavigation", () => {
 
     expect(markup.match(/aria-current="page"/g)).toHaveLength(1);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/vote"/);
-    expect(markup).toContain("/assets/platform-navigation/account.png");
   });
 });
 

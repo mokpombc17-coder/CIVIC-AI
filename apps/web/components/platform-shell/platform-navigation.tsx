@@ -8,31 +8,31 @@ import styles from "./platform-shell.module.css";
 const PLATFORM_NAVIGATION_ITEMS = [
   {
     href: "/home",
-    iconSrc: "/assets/platform-navigation/home.png",
+    iconSrc: "/assets/platform-navigation/home.png?v=18ffbf61c717",
     label: "홈",
     navigationMode: "document",
   },
   {
     href: "/rag",
-    iconSrc: "/assets/platform-navigation/ai.png",
+    iconSrc: "/assets/platform-navigation/ai.png?v=40d07e5abe75",
     label: "AI",
     navigationMode: "document",
   },
   {
     href: "/chat",
-    iconSrc: "/assets/platform-navigation/chat.png",
+    iconSrc: "/assets/platform-navigation/chat.png?v=088425758cd1",
     label: "토론방",
     navigationMode: "client",
   },
   {
     href: "/vote",
-    iconSrc: "/assets/platform-navigation/vote.png",
+    iconSrc: "/assets/platform-navigation/vote.png?v=21e61dc6c498",
     label: "투표",
     navigationMode: "client",
   },
   {
     href: "/mypage",
-    iconSrc: "/assets/platform-navigation/account.png",
+    iconSrc: "/assets/platform-navigation/account.png?v=b19ca424bf3c",
     label: "계정",
     navigationMode: "document",
   },
