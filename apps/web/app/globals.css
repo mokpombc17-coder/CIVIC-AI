@@ -1,5 +1,29 @@
-@import url("https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard-gov-dynamic-subset.css");
 @import "tailwindcss";
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6")
+    format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
 
 :root {
   --app-viewport-height: 100vh;
