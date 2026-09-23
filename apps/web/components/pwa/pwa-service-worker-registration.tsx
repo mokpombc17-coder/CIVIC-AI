@@ -8,10 +8,6 @@ type PwaRegistrationEnvironment = Readonly<{
   removeLoadListener: (listener: () => void) => void;
   addUserInteractionListener: (listener: (event: Pick<Event, "isTrusted">) => void) => void;
   removeUserInteractionListener: (listener: (event: Pick<Event, "isTrusted">) => void) => void;
-  requestIdleCallback: ((callback: IdleRequestCallback) => number) | null;
-  cancelIdleCallback: ((handle: number) => void) | null;
-  setTimeout: (callback: () => void, delay: number) => number;
-  clearTimeout: (handle: number) => void;
   register: () => Promise<unknown>;
 }>;
 
@@ -31,36 +27,21 @@ export function schedulePwaServiceWorkerRegistration(
 ): () => void {
   let disposed = false;
   let listeningForInteraction = false;
-  let scheduled = false;
-  let idleHandle: number | undefined;
-  let timeoutHandle: number | undefined;
-
-  const register = () => {
-    if (disposed) return;
-    void environment.register().catch(() => undefined);
-  };
-  const scheduleRegistration = () => {
-    if (disposed || scheduled) return;
-    scheduled = true;
-
-    if (environment.requestIdleCallback) {
-      idleHandle = environment.requestIdleCallback(register);
-      return;
-    }
-    timeoutHandle = environment.setTimeout(register, 0);
-  };
+  let registrationStarted = false;
   const stopListeningForInteraction = () => {
     if (!listeningForInteraction) return;
     listeningForInteraction = false;
     environment.removeUserInteractionListener(onUserInteraction);
   };
   const onUserInteraction = (event: Pick<Event, "isTrusted">) => {
-    if (!event.isTrusted || disposed || scheduled) return;
+    if (!event.isTrusted || disposed || registrationStarted) return;
+    registrationStarted = true;
     stopListeningForInteraction();
-    scheduleRegistration();
+    // Start the origin-scoped job before a full-document navigation can discard this page's idle work.
+    void environment.register().catch(() => undefined);
   };
   const listenForUserInteraction = () => {
-    if (disposed || listeningForInteraction || scheduled) return;
+    if (disposed || listeningForInteraction || registrationStarted) return;
     listeningForInteraction = true;
     environment.addUserInteractionListener(onUserInteraction);
   };
@@ -75,12 +56,6 @@ export function schedulePwaServiceWorkerRegistration(
     disposed = true;
     environment.removeLoadListener(listenForUserInteraction);
     stopListeningForInteraction();
-    if (idleHandle !== undefined && environment.cancelIdleCallback) {
-      environment.cancelIdleCallback(idleHandle);
-    }
-    if (timeoutHandle !== undefined) {
-      environment.clearTimeout(timeoutHandle);
-    }
   };
 }
 
@@ -101,16 +76,6 @@ function browserRegistrationEnvironment(): PwaRegistrationEnvironment {
         window.removeEventListener(eventName, listener);
       }
     },
-    requestIdleCallback:
-      typeof window.requestIdleCallback === "function"
-        ? window.requestIdleCallback.bind(window)
-        : null,
-    cancelIdleCallback:
-      typeof window.cancelIdleCallback === "function"
-        ? window.cancelIdleCallback.bind(window)
-        : null,
-    setTimeout: (callback, delay) => window.setTimeout(callback, delay),
-    clearTimeout: (handle) => window.clearTimeout(handle),
     register: () => navigator.serviceWorker.register("/sw.js", { scope: "/" }),
   };
 }
