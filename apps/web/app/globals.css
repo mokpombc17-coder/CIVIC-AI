@@ -194,58 +194,6 @@ pre {
     max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
 }
 
-.civic-pwa-startup {
-  position: fixed;
-  z-index: 1000;
-  inset: 0;
-  display: grid;
-  min-height: 100dvh;
-  place-items: center;
-  background: #f5f7fb;
-  padding: max(1.5rem, env(safe-area-inset-top)) max(1.5rem, env(safe-area-inset-right))
-    max(1.5rem, env(safe-area-inset-bottom)) max(1.5rem, env(safe-area-inset-left));
-}
-
-.civic-pwa-splash-wordmark {
-  margin: 0;
-  color: #0a4fd1;
-  font-size: clamp(1.75rem, 8vw, 2.5rem);
-  font-weight: 700;
-  letter-spacing: -0.06em;
-  line-height: 1;
-}
-
-.civic-pwa-startup-content {
-  display: grid;
-  width: min(100%, 22rem);
-  justify-items: center;
-  gap: 1rem;
-  text-align: center;
-}
-
-.civic-pwa-startup-content p {
-  margin: 0;
-  color: #5d6670;
-  font-size: 0.9rem;
-  line-height: 1.6;
-}
-
-.civic-pwa-retry {
-  min-width: 8rem;
-  border: 0;
-  border-radius: 0.5rem;
-  background: #0a4fd1;
-  color: #fff;
-  cursor: pointer;
-  padding: 0.75rem 1rem;
-  font-weight: 700;
-}
-
-.civic-pwa-retry:focus-visible {
-  outline: 3px solid rgba(10, 79, 209, 0.35);
-  outline-offset: 3px;
-}
-
 /* The frontend2 Platform Shell owns participant sizing and scrolling. */
 .civic-platform-participant-content {
   min-width: 0;
@@ -772,104 +720,6 @@ th {
   text-decoration: none;
 }
 
-/* 관리자 셸 레이아웃(그리드·사이드바 폭·접힘 브레이크포인트)은 wireflow.css가
-   단독 관할한다. 여기 있던 .civic-shell-admin 18rem 그리드는 wireflow의 240px
-   그리드에 항상 덮여 죽은 규칙이라 제거했다. */
-
-.civic-admin-sidebar {
-  position: sticky;
-  top: 0;
-  display: flex;
-  height: 100dvh;
-  flex-direction: column;
-  border-right: 1px solid #33433d;
-  background: var(--civic-ink);
-  color: white;
-  padding: 1.4rem 1rem;
-}
-
-.civic-wordmark-admin {
-  color: white;
-  padding: 0 0.5rem 1.4rem;
-}
-
-.civic-wordmark-admin .civic-wordmark-mark {
-  background: var(--civic-citrus);
-  color: var(--civic-ink);
-}
-
-.civic-wordmark-admin small {
-  color: #b8c2bc;
-}
-
-.civic-admin-nav {
-  display: grid;
-  gap: 0.35rem;
-  margin-top: 1.2rem;
-}
-
-.civic-admin-nav-link {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 0.7rem;
-  border: 1px solid transparent;
-  color: #e8eee9;
-  padding: 0.8rem;
-  text-decoration: none;
-}
-
-.civic-admin-nav-link > span:first-child {
-  display: grid;
-  gap: 0.2rem;
-}
-
-.civic-admin-nav-link small {
-  color: #9faaa4;
-}
-
-.civic-admin-nav-link[aria-current="page"] {
-  border-color: var(--civic-citrus);
-  background: rgba(217, 245, 83, 0.1);
-}
-
-.civic-admin-boundary {
-  margin: auto 0.5rem 0;
-  color: #aeb9b2;
-  font-size: 0.72rem;
-  line-height: 1.6;
-}
-
-.civic-admin-stage {
-  min-width: 0;
-}
-
-.civic-admin-topbar {
-  display: flex;
-  min-height: 5rem;
-  align-items: center;
-  justify-content: space-between;
-  border-bottom: 1px solid var(--civic-line);
-  background: rgba(255, 253, 246, 0.85);
-  padding: 1rem clamp(1rem, 4vw, 3rem);
-  backdrop-filter: blur(16px);
-}
-
-.civic-admin-topbar > div {
-  display: grid;
-  gap: 0.25rem;
-}
-
-.civic-admin-content {
-  width: 100%;
-  margin: 0;
-  padding: clamp(1.2rem, 4vw, 3rem);
-}
-
-.civic-admin-content .civic-coming-soon {
-  min-height: calc(100dvh - 11rem);
-}
-
 .civic-standalone-boundary {
   display: grid;
   min-height: 100dvh;
@@ -918,13 +768,6 @@ th {
   .civic-nav-link {
     border-bottom: 1px solid var(--civic-ink);
   }
-
-  /* 관리자 사이드바 접힘은 wireflow.css의 720px 브레이크포인트 하나만 사용한다.
-     (여기 있던 820px 접힘 규칙은 wireflow 기본 규칙에 덮이거나 720~820px 구간에서
-     내비게이션만 2열로 찌그러뜨리는 부작용을 냈다.) */
-  .civic-admin-boundary {
-    display: none;
-  }
 }
 
 @media (max-width: 620px) {
@@ -933,8 +776,7 @@ th {
   }
 
   .civic-wordmark small,
-  .civic-shell-context,
-  .civic-admin-topbar {
+  .civic-shell-context {
     display: none;
   }
 
@@ -964,10 +806,6 @@ th {
   }
 
   .civic-boundary-note {
-    grid-template-columns: 1fr;
-  }
-
-  .civic-admin-nav {
     grid-template-columns: 1fr;
   }
 }
@@ -1448,139 +1286,6 @@ th {
   padding: 1rem;
 }
 
-.civic-shell-admin {
-  display: grid;
-  grid-template-columns: 15rem minmax(0, 1fr);
-  min-height: 100dvh;
-  background: var(--civic-paper);
-}
-
-.civic-admin-sidebar {
-  position: sticky;
-  top: 0;
-  display: flex;
-  height: 100dvh;
-  flex-direction: column;
-  border: 0;
-  background: var(--civic-navy);
-  color: #fff;
-  padding: 1.75rem 1rem;
-}
-
-.civic-admin-brand {
-  display: grid;
-  gap: 0.25rem;
-  color: #fff;
-  padding: 0 0.65rem 1.4rem;
-  text-decoration: none;
-}
-
-.civic-admin-brand strong {
-  font-size: 1.1rem;
-  letter-spacing: -0.02em;
-}
-
-.civic-admin-brand small {
-  color: #b1cefb;
-  font-size: 0.72rem;
-  letter-spacing: 0.08em;
-}
-
-.civic-admin-nav {
-  display: grid;
-  gap: 0.3rem;
-  margin-top: 0.5rem;
-}
-
-.civic-admin-nav-link {
-  display: flex;
-  min-height: 2.9rem;
-  align-items: center;
-  border: 0;
-  border-radius: 0.38rem;
-  color: #d8e5fd;
-  padding: 0.7rem 0.8rem;
-  font-size: 0.86rem;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.civic-admin-nav-link[aria-current="page"] {
-  border: 0;
-  background: #fff;
-  color: var(--civic-navy);
-}
-
-.civic-admin-nav-group {
-  display: grid;
-  gap: 0.25rem;
-  padding: 0.35rem 0;
-}
-
-.civic-admin-nav-group-label {
-  color: #b1cefb;
-  padding: 0 0.8rem 0.3rem;
-  font-size: 0.72rem;
-  font-weight: 750;
-  letter-spacing: 0.04em;
-}
-
-.civic-admin-nav-sub-link {
-  min-height: 2.6rem;
-  margin-left: 0.55rem;
-  padding-block: 0.55rem;
-  font-size: 0.82rem;
-}
-
-.civic-admin-identity {
-  display: grid;
-  gap: 0.2rem;
-  margin-top: auto;
-  border-top: 1px solid rgb(255 255 255 / 25%);
-  padding: 1rem 0.65rem 0;
-}
-
-.civic-admin-identity span,
-.civic-admin-identity strong {
-  font-size: 0.7rem;
-}
-
-.civic-admin-identity span {
-  color: #b1cefb;
-}
-
-.civic-admin-stage,
-.civic-admin-content {
-  min-width: 0;
-}
-
-.civic-admin-content {
-  width: 100%;
-  margin: 0;
-  padding: 0;
-}
-
-.civic-shell-admin .civic-functional-screen {
-  min-height: 100dvh;
-  overflow: visible;
-}
-
-.civic-shell-admin .civic-functional-heading {
-  min-height: 6rem;
-  padding: 1.5rem 2rem;
-  background: #fff;
-}
-
-.civic-shell-admin .civic-functional-heading h1 {
-  font-size: 1.75rem;
-}
-
-.civic-shell-admin .civic-account-layout,
-.civic-shell-admin .civic-common-state {
-  margin: 0;
-  padding: 2rem;
-}
-
 .civic-user-ledger {
   grid-template-columns: minmax(15rem, 0.7fr) minmax(22rem, 1.3fr);
 }
@@ -1937,10 +1642,6 @@ th {
 }
 
 @media (max-width: 980px) {
-  .civic-shell-admin {
-    grid-template-columns: 12rem minmax(0, 1fr);
-  }
-
   .civic-document-inspector {
     grid-column: 1 / -1;
     border-top: 1px solid var(--civic-line);
@@ -1952,37 +1653,6 @@ th {
     width: 100%;
     min-height: 100dvh;
     border-radius: 0;
-  }
-
-  .civic-shell-admin {
-    display: block;
-  }
-
-  .civic-admin-sidebar {
-    position: static;
-    height: auto;
-    padding: 1rem;
-  }
-
-  .civic-admin-nav {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
-  .civic-admin-nav-group {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .civic-admin-nav-group-label {
-    grid-column: 1 / -1;
-  }
-
-  .civic-admin-nav-sub-link {
-    margin-left: 0;
-  }
-
-  .civic-admin-identity {
-    display: none;
   }
 
   .civic-folder-tree,
@@ -3019,27 +2689,6 @@ th {
   background: #fff;
 }
 
-[data-wireflow-shell="admin"] .civic-functional-screen {
-  min-height: 100dvh;
-  overflow: visible;
-}
-
-[data-wireflow-shell="admin"] .civic-functional-heading {
-  min-height: 6rem;
-  padding: 1.5rem 2rem;
-  background: #fff;
-}
-
-[data-wireflow-shell="admin"] .civic-functional-heading h1 {
-  font-size: 1.75rem;
-}
-
-[data-wireflow-shell="admin"] .civic-account-layout,
-[data-wireflow-shell="admin"] .civic-common-state {
-  margin: 0;
-  padding: 2rem;
-}
-
 [data-wireflow-screen^="U-RAG"] .civic-rag-conversation {
   display: flex;
   min-height: 0;
@@ -3201,9 +2850,6 @@ th {
   font-size: 1.1rem;
 }
 
-/* .civic-admin-home 레이아웃은 wireflow.css([data-wireflow-shell="admin"] 스코프)가
-   관할한다. 여기 있던 중복 정의(2rem 패딩)는 항상 덮여 죽은 규칙이라 제거했다. */
-
 [data-wireflow-layout="rag-workspace"] .civic-folder-tree li button[aria-current="true"] {
   border-color: #86aff9;
   background: #d8e5fd;
@@ -3360,20 +3006,6 @@ th {
 
 [data-wireflow-shell="participant"] [data-wireflow-screen] .civic-home-grid {
   padding: 1rem;
-}
-
-/* Desktop RAG uses a folder rail and a fluid document workspace. */
-[data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] .civic-functional-heading {
-  min-height: 7.25rem;
-  padding: 1rem 2rem;
-}
-
-/* Preserve the one-column 200% reflow requirement. */
-@media (max-width: 720px) {
-  [data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] .civic-functional-heading {
-    min-height: 0;
-    padding: 1rem;
-  }
 }
 
 @media (max-width: 480px) {

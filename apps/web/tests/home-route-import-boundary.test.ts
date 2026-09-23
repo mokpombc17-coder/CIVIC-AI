@@ -140,17 +140,20 @@ describe("home route import boundary", () => {
       join(webRoot, "app", "(admin)", "admin", "layout.tsx"),
       "utf8",
     );
+    const forbiddenPage = readFileSync(join(webRoot, "app", "forbidden", "page.tsx"), "utf8");
     const homeStyles = readFileSync(join(webRoot, "app", "home", "home.css"), "utf8");
     const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
 
     expect(rootLayout).not.toMatch(
-      /import "\.\/(?:wireflow-base|wireflow|admin-base|admin-console)\.css"/u,
+      /import "\.\/(?:wireflow-base|wireflow|admin-shell|admin-base|admin-console)\.css"/u,
     );
     expect(homeLayout).toContain('import "./home.css"');
     expect(participantLayout).toContain('import "..\/wireflow.css"');
+    expect(adminLayout).toContain('import "..\/..\/admin-shell.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-base.css"');
     expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
+    expect(forbiddenPage).toContain('import "..\/admin-shell.css"');
     expect(homeStyles).toContain('@import "../wireflow-core.css"');
     expect(homeStyles).not.toContain("wireflow-base.css");
     expect(homeStyles).toContain(".civic-opinion-hero-question");

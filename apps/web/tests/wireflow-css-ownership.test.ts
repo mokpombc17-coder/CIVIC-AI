@@ -62,6 +62,7 @@ describe("wireflow CSS ownership", () => {
   const home = readFileSync(join(appRoot, "home", "home.css"), "utf8");
   const wireflowBase = readFileSync(join(appRoot, "wireflow-base.css"), "utf8");
   const wireflowCore = readFileSync(join(appRoot, "wireflow-core.css"), "utf8");
+  const adminShell = readFileSync(join(appRoot, "admin-shell.css"), "utf8");
   const adminBase = readFileSync(join(appRoot, "admin-base.css"), "utf8");
   const adminConsole = readFileSync(join(appRoot, "admin-console.css"), "utf8");
 
@@ -95,13 +96,17 @@ describe("wireflow CSS ownership", () => {
   it("admin console 스타일은 route 전용 stylesheet가 소유한다", () => {
     const globalSelectors = selectorsIn(globals);
 
-    expect(globalSelectors).toContain(".civic-admin-sidebar");
-    expect(globalSelectors).toContain(".civic-admin-nav-link");
+    expect(globalSelectors).not.toContain(".civic-admin-sidebar");
+    expect(globalSelectors).not.toContain(".civic-admin-nav-link");
+    expect(globals).not.toContain('[data-wireflow-shell="admin"]');
     expect(globalSelectors).not.toContain(".civic-admin-workbench");
     expect(globalSelectors).not.toContain(".civic-admin-search");
     expect(globals).not.toContain('[data-wireflow-shell="admin"] .civic-domain-console');
     expect(globals).not.toContain('[data-wireflow-layout="task-detail"].civic-domain-console');
 
+    expect(adminShell).toContain(".civic-admin-sidebar");
+    expect(adminShell).toContain(".civic-admin-nav-link");
+    expect(adminShell).toContain('[data-wireflow-shell="admin"]');
     expect(adminBase).toContain(".civic-admin-workbench");
     expect(adminBase).toContain(".civic-admin-search");
     expect(adminBase).toContain('[data-wireflow-shell="admin"] .civic-domain-console');

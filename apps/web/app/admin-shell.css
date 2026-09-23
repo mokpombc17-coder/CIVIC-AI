@@ -1,0 +1,144 @@
+/* Shared AdminShell foundation. Loaded only by /admin and /forbidden. */
+
+.civic-shell-admin {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr);
+  min-height: 100dvh;
+  background: var(--civic-paper);
+}
+
+.civic-admin-sidebar {
+  position: sticky;
+  top: 0;
+  display: flex;
+  height: 100dvh;
+  flex-direction: column;
+  border: 0;
+  background: var(--civic-navy);
+  color: #fff;
+  padding: 1.75rem 1rem;
+}
+
+.civic-admin-brand {
+  display: grid;
+  gap: 0.25rem;
+  color: #fff;
+  padding: 0 0.65rem 1.4rem;
+  text-decoration: none;
+}
+
+.civic-admin-brand strong {
+  font-size: 1.1rem;
+  letter-spacing: -0.02em;
+}
+
+.civic-admin-brand small {
+  color: #b1cefb;
+  font-size: 0.72rem;
+  letter-spacing: 0.08em;
+}
+
+.civic-admin-nav {
+  display: grid;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.civic-admin-nav-link {
+  display: flex;
+  min-height: 2.9rem;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.7rem;
+  border: 0;
+  border-radius: 0.38rem;
+  color: #d8e5fd;
+  padding: 0.7rem 0.8rem;
+  font-size: 0.86rem;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.civic-admin-nav-link > span:first-child {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.civic-admin-nav-link small {
+  color: #9faaa4;
+}
+
+.civic-admin-nav-link[aria-current="page"] {
+  border: 0;
+  background: #fff;
+  color: var(--civic-navy);
+}
+
+.civic-admin-stage,
+.civic-admin-content {
+  min-width: 0;
+}
+
+.civic-admin-content {
+  width: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+.civic-admin-content .civic-coming-soon {
+  min-height: calc(100dvh - 11rem);
+}
+
+[data-wireflow-shell="admin"] .civic-functional-screen {
+  min-height: 100dvh;
+  overflow: visible;
+}
+
+[data-wireflow-shell="admin"] .civic-functional-heading {
+  min-height: 6rem;
+  padding: 1.5rem 2rem;
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-functional-heading h1 {
+  font-size: 1.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-account-layout,
+[data-wireflow-shell="admin"] .civic-common-state {
+  margin: 0;
+  padding: 2rem;
+}
+
+/* Desktop RAG uses a taller shared heading than other admin screens. */
+[data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] .civic-functional-heading {
+  min-height: 7.25rem;
+  padding: 1rem 2rem;
+}
+
+@media (max-width: 980px) {
+  .civic-shell-admin {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 720px) {
+  .civic-shell-admin {
+    display: block;
+  }
+
+  .civic-admin-sidebar {
+    position: static;
+    height: auto;
+    padding: 1rem;
+  }
+
+  .civic-admin-nav {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  [data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] .civic-functional-heading {
+    min-height: 0;
+    padding: 1rem;
+  }
+}
