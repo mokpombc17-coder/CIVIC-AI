@@ -1,11 +1,10 @@
-const PWA_CACHE_PREFIX = "civic-ai-pwa-start-";
-const PWA_CACHE = `${PWA_CACHE_PREFIX}v4`;
+const PWA_CACHE_PREFIX = "civic-ai-pwa-";
+const PWA_SHELL_CACHE = `${PWA_CACHE_PREFIX}shell-v5`;
+const PWA_RUNTIME_CACHE = `${PWA_CACHE_PREFIX}runtime-v5`;
+const PWA_ACTIVE_CACHES = new Set([PWA_SHELL_CACHE, PWA_RUNTIME_CACHE]);
 const PWA_START_URL = "/pwa/start";
 const PWA_SHELL_ASSETS = [PWA_START_URL, "/pwa-start/start.css", "/pwa-start/start.js"];
-const PERSISTENT_ASSETS = [
-  "/icons/civic-ai-192.png",
-  "/icons/civic-ai-512.png",
-  "/icons/apple-touch-icon.png",
+const PWA_RUNTIME_ASSETS = new Set([
   "/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6",
   "/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7",
   "/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5",
@@ -14,7 +13,7 @@ const PERSISTENT_ASSETS = [
   "/assets/platform-navigation/chat.png?v=088425758cd1",
   "/assets/platform-navigation/vote.png?v=21e61dc6c498",
   "/assets/platform-navigation/account.png?v=b19ca424bf3c",
-];
+]);
 
 self.addEventListener("install", (event) => {
   event.waitUntil(Promise.all([self.skipWaiting(), cachePwaShell()]));
@@ -28,7 +27,7 @@ self.addEventListener("activate", (event) => {
         .then((keys) =>
           Promise.all(
             keys
-              .filter((key) => key.startsWith(PWA_CACHE_PREFIX) && key !== PWA_CACHE)
+              .filter((key) => key.startsWith(PWA_CACHE_PREFIX) && !PWA_ACTIVE_CACHES.has(key))
               .map((key) => caches.delete(key)),
           ),
         ),
@@ -53,24 +52,24 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  if (isPersistentAsset(url.pathname)) {
-    event.respondWith(cacheFirstPersistentAsset(event.request));
+  const runtimeAssetUrl = `${url.pathname}${url.search}`;
+  if (event.request.method === "GET" && PWA_RUNTIME_ASSETS.has(runtimeAssetUrl)) {
+    event.respondWith(cacheFirstRuntimeAsset(event.request));
   }
 });
 
 async function cachePwaShell() {
-  const cache = await caches.open(PWA_CACHE);
+  const cache = await caches.open(PWA_SHELL_CACHE);
   await cache.addAll(PWA_SHELL_ASSETS);
-  await Promise.allSettled(PERSISTENT_ASSETS.map((asset) => cache.add(asset)));
 }
 
 async function cacheFirstPwaShellAsset(request) {
-  const cache = await caches.open(PWA_CACHE);
+  const cache = await caches.open(PWA_SHELL_CACHE);
   return (await cache.match(request)) ?? fetch(request);
 }
 
-async function cacheFirstPersistentAsset(request) {
-  const cache = await caches.open(PWA_CACHE);
+async function cacheFirstRuntimeAsset(request) {
+  const cache = await caches.open(PWA_RUNTIME_CACHE);
   const cached = await cache.match(request);
   if (cached) return cached;
 
@@ -80,7 +79,7 @@ async function cacheFirstPersistentAsset(request) {
 }
 
 async function networkFirstPwaStart(request) {
-  const cache = await caches.open(PWA_CACHE);
+  const cache = await caches.open(PWA_SHELL_CACHE);
   try {
     const response = await fetch(request);
     if (response.ok) await cache.put(PWA_START_URL, response.clone());
@@ -88,12 +87,4 @@ async function networkFirstPwaStart(request) {
   } catch {
     return (await cache.match(PWA_START_URL, { ignoreVary: true })) ?? Response.error();
   }
-}
-
-function isPersistentAsset(pathname) {
-  return (
-    pathname.startsWith("/icons/") ||
-    pathname.startsWith("/fonts/pretendard-gov/") ||
-    pathname.startsWith("/assets/platform-navigation/")
-  );
 }

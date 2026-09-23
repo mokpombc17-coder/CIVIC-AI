@@ -7,16 +7,19 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
     ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 router.push 이동]
     └── AppShell [Client]
-        ├── PwaServiceWorkerRegistration [production, PWA 시작 shell만 캐시]
+        ├── PwaServiceWorkerRegistration [production, window load 이후 idle 등록]
         ├── NativeBridgeRuntime
         └── AppUpdateGate
             └── App Router children
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
-업데이트 정책만 소유한다. service worker는 `/pwa/start`의 공개 시작 shell과 전용 CSS·JavaScript를
-하나의 필수 cache 단위로 저장한다. 버전이 지정된 기존 공통 이미지·폰트 cache는 유지하지만 API 응답이나
-인증 정보는 캐시하지 않는다.
+업데이트 정책만 소유한다. service worker 등록은 초기 문서의 `load` 이후 `requestIdleCallback`에서
+실행하며 강제 timeout을 두지 않는다. idle API가 없는 브라우저에서만 다음 timer task를 사용한다.
+service worker의 v5 shell cache는 `/pwa/start`의 공개 HTML과 전용 CSS·JavaScript만 install 시
+원자적으로 저장한다. 별도 runtime cache는 실제 요청된 버전 지정 Pretendard GOV 폰트와 platform
+navigation 이미지만 cache-first로 저장하며, 이미 로드된 홈 자산을 다시 요청하지 않는다. manifest·설치
+아이콘은 브라우저에 맡기고 API 응답이나 인증 정보는 캐시하지 않는다.
 
 `AuthSessionSync`는 `civic-ai:auth:v1` 채널을 전역에서 구독한다. 다른 문서의 `LOGIN`은
 `/home`, `LOGOUT`은 `/login`으로 `router.push()`를 통해 이동한다. 인증 확인은 기존
@@ -280,6 +283,7 @@ Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져�
 `/home`으로 이동한다. installed PWA에서는 Refresh 결과와 최소 splash 시간을 함께 기다리며,
 401·403만 비인증으로 처리하고 네트워크·429·서버 오류는 재시도 상태로 유지한다. 토큰은 브라우저
 JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의 HttpOnly cookie 계약을 유지한다.
+시작 shell의 `CIVIC.AI` wordmark는 이미지나 웹폰트를 요청하지 않는 system font 텍스트다.
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,
