@@ -7,15 +7,16 @@ RootLayout [Server Route, 문서 CSP nonce 소유]
 └── StyleNonceProvider [Client, 현재 문서 수명 동안 nonce 고정]
     ├── AuthSessionSync [Client, LOGIN/LOGOUT 수신 후 router.push 이동]
     └── AppShell [Client]
-        ├── PwaServiceWorkerRegistration [production, window load 이후 idle 등록]
+        ├── PwaServiceWorkerRegistration [production, window load 이후 최초 사용자 상호작용 뒤 idle 등록]
         ├── NativeBridgeRuntime
         └── AppUpdateGate
             └── App Router children
 ```
 
 `AppShell`은 DOM 레이아웃을 추가하지 않고 WebView bridge와 PWA service worker 등록, 앱
-업데이트 정책만 소유한다. service worker 등록은 초기 문서의 `load` 이후 `requestIdleCallback`에서
-실행하며 강제 timeout을 두지 않는다. idle API가 없는 브라우저에서만 다음 timer task를 사용한다.
+업데이트 정책만 소유한다. service worker 등록은 초기 문서의 `load` 이후 최초의 실제
+`pointerdown`·`wheel`·`keydown`을 기다린 다음 `requestIdleCallback`에서 실행하며 강제 timeout을 두지
+않는다. idle API가 없는 브라우저에서만 다음 timer task를 사용한다.
 service worker의 v5 shell cache는 `/pwa/start`의 공개 HTML과 전용 CSS·JavaScript만 install 시
 원자적으로 저장한다. 별도 runtime cache는 실제 요청된 버전 지정 Pretendard GOV 폰트와 platform
 navigation 이미지만 cache-first로 저장하며, 이미 로드된 홈 자산을 다시 요청하지 않는다. manifest·설치

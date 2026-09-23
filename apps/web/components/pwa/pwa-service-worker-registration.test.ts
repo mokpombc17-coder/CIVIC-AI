@@ -2,14 +2,23 @@ import { describe, expect, it, vi } from "vitest";
 import { schedulePwaServiceWorkerRegistration } from "./pwa-service-worker-registration";
 
 describe("schedulePwaServiceWorkerRegistration", () => {
-  it("waits for window load and then an idle period without a forced timeout", () => {
+  it("waits for load, a trusted user interaction, and then an idle period", () => {
     const harness = createRegistrationHarness("loading");
     const cleanup = schedulePwaServiceWorkerRegistration(harness.environment);
 
     expect(harness.register).not.toHaveBeenCalled();
     expect(harness.addLoadListener).toHaveBeenCalledOnce();
+    expect(harness.addUserInteractionListener).not.toHaveBeenCalled();
 
     harness.loadListener?.();
+    expect(harness.addUserInteractionListener).toHaveBeenCalledOnce();
+    expect(harness.requestIdleCallback).not.toHaveBeenCalled();
+
+    harness.interactionListener?.({ isTrusted: false });
+    expect(harness.requestIdleCallback).not.toHaveBeenCalled();
+
+    harness.interactionListener?.({ isTrusted: true });
+    expect(harness.removeUserInteractionListener).toHaveBeenCalledOnce();
     expect(harness.requestIdleCallback).toHaveBeenCalledWith(expect.any(Function));
     expect(harness.requestIdleCallback).toHaveBeenCalledTimes(1);
     expect(harness.register).not.toHaveBeenCalled();
@@ -20,13 +29,14 @@ describe("schedulePwaServiceWorkerRegistration", () => {
     cleanup();
   });
 
-  it("schedules idle work immediately when load already completed", () => {
+  it("starts listening immediately when load already completed", () => {
     const harness = createRegistrationHarness("complete");
 
     schedulePwaServiceWorkerRegistration(harness.environment);
 
     expect(harness.addLoadListener).not.toHaveBeenCalled();
-    expect(harness.requestIdleCallback).toHaveBeenCalledOnce();
+    expect(harness.addUserInteractionListener).toHaveBeenCalledOnce();
+    expect(harness.requestIdleCallback).not.toHaveBeenCalled();
     expect(harness.register).not.toHaveBeenCalled();
   });
 
@@ -35,16 +45,31 @@ describe("schedulePwaServiceWorkerRegistration", () => {
 
     schedulePwaServiceWorkerRegistration(harness.environment);
 
+    harness.interactionListener?.({ isTrusted: true });
     expect(harness.setTimeout).toHaveBeenCalledWith(expect.any(Function), 0);
     expect(harness.register).not.toHaveBeenCalled();
     harness.timeoutCallback?.();
     expect(harness.register).toHaveBeenCalledOnce();
   });
 
-  it("cancels pending registration when the component unmounts", () => {
+  it("removes pending interaction listeners when the component unmounts", () => {
     const harness = createRegistrationHarness("complete");
     const cleanup = schedulePwaServiceWorkerRegistration(harness.environment);
 
+    cleanup();
+
+    expect(harness.removeLoadListener).toHaveBeenCalledOnce();
+    expect(harness.removeUserInteractionListener).toHaveBeenCalledOnce();
+    harness.interactionListener?.({ isTrusted: true });
+    expect(harness.requestIdleCallback).not.toHaveBeenCalled();
+    expect(harness.register).not.toHaveBeenCalled();
+  });
+
+  it("cancels pending idle registration when the component unmounts", () => {
+    const harness = createRegistrationHarness("complete");
+    const cleanup = schedulePwaServiceWorkerRegistration(harness.environment);
+
+    harness.interactionListener?.({ isTrusted: true });
     cleanup();
 
     expect(harness.removeLoadListener).toHaveBeenCalledOnce();
@@ -56,12 +81,19 @@ describe("schedulePwaServiceWorkerRegistration", () => {
 
 function createRegistrationHarness(readyState: DocumentReadyState, supportsIdle = true) {
   let loadListener: (() => void) | undefined;
+  let interactionListener: ((event: Pick<Event, "isTrusted">) => void) | undefined;
   let idleCallback: IdleRequestCallback | undefined;
   let timeoutCallback: (() => void) | undefined;
   const addLoadListener = vi.fn((listener: () => void) => {
     loadListener = listener;
   });
   const removeLoadListener = vi.fn();
+  const addUserInteractionListener = vi.fn(
+    (listener: (event: Pick<Event, "isTrusted">) => void) => {
+      interactionListener = listener;
+    },
+  );
+  const removeUserInteractionListener = vi.fn();
   const requestIdleCallback = vi.fn((callback: IdleRequestCallback) => {
     idleCallback = callback;
     return 17;
@@ -79,6 +111,8 @@ function createRegistrationHarness(readyState: DocumentReadyState, supportsIdle 
       readyState,
       addLoadListener,
       removeLoadListener,
+      addUserInteractionListener,
+      removeUserInteractionListener,
       requestIdleCallback: supportsIdle ? requestIdleCallback : null,
       cancelIdleCallback: supportsIdle ? cancelIdleCallback : null,
       setTimeout,
@@ -87,6 +121,8 @@ function createRegistrationHarness(readyState: DocumentReadyState, supportsIdle 
     },
     addLoadListener,
     removeLoadListener,
+    addUserInteractionListener,
+    removeUserInteractionListener,
     requestIdleCallback,
     cancelIdleCallback,
     setTimeout,
@@ -97,6 +133,9 @@ function createRegistrationHarness(readyState: DocumentReadyState, supportsIdle 
     },
     get idleCallback() {
       return idleCallback;
+    },
+    get interactionListener() {
+      return interactionListener;
     },
     get timeoutCallback() {
       return timeoutCallback;

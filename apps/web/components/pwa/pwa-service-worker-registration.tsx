@@ -6,6 +6,8 @@ type PwaRegistrationEnvironment = Readonly<{
   readyState: DocumentReadyState;
   addLoadListener: (listener: () => void) => void;
   removeLoadListener: (listener: () => void) => void;
+  addUserInteractionListener: (listener: (event: Pick<Event, "isTrusted">) => void) => void;
+  removeUserInteractionListener: (listener: (event: Pick<Event, "isTrusted">) => void) => void;
   requestIdleCallback: ((callback: IdleRequestCallback) => number) | null;
   cancelIdleCallback: ((handle: number) => void) | null;
   setTimeout: (callback: () => void, delay: number) => number;
@@ -28,6 +30,7 @@ export function schedulePwaServiceWorkerRegistration(
   environment: PwaRegistrationEnvironment = browserRegistrationEnvironment(),
 ): () => void {
   let disposed = false;
+  let listeningForInteraction = false;
   let scheduled = false;
   let idleHandle: number | undefined;
   let timeoutHandle: number | undefined;
@@ -36,7 +39,7 @@ export function schedulePwaServiceWorkerRegistration(
     if (disposed) return;
     void environment.register().catch(() => undefined);
   };
-  const schedule = () => {
+  const scheduleRegistration = () => {
     if (disposed || scheduled) return;
     scheduled = true;
 
@@ -46,16 +49,32 @@ export function schedulePwaServiceWorkerRegistration(
     }
     timeoutHandle = environment.setTimeout(register, 0);
   };
+  const stopListeningForInteraction = () => {
+    if (!listeningForInteraction) return;
+    listeningForInteraction = false;
+    environment.removeUserInteractionListener(onUserInteraction);
+  };
+  const onUserInteraction = (event: Pick<Event, "isTrusted">) => {
+    if (!event.isTrusted || disposed || scheduled) return;
+    stopListeningForInteraction();
+    scheduleRegistration();
+  };
+  const listenForUserInteraction = () => {
+    if (disposed || listeningForInteraction || scheduled) return;
+    listeningForInteraction = true;
+    environment.addUserInteractionListener(onUserInteraction);
+  };
 
   if (environment.readyState === "complete") {
-    schedule();
+    listenForUserInteraction();
   } else {
-    environment.addLoadListener(schedule);
+    environment.addLoadListener(listenForUserInteraction);
   }
 
   return () => {
     disposed = true;
-    environment.removeLoadListener(schedule);
+    environment.removeLoadListener(listenForUserInteraction);
+    stopListeningForInteraction();
     if (idleHandle !== undefined && environment.cancelIdleCallback) {
       environment.cancelIdleCallback(idleHandle);
     }
@@ -66,10 +85,22 @@ export function schedulePwaServiceWorkerRegistration(
 }
 
 function browserRegistrationEnvironment(): PwaRegistrationEnvironment {
+  const userInteractionEvents = ["pointerdown", "wheel", "keydown"] as const;
+
   return {
     readyState: document.readyState,
     addLoadListener: (listener) => window.addEventListener("load", listener, { once: true }),
     removeLoadListener: (listener) => window.removeEventListener("load", listener),
+    addUserInteractionListener: (listener) => {
+      for (const eventName of userInteractionEvents) {
+        window.addEventListener(eventName, listener, { passive: true });
+      }
+    },
+    removeUserInteractionListener: (listener) => {
+      for (const eventName of userInteractionEvents) {
+        window.removeEventListener(eventName, listener);
+      }
+    },
     requestIdleCallback:
       typeof window.requestIdleCallback === "function"
         ? window.requestIdleCallback.bind(window)
