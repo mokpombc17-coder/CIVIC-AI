@@ -24,7 +24,13 @@ export type ChatRoomSessionView =
       showNotice: false;
     }
   | {
-      kind: "authentication-required" | "pending" | "replaced" | "closed" | "error";
+      kind:
+        | "authentication-required"
+        | "connection-replaced"
+        | "pending"
+        | "replaced"
+        | "closed"
+        | "error";
       title: string;
       description: string;
       canDraft: false;
@@ -57,16 +63,15 @@ export function getChatRoomSessionView(
 
   if (snapshot.connectionStatus === "replaced") {
     return {
-      kind: "error",
-      title: "다른 환경에서 채팅 연결을 사용 중입니다.",
+      kind: "connection-replaced",
+      title: "현재 채팅을 사용할 수 없습니다.",
       description:
-        snapshot.connectionError?.message ??
-        "다른 브라우저, 프로필 또는 기기의 연결이 종료된 뒤 페이지를 새로고침해 주세요.",
+        "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 다시 시작하면 다른 쪽 채팅은 중단됩니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,
-      indicatorLabel: "채팅 불가",
-      indicatorTone: "negative",
+      indicatorLabel: "다른 곳에서 사용 중",
+      indicatorTone: "pending",
       showNotice: true,
     };
   }
@@ -150,7 +155,7 @@ export function getChatRoomSessionView(
     return {
       kind: "replaced",
       title: "다른 토론방에서 채팅 중이에요.",
-      description: "이 토론방으로 돌아오면 새 메시지를 불러와 채팅을 다시 시작해요.",
+      description: "이 토론방의 채팅은 잠시 대기 중이에요.",
       canDraft: false,
       canReactivate: true,
       canReconnect: false,

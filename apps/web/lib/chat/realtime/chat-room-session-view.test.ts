@@ -98,6 +98,7 @@ describe("getChatRoomSessionView", () => {
     expect(view).toMatchObject({
       kind: "replaced",
       title: "다른 토론방에서 채팅 중이에요.",
+      description: "이 토론방의 채팅은 잠시 대기 중이에요.",
       canDraft: false,
       canReactivate: true,
       indicatorLabel: "다른 토론방 사용 중",
@@ -183,7 +184,7 @@ describe("getChatRoomSessionView", () => {
     });
   });
 
-  it("연결이 다른 환경으로 교체되면 활성 방이어도 입력과 재활성화를 막는다", () => {
+  it("연결이 다른 환경으로 교체되면 현재 화면에서 다시 시작하는 안내를 반환한다", () => {
     const view = getChatRoomSessionView(
       {
         status: "active",
@@ -204,12 +205,15 @@ describe("getChatRoomSessionView", () => {
     );
 
     expect(view).toMatchObject({
-      kind: "error",
-      title: "다른 환경에서 채팅 연결을 사용 중입니다.",
+      kind: "connection-replaced",
+      title: "현재 채팅을 사용할 수 없습니다.",
+      description:
+        "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 다시 시작하면 다른 쪽 채팅은 중단됩니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,
-      indicatorLabel: "채팅 불가",
+      indicatorLabel: "다른 곳에서 사용 중",
+      indicatorTone: "pending",
       showNotice: true,
     });
   });

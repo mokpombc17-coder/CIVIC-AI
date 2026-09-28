@@ -7,6 +7,7 @@ type ChatRoomSessionIndicatorProps = Readonly<{
 type ChatRoomSessionNoticeProps = Readonly<{
   onReactivate: () => void;
   onReconnect: () => void;
+  onReload: () => void;
   view: ChatRoomSessionView;
 }>;
 
@@ -41,6 +42,7 @@ export function ChatRoomSessionIndicator({ view }: ChatRoomSessionIndicatorProps
 export function ChatRoomSessionNotice({
   onReactivate,
   onReconnect,
+  onReload,
   view,
 }: ChatRoomSessionNoticeProps) {
   if (!view.showNotice) {
@@ -51,7 +53,7 @@ export function ChatRoomSessionNotice({
 
   return (
     <div
-      className={`mx-4 mt-3 rounded-[var(--chat-publishing-radius-card)] border px-4 py-4 text-[var(--chat-publishing-color-text)] ${
+      className={`mx-4 mt-3 mb-3 rounded-[var(--chat-publishing-radius-card)] border px-4 py-4 text-[var(--chat-publishing-color-text)] ${
         isInformational
           ? "border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-accent-soft)]"
           : "border-[#ffc95c] bg-[#fff7e8]"
@@ -83,7 +85,15 @@ export function ChatRoomSessionNotice({
           </p>
         </div>
       </div>
-      {view.canReactivate ? (
+      {view.kind === "connection-replaced" ? (
+        <button
+          className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          onClick={onReload}
+          type="button"
+        >
+          여기서 다시 시작하기
+        </button>
+      ) : view.canReactivate ? (
         <button
           className="mt-4 inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
           onClick={onReactivate}

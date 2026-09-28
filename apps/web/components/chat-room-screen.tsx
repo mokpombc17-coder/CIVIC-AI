@@ -222,6 +222,10 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
             failureAnalytics.trackRecoveryAttempt("realtime-connect", "user_retry");
             realtime.reconnect();
           }}
+          onReload={() => {
+            failureAnalytics.trackRecoveryAttempt("realtime-connect", "user_retry");
+            window.location.reload();
+          }}
           view={realtime.sessionView}
         />
       }

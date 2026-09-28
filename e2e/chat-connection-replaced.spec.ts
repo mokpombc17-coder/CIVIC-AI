@@ -2,9 +2,8 @@ import { expect, test } from "@playwright/test";
 import { authenticateLocalE2EUser } from "./chat-e2e-helpers";
 
 const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
-const CONNECTION_REPLACED_LABEL = "실시간 연결: 다른 환경에서 연결됨";
-const CONNECTION_REPLACED_MESSAGE =
-  "다른 브라우저, 프로필 또는 기기에서 채팅에 연결하여 이 연결이 종료되었습니다.";
+const CONNECTION_REPLACED_LABEL = "실시간 연결: 다른 곳에서 사용 중";
+const CONNECTION_REPLACED_TITLE = "현재 채팅을 사용할 수 없습니다.";
 const RECONNECT_DELAY_GUARD_MS = 4_000;
 
 test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하고 수동으로 복구한다", async ({
@@ -34,7 +33,10 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
         .getByRole("alert")
         .filter({ hasText: CONNECTION_REPLACED_LABEL });
 
-      await expect(replacedAlert).toContainText(CONNECTION_REPLACED_MESSAGE);
+      await expect(replacedAlert).toContainText(CONNECTION_REPLACED_TITLE);
+      await expect(
+        replacedAlert.getByRole("button", { name: "여기서 다시 시작하기" }),
+      ).toBeVisible();
       await expect(replacedAlert.getByRole("button", { name: "다시 연결" })).toHaveCount(0);
     });
 
@@ -45,12 +47,12 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
       await expect(secondPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
     });
 
-    await test.step("새 연결이 종료된 뒤 첫 번째 브라우저를 새로고침하면 수동으로 복구된다", async () => {
-      await secondPage.close();
-      await firstPage.reload();
+    await test.step("첫 번째 브라우저에서 다시 시작하면 두 번째 브라우저의 연결이 교체된다", async () => {
+      await firstPage.getByRole("button", { name: "여기서 다시 시작하기" }).click();
 
       await expect(firstPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       await expect(firstPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toHaveCount(0);
+      await expect(secondPage.getByText(CONNECTION_REPLACED_LABEL, { exact: true })).toBeVisible();
     });
   } finally {
     await Promise.all([firstContext.close(), secondContext.close()]);
