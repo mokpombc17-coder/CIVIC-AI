@@ -91,7 +91,7 @@ runtime은 편집 가능한 요소에 포커스가 있는 동안 모바일 visua
 
 ## Route `/survey`
 
-`SurveyLayout`은 설문 조회·제출·본인 응답 조회가 공유하는 `VoteQueryProvider`를 조립한다.
+`SurveyLayout`은 설문 조회·제출이 공유하는 `VoteQueryProvider`를 조립한다.
 `SurveyLoading`은 `/survey` route segment가 준비되는 동안 실제 설문 화면과 동일한
 `PlatformShell`을 유지하고, `SurveyScreenLoading`의 전용 로딩 안내를 표시한다. 동일한
 `SurveyLoadingStatus`는 `SurveyScreen`의 Current Survey API pending 상태에서도 재사용한다.
@@ -153,10 +153,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                 │           │           │   └── SurveyConfirmation [Client graph] [Feature] [consent API-driven: step 8]
                 │           │           │       └── SurveyStepActions [Client graph] [Feature] [inside card]
                 │           │           └── SurveyStepActions [Client graph] [Feature] [step 1~7]
-                │           └── SurveySubmissionCompletion [Client graph] [Feature] [post-submit eligibility recheck]
-                └── route /survey/responses/latest, /survey/responses/[responseId]
-                    └── SurveyResponseScreen [Client] [Screen] [latest/specific API response]
-                        └── PlatformShell [Server-compatible] [View] [bottom navigation: omitted]
+                └── SurveySubmissionCompletion [Client graph] [Feature] [post-submit eligibility recheck]
 ```
 
 `survey-contracts.ts`는 v4의 Section → Question 및 행렬 Item read/write union을 소유하고,
@@ -168,8 +165,6 @@ idempotency key와 발급된 receipt를 Survey 제출 재시도 동안 유지한
 payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,
 현재 설문 계약에 맞춘 안전한 복원과 저장소 장애 시 graceful degradation을 담당한다.
-`SurveyResponseScreen`은 latest/specific query가 반환한 제출 당시 content와 answer를 ID로
-결합해 읽기 전용으로 표시한다.
 `survey-presentation.ts`는 `questionKey`별 Figma 전용 제목·안내 문구와 Matrix 화면 layout을 소유하고
 API `prompt`를 화면 문구의 fallback으로 사용하지 않는다. Matrix 선택지 중 Figma 표기가 다른 값은
 `survey-option-label-overrides.json`에서 `questionKey`와 API label 조합으로 화면 label만 교체하며,
@@ -663,9 +658,6 @@ flowchart TD
     SurveySelect["SurveySelect [Client] [Control]<br/>apps/web/components/survey/survey-select.tsx"]
     SurveyMultiSelect["SurveyMultiSelect [Client] [Control]<br/>apps/web/components/survey/survey-multi-select.tsx"]
     SurveyDropdownSurface["SurveyDropdownSurface [Client] [View]<br/>apps/web/components/survey/survey-dropdown.tsx"]
-    SurveyResponsePage["SurveyResponsePage [Server] [Route]<br/>apps/web/app/survey/responses/*/page.tsx"]
-    SurveyResponseScreen["SurveyResponseScreen [Client] [Screen]<br/>apps/web/components/survey/survey-response-screen.tsx"]
-
     SpecialBoundary["App Router root-segment special UI<br/>framework-managed; direct JSX parent 미확정"]
     Loading["Loading [Server] [Route] [conditional]<br/>apps/web/app/loading.tsx"]
     ErrorPage["ErrorPage [Client] [Route] [conditional]<br/>apps/web/app/error.tsx"]
@@ -783,9 +775,6 @@ flowchart TD
     SurveySectionFields --> SurveyMultiSelect
     SurveySelect --> SurveyDropdownSurface
     SurveyMultiSelect --> SurveyDropdownSurface
-    SurveyChildrenSlot -. "route /survey/responses/*" .-> SurveyResponsePage
-    SurveyResponsePage --> SurveyResponseScreen
-    SurveyResponseScreen --> PlatformShell
 
     SpecialBoundary -. "loading state" .-> Loading
     SpecialBoundary -. "error state" .-> ErrorPage
@@ -796,8 +785,8 @@ flowchart TD
     classDef client fill:#fff1e6,stroke:#ea580c,color:#431407;
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
-    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyScreenLoading,SurveyLoadingStatus,SurveyPage,SurveyResponsePage,Loading,NotFound server;
-    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformShellVisualViewportBoundary,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,SurveyResponseScreen,ErrorPage client;
+    class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,PlatformPageShell,ChatLayout,ChatRoomListLoading,ChatRoomScreenLoading,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomPage,VoteLayout,VotePage,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyScreenLoading,SurveyLoadingStatus,SurveyPage,Loading,NotFound server;
+    class NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformShellVisualViewportBoundary,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatLoading,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMessageSearchPanel,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatRoomSessionNotice,ChatMessageComposer,VoteQueryProvider,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyScreen,SurveySubmissionCompletion,SurveySectionFields,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,ErrorPage client;
     class ChatRoomEntryError server;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```
