@@ -4,6 +4,7 @@ import {
   findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
   shouldFollowLatestMessages,
+  shouldPreserveChatMessageViewport,
 } from "./chat-message-viewport-state";
 
 describe("chat message viewport state", () => {
@@ -78,6 +79,37 @@ describe("chat message viewport state", () => {
     expect(shouldFollowLatestMessages("pinned", "realtime")).toBe(true);
     expect(shouldFollowLatestMessages("initializing", "realtime")).toBe(true);
     expect(shouldFollowLatestMessages("detached", "current-user")).toBe(true);
+  });
+
+  it("같은 화면의 연결 generation만 바뀌면 현재 viewport를 유지한다", () => {
+    expect(
+      shouldPreserveChatMessageViewport({
+        currentContinuityKey: "room-01",
+        position: "detached",
+        previousContinuityKey: "room-01",
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreserveChatMessageViewport({
+        currentContinuityKey: "room-01",
+        position: "pinned",
+        previousContinuityKey: "room-01",
+      }),
+    ).toBe(true);
+    expect(
+      shouldPreserveChatMessageViewport({
+        currentContinuityKey: "room-02",
+        position: "detached",
+        previousContinuityKey: "room-01",
+      }),
+    ).toBe(false);
+    expect(
+      shouldPreserveChatMessageViewport({
+        currentContinuityKey: "room-01",
+        position: "initializing",
+        previousContinuityKey: "room-01",
+      }),
+    ).toBe(false);
   });
 
   it("하단을 보고 있거나 직접 보낸 메시지는 별도 미확인 수로 쌓지 않는다", () => {

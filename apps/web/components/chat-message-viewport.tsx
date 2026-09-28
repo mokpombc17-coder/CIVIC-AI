@@ -24,6 +24,7 @@ import {
   findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
   shouldFollowLatestMessages,
+  shouldPreserveChatMessageViewport,
 } from "@/components/chat-message-viewport-state";
 import type {
   ChatMessageHistoryFeedback,
@@ -59,6 +60,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   readStatePaused: boolean;
   roomLabel: string;
   targetMessageId?: string | null;
+  viewportContinuityKey: string;
   viewportKey: string;
 }>;
 
@@ -82,6 +84,7 @@ export function ChatMessageViewport({
     onReadThroughSequence,
     readStateEnabled,
     readStatePaused,
+    viewportContinuityKey,
     viewportKey,
   } = history;
   const scrollElementRef = useRef<HTMLDivElement>(null);
@@ -90,6 +93,7 @@ export function ChatMessageViewport({
   const olderRequestInFlightRef = useRef(false);
   const canLoadOlderRef = useRef(canLoadOlder);
   const currentViewportKeyRef = useRef(history.viewportKey);
+  const activeViewportContinuityKeyRef = useRef(history.viewportContinuityKey);
   const positionedViewportKeyRef = useRef<string | null>(null);
   const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
   const initialScrollInFlightRef = useRef(false);
@@ -412,15 +416,27 @@ export function ChatMessageViewport({
   useEffect(() => {
     olderRequestInFlightRef.current = false;
     pendingAnchorRef.current = null;
+    const preservesViewport = shouldPreserveChatMessageViewport({
+      currentContinuityKey: viewportContinuityKey,
+      position: viewportPositionRef.current,
+      previousContinuityKey: activeViewportContinuityKeyRef.current,
+    });
+    activeViewportContinuityKeyRef.current = viewportContinuityKey;
+    cancelLatestScroll();
+
+    if (preservesViewport) {
+      notifyInitialPositionReady(viewportKey);
+      return;
+    }
+
     viewportPositionRef.current = "initializing";
     setOlderLoadError(null);
     setArrivalAnnouncement(null);
-    cancelLatestScroll();
     dispatch({
       type: "reset",
       hasOlderMessages: canLoadOlderRef.current,
     });
-  }, [cancelLatestScroll, viewportKey]);
+  }, [cancelLatestScroll, notifyInitialPositionReady, viewportContinuityKey, viewportKey]);
 
   useEffect(() => {
     const recheckReadState = () => reportVisibleReadSequence();
@@ -489,14 +505,14 @@ export function ChatMessageViewport({
 
   useEffect(() => {
     const previous = previousItemsRef.current;
-    const current = createItemsSnapshot(history.items, viewportKey);
+    const current = createItemsSnapshot(history.items, viewportContinuityKey);
     previousItemsRef.current = current;
 
     if (history.items.length === 0) {
       return;
     }
 
-    const isNewViewport = previous?.viewportKey !== viewportKey;
+    const isNewViewport = previous?.viewportContinuityKey !== viewportContinuityKey;
     const previousLatestIndex =
       previous?.lastRenderKey === null
         ? -1
@@ -559,7 +575,14 @@ export function ChatMessageViewport({
     scrollToLatest();
 
     return cancelLatestScroll;
-  }, [canLoadOlder, cancelLatestScroll, history.items, scrollToLatest, viewportKey]);
+  }, [
+    canLoadOlder,
+    cancelLatestScroll,
+    history.items,
+    scrollToLatest,
+    viewportContinuityKey,
+    viewportKey,
+  ]);
 
   useEffect(() => {
     scrollToInitialTarget();
@@ -737,9 +760,8 @@ export function ChatMessageViewport({
 }
 
 type ChatMessageViewportItemsSnapshot = Readonly<{
-  itemCount: number;
   lastRenderKey: string | null;
-  viewportKey: string;
+  viewportContinuityKey: string;
 }>;
 
 type ChatMessageArrivalAnnouncement = Readonly<{
@@ -760,12 +782,11 @@ type ChatMessageViewportAnchor = Readonly<{
 
 function createItemsSnapshot(
   items: readonly ChatMessageViewportItemViewModel[],
-  viewportKey: string,
+  viewportContinuityKey: string,
 ): ChatMessageViewportItemsSnapshot {
   return {
-    itemCount: items.length,
     lastRenderKey: items.at(-1)?.renderKey ?? null,
-    viewportKey,
+    viewportContinuityKey,
   };
 }
 

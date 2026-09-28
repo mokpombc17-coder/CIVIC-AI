@@ -214,6 +214,18 @@ export function shouldFollowLatestMessages(
   return position !== "detached" || source === "current-user";
 }
 
+export function shouldPreserveChatMessageViewport({
+  currentContinuityKey,
+  position,
+  previousContinuityKey,
+}: Readonly<{
+  currentContinuityKey: string;
+  position: ChatMessageViewportPosition;
+  previousContinuityKey: string;
+}>): boolean {
+  return currentContinuityKey === previousContinuityKey && position !== "initializing";
+}
+
 function assertPositiveMessageCount(count: number): void {
   if (!Number.isSafeInteger(count) || count <= 0) {
     throw new RangeError("추가된 메시지 수는 1 이상의 안전한 정수여야 합니다.");

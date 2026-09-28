@@ -130,6 +130,9 @@ export function useChatRoomContentExperience(
       readStateEnabled: read.readStateEnabled && !contextNavigationActive,
       roomLabel: `${roomId} 메시지`,
       targetMessageId: messageNavigationActive ? messageNavigation.targetMessageId : null,
+      viewportContinuityKey: messageNavigationActive
+        ? `${roomId}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
+        : roomId,
       viewportKey: messageNavigationActive
         ? `${message.viewportKey}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
         : message.viewportKey,
