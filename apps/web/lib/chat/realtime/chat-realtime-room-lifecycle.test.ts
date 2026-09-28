@@ -53,14 +53,17 @@ describe("attachChatRealtimeRoomLifecycle", () => {
     expect(transport.claimRoom).toHaveBeenCalledTimes(2);
   });
 
-  it("focus와 visibilitychange가 연속 발생해도 replaced 방 reclaim을 한 번만 예약한다", () => {
+  it("탭 복귀의 visibilitychange와 focus가 연속 발생해도 reclaim을 한 번만 예약한다", () => {
     const transport = createFakeTransport({
       connectionStatus: "connected",
       roomId: "room-01",
       roomStatus: "replaced",
     });
     const target = createFakeTarget();
-    const visibilityTarget = createFakeVisibilityTarget();
+    const visibilityTarget = createFakeVisibilityTarget({
+      focused: false,
+      visibilityState: "hidden",
+    });
     const scheduledClaims: Array<() => void> = [];
 
     attachChatRealtimeRoomLifecycle(transport, "room-01", target, {
@@ -68,8 +71,10 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
-    target.dispatch("focus");
+    visibilityTarget.setVisibilityState("visible");
     visibilityTarget.dispatchVisibilityChange();
+    visibilityTarget.setFocused(true);
+    target.dispatch("focus");
     target.dispatch("pageshow");
 
     expect(scheduledClaims).toHaveLength(1);
@@ -79,7 +84,7 @@ describe("attachChatRealtimeRoomLifecycle", () => {
     expect(transport.claimRoom).toHaveBeenCalledTimes(2);
   });
 
-  it("화면 분할 상태에서는 포커스를 받은 창만 replaced 방을 reclaim한다", () => {
+  it("분리된 창에서는 focus만으로 replaced 방을 reclaim하지 않는다", () => {
     const transport = createFakeTransport({
       connectionStatus: "connected",
       roomId: "room-01",
@@ -94,26 +99,24 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
-    visibilityTarget.dispatchVisibilityChange();
-    target.dispatch("pageshow");
-
-    expect(scheduledClaims).toHaveLength(0);
-
     visibilityTarget.setFocused(true);
     target.dispatch("focus");
-    scheduledClaims[0]?.();
 
-    expect(transport.claimRoom).toHaveBeenCalledTimes(2);
+    expect(scheduledClaims).toHaveLength(0);
+    expect(transport.claimRoom).toHaveBeenCalledTimes(1);
   });
 
-  it("포커스 직후 ROOM_REPLACED가 도착해도 현재 창에서 자동 reclaim한다", () => {
+  it("탭 복귀 직후 ROOM_REPLACED가 도착하면 현재 탭에서 자동 reclaim한다", () => {
     const transport = createFakeTransport({
       connectionStatus: "connected",
       roomId: "room-01",
       roomStatus: "active",
     });
     const target = createFakeTarget();
-    const visibilityTarget = createFakeVisibilityTarget();
+    const visibilityTarget = createFakeVisibilityTarget({
+      focused: false,
+      visibilityState: "hidden",
+    });
     const scheduledClaims: Array<() => void> = [];
 
     attachChatRealtimeRoomLifecycle(transport, "room-01", target, {
@@ -121,6 +124,9 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
+    visibilityTarget.setVisibilityState("visible");
+    visibilityTarget.dispatchVisibilityChange();
+    visibilityTarget.setFocused(true);
     target.dispatch("focus");
     expect(scheduledClaims).toHaveLength(0);
 
@@ -145,7 +151,10 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
-    target.dispatch("focus");
+    visibilityTarget.setVisibilityState("hidden");
+    visibilityTarget.dispatchVisibilityChange();
+    visibilityTarget.setVisibilityState("visible");
+    visibilityTarget.dispatchVisibilityChange();
     scheduledClaims[0]?.();
     transport.setConnectionStatus("connected");
 
@@ -167,7 +176,7 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
-    target.dispatch("focus");
+    visibilityTarget.dispatchVisibilityChange();
     visibilityTarget.setVisibilityState("hidden");
     visibilityTarget.dispatchVisibilityChange();
     scheduledClaims[0]?.();
@@ -189,7 +198,7 @@ describe("attachChatRealtimeRoomLifecycle", () => {
       visibilityTarget,
     });
 
-    target.dispatch("focus");
+    visibilityTarget.dispatchVisibilityChange();
     cleanup();
     scheduledClaims[0]?.();
 

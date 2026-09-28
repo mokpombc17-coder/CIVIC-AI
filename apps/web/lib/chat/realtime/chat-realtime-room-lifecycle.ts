@@ -34,6 +34,7 @@ export function attachChatRealtimeRoomLifecycle(
   { scheduleRoomClaim = queueMicrotask, visibilityTarget }: ChatRealtimeRoomLifecycleOptions = {},
 ): () => void {
   let attached = true;
+  let tabReturnReclaimArmed = false;
   let claimScheduled = false;
   let foregroundReclaimPending = false;
 
@@ -42,6 +43,10 @@ export function attachChatRealtimeRoomLifecycle(
     (visibilityTarget.visibilityState === "visible" && visibilityTarget.hasFocus());
   const cancelForegroundReclaim = () => {
     foregroundReclaimPending = false;
+  };
+  const disarmTabReturnReclaim = () => {
+    tabReturnReclaimArmed = false;
+    cancelForegroundReclaim();
   };
   const scheduleForegroundReclaim = () => {
     if (!attached || !foregroundReclaimPending || claimScheduled) {
@@ -59,7 +64,7 @@ export function attachChatRealtimeRoomLifecycle(
       const connectionSnapshot = transport.getSnapshot();
 
       if (connectionSnapshot.status === "replaced") {
-        cancelForegroundReclaim();
+        disarmTabReturnReclaim();
         return;
       }
 
@@ -70,7 +75,7 @@ export function attachChatRealtimeRoomLifecycle(
       const roomSnapshot = transport.getRoomSnapshot();
 
       if (roomSnapshot.status === "active" && roomSnapshot.roomId === roomId) {
-        cancelForegroundReclaim();
+        disarmTabReturnReclaim();
         return;
       }
 
@@ -79,18 +84,20 @@ export function attachChatRealtimeRoomLifecycle(
         roomSnapshot.status === "replaced" && roomSnapshot.roomId === roomId;
 
       if (!canReclaimIdleRoom && !canReclaimReplacedRoom) {
-        cancelForegroundReclaim();
+        disarmTabReturnReclaim();
         return;
       }
 
-      cancelForegroundReclaim();
+      disarmTabReturnReclaim();
       transport.claimRoom(roomId);
     });
   };
-  const requestForegroundReclaim = () => {
-    if (!attached || !isForeground()) {
+  const armTabReturnReclaim = () => {
+    if (!attached) {
       return;
     }
+
+    tabReturnReclaimArmed = true;
 
     const roomSnapshot = transport.getRoomSnapshot();
 
@@ -104,13 +111,18 @@ export function attachChatRealtimeRoomLifecycle(
     foregroundReclaimPending = true;
     scheduleForegroundReclaim();
   };
+  const handleFocus = () => {
+    if (foregroundReclaimPending) {
+      scheduleForegroundReclaim();
+    }
+  };
   const handleVisibilityChange = () => {
     if (visibilityTarget?.visibilityState === "visible") {
-      requestForegroundReclaim();
+      armTabReturnReclaim();
       return;
     }
 
-    cancelForegroundReclaim();
+    disarmTabReturnReclaim();
   };
   const handleConnectionChange = () => {
     if (foregroundReclaimPending) {
@@ -121,11 +133,16 @@ export function attachChatRealtimeRoomLifecycle(
     const roomSnapshot = transport.getRoomSnapshot();
 
     if (roomSnapshot.status === "active" && roomSnapshot.roomId === roomId) {
-      cancelForegroundReclaim();
+      disarmTabReturnReclaim();
       return;
     }
 
-    if (roomSnapshot.status === "replaced" && roomSnapshot.roomId === roomId && isForeground()) {
+    if (
+      tabReturnReclaimArmed &&
+      roomSnapshot.status === "replaced" &&
+      roomSnapshot.roomId === roomId &&
+      isForeground()
+    ) {
       foregroundReclaimPending = true;
       scheduleForegroundReclaim();
     }
@@ -134,20 +151,20 @@ export function attachChatRealtimeRoomLifecycle(
   transport.claimRoom(roomId);
   const stopConnectionObserver = transport.observe(handleConnectionChange);
   const stopRoomObserver = transport.observeRoom(handleRoomChange);
-  target.addEventListener("blur", cancelForegroundReclaim);
-  target.addEventListener("focus", requestForegroundReclaim);
-  target.addEventListener("pagehide", cancelForegroundReclaim);
-  target.addEventListener("pageshow", requestForegroundReclaim);
+  target.addEventListener("blur", disarmTabReturnReclaim);
+  target.addEventListener("focus", handleFocus);
+  target.addEventListener("pagehide", disarmTabReturnReclaim);
+  target.addEventListener("pageshow", armTabReturnReclaim);
   visibilityTarget?.addEventListener("visibilitychange", handleVisibilityChange);
 
   return () => {
     attached = false;
-    cancelForegroundReclaim();
+    disarmTabReturnReclaim();
     visibilityTarget?.removeEventListener("visibilitychange", handleVisibilityChange);
-    target.removeEventListener("pageshow", requestForegroundReclaim);
-    target.removeEventListener("pagehide", cancelForegroundReclaim);
-    target.removeEventListener("focus", requestForegroundReclaim);
-    target.removeEventListener("blur", cancelForegroundReclaim);
+    target.removeEventListener("pageshow", armTabReturnReclaim);
+    target.removeEventListener("pagehide", disarmTabReturnReclaim);
+    target.removeEventListener("focus", handleFocus);
+    target.removeEventListener("blur", disarmTabReturnReclaim);
     stopRoomObserver();
     stopConnectionObserver();
     transport.releaseRoom(roomId);
