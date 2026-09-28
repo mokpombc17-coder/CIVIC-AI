@@ -54,6 +54,10 @@ export function isParticipantSwipeNavigationPath(pathname: string): boolean {
   return isPathWithin(pathname, "/chat") || isPathWithin(pathname, "/vote");
 }
 
+export function isParticipantSwipePointerSupported(pointerType: string): boolean {
+  return pointerType === "touch" || pointerType === "pen";
+}
+
 export function shouldBlockParticipantSwipe(
   contentInert: boolean,
   blockingOverlayOpen: boolean,

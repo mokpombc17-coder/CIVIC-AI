@@ -5,6 +5,7 @@ import {
   classifyParticipantSwipe,
   getParticipantSwipeVisualOffset,
   isParticipantSwipeNavigationPath,
+  isParticipantSwipePointerSupported,
   PARTICIPANT_SWIPE_NAVIGATION_CONFIG,
   resolveParticipantSwipeDestination,
   shouldBlockParticipantSwipe,
@@ -203,7 +204,7 @@ export function ParticipantSwipeNavigationController({
         isBlockingOverlayOpen() ||
         !event.isPrimary ||
         event.button !== 0 ||
-        !isSupportedPointer(event.pointerType)
+        !isParticipantSwipePointerSupported(event.pointerType)
       ) {
         return;
       }
@@ -388,18 +389,6 @@ function calculateRecentVelocity(event: PointerEvent, gesture: ActiveGesture): n
 
   const elapsed = event.timeStamp - gesture.recentTime;
   return elapsed > 0 ? (event.clientX - gesture.recentX) / elapsed : 0;
-}
-
-function isSupportedPointer(pointerType: string): boolean {
-  if (pointerType === "touch" || pointerType === "pen") {
-    return true;
-  }
-
-  if (pointerType !== "mouse") {
-    return false;
-  }
-
-  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
 }
 
 function prefersReducedMotion(): boolean {

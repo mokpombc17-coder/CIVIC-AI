@@ -3,6 +3,7 @@ import {
   classifyParticipantSwipe,
   getParticipantSwipeVisualOffset,
   isParticipantSwipeNavigationPath,
+  isParticipantSwipePointerSupported,
   resolveParticipantSwipeDestination,
   shouldBlockParticipantSwipe,
   shouldCommitParticipantSwipe,
@@ -15,6 +16,13 @@ describe("participant swipe navigation", () => {
     expect(isParticipantSwipeNavigationPath("/vote/tasks/1/results")).toBe(true);
     expect(isParticipantSwipeNavigationPath("/survey")).toBe(false);
     expect(isParticipantSwipeNavigationPath("/chatting")).toBe(false);
+  });
+
+  it("touch와 pen 입력만 swipe 대상으로 허용한다", () => {
+    expect(isParticipantSwipePointerSupported("touch")).toBe(true);
+    expect(isParticipantSwipePointerSupported("pen")).toBe(true);
+    expect(isParticipantSwipePointerSupported("mouse")).toBe(false);
+    expect(isParticipantSwipePointerSupported("")).toBe(false);
   });
 
   it("bottom navigation 순서에 맞는 인접 도메인을 반환한다", () => {
