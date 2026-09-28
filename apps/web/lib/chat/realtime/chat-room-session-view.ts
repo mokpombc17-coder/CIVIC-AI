@@ -135,8 +135,8 @@ export function getChatRoomSessionView(
 
     return {
       kind: "active",
-      title: "이 탭에서 실시간 채팅을 사용 중입니다.",
-      description: "다른 탭에서 토론방을 활성화하면 이 탭의 입력이 중지됩니다.",
+      title: "이 토론방에서 실시간 채팅을 사용 중입니다.",
+      description: "다른 토론방에서 채팅을 시작하면 이 토론방의 입력이 잠시 중지됩니다.",
       canDraft: true,
       canReactivate: false,
       canReconnect: false,
@@ -149,13 +149,12 @@ export function getChatRoomSessionView(
   if (snapshot.status === "replaced" && snapshot.roomId === roomId) {
     return {
       kind: "replaced",
-      title: "다른 탭에서 토론방을 사용 중입니다.",
-      description:
-        "작성 중인 내용은 유지되며, 이 탭을 다시 활성화하면 다른 탭의 입력이 중지됩니다.",
+      title: "다른 토론방에서 채팅 중이에요.",
+      description: "이 토론방으로 돌아오면 새 메시지를 불러와 채팅을 다시 시작해요.",
       canDraft: false,
       canReactivate: true,
       canReconnect: false,
-      indicatorLabel: "다른 탭 사용 중",
+      indicatorLabel: "다른 토론방 사용 중",
       indicatorTone: "pending",
       showNotice: true,
     };

@@ -166,7 +166,9 @@ export function useChatRealtimeRoom(
       return;
     }
 
-    return attachChatRealtimeRoomLifecycle(transport, roomId, window);
+    return attachChatRealtimeRoomLifecycle(transport, roomId, window, {
+      visibilityTarget: document,
+    });
   }, [enabled, roomId, transport]);
 
   return {

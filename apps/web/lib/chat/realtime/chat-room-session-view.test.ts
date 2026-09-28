@@ -97,10 +97,10 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "replaced",
-      title: "다른 탭에서 토론방을 사용 중입니다.",
+      title: "다른 토론방에서 채팅 중이에요.",
       canDraft: false,
       canReactivate: true,
-      indicatorLabel: "다른 탭 사용 중",
+      indicatorLabel: "다른 토론방 사용 중",
       showNotice: true,
     });
   });

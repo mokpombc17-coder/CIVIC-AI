@@ -10,8 +10,8 @@ describe("ChatRoomSessionNotice", () => {
     );
 
     expect(html).toContain('data-chat-session-notice="replaced"');
-    expect(html).toContain("다른 탭에서 토론방을 사용 중입니다.");
-    expect(html).toContain("이 탭에서 다시 활성화");
+    expect(html).toContain("다른 토론방에서 채팅 중이에요.");
+    expect(html).toContain("이 토론방에서 계속하기");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain("bg-red-50");
   });
@@ -54,11 +54,11 @@ const REPLACED_VIEW = {
   canReactivate: true,
   canReconnect: false,
   description: "작성 중인 내용은 유지됩니다.",
-  indicatorLabel: "다른 탭 사용 중",
+  indicatorLabel: "다른 토론방 사용 중",
   indicatorTone: "pending",
   kind: "replaced",
   showNotice: true,
-  title: "다른 탭에서 토론방을 사용 중입니다.",
+  title: "다른 토론방에서 채팅 중이에요.",
 } satisfies ChatRoomSessionView;
 
 const ERROR_VIEW = {
@@ -94,5 +94,5 @@ const ACTIVE_VIEW = {
   indicatorTone: "positive",
   kind: "active",
   showNotice: false,
-  title: "이 탭에서 실시간 채팅을 사용 중입니다.",
+  title: "이 토론방에서 실시간 채팅을 사용 중입니다.",
 } satisfies ChatRoomSessionView;

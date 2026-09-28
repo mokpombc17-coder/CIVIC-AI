@@ -81,6 +81,25 @@ describe("chat room message presentation", () => {
       unreadReceiptLabel: null,
     });
   });
+
+  it("실시간 session이 비활성이어도 내 메시지 소유권은 유지하고 mutation만 막는다", () => {
+    const presentation = createChatRoomMessagePresentation({
+      canMutateMessages: false,
+      confirmedMessages: [{ ...MESSAGE, senderMembershipId: "membership-01" }],
+      mutationStates: new Map(),
+      outgoingMessages: [],
+      participantProfiles: [SELF_PARTICIPANT],
+      readBoundaryAfterSequence: null,
+      receiptState: undefined,
+      receiptSyncStatus: "ready",
+      selfMembershipId: "membership-01",
+    });
+
+    expect(presentation.messageItems[0]).toMatchObject({
+      canMutate: false,
+      isMine: true,
+    });
+  });
 });
 
 const MESSAGE = {

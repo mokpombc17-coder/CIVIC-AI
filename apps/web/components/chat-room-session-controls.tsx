@@ -42,7 +42,7 @@ export function getChatRoomComposerPresentation(
       : view.kind === "pending"
         ? "메시지를 입력해 주세요."
         : view.kind === "replaced"
-          ? "이 탭에서 계속하기를 선택하면 입력할 수 있습니다."
+          ? "이 토론방에서 계속하기를 선택하면 입력할 수 있습니다."
           : view.kind === "closed"
             ? "메시지를 입력해 주세요."
             : "채팅을 사용할 수 없습니다.";

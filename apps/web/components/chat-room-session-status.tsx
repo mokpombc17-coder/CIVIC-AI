@@ -89,7 +89,7 @@ export function ChatRoomSessionNotice({
           onClick={onReactivate}
           type="button"
         >
-          이 탭에서 다시 활성화
+          이 토론방에서 계속하기
         </button>
       ) : view.canReconnect ? (
         <button

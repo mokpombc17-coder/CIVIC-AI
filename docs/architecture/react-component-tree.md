@@ -207,7 +207,11 @@ confirmation을 전달하고, 각 탭은 Room inbox query만 invalidate한다. �
 중단된 transport 또는 인증 복구를 재개한다. STOMP가 `AUTHENTICATION_REQUIRED` 상태가 되면 Provider가
 Chat Resource Server의 Access Token 복구를 요청하고, 성공 시 transport를 한 번만 재연결한다. 일시
 복구 실패는 다음 foreground 복귀에서 다시 시도하고, refresh 인증 거절 또는 복구 직후 재거절만 로그인
-필요 Boundary로 전환한다. SharedWorker 지원 브라우저에서는
+필요 Boundary로 전환한다. Room lifecycle은 `focus`, `pageshow`, visible `visibilitychange`를 순서에
+의존하지 않는 하나의 foreground 신호로 합친다. 같은 브라우저의 다른 Room에 선점된 session만 자동으로
+다시 claim하며, 연결 준비 중이면 `connected` 전환 뒤 한 번만 실행한다. blur·hidden에서는 예약을 취소하고
+다른 브라우저·기기로 인해 connection 자체가 `replaced`된 경우에는 자동 claim하지 않는다. SharedWorker
+지원 브라우저에서는
 Worker가 STOMP Client를 소유하고, 미지원 단일 WebView에서는 Direct transport를 사용한다. 두 환경 모두
 하위 채팅 컴포넌트의 사용 계약은 같다. 활성 Room의 message, room-event, read-receipt 세 topic은 같은
 generation과 ordered delivery를 공유하고 Receipt 오류는 core message/Room event 적용과 분리한다.
@@ -388,8 +392,10 @@ view로 변환한다. Membership topology event는 수신 시점의 마지막 �
 anchor로 기록하되 Message History, 읽음 수와 검색 cache에는 합치지 않는다. Receipt 오류는 기존
 coordinator 경계에서 core message realtime과 분리한다.
 `useChatRoomContentExperience`는 Screen이 공유한 Room detail query와 participant profile을 받아 realtime
-snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. CLOSED Room에서는 mutation과 read-state 보고를
-비활성화한 채 확정된 Message History를 표시한다. Header, viewport ViewModel, history feedback과
+snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Room detail의 현재 membership identity는 일시적인
+realtime session 전환 중에도 메시지 소유권 표현에 유지하고, mutation 가능 여부만 활성 session으로
+제한한다. CLOSED Room에서는 mutation과 read-state 보고를 비활성화한 채 확정된 Message History를 표시한다.
+Header, viewport ViewModel, history feedback과
 Room 오류 복구 동작까지 UI가 바로 소비할 수 있는 content model로 반환한다.
 Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 소유하는 독립 session,
 현재 결과 위치와 순차 이동은 `useChatRoomMessageSearchExperience`가 조립한다. 이 controller hook은

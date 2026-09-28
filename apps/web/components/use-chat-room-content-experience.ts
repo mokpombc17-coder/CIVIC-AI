@@ -69,7 +69,7 @@ export function useChatRoomContentExperience(
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
-    selfMembershipId: session.isActive ? (room?.myMembership?.membershipId ?? null) : null,
+    selfMembershipId: room?.myMembership?.membershipId ?? null,
     systemActivities: messageNavigationActive ? [] : realtime.systemActivities,
   });
   const loadOlder = useCallback(async () => {

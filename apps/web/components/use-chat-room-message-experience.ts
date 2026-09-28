@@ -47,6 +47,7 @@ export function useChatRoomMessageExperience({
     roomId,
   });
   const presentation = useChatRoomMessagePresentation({
+    canMutateMessages: enabled,
     confirmedMessages,
     messageVisibleAfterSequence,
     mutationStates: mutations.states,

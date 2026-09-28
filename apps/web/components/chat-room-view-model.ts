@@ -117,6 +117,7 @@ export function createChatMessageItemViewModels(
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
+  canMutateMessages = true,
 ): readonly ChatMessageItemViewModel[] {
   const groupKeys = timeline.map((item) => createChatMessageSenderGroupKey(item, selfMembershipId));
 
@@ -137,6 +138,7 @@ export function createChatMessageItemViewModels(
       readReceiptSummaries,
       startsSenderGroup,
       endsSenderGroup,
+      canMutateMessages,
     );
   });
 }
@@ -148,6 +150,7 @@ export function createChatMessageViewportItemViewModels(
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary> = new Map(),
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
+  canMutateMessages = true,
 ): readonly ChatMessageViewportItemViewModel[] {
   let previousGroupKey: ChatMessageSenderGroupKey | null = null;
 
@@ -197,6 +200,7 @@ export function createChatMessageViewportItemViewModels(
       readReceiptSummaries,
       startsSenderGroup,
       endsSenderGroup,
+      canMutateMessages,
     );
     return {
       item,
@@ -215,6 +219,7 @@ function createChatMessageItemViewModel(
   readReceiptSummaries: ReadonlyMap<string, ChatMessageReadReceiptSummary>,
   startsSenderGroup: boolean,
   endsSenderGroup: boolean,
+  canMutateMessages: boolean,
 ): ChatMessageItemViewModel {
   const selfDisplayName =
     selfMembershipId === null ? null : (participantDisplayNames.get(selfMembershipId) ?? null);
@@ -254,7 +259,11 @@ function createChatMessageItemViewModel(
 
   return {
     canOpenActions: item.message.state === "ACTIVE" && item.message.content !== null,
-    canMutate: isMine && item.message.state === "ACTIVE" && item.message.content !== null,
+    canMutate:
+      canMutateMessages &&
+      isMine &&
+      item.message.state === "ACTIVE" &&
+      item.message.content !== null,
     clientMessageId: item.message.clientMessageId,
     content: item.message.content ?? "삭제된 메시지입니다.",
     deliveryLabel: null,

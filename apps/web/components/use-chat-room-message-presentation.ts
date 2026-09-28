@@ -30,6 +30,7 @@ export type ChatRoomMessagePresentation = Readonly<{
 }>;
 
 type ChatRoomMessagePresentationInput = Readonly<{
+  canMutateMessages?: boolean;
   confirmedMessages: readonly ChatMessage[];
   mutationStates: ChatMessageMutationStates;
   messageVisibleAfterSequence?: number;
@@ -43,6 +44,7 @@ type ChatRoomMessagePresentationInput = Readonly<{
 }>;
 
 export function useChatRoomMessagePresentation({
+  canMutateMessages = true,
   confirmedMessages,
   mutationStates,
   messageVisibleAfterSequence = 0,
@@ -57,6 +59,7 @@ export function useChatRoomMessagePresentation({
   return useMemo(
     () =>
       createChatRoomMessagePresentation({
+        canMutateMessages,
         confirmedMessages,
         mutationStates,
         messageVisibleAfterSequence,
@@ -69,6 +72,7 @@ export function useChatRoomMessagePresentation({
         systemActivities,
       }),
     [
+      canMutateMessages,
       confirmedMessages,
       mutationStates,
       messageVisibleAfterSequence,
@@ -84,6 +88,7 @@ export function useChatRoomMessagePresentation({
 }
 
 export function createChatRoomMessagePresentation({
+  canMutateMessages = true,
   confirmedMessages,
   mutationStates,
   messageVisibleAfterSequence = 0,
@@ -121,6 +126,7 @@ export function createChatRoomMessagePresentation({
     readReceiptPresentation.summaries,
     participantDisplayNames,
     ownerMembershipId,
+    canMutateMessages,
   );
 
   return {
