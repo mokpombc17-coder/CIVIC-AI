@@ -10,6 +10,8 @@ const PRIMARY_BUTTON_CLASS_NAME =
   "inline-flex min-h-12 flex-1 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 const DANGER_BUTTON_CLASS_NAME =
   "inline-flex min-h-12 flex-1 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[#b42318] px-4 text-base font-bold text-white transition hover:bg-[#912018] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50";
+const ERROR_CLASS_NAME =
+  "rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-sm font-semibold leading-5 text-[#7a4b00]";
 
 export function ChatMessageActionsBottomSheet({
   sheet,
@@ -18,6 +20,7 @@ export function ChatMessageActionsBottomSheet({
 }) {
   const titleId = useId();
   const editInputId = useId();
+  const editErrorId = useId();
   const title =
     sheet.mode === "edit" ? "메시지 수정" : sheet.mode === "delete" ? "메시지 삭제" : "메시지 작업";
 
@@ -65,7 +68,7 @@ export function ChatMessageActionsBottomSheet({
       <section
         aria-labelledby={titleId}
         aria-modal="true"
-        className="relative max-h-[calc(100%-1rem)] w-full max-w-[393px] overflow-y-auto rounded-t-xl border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[var(--chat-publishing-color-text)] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
+        className="relative max-h-[calc(100%-1rem)] w-full max-w-[393px] overflow-y-auto rounded-t-[var(--platform-shell-radius)] border border-b-0 border-[var(--chat-publishing-color-border)] bg-white px-6 pt-5 pb-[max(1.5rem,env(safe-area-inset-bottom))] text-[var(--chat-publishing-color-text)] shadow-[0_16px_40px_rgba(18,20,23,0.2)]"
         data-chat-message-actions-sheet="true"
         onKeyDown={handleKeyDown}
         role="dialog"
@@ -84,17 +87,71 @@ export function ChatMessageActionsBottomSheet({
           </button>
         </div>
 
-        <div className="mt-4">
-          <p className="text-[13px] font-medium leading-5 text-[var(--chat-publishing-color-muted)]">
-            선택한 메시지
-          </p>
-          <p className="mt-2 max-h-32 overflow-y-auto whitespace-pre-wrap break-words rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-3 text-sm leading-6 text-[var(--chat-publishing-color-text)]">
-            {sheet.content}
-          </p>
-        </div>
+        {sheet.mode === "edit" ? (
+          <form
+            className="mt-4"
+            onSubmit={(event) => {
+              event.preventDefault();
+              sheet.onEditSubmit();
+            }}
+          >
+            {sheet.error ? (
+              <p className={ERROR_CLASS_NAME} id={editErrorId} role="alert">
+                {sheet.error}
+              </p>
+            ) : null}
+            <label
+              className={`${sheet.error ? "mt-4 " : ""}block text-[13px] font-medium leading-5 text-[var(--chat-publishing-color-muted)]`}
+              htmlFor={editInputId}
+            >
+              선택한 메시지
+            </label>
+            <textarea
+              autoFocus
+              aria-describedby={sheet.error ? editErrorId : undefined}
+              className="mt-2 min-h-32 w-full resize-none rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-3 text-sm leading-6 text-[var(--chat-publishing-color-text)] outline-none transition placeholder:text-[var(--chat-publishing-color-muted)] focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
+              data-chat-message-edit-input="true"
+              disabled={sheet.isPending}
+              id={editInputId}
+              onChange={(event) => sheet.onDraftChange(event.target.value)}
+              value={sheet.draft}
+            />
+            <div className="mt-4 flex gap-2">
+              <button
+                className={SECONDARY_BUTTON_CLASS_NAME}
+                disabled={sheet.isPending}
+                onClick={() => sheet.onModeChange("menu")}
+                type="button"
+              >
+                취소
+              </button>
+              <button
+                className={PRIMARY_BUTTON_CLASS_NAME}
+                disabled={sheet.isPending}
+                type="submit"
+              >
+                {sheet.isPending ? "수정 중…" : "저장"}
+              </button>
+            </div>
+          </form>
+        ) : (
+          <div className="mt-4">
+            <p className="text-[13px] font-medium leading-5 text-[var(--chat-publishing-color-muted)]">
+              선택한 메시지
+            </p>
+            <div
+              className="mt-2 flex items-start gap-3 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-3"
+              data-chat-message-preview="true"
+            >
+              <p className="max-h-32 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-publishing-color-text)]">
+                {sheet.content}
+              </p>
+            </div>
+          </div>
+        )}
 
         {sheet.mode === "menu" ? (
-          <div className="mt-5 divide-y divide-[var(--chat-publishing-color-border)] border-y border-[var(--chat-publishing-color-border)]">
+          <div className={`mt-5 grid ${sheet.canMutate ? "grid-cols-3 gap-2" : "grid-cols-1"}`}>
             <MessageActionButton
               autoFocus
               disabled={sheet.isPending || sheet.copyStatus === "copying"}
@@ -137,48 +194,6 @@ export function ChatMessageActionsBottomSheet({
           </p>
         ) : null}
 
-        {sheet.mode === "edit" ? (
-          <form
-            className="mt-5"
-            onSubmit={(event) => {
-              event.preventDefault();
-              sheet.onEditSubmit();
-            }}
-          >
-            <label
-              className="text-sm font-bold text-[var(--chat-publishing-color-text)]"
-              htmlFor={editInputId}
-            >
-              수정할 내용
-            </label>
-            <textarea
-              autoFocus
-              className="mt-2 min-h-28 w-full resize-y rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 py-3 text-base leading-6 text-[var(--chat-publishing-color-text)] outline-none transition placeholder:text-[var(--chat-publishing-color-muted)] focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={sheet.isPending}
-              id={editInputId}
-              onChange={(event) => sheet.onDraftChange(event.target.value)}
-              value={sheet.draft}
-            />
-            <div className="mt-4 flex gap-2">
-              <button
-                className={SECONDARY_BUTTON_CLASS_NAME}
-                disabled={sheet.isPending}
-                onClick={() => sheet.onModeChange("menu")}
-                type="button"
-              >
-                취소
-              </button>
-              <button
-                className={PRIMARY_BUTTON_CLASS_NAME}
-                disabled={sheet.isPending}
-                type="submit"
-              >
-                {sheet.isPending ? "수정 중…" : "저장"}
-              </button>
-            </div>
-          </form>
-        ) : null}
-
         {sheet.mode === "delete" ? (
           <div className="mt-5">
             <div className="rounded-[var(--chat-publishing-radius-control)] border border-[#f2b8b5] bg-[#fff1f0] px-4 py-3">
@@ -209,11 +224,8 @@ export function ChatMessageActionsBottomSheet({
           </div>
         ) : null}
 
-        {sheet.error ? (
-          <p
-            className="mt-4 rounded-[var(--chat-publishing-radius-control)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-sm font-semibold leading-5 text-[#7a4b00]"
-            role="alert"
-          >
+        {sheet.mode !== "edit" && sheet.error ? (
+          <p className={`mt-4 ${ERROR_CLASS_NAME}`} role="alert">
             {sheet.error}
           </p>
         ) : null}
@@ -246,7 +258,7 @@ function MessageActionButton({
   return (
     <button
       autoFocus={autoFocus}
-      className={`flex min-h-14 w-full items-center gap-3 px-1 text-left text-base font-semibold transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-50 ${
+      className={`flex min-h-14 w-full items-center justify-center gap-2 px-2 text-center text-base font-semibold transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-50 ${
         danger ? "text-[#b42318]" : "text-[var(--chat-publishing-color-text)]"
       }`}
       disabled={disabled}
@@ -263,7 +275,7 @@ function MessageActionButton({
       >
         {icon}
       </span>
-      <span>{label}</span>
+      <span className="whitespace-nowrap">{label}</span>
     </button>
   );
 }

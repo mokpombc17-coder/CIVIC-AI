@@ -85,9 +85,12 @@
 }
 
 @media (max-width: 480px) {
+  .stage {
+    --platform-shell-radius: 0;
+  }
+
   .shell {
     max-width: none;
-    border-radius: 0;
     box-shadow: none;
   }
 }

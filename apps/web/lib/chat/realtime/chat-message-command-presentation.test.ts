@@ -47,6 +47,32 @@ describe("getChatMessageCommandFailurePresentation", () => {
     });
   });
 
+  it.each([
+    ["EMPTY_MESSAGE", "메시지 내용을 입력해 주세요."],
+    [
+      "INVALID_CONTROL_CHARACTER",
+      "입력할 수 없는 문자가 포함되어 있어요. 해당 문자를 지워 주세요.",
+    ],
+    ["MESSAGE_TOO_LONG", "메시지는 2,000자까지 입력할 수 있어요."],
+    ["MESSAGE_TOO_LARGE", "메시지가 너무 깁니다. 내용을 조금 줄여 주세요."],
+  ] as const)("%s 실패를 사용자 친화적인 문구로 안내한다", (code, message) => {
+    const event: ChatMessageCommandEvent = {
+      kind: "result",
+      roomId: "room-01",
+      result: {
+        clientMessageId: CLIENT_MESSAGE_ID,
+        status: "REJECTED",
+        code,
+        retryable: false,
+        retryAfterMs: null,
+        messageId: null,
+        roomSequence: null,
+      },
+    };
+
+    expect(getChatMessageCommandFailurePresentation(event)?.message).toBe(message);
+  });
+
   it("Worker의 로컬 전송 실패도 동일한 화면 계약으로 변환한다", () => {
     const event: ChatMessageCommandEvent = {
       kind: "failure",

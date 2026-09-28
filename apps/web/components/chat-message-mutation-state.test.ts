@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   createLocalChatMessageMutationState,
+  getChatMessageMutationErrorMessage,
   isChatMessageMutationPending,
   reduceChatMessageMutationLifecycle,
 } from "./chat-message-mutation-state";
@@ -88,9 +89,24 @@ describe("chat message mutation state", () => {
     );
 
     expect(failed.get("message-01")).toMatchObject({
-      error: "메시지 변경을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+      error: "메시지를 수정하지 못했어요. 잠시 후 다시 시도해 주세요.",
       status: "failed",
     });
     expect(isChatMessageMutationPending(failed.get("message-01") ?? null)).toBe(false);
+  });
+
+  it("수정과 삭제의 실패·취소 문구를 작업에 맞게 반환한다", () => {
+    expect(getChatMessageMutationErrorMessage("EDIT_MESSAGE", "failed")).toBe(
+      "메시지를 수정하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    );
+    expect(getChatMessageMutationErrorMessage("EDIT_MESSAGE", "cancelled")).toBe(
+      "메시지 수정이 취소됐어요. 다시 시도해 주세요.",
+    );
+    expect(getChatMessageMutationErrorMessage("DELETE_MESSAGE", "failed")).toBe(
+      "메시지를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요.",
+    );
+    expect(getChatMessageMutationErrorMessage("DELETE_MESSAGE", "cancelled")).toBe(
+      "메시지 삭제가 취소됐어요. 다시 시도해 주세요.",
+    );
   });
 });

@@ -866,6 +866,18 @@ describe("chat room REST contracts", () => {
     expect(chatMessageSendContentSchema.safeParse("안녕\u000B하세요.").success).toBe(false);
   });
 
+  it("메시지 입력 오류를 사용자 친화적인 문구로 안내한다", () => {
+    const empty = chatMessageSendContentSchema.safeParse("   ");
+    const tooLong = chatMessageSendContentSchema.safeParse("가".repeat(2_001));
+    const forbiddenCharacter = chatMessageSendContentSchema.safeParse("안녕\u0000하세요.");
+
+    expect(empty.error?.issues[0]?.message).toBe("메시지 내용을 입력해 주세요.");
+    expect(tooLong.error?.issues[0]?.message).toBe("메시지는 2,000자까지 입력할 수 있어요.");
+    expect(forbiddenCharacter.error?.issues[0]?.message).toBe(
+      "입력할 수 없는 문자가 포함되어 있어요. 해당 문자를 지워 주세요.",
+    );
+  });
+
   it("조회 방향 cursor와 roomSequence 오름차순을 검증한다", () => {
     const latestSchema = createMessageHistoryResponseSchema(
       {

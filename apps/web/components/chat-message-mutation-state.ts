@@ -77,12 +77,27 @@ export function isChatMessageMutationPending(state: ChatMessageMutationViewState
   );
 }
 
+export function getChatMessageMutationErrorMessage(
+  commandType: ChatMessageMutationCommandType,
+  status: "cancelled" | "failed",
+): string {
+  if (commandType === "EDIT_MESSAGE") {
+    return status === "failed"
+      ? "메시지를 수정하지 못했어요. 잠시 후 다시 시도해 주세요."
+      : "메시지 수정이 취소됐어요. 다시 시도해 주세요.";
+  }
+
+  return status === "failed"
+    ? "메시지를 삭제하지 못했어요. 잠시 후 다시 시도해 주세요."
+    : "메시지 삭제가 취소됐어요. 다시 시도해 주세요.";
+}
+
 function createMutationError(event: ChatMessageMutationLifecycleEvent): string | null {
   switch (event.status) {
     case "failed":
-      return "메시지 변경을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+      return getChatMessageMutationErrorMessage(event.commandType, "failed");
     case "cancelled":
-      return "메시지 변경이 취소되었습니다.";
+      return getChatMessageMutationErrorMessage(event.commandType, "cancelled");
     case "queued":
     case "sending":
     case "retry-waiting":

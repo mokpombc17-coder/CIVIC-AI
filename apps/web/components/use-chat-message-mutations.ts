@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useChatRealtimeTransport } from "@/components/chat-realtime-provider";
 import {
   createFailedChatMessageMutationState,
+  getChatMessageMutationErrorMessage,
   createLocalChatMessageMutationState,
   reduceChatMessageMutationLifecycle,
   type ChatMessageMutationStartResult,
@@ -85,7 +86,7 @@ export function useChatMessageMutations({
     ): ChatMessageMutationStartResult => {
       if (!enabled) {
         return {
-          error: "실시간 채팅 연결이 준비된 뒤 메시지를 변경할 수 있습니다.",
+          error: "채팅 연결을 확인한 뒤 다시 시도해 주세요.",
           ok: false,
         };
       }
@@ -117,9 +118,8 @@ export function useChatMessageMutations({
           clientMutationId,
           ok: true,
         };
-      } catch (cause) {
-        const error =
-          cause instanceof Error ? cause.message : "메시지 변경 명령을 시작하지 못했습니다.";
+      } catch {
+        const error = getChatMessageMutationErrorMessage(commandType, "failed");
         setMutationStore((current) => {
           const currentStates =
             current.roomId === roomId && current.generation === generation
@@ -155,8 +155,7 @@ export function useChatMessageMutations({
 
       if (!normalizedContent.success) {
         return {
-          error:
-            normalizedContent.error.issues[0]?.message ?? "수정할 메시지 내용을 확인해 주세요.",
+          error: normalizedContent.error.issues[0]?.message ?? "메시지 내용을 확인해 주세요.",
           ok: false,
         };
       }
@@ -181,7 +180,7 @@ export function useChatMessageMutations({
 
       if (!messageIdResult.success) {
         return {
-          error: "삭제할 메시지 식별자를 확인해 주세요.",
+          error: "메시지를 삭제하지 못했어요. 화면을 새로고침한 뒤 다시 시도해 주세요.",
           ok: false,
         };
       }

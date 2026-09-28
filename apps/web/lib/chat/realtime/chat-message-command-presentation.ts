@@ -34,15 +34,15 @@ function getServerCommandFailureMessage(
 ): string {
   switch (result.code) {
     case "EMPTY_MESSAGE":
-      return "공백만 있는 메시지는 전송할 수 없습니다.";
+      return "메시지 내용을 입력해 주세요.";
     case "INVALID_CLIENT_MESSAGE_ID":
       return "메시지 요청 식별자가 올바르지 않습니다.";
     case "INVALID_CONTROL_CHARACTER":
-      return "메시지에 허용되지 않은 제어 문자가 포함되어 있습니다.";
+      return "입력할 수 없는 문자가 포함되어 있어요. 해당 문자를 지워 주세요.";
     case "MESSAGE_TOO_LONG":
-      return "메시지는 Unicode code point 2,000자를 초과할 수 없습니다.";
+      return "메시지는 2,000자까지 입력할 수 있어요.";
     case "MESSAGE_TOO_LARGE":
-      return "메시지는 UTF-8 8,192 bytes를 초과할 수 없습니다.";
+      return "메시지가 너무 깁니다. 내용을 조금 줄여 주세요.";
     case "ROOM_SEND_FORBIDDEN":
       return "현재 사용자는 이 토론방에 메시지를 전송할 수 없습니다.";
     case "USER_RATE_LIMITED":

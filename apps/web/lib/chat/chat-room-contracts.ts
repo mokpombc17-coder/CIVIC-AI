@@ -32,18 +32,18 @@ export const idempotencyKeySchema = z.string().uuid();
 
 const validatedChatMessageContentSchema = z
   .string()
-  .min(1, "메시지는 공백으로만 구성될 수 없습니다.")
+  .min(1, "메시지 내용을 입력해 주세요.")
   .refine(
     (content) => Array.from(content).length <= 2_000,
-    "메시지는 Unicode code point 2,000자를 초과할 수 없습니다.",
+    "메시지는 2,000자까지 입력할 수 있어요.",
   )
   .refine(
     (content) => new TextEncoder().encode(content).length <= 8_192,
-    "메시지는 UTF-8 8,192 bytes를 초과할 수 없습니다.",
+    "메시지가 너무 깁니다. 내용을 조금 줄여 주세요.",
   )
   .refine(
     (content) => !forbiddenC0ControlCharacterPattern.test(content),
-    "메시지에 허용되지 않은 제어 문자가 포함되어 있습니다.",
+    "입력할 수 없는 문자가 포함되어 있어요. 해당 문자를 지워 주세요.",
   );
 
 export const chatMessageContentSchema = validatedChatMessageContentSchema.refine(
