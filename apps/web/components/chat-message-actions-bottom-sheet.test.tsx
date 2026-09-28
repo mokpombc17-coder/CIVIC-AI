@@ -20,8 +20,18 @@ describe("ChatMessageActionsBottomSheet", () => {
     expect(html).toContain(">수정</span>");
     expect(html).toContain(">삭제</span>");
     expect(html).toContain("grid-cols-3");
+    expect(html).toContain("min-h-12");
+    expect(html).toContain("gap-1");
+    expect(html).toContain("size-7");
+    expect(html).toContain('height="22"');
+    expect(html).toContain("border-[var(--chat-publishing-color-border)]");
+    expect(html).toContain("border-[#f2b8b5]");
+    expect(html).not.toContain("shadow-[0_1px_2px_rgba(18,20,23,0.08)]");
     expect(html).not.toContain("divide-y");
     expect(html).not.toContain("border-y");
+    expect(html).toContain(">메시지</h2>");
+    expect(html).not.toContain(">메시지 작업</h2>");
+    expect(html.indexOf("선택한 메시지")).toBeLessThan(html.indexOf(">복사</span>"));
   });
 
   it("복사 성공 상태를 접근 가능한 status로 안내한다", () => {
@@ -30,6 +40,7 @@ describe("ChatMessageActionsBottomSheet", () => {
     expect(html).toContain(">복사됨</span>");
     expect(html).toContain('role="status"');
     expect(html).toContain("메시지를 클립보드에 복사했습니다.");
+    expect(html.indexOf('role="status"')).toBeLessThan(html.indexOf("선택한 메시지"));
   });
 
   it("메시지 본문은 여러 줄로 표시하고 길어지면 미리보기 영역만 스크롤한다", () => {
@@ -37,6 +48,7 @@ describe("ChatMessageActionsBottomSheet", () => {
 
     expect(html).toContain("첫 번째 줄\n두 번째 줄");
     expect(html).toContain("max-h-32");
+    expect(html).toContain("min-h-14");
     expect(html).toContain("overflow-y-auto whitespace-pre-wrap");
     expect(html).toContain("선택한 메시지");
     expect(html).toContain("border-[var(--chat-publishing-color-border)]");
@@ -66,8 +78,15 @@ describe("ChatMessageActionsBottomSheet", () => {
 
     expect(deleteHtml).toContain("메시지 삭제");
     expect(deleteHtml).toContain('data-chat-message-preview="true"');
-    expect(deleteHtml).toContain("이 메시지를 삭제할까요?");
-    expect(deleteHtml).toContain("bg-[#fff1f0]");
+    expect(deleteHtml).toContain("정말 이 메시지를 삭제하시겠습니까?");
+    expect(deleteHtml).not.toContain("삭제한 메시지는 되돌릴 수 없어요.");
+    expect(deleteHtml).toContain("text-base font-semibold leading-6");
+    expect(deleteHtml).not.toContain("bg-[var(--chat-publishing-color-accent-soft)]");
+    expect(deleteHtml).not.toContain("bg-[#fff1f0]");
+    expect(deleteHtml).not.toContain("border-[#f2b8b5]");
+    expect(deleteHtml.indexOf("정말 이 메시지를 삭제하시겠습니까?")).toBeLessThan(
+      deleteHtml.indexOf("선택한 메시지"),
+    );
   });
 });
 

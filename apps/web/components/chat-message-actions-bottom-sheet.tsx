@@ -22,7 +22,7 @@ export function ChatMessageActionsBottomSheet({
   const editInputId = useId();
   const editErrorId = useId();
   const title =
-    sheet.mode === "edit" ? "메시지 수정" : sheet.mode === "delete" ? "메시지 삭제" : "메시지 작업";
+    sheet.mode === "edit" ? "메시지 수정" : sheet.mode === "delete" ? "메시지 삭제" : "메시지";
 
   function handleKeyDown(event: KeyboardEvent<HTMLElement>) {
     if (event.key === "Escape") {
@@ -87,6 +87,23 @@ export function ChatMessageActionsBottomSheet({
           </button>
         </div>
 
+        {sheet.mode === "menu" && sheet.copyStatus === "copied" ? (
+          <p
+            className="mt-2 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-4 py-3 text-sm font-semibold text-[var(--chat-publishing-color-primary-emphasis)]"
+            role="status"
+          >
+            메시지를 클립보드에 복사했습니다.
+          </p>
+        ) : null}
+
+        {sheet.mode === "delete" ? (
+          <div className="mt-2">
+            <p className="text-base font-semibold leading-6 text-[var(--chat-publishing-color-muted)]">
+              정말 이 메시지를 삭제하시겠습니까?
+            </p>
+          </div>
+        ) : null}
+
         {sheet.mode === "edit" ? (
           <form
             className="mt-4"
@@ -140,7 +157,7 @@ export function ChatMessageActionsBottomSheet({
               선택한 메시지
             </p>
             <div
-              className="mt-2 flex items-start gap-3 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-3"
+              className="mt-2 flex min-h-14 items-start gap-3 rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] px-4 py-3"
               data-chat-message-preview="true"
             >
               <p className="max-h-32 min-w-0 flex-1 overflow-y-auto whitespace-pre-wrap break-words text-sm leading-6 text-[var(--chat-publishing-color-text)]">
@@ -151,7 +168,7 @@ export function ChatMessageActionsBottomSheet({
         )}
 
         {sheet.mode === "menu" ? (
-          <div className={`mt-5 grid ${sheet.canMutate ? "grid-cols-3 gap-2" : "grid-cols-1"}`}>
+          <div className={`mt-4 grid ${sheet.canMutate ? "grid-cols-3 gap-2" : "grid-cols-1"}`}>
             <MessageActionButton
               autoFocus
               disabled={sheet.isPending || sheet.copyStatus === "copying"}
@@ -185,42 +202,25 @@ export function ChatMessageActionsBottomSheet({
           </div>
         ) : null}
 
-        {sheet.copyStatus === "copied" ? (
-          <p
-            className="mt-4 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-4 py-3 text-sm font-semibold text-[var(--chat-publishing-color-primary-emphasis)]"
-            role="status"
-          >
-            메시지를 클립보드에 복사했습니다.
-          </p>
-        ) : null}
-
         {sheet.mode === "delete" ? (
-          <div className="mt-5">
-            <div className="rounded-[var(--chat-publishing-radius-control)] border border-[#f2b8b5] bg-[#fff1f0] px-4 py-3">
-              <p className="text-base font-bold text-[#8f1d18]">이 메시지를 삭제할까요?</p>
-              <p className="mt-1 text-sm leading-5 text-[#9f2d26]">
-                메시지 위치는 유지되고 삭제된 메시지로 표시됩니다.
-              </p>
-            </div>
-            <div className="mt-4 flex gap-2">
-              <button
-                autoFocus
-                className={SECONDARY_BUTTON_CLASS_NAME}
-                disabled={sheet.isPending}
-                onClick={() => sheet.onModeChange("menu")}
-                type="button"
-              >
-                취소
-              </button>
-              <button
-                className={DANGER_BUTTON_CLASS_NAME}
-                disabled={sheet.isPending}
-                onClick={sheet.onConfirmDelete}
-                type="button"
-              >
-                {sheet.isPending ? "삭제 중…" : "삭제"}
-              </button>
-            </div>
+          <div className="mt-4 flex gap-2">
+            <button
+              autoFocus
+              className={SECONDARY_BUTTON_CLASS_NAME}
+              disabled={sheet.isPending}
+              onClick={() => sheet.onModeChange("menu")}
+              type="button"
+            >
+              취소
+            </button>
+            <button
+              className={DANGER_BUTTON_CLASS_NAME}
+              disabled={sheet.isPending}
+              onClick={sheet.onConfirmDelete}
+              type="button"
+            >
+              {sheet.isPending ? "삭제 중…" : "삭제"}
+            </button>
           </div>
         ) : null}
 
@@ -258,8 +258,10 @@ function MessageActionButton({
   return (
     <button
       autoFocus={autoFocus}
-      className={`flex min-h-14 w-full items-center justify-center gap-2 px-2 text-center text-base font-semibold transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-[-2px] disabled:cursor-not-allowed disabled:opacity-50 ${
-        danger ? "text-[#b42318]" : "text-[var(--chat-publishing-color-text)]"
+      className={`flex min-h-12 w-full items-center justify-center gap-1 rounded-[var(--chat-publishing-radius-control)] border bg-white px-2 py-1.5 text-center text-base font-semibold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50 ${
+        danger
+          ? "border-[#f2b8b5] text-[#b42318] hover:bg-[#fff1f0]"
+          : "border-[var(--chat-publishing-color-border)] text-[var(--chat-publishing-color-text)] hover:bg-[var(--chat-publishing-color-neutral-soft)]"
       }`}
       disabled={disabled}
       onClick={onClick}
@@ -267,10 +269,8 @@ function MessageActionButton({
     >
       <span
         aria-hidden="true"
-        className={`flex size-9 shrink-0 items-center justify-center rounded-full ${
-          danger
-            ? "bg-[#fff1f0] text-[#b42318]"
-            : "bg-[var(--chat-publishing-color-neutral-soft)] text-[var(--chat-publishing-color-muted)]"
+        className={`flex size-7 shrink-0 items-center justify-center ${
+          danger ? "text-[#b42318]" : "text-[var(--chat-publishing-color-muted)]"
         }`}
       >
         {icon}
@@ -282,7 +282,7 @@ function MessageActionButton({
 
 function CopyIcon() {
   return (
-    <svg fill="none" height="20" viewBox="0 0 24 24" width="20">
+    <svg fill="none" height="22" viewBox="0 0 24 24" width="22">
       <rect height="12" rx="2" stroke="currentColor" strokeWidth="1.8" width="12" x="8" y="8" />
       <path
         d="M16 8V6a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h2"
@@ -295,7 +295,7 @@ function CopyIcon() {
 
 function EditIcon() {
   return (
-    <svg fill="none" height="20" viewBox="0 0 24 24" width="20">
+    <svg fill="none" height="22" viewBox="0 0 24 24" width="22">
       <path
         d="M5 19h4l10-10-4-4L5 15v4Z"
         stroke="currentColor"
@@ -309,7 +309,7 @@ function EditIcon() {
 
 function DeleteIcon() {
   return (
-    <svg fill="none" height="20" viewBox="0 0 24 24" width="20">
+    <svg fill="none" height="22" viewBox="0 0 24 24" width="22">
       <path
         d="M5 7h14M9 7V4h6v3m-8 0 1 13h8l1-13"
         stroke="currentColor"

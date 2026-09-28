@@ -8,6 +8,8 @@ import {
 import { copyChatMessageContent } from "@/components/chat-message-copy";
 import type { ChatMessageItemViewModel } from "@/components/chat-room-view-model";
 
+const COPY_FEEDBACK_DURATION_MS = 2_000;
+
 export type ChatMessageActionsMode = "menu" | "edit" | "delete";
 
 export type ChatMessageActionsBottomSheetViewModel = Readonly<{
@@ -96,6 +98,15 @@ export function useChatMessageActionsBottomSheet({
 
     restoreFocus();
   }, [completed, restoreFocus, selectedItem, target]);
+
+  useEffect(() => {
+    if (copyStatus !== "copied") {
+      return;
+    }
+
+    const resetTimer = window.setTimeout(() => setCopyStatus("idle"), COPY_FEEDBACK_DURATION_MS);
+    return () => window.clearTimeout(resetTimer);
+  }, [copyStatus]);
 
   const openMessageActions = useCallback(
     (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => {
