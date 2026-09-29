@@ -1,5 +1,22 @@
+import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
-import { publicAuthHeaderState } from "./public-auth-screen";
+import { getScreenByRoute } from "@/lib/screens/registry";
+import { PublicAuthScreen, publicAuthHeaderState } from "./public-auth-screen";
+
+describe("PublicAuthScreen", () => {
+  it.each(["/login", "/password-reset", "/password-reset/complete"])(
+    "%s 화면은 RAG와 동일하게 자식 스크롤을 사용한다",
+    (pathname) => {
+      const screen = getScreenByRoute(pathname);
+      if (!screen) throw new TypeError(`${pathname} screen is missing`);
+
+      const html = renderToStaticMarkup(<PublicAuthScreen screen={screen} />);
+
+      expect(html.match(/data-scroll="child"/gu)).toHaveLength(2);
+      expect(html).toContain("civic-public-auth-content");
+    },
+  );
+});
 
 describe("publicAuthHeaderState", () => {
   it("회원가입 단계마다 왼쪽 상단 뒤로가기를 올바른 대상으로 연결한다", () => {
