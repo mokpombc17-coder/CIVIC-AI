@@ -129,6 +129,13 @@ export function matchVoteTaskAdminRoute(
   if (segments.length === 1) {
     return allow(normalizedMethod, ["GET", "PUT"], taskPath(segments), "vote:tasks:admin");
   }
+  if (segments.length === 3 && segments[1] === "opinion-map-generation") {
+    const operation = segments[2] ?? "";
+    const methods = operation === "runs" ? ["GET"] : operation === "regenerations" ? ["POST"] : [];
+    return methods.length > 0
+      ? allow(normalizedMethod, methods, taskPath(segments), "vote:tasks:admin")
+      : { allowedMethods: [], status: 404 };
+  }
   if (segments.length !== 2) return { allowedMethods: [], status: 404 };
   const action = segments[1] ?? "";
   const methods =

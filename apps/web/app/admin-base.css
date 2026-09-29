@@ -1760,6 +1760,154 @@
   white-space: pre-wrap;
 }
 
+[data-wireflow-shell="admin"] .civic-opinion-map-history {
+  display: grid;
+  gap: 0.85rem;
+  border-top: 1px solid var(--civic-line);
+  padding-top: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history > header :is(h3, span),
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals,
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals :is(dt, dd) {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history > header span {
+  color: var(--civic-blue-dark);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history > header h3 {
+  margin-top: 0.2rem;
+  font-size: 1rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals > div {
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  background: #f8fafc;
+  padding: 0.45rem 0.65rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals dt {
+  color: var(--civic-muted);
+  font-size: 0.7rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-cost-totals dd {
+  margin-top: 0.15rem;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history-error {
+  display: grid;
+  justify-items: start;
+  gap: 0.65rem;
+}
+
+[data-wireflow-shell="admin"] :is(.civic-opinion-map-runs, .civic-opinion-map-attempts) {
+  display: grid;
+  gap: 0.65rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-runs details {
+  border: 1px solid var(--civic-line);
+  border-radius: var(--civic-radius);
+  overflow: hidden;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-runs summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 0.5rem 0.75rem;
+  align-items: center;
+  cursor: pointer;
+  padding: 0.75rem 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-runs summary span {
+  color: var(--civic-muted);
+  font-size: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-run-detail {
+  display: grid;
+  gap: 0.75rem;
+  border-top: 1px solid var(--civic-line);
+  background: #f8fafc;
+  padding: 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-run-detail > dl,
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts dl {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(12rem, 100%), 1fr));
+  gap: 0.65rem;
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-run-detail dl > div,
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts dl > div {
+  min-width: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-run-detail dt,
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts dt {
+  color: var(--civic-muted);
+  font-size: 0.7rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-run-detail dd,
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts dd {
+  margin: 0.2rem 0 0;
+  overflow-wrap: anywhere;
+  font-size: 0.8rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts > li {
+  display: grid;
+  gap: 0.65rem;
+  border-left: 0.2rem solid #b8cdf8;
+  background: #fff;
+  padding: 0.75rem 0.85rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts > li > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-attempts > li > header span,
+[data-wireflow-shell="admin"] .civic-opinion-map-history-empty {
+  color: var(--civic-muted);
+  font-size: 0.75rem;
+}
+
+[data-wireflow-shell="admin"] .civic-opinion-map-history-empty {
+  margin: 0;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-empty,
 [data-wireflow-shell="admin"] .civic-boundary-note {
   border: 1px dashed var(--civic-line-strong);

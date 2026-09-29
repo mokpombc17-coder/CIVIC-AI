@@ -153,6 +153,27 @@ describe("admin domain route allowlist", () => {
       path: `/api/v1/admin/tasks/${taskId}/opinion-map-generation`,
       scope: "vote:tasks:admin",
     });
+    expect(matchVoteTaskAdminRoute("GET", [taskId, "opinion-map-generation", "runs"])).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/opinion-map-generation/runs`,
+      scope: "vote:tasks:admin",
+    });
+    expect(
+      matchVoteTaskAdminRoute("POST", [taskId, "opinion-map-generation", "regenerations"]),
+    ).toEqual({
+      path: `/api/v1/admin/tasks/${taskId}/opinion-map-generation/regenerations`,
+      scope: "vote:tasks:admin",
+    });
+    expect(matchVoteTaskAdminRoute("POST", [taskId, "opinion-map-generation", "runs"])).toEqual({
+      allowedMethods: ["GET"],
+      status: 405,
+    });
+    expect(
+      matchVoteTaskAdminRoute("GET", [taskId, "opinion-map-generation", "regenerations"]),
+    ).toEqual({ allowedMethods: ["POST"], status: 405 });
+    expect(matchVoteTaskAdminRoute("GET", [taskId, "opinion-map-generation", "unknown"])).toEqual({
+      allowedMethods: [],
+      status: 404,
+    });
   });
 
   it("allows only the unavailable Opinion Map generation list", () => {
