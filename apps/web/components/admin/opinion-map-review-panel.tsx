@@ -13,10 +13,8 @@ import {
   requestOpinionMapGenerationRuns,
   requestOpinionMapRegeneration,
   requestOpinionMapRetry,
-  sumOpinionMapCostsByCurrency,
   type OpinionMapArea,
   type OpinionMapGeneration,
-  type OpinionMapGenerationAttempt,
   type OpinionMapGenerationRun,
   type OpinionMapGenerationStatus,
 } from "@/lib/admin/opinion-map-generation";
@@ -374,13 +372,6 @@ function OpinionMapGenerationView({
         </small>
       </div>
 
-      {activeRun ? (
-        <ConsoleStatus>
-          {opinionMapRunStatusLabel(activeRun.status)} · 실행 {activeRun.runNumber} · 시도{" "}
-          {activeRun.attemptCount.toLocaleString("ko-KR")}회
-        </ConsoleStatus>
-      ) : null}
-
       {pollingTimedOut ? (
         <ConsoleStatus>
           처리가 지연되고 있어 자동 상태 확인을 중단했습니다. 수동으로 새로고침해 주세요.
@@ -430,7 +421,7 @@ function OpinionMapGenerationView({
                 : activeRun
                   ? "재생성 진행 중…"
                   : historyError
-                    ? "이력 확인 후 재생성"
+                    ? "상태 확인 후 재생성"
                     : "정성 요약 재생성"}
             </button>
           ) : null}
@@ -446,180 +437,7 @@ function OpinionMapGenerationView({
           ) : null}
         </div>
       ) : null}
-
-      <OpinionMapRunHistory historyError={historyError} onReload={onReload} runs={runs} />
     </>
-  );
-}
-
-function OpinionMapRunHistory({
-  runs,
-  historyError,
-  onReload,
-}: Readonly<{
-  runs: readonly OpinionMapGenerationRun[];
-  historyError: string;
-  onReload: () => void;
-}>) {
-  const costTotals = [...sumOpinionMapCostsByCurrency(runs)];
-  return (
-    <section
-      aria-labelledby="civic-opinion-map-history-title"
-      className="civic-opinion-map-history"
-    >
-      <header>
-        <div>
-          <span>실행 기록</span>
-          <h3 id="civic-opinion-map-history-title">생성·재시도·과금 이력</h3>
-        </div>
-        {costTotals.length > 0 ? (
-          <dl className="civic-opinion-map-cost-totals">
-            {costTotals.map(([currency, cost]) => (
-              <div key={currency}>
-                <dt>{currency} 합계</dt>
-                <dd>{formatCost(cost, currency)}</dd>
-              </div>
-            ))}
-          </dl>
-        ) : null}
-      </header>
-
-      {historyError ? (
-        <div className="civic-opinion-map-history-error">
-          <ConsoleStatus error>{historyError}</ConsoleStatus>
-          <button className="wf-button wf-button-secondary" onClick={onReload} type="button">
-            이력 다시 불러오기
-          </button>
-        </div>
-      ) : runs.length === 0 ? (
-        <ConsoleStatus>기록된 생성 이력이 없습니다.</ConsoleStatus>
-      ) : (
-        <ol className="civic-opinion-map-runs">
-          {runs.map((run, index) => (
-            <li key={run.runId}>
-              <details open={index === 0}>
-                <summary>
-                  <strong>
-                    버전 {run.resultVersion} · 실행 {run.runNumber}
-                  </strong>
-                  <span>{opinionMapRunTriggerLabel(run.trigger)}</span>
-                  <span>{opinionMapRunStatusLabel(run.status)}</span>
-                </summary>
-                <div className="civic-opinion-map-run-detail">
-                  <dl>
-                    <div>
-                      <dt>요청 시각</dt>
-                      <dd>{formatAdminDate(run.requestedAt)}</dd>
-                    </div>
-                    <div>
-                      <dt>완료 시각</dt>
-                      <dd>{run.completedAt ? formatAdminDate(run.completedAt) : "—"}</dd>
-                    </div>
-                    <div>
-                      <dt>요청자</dt>
-                      <dd>{run.requestedBy ?? "시스템"}</dd>
-                    </div>
-                    <div>
-                      <dt>공급자 호출</dt>
-                      <dd>{run.attemptCount.toLocaleString("ko-KR")}회</dd>
-                    </div>
-                  </dl>
-                  {run.lastErrorCode ? (
-                    <ConsoleStatus error>
-                      {opinionMapFailureMessage(run.lastErrorCode)}
-                    </ConsoleStatus>
-                  ) : null}
-                  {run.attempts.length === 0 ? (
-                    <p className="civic-opinion-map-history-empty">
-                      아직 공급자 호출 이력이 없습니다.
-                    </p>
-                  ) : (
-                    <ol className="civic-opinion-map-attempts">
-                      {run.attempts.map((attempt) => (
-                        <OpinionMapAttemptView attempt={attempt} key={attempt.attemptId} />
-                      ))}
-                    </ol>
-                  )}
-                </div>
-              </details>
-            </li>
-          ))}
-        </ol>
-      )}
-    </section>
-  );
-}
-
-function OpinionMapAttemptView({ attempt }: Readonly<{ attempt: OpinionMapGenerationAttempt }>) {
-  return (
-    <li>
-      <header>
-        <strong>시도 {attempt.attemptNumber}</strong>
-        <span>{opinionMapAttemptStatusLabel(attempt.status)}</span>
-      </header>
-      <dl>
-        <div>
-          <dt>공급자</dt>
-          <dd>{attempt.provider}</dd>
-        </div>
-        <div>
-          <dt>요청 모델</dt>
-          <dd>{attempt.requestedModel}</dd>
-        </div>
-        <div>
-          <dt>응답 모델</dt>
-          <dd>{attempt.responseModel ?? "—"}</dd>
-        </div>
-        <div>
-          <dt>토큰</dt>
-          <dd>
-            전체 {formatCount(attempt.totalTokens)} · 입력 {formatCount(attempt.promptTokens)} ·
-            출력 {formatCount(attempt.completionTokens)}
-          </dd>
-        </div>
-        <div>
-          <dt>캐시·추론 토큰</dt>
-          <dd>
-            캐시 {formatCount(attempt.cachedTokens)} · 추론 {formatCount(attempt.reasoningTokens)}
-          </dd>
-        </div>
-        <div>
-          <dt>비용</dt>
-          <dd>
-            {attempt.cost !== null && attempt.currency
-              ? formatCost(attempt.cost, attempt.currency)
-              : "—"}
-          </dd>
-        </div>
-        <div>
-          <dt>소요 시간</dt>
-          <dd>{attempt.latencyMs === null ? "진행 중" : `${formatCount(attempt.latencyMs)} ms`}</dd>
-        </div>
-        <div>
-          <dt>HTTP·종료 사유</dt>
-          <dd>
-            {attempt.httpStatus ?? "—"} · {attempt.finishReason ?? "—"}
-          </dd>
-        </div>
-        {attempt.providerGenerationId || attempt.providerRequestId ? (
-          <div>
-            <dt>공급자 식별자</dt>
-            <dd>
-              generation {attempt.providerGenerationId ?? "—"} · request{" "}
-              {attempt.providerRequestId ?? "—"}
-            </dd>
-          </div>
-        ) : null}
-        {attempt.status === "FAILED" ? (
-          <div>
-            <dt>오류</dt>
-            <dd>
-              {attempt.errorCode} · {attempt.retryable ? "자동 재시도 가능" : "재시도 불가"}
-            </dd>
-          </div>
-        ) : null}
-      </dl>
-    </li>
   );
 }
 
@@ -677,36 +495,6 @@ function opinionMapStatusMessage(generation: OpinionMapGeneration): string {
         generation.canRetry ? "" : " 현재 수동 재시도를 사용할 수 없습니다."
       }`;
   }
-}
-
-function opinionMapRunTriggerLabel(trigger: OpinionMapGenerationRun["trigger"]): string {
-  return {
-    TASK_CLOSED: "과업 마감 자동 생성",
-    ADMIN_RETRY: "관리자 재시도",
-    ADMIN_REGENERATE: "관리자 재생성",
-  }[trigger];
-}
-
-function opinionMapRunStatusLabel(status: OpinionMapGenerationRun["status"]): string {
-  return {
-    PENDING: "대기 중",
-    PROCESSING: "처리 중",
-    RETRY_WAIT: "자동 재시도 대기 중",
-    AVAILABLE: "성공",
-    UNAVAILABLE: "실패",
-  }[status];
-}
-
-function opinionMapAttemptStatusLabel(status: OpinionMapGenerationAttempt["status"]): string {
-  return { STARTED: "호출 중", SUCCEEDED: "성공", FAILED: "실패" }[status];
-}
-
-function formatCount(value: number | null): string {
-  return value === null ? "—" : value.toLocaleString("ko-KR");
-}
-
-function formatCost(value: number, currency: string): string {
-  return `${value.toLocaleString("ko-KR", { maximumFractionDigits: 10 })} ${currency}`;
 }
 
 function errorMessage(error: unknown): string {

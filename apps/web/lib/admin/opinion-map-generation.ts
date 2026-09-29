@@ -444,19 +444,6 @@ export function hasOpinionMapRunPollingTimedOut(
   return Math.max(0, now - Date.parse(run.requestedAt)) >= OPINION_MAP_RUN_POLL_TIMEOUT_MS;
 }
 
-export function sumOpinionMapCostsByCurrency(
-  runs: readonly OpinionMapGenerationRun[],
-): ReadonlyMap<string, number> {
-  const totals = new Map<string, number>();
-  for (const run of runs) {
-    for (const attempt of run.attempts) {
-      if (attempt.cost === null || attempt.currency === null) continue;
-      totals.set(attempt.currency, (totals.get(attempt.currency) ?? 0) + attempt.cost);
-    }
-  }
-  return totals;
-}
-
 export function mergeOpinionMapUnavailableItems(
   current: readonly OpinionMapUnavailableItem[],
   incoming: readonly OpinionMapUnavailableItem[],

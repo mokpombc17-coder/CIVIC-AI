@@ -16,7 +16,6 @@ import {
   requestOpinionMapGeneration,
   requestOpinionMapGenerationRuns,
   requestOpinionMapRegeneration,
-  sumOpinionMapCostsByCurrency,
   type OpinionMapGenerationRun,
 } from "@/lib/admin/opinion-map-generation";
 
@@ -321,25 +320,7 @@ describe("Opinion Map 관리자 검수 계약", () => {
     ).resolves.toMatchObject({ created: false, runId: run.runId });
   });
 
-  it("통화별 비용을 합산하고 요청 시각부터 10분 뒤 폴링을 중단한다", () => {
-    const usdRun = availableRun();
-    const krwRun = availableRun({
-      runId: "a50155a2-9371-4f7c-bdf5-f83e3696cb99",
-      runNumber: 1,
-      attempts: [
-        {
-          ...availableRun().attempts[0]!,
-          attemptId: "3068db98-e9b0-4efc-8337-4e5163564597",
-          cost: 12,
-          currency: "KRW",
-        },
-      ],
-    });
-    expect([...sumOpinionMapCostsByCurrency([usdRun, krwRun])]).toEqual([
-      ["USD", 0.000315],
-      ["KRW", 12],
-    ]);
-
+  it("요청 시각부터 10분 뒤 폴링을 중단한다", () => {
     const requestedAt = "2026-09-29T01:10:00Z";
     expect(
       hasOpinionMapRunPollingTimedOut(
@@ -387,9 +368,9 @@ describe("Opinion Map 관리자 검수 화면", () => {
     expect(html).not.toContain("12건");
     expect(html).not.toContain("0건");
     expect(html).toContain("정성 요약 재생성");
-    expect(html).toContain("생성·재시도·과금 이력");
-    expect(html).toContain("openai/gpt-5.6-luna");
-    expect(html).toContain("0.000315 USD");
+    expect(html).not.toContain("생성·재시도·과금 이력");
+    expect(html).not.toContain("openai/gpt-5.6-luna");
+    expect(html).not.toContain("0.000315 USD");
   });
 
   it("생성 이력이 없고 생성 가능한 과업에는 생성 버튼을 표시한다", () => {
@@ -412,7 +393,6 @@ describe("Opinion Map 관리자 검수 화면", () => {
     const html = renderView(readyState(generation!));
     expect(html).toContain("생성 전");
     expect(html).toContain("정성 요약 생성");
-    expect(html).toContain("기록된 생성 이력이 없습니다.");
   });
 
   it("재생성 run이 진행 중이면 기존 결과를 유지하고 재생성 버튼을 비활성화한다", () => {
@@ -433,7 +413,6 @@ describe("Opinion Map 관리자 검수 화면", () => {
     expect(html).toContain("같은 선택을 한 참여자의 이유입니다.");
     expect(html).toContain("재생성 진행 중…");
     expect(html).toContain("disabled");
-    expect(html).toContain("처리 중");
   });
 
   it("자동 폴링 제한에 도달하면 지연 안내와 수동 새로고침을 표시한다", () => {
