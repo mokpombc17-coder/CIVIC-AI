@@ -274,6 +274,71 @@ class OpinionMapGenerationJpaAdapterIntegrationTest {
     }
 
     @Test
+    void expiresFinalRegenerationAttemptAndAllowsANewRun() {
+        OpinionMapGeneration generation = OpinionMapGeneration.pending(
+                new OpinionMapGenerationId(UUID.randomUUID()),
+                new TaskId(UUID.randomUUID()),
+                1,
+                "e".repeat(64),
+                "task-result-prompt/v1",
+                NOW);
+        generations.insertIfAbsent(generation);
+        OpinionMapGenerationRun run = runs.enqueueRegeneration(
+                generation.id(), "admin-a", "expired-regen",
+                NOW.plusSeconds(1));
+        OpinionMapGenerationRunClaim claim = runs.claimNextRegeneration(
+                        NOW.plusSeconds(2),
+                        Duration.ofSeconds(60),
+                        1)
+                .orElseThrow();
+        OpinionMapGenerationAttempt attempt =
+                new OpinionMapGenerationAttempt(
+                        UUID.randomUUID(),
+                        run.runId(),
+                        claim.attemptNumber(),
+                        "openrouter",
+                        "openai/gpt-5.6-luna",
+                        NOW.plusSeconds(2));
+        attempts.insert(attempt);
+
+        assertThat(runs.expireExhaustedRegenerations(
+                NOW.plusSeconds(63), 1)).isEqualTo(1);
+
+        assertThat(runs.findActiveRegeneration(generation.id())).isEmpty();
+        assertThat(runHistories.findByTaskId(generation.taskId()))
+                .singleElement()
+                .satisfies(history -> {
+                    assertThat(history.status()).isEqualTo(
+                            OpinionMapGenerationRun.Status.UNAVAILABLE);
+                    assertThat(history.lastErrorCode()).isEqualTo(
+                            "OPINION_MAP_ATTEMPTS_EXHAUSTED");
+                    assertThat(history.completedAt()).isEqualTo(
+                            NOW.plusSeconds(63));
+                    assertThat(history.attempts())
+                            .singleElement()
+                            .satisfies(storedAttempt -> {
+                                assertThat(storedAttempt.status())
+                                        .isEqualTo("FAILED");
+                                assertThat(storedAttempt.errorCode())
+                                        .isEqualTo(
+                                                "OPINION_MAP_ATTEMPT_LEASE_EXPIRED");
+                                assertThat(storedAttempt.retryable()).isTrue();
+                                assertThat(storedAttempt.completedAt())
+                                        .isEqualTo(NOW.plusSeconds(63));
+                                assertThat(storedAttempt.latencyMs())
+                                        .isEqualTo(61_000L);
+                            });
+                });
+
+        OpinionMapGenerationRun next = runs.enqueueRegeneration(
+                generation.id(), "admin-a", "next-regen",
+                NOW.plusSeconds(64));
+        assertThat(next.runNumber()).isEqualTo(2);
+        assertThat(next.status())
+                .isEqualTo(OpinionMapGenerationRun.Status.PENDING);
+    }
+
+    @Test
     void manualRetryStartsANewRunSoAttemptNumbersCanRestart() {
         OpinionMapGeneration generation = OpinionMapGeneration.pending(
                 new OpinionMapGenerationId(UUID.randomUUID()),

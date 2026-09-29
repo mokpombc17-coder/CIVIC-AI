@@ -25,6 +25,7 @@ import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -56,6 +57,20 @@ class OpinionMapRegenerationStateServiceTest {
                 policy(),
                 objectMapper,
                 Clock.fixed(NOW, ZoneOffset.UTC));
+    }
+
+    @Test
+    void expiresExhaustedLeasesBeforeClaimingAnotherRun() {
+        when(runs.claimNextRegeneration(
+                NOW, Duration.ofSeconds(90), 3))
+                .thenReturn(Optional.empty());
+
+        assertThat(service.claimNext()).isEmpty();
+
+        var ordered = inOrder(runs);
+        ordered.verify(runs).expireExhaustedRegenerations(NOW, 3);
+        ordered.verify(runs).claimNextRegeneration(
+                NOW, Duration.ofSeconds(90), 3);
     }
 
     @Test

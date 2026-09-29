@@ -86,8 +86,11 @@ public class OpinionMapRegenerationStateService {
         if (!policy.enabled()) {
             return Optional.empty();
         }
+        Instant now = clock.instant();
+        runs.expireExhaustedRegenerations(
+                now, policy.maximumAttempts());
         return runs.claimNextRegeneration(
-                clock.instant(),
+                now,
                 policy.processingLeaseDuration(),
                 policy.maximumAttempts());
     }

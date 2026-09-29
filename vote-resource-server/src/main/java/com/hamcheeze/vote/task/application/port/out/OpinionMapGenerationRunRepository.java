@@ -37,6 +37,10 @@ public interface OpinionMapGenerationRunRepository {
             OpinionMapGenerationId generationId,
             String idempotencyKey);
 
+    int expireExhaustedRegenerations(
+            Instant now,
+            int maximumAttempts);
+
     Optional<OpinionMapGenerationRunClaim> claimNextRegeneration(
             Instant now,
             Duration leaseDuration,

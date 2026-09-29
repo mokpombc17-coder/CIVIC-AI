@@ -5,6 +5,7 @@ import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationV
 import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.OptionView;
 import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.Status;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
@@ -36,6 +37,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
     private final TaskResultManifestRepository manifests;
     private final TaskResultSummaryQueryService summaries;
     private final OpinionMapGenerationRepository generations;
+    private final OpinionMapGenerationRunRepository runs;
     private final OpinionMapGenerationOutputReader outputs;
     private final OpinionMapGenerationPolicy policy;
 
@@ -44,6 +46,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
             TaskResultManifestRepository manifests,
             TaskResultSummaryQueryService summaries,
             OpinionMapGenerationRepository generations,
+            OpinionMapGenerationRunRepository runs,
             OpinionMapGenerationOutputReader outputs,
             OpinionMapGenerationPolicy policy
     ) {
@@ -52,6 +55,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
         this.summaries = Objects.requireNonNull(summaries, "summaries");
         this.generations = Objects.requireNonNull(
                 generations, "generations");
+        this.runs = Objects.requireNonNull(runs, "runs");
         this.outputs = Objects.requireNonNull(outputs, "outputs");
         this.policy = Objects.requireNonNull(policy, "policy");
     }
@@ -106,6 +110,9 @@ public class OpinionMapGenerationAdminDetailQueryService {
                 status == Status.AVAILABLE
                         ? readOutput(task.id(), generation)
                         : null;
+        boolean canRegenerate = status == Status.AVAILABLE
+                && policy.enabled()
+                && runs.findActiveRegeneration(generation.id()).isEmpty();
         return new AdminOpinionMapGenerationView(
                 task.id(),
                 manifest.resultVersion(),
@@ -118,7 +125,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
                 generation.updatedAt(),
                 false,
                 status == Status.UNAVAILABLE && policy.enabled(),
-                status == Status.AVAILABLE && policy.enabled(),
+                canRegenerate,
                 options(task, summary, output));
     }
 

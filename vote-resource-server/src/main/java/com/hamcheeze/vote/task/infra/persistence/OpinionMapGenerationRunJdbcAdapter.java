@@ -230,6 +230,63 @@ public class OpinionMapGenerationRunJdbcAdapter
 
     @Override
     @Transactional
+    public int expireExhaustedRegenerations(
+            Instant now,
+            int maximumAttempts
+    ) {
+        Objects.requireNonNull(now, "now");
+        if (maximumAttempts < 1) {
+            throw new IllegalArgumentException(
+                    "maximumAttempts must be positive");
+        }
+        return jdbc.update("""
+                        WITH exhausted AS (
+                            SELECT run_id
+                            FROM opinion_map_generation_runs
+                            WHERE trigger_type = 'ADMIN_REGENERATE'
+                              AND status = 'PROCESSING'
+                              AND lease_expires_at <= ?
+                              AND attempt_count >= ?
+                            FOR UPDATE SKIP LOCKED
+                        ), expired_attempts AS (
+                            UPDATE opinion_map_generation_attempts attempt
+                            SET status = 'FAILED',
+                                error_code =
+                                    'OPINION_MAP_ATTEMPT_LEASE_EXPIRED',
+                                retryable = true,
+                                completed_at = ?,
+                                latency_ms = GREATEST(
+                                    0,
+                                    EXTRACT(EPOCH FROM
+                                        (? - attempt.started_at)) * 1000
+                                )::bigint
+                            FROM exhausted
+                            WHERE attempt.run_id = exhausted.run_id
+                              AND attempt.status = 'STARTED'
+                            RETURNING attempt.run_id
+                        )
+                        UPDATE opinion_map_generation_runs run
+                        SET status = 'UNAVAILABLE',
+                            next_attempt_at = NULL,
+                            last_error_code =
+                                'OPINION_MAP_ATTEMPTS_EXHAUSTED',
+                            completed_at = ?,
+                            active_claim_id = NULL,
+                            lease_expires_at = NULL,
+                            updated_at = ?
+                        FROM exhausted
+                        WHERE run.run_id = exhausted.run_id
+                        """,
+                Timestamp.from(now),
+                maximumAttempts,
+                Timestamp.from(now),
+                Timestamp.from(now),
+                Timestamp.from(now),
+                Timestamp.from(now));
+    }
+
+    @Override
+    @Transactional
     public Optional<OpinionMapGenerationRunClaim> claimNextRegeneration(
             Instant now,
             Duration leaseDuration,

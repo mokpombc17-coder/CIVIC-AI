@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.application.opinionmap;
 
 import com.hamcheeze.vote.task.application.opinionmap.AdminOpinionMapGenerationView.Status;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskResultManifestRepository;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
@@ -46,6 +47,8 @@ class OpinionMapGenerationAdminDetailQueryServiceTest {
             mock(TaskResultSummaryQueryService.class);
     private final OpinionMapGenerationRepository generations =
             mock(OpinionMapGenerationRepository.class);
+    private final OpinionMapGenerationRunRepository runs =
+            mock(OpinionMapGenerationRunRepository.class);
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     private OpinionMapGenerationAdminDetailQueryService service;
@@ -57,6 +60,7 @@ class OpinionMapGenerationAdminDetailQueryServiceTest {
                 manifests,
                 summaries,
                 generations,
+                runs,
                 new OpinionMapGenerationOutputReader(objectMapper),
                 policy(true));
     }
@@ -135,6 +139,7 @@ class OpinionMapGenerationAdminDetailQueryServiceTest {
         assertThat(view.status()).isEqualTo(Status.AVAILABLE);
         assertThat(view.canGenerate()).isFalse();
         assertThat(view.canRetry()).isFalse();
+        assertThat(view.canRegenerate()).isTrue();
         assertThat(view.options()).hasSize(2);
         assertThat(view.options().getFirst()).satisfies(option -> {
             assertThat(option.optionId()).isEqualTo(optionId(1));
@@ -155,6 +160,35 @@ class OpinionMapGenerationAdminDetailQueryServiceTest {
             assertThat(option.sameChoice().body()).isNull();
             assertThat(option.otherChoices().body()).isEqualTo("other-B");
         });
+    }
+
+    @Test
+    void disablesRegenerationWhileAnotherRegenerationIsActive()
+            throws Exception {
+        Task task = closedTask();
+        TaskResultManifest manifest = manifest(task);
+        OpinionMapOptionExplanationV1 output = output(task);
+        OpinionMapGeneration generation = available(task, manifest, output);
+        stubFinalized(task, manifest, generation);
+        when(runs.findActiveRegeneration(generation.id()))
+                .thenReturn(Optional.of(new OpinionMapGenerationRun(
+                        new UUID(0, 73),
+                        generation.id(),
+                        2,
+                        OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE,
+                        OpinionMapGenerationRun.Status.PROCESSING,
+                        1,
+                        "admin-a",
+                        NOW,
+                        null,
+                        null,
+                        NOW)));
+
+        var view = service.findByTaskId(task.id()).orElseThrow();
+
+        assertThat(view.status()).isEqualTo(Status.AVAILABLE);
+        assertThat(view.canRegenerate()).isFalse();
+        assertThat(view.options()).hasSize(2);
     }
 
     @Test
