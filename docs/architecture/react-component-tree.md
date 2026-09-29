@@ -186,7 +186,7 @@ AdminLayout [Server Route Layout, wireflow.css + admin-console.css 소유] → A
     │   ├── TaskCreationDrawer [기본 정보→질문→선택지 단계형 초안 생성]
     │   ├── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     │   └── TaskResultsTab [결과 탭: OPEN 현황 집계·수동 새로고침, 종료 시 확정 결과·다운로드]
-    │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도]
+    │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도/재생성·활성 run 폴링]
     ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
     │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정

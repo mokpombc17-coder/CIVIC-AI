@@ -185,6 +185,14 @@ describe("admin domain response contracts", () => {
       }),
     ).toBe("AI 답변 준비를 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.");
   });
+
+  it.each([
+    ["TASK_RESULT_NOT_FINALIZED", "과업 결과가 아직 확정되지 않아 정성 요약을 생성할 수 없습니다."],
+    ["OPINION_MAP_NOT_CREATED", "재생성할 기존 정성 요약이 없습니다."],
+    ["OPINION_MAP_NOT_AVAILABLE", "성공한 정성 요약만 재생성할 수 있습니다."],
+  ] as const)("Opinion Map 재생성 오류 %s를 운영자 문구로 안내한다", (code, expected) => {
+    expect(formatAdminProblem({ code, status: 409, violations: [] })).toBe(expected);
+  });
 });
 
 function taskResponse() {
