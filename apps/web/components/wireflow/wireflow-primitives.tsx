@@ -42,6 +42,8 @@ export function WireflowField({ label, name, ...input }: WireflowFieldProps) {
 }
 
 type WireflowButtonProps = Readonly<{
+  "aria-controls"?: string | undefined;
+  "aria-expanded"?: boolean | undefined;
   "aria-label"?: string | undefined;
   children: ReactNode;
   className?: string | undefined;
@@ -53,6 +55,8 @@ type WireflowButtonProps = Readonly<{
 }>;
 
 export function WireflowButton({
+  "aria-controls": ariaControls,
+  "aria-expanded": ariaExpanded,
   "aria-label": ariaLabel,
   children,
   className,
@@ -64,6 +68,8 @@ export function WireflowButton({
 }: WireflowButtonProps) {
   return (
     <button
+      aria-controls={ariaControls}
+      aria-expanded={ariaExpanded}
       aria-label={ariaLabel}
       className={join("wf-button", `wf-button-${variant}`, className)}
       data-wireflow-slot={dataWireflowSlot}

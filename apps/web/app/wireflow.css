@@ -5673,10 +5673,6 @@
   padding: 16px 16px 28px;
 }
 
-.wf-account-management-security-open {
-  padding-bottom: 220px;
-}
-
 .wf-account-section {
   display: grid;
   gap: 8px;
@@ -5711,45 +5707,64 @@
 }
 
 .wf-account-security-card {
-  display: grid;
+  overflow: hidden;
   min-height: 118px;
+  padding: 0;
+}
+
+.wf-account-security-card.is-expanded {
+  border-color: #9fb5e8;
+}
+
+.wf-account-security-summary {
+  display: grid;
+  min-height: 116px;
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
   gap: 12px;
   padding: 20px;
 }
 
-.wf-account-security-card > div {
+.wf-account-security-copy {
   display: grid;
   gap: 5px;
 }
 
-.wf-account-security-card h3,
-.wf-account-security-card p {
+.wf-account-security-copy h3,
+.wf-account-security-copy p {
   margin: 0;
 }
 
-.wf-account-security-card h3 {
+.wf-account-security-copy h3 {
   font-size: 17px;
   line-height: 24px;
 }
 
-.wf-account-security-card p {
+.wf-account-security-copy > p:not(.civic-form-message) {
   max-width: 166px;
   color: var(--wf-muted);
   font-size: 14px;
   line-height: 20px;
 }
 
-.wf-account-security-card .wf-button {
+.wf-account-security-summary > .wf-button {
   width: 121px;
   padding-inline: 10px;
   white-space: nowrap;
 }
 
 .wf-security-form {
-  margin-top: 4px;
+  display: grid;
+  gap: 12px;
+  border-top: 1px solid var(--wf-line);
+  margin: 0;
+  padding: 20px;
   scroll-margin-block: 16px 24px;
+}
+
+.wf-account-security-copy .wf-account-security-feedback {
+  max-width: none;
+  margin-top: 7px;
 }
 
 .wf-account-load-message {
@@ -6162,11 +6177,11 @@
 }
 
 @media (max-width: 360px) {
-  .wf-account-security-card {
+  .wf-account-security-summary {
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .wf-account-security-card .wf-button {
+  .wf-account-security-summary > .wf-button {
     width: 100%;
   }
 
@@ -6203,6 +6218,17 @@
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   scroll-padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
+}
+
+@media (display-mode: standalone) {
+  .civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid:focus-within {
+    padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px));
+    scroll-padding-block: 16px calc(45vh + env(safe-area-inset-bottom, 0px));
+  }
+
+  [data-wireflow-screen^="U-ACCOUNT-"] .wf-account-hub:has(.wf-security-form input:focus) {
+    padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px));
+  }
 }
 
 /* 관리자 문서 작업 공간은 페이지 스크롤 하나를 사용하고, 조밀한 운영 화면으로 정렬한다. */

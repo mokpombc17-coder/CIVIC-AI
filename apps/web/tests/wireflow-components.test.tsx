@@ -380,12 +380,16 @@ describe("latest Wire Flow shared product UI", () => {
       <WireflowCard title="계정 정보">
         <WireflowBadge>복구</WireflowBadge>
         <WireflowField label="이메일" name="email" placeholder="name@example.com" type="email" />
-        <WireflowButton type="submit">로그인</WireflowButton>
+        <WireflowButton aria-controls="login-panel" aria-expanded type="submit">
+          로그인
+        </WireflowButton>
       </WireflowCard>,
     );
 
     expect(html).toContain('class="wf-card"');
     expect(html).toContain('class="wf-badge"');
+    expect(html).toContain('aria-controls="login-panel"');
+    expect(html).toContain('aria-expanded="true"');
     expect(html).toContain('<label for="wf-email">이메일</label>');
     expect(html).toContain('id="wf-email"');
     expect(html).toContain('class="wf-button wf-button-primary"');

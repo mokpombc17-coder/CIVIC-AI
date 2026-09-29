@@ -48,6 +48,8 @@ import {
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
   redirectAfterPasswordChange,
+  togglePasswordAccordion,
+  toggleTwoFactorAccordion,
 } from "@/components/screens/account-functional-screen";
 import {
   ApiRequestError,
@@ -348,6 +350,27 @@ describe("25 functional Main/Auth screens", () => {
     expect(normalizeTwoFactorCode("1234567")).toBeNull();
     expect(normalizeTwoFactorCode("12345a")).toBeNull();
     expect(normalizeTwoFactorCode(" 123456 ")).toBe("123456");
+  });
+
+  it("비밀번호와 2FA 보안 아코디언을 서로 독립적으로 제어한다", () => {
+    const passwordOpen = togglePasswordAccordion({
+      passwordOpen: false,
+      twoFactorIntent: null,
+    });
+    const bothOpen = toggleTwoFactorAccordion(passwordOpen, "2fa-request");
+
+    expect(bothOpen).toEqual({
+      passwordOpen: true,
+      twoFactorIntent: "2fa-request",
+    });
+    expect(togglePasswordAccordion(bothOpen)).toEqual({
+      passwordOpen: false,
+      twoFactorIntent: "2fa-request",
+    });
+    expect(toggleTwoFactorAccordion(bothOpen, "2fa-request")).toEqual({
+      passwordOpen: true,
+      twoFactorIntent: null,
+    });
   });
 
   it("로그아웃은 Main/Auth refresh family 종료 API를 POST로 호출한다", async () => {
