@@ -401,9 +401,6 @@ export function AuthFunctionalScreen({
           subtitle={authCardSubtitle(activeId, activeId === "AUTH-007" ? resetEmail : draft.email)}
           title={authCardTitle(activeId)}
         >
-          {renderFields(activeId, draft, setDraft, resetCode, setEditedResetCode, () =>
-            setDuplicateEmailState(null),
-          )}
           {activeId === "AUTH-002" && duplicateEmailState ? (
             <SignupDuplicateEmailNotice accountState={duplicateEmailState} />
           ) : null}
@@ -420,6 +417,9 @@ export function AuthFunctionalScreen({
               </p>
             )
           ) : null}
+          {renderFields(activeId, draft, setDraft, resetCode, setEditedResetCode, () =>
+            setDuplicateEmailState(null),
+          )}
           {activeId === "AUTH-004" ? (
             <WireflowButton
               disabled={busy}
