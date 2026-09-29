@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import { getScreenByRoute } from "@/lib/screens/registry";
+import { resetAuthScrollTop } from "./auth-functional-screen";
 import { PublicAuthScreen, publicAuthHeaderState } from "./public-auth-screen";
 
 describe("PublicAuthScreen", () => {
@@ -16,6 +17,32 @@ describe("PublicAuthScreen", () => {
       expect(html).toContain("civic-public-auth-content");
     },
   );
+
+  it.each([
+    ["/login", ["next", "go"]],
+    ["/signup/account", ["next", "next", "done"]],
+    ["/password-reset", ["done"]],
+    ["/password-reset/complete", ["next", "next", "done"]],
+  ])("%s 입력 순서에 맞는 모바일 키보드 액션을 제공한다", (pathname, expectedHints) => {
+    const screen = getScreenByRoute(pathname);
+    if (!screen) throw new TypeError(`${pathname} screen is missing`);
+
+    const html = renderToStaticMarkup(<PublicAuthScreen screen={screen} />);
+    const hints = Array.from(html.matchAll(/enterKeyHint="([^"]+)"/gu), (match) => match[1]);
+
+    expect(hints).toEqual(expectedHints);
+  });
+});
+
+describe("resetAuthScrollTop", () => {
+  it("인증 단계가 바뀌면 내부 스크롤을 맨 위로 되돌린다", () => {
+    const scroller = { scrollTop: 320 };
+
+    resetAuthScrollTop(scroller);
+
+    expect(scroller.scrollTop).toBe(0);
+    expect(() => resetAuthScrollTop(null)).not.toThrow();
+  });
 });
 
 describe("publicAuthHeaderState", () => {

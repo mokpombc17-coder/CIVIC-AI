@@ -3,7 +3,14 @@
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
-import { useEffect, useState, useSyncExternalStore, type FormEvent, type ReactNode } from "react";
+import {
+  useEffect,
+  useRef,
+  useState,
+  useSyncExternalStore,
+  type FormEvent,
+  type ReactNode,
+} from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
@@ -118,6 +125,7 @@ export function AuthFunctionalScreen({
   const [postLoginReturnTo, setPostLoginReturnTo] = useState<string | null>(() =>
     safeReturnTarget(initialSearch),
   );
+  const authGridRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (recoveryPathname) location.replace(recoveryPathname);
@@ -135,6 +143,10 @@ export function AuthFunctionalScreen({
     addEventListener("popstate", restoreStep);
     return () => removeEventListener("popstate", restoreStep);
   }, [onActiveScreenChange, screen.id]);
+
+  useEffect(() => {
+    resetAuthScrollTop(authGridRef.current);
+  }, [activeId]);
 
   async function completeLogin(response: Response) {
     const returnTo = safeReturnTarget(location.search);
@@ -380,6 +392,7 @@ export function AuthFunctionalScreen({
       <div
         className="civic-auth-grid"
         data-wireflow-layout={activeId === "AUTH-001" ? "auth-login" : "auth-flow"}
+        ref={authGridRef}
       >
         {activeId === "AUTH-009" || activeId === "AUTH-010" ? <ReactivationNotes /> : null}
         <AuthFormCard
@@ -485,6 +498,7 @@ function renderFields(
       <>
         <Field
           autoComplete="username"
+          enterKeyHint="next"
           label="이메일"
           name="email"
           placeholder="name@example.com"
@@ -494,6 +508,7 @@ function renderFields(
         />
         <Field
           autoComplete="current-password"
+          enterKeyHint="go"
           label="비밀번호"
           name="password"
           placeholder="비밀번호 입력…"
@@ -507,6 +522,7 @@ function renderFields(
       <>
         <Field
           autoComplete="email"
+          enterKeyHint="next"
           help="로그인 시 사용할 이메일 주소 입니다."
           label="이메일"
           name="email"
@@ -531,6 +547,7 @@ function renderFields(
         />
         <Field
           autoComplete="new-password"
+          enterKeyHint="next"
           help="8자 이상 · 영문·숫자·특수문자 포함"
           label="비밀번호"
           name="password"
@@ -540,6 +557,7 @@ function renderFields(
         />
         <Field
           autoComplete="new-password"
+          enterKeyHint="done"
           label="비밀번호 확인"
           name="password_confirmation"
           type="password"
@@ -617,6 +635,7 @@ function renderFields(
       <>
         <Field
           autoComplete="one-time-code"
+          enterKeyHint="done"
           inputMode="numeric"
           label="6자리 인증 코드"
           maxLength={6}
@@ -642,6 +661,7 @@ function renderFields(
     return (
       <Field
         autoComplete="one-time-code"
+        enterKeyHint="done"
         help={<CodeCountdown />}
         inputMode="numeric"
         label="6자리 인증 코드"
@@ -657,6 +677,7 @@ function renderFields(
       <>
         <Field
           autoComplete="username"
+          enterKeyHint="next"
           label="이메일"
           name="email"
           placeholder="등록 이메일 입력"
@@ -664,6 +685,7 @@ function renderFields(
         />
         <Field
           autoComplete="current-password"
+          enterKeyHint="go"
           label="비밀번호 확인"
           name="password"
           type="password"
@@ -675,6 +697,7 @@ function renderFields(
       <>
         <Field
           autoComplete="one-time-code"
+          enterKeyHint="next"
           help="가장 최근에 받은 코드를 입력하세요."
           inputMode="numeric"
           label="6자리 인증 코드"
@@ -686,6 +709,7 @@ function renderFields(
         />
         <Field
           autoComplete="new-password"
+          enterKeyHint="next"
           help="8자 이상 · 영문·숫자·특수문자 포함"
           label="새 비밀번호"
           name="new_password"
@@ -693,6 +717,7 @@ function renderFields(
         />
         <Field
           autoComplete="new-password"
+          enterKeyHint="done"
           label="새 비밀번호 확인"
           name="new_password_confirmation"
           type="password"
@@ -900,6 +925,7 @@ export function maskAuthEmail(email: string): string | null {
 
 function Field({
   autoComplete,
+  enterKeyHint,
   label,
   name,
   type = "text",
@@ -911,6 +937,7 @@ function Field({
   onChange,
 }: {
   autoComplete?: string;
+  enterKeyHint?: "done" | "go" | "next";
   label: string;
   name: string;
   type?: string;
@@ -929,6 +956,7 @@ function Field({
         aria-describedby={helpId}
         aria-label={label}
         autoComplete={autoComplete}
+        enterKeyHint={enterKeyHint}
         inputMode={inputMode}
         maxLength={maxLength}
         name={name}
@@ -945,6 +973,10 @@ function Field({
       ) : null}
     </label>
   );
+}
+
+export function resetAuthScrollTop(scroller: Pick<HTMLDivElement, "scrollTop"> | null): void {
+  if (scroller) scroller.scrollTop = 0;
 }
 
 export function isPasswordResetEmail(value: string): boolean {
