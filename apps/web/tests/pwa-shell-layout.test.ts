@@ -53,4 +53,24 @@ describe("standalone PWA shell sizing", () => {
       "padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px))",
     );
   });
+
+  it("adds standalone keyboard scroll space while an auth field is focused", () => {
+    expect(wireflowStyles).toContain("@media (display-mode: standalone)");
+    expect(wireflowStyles).toContain(".civic-auth-grid:focus-within");
+    expect(wireflowStyles).toContain(
+      "padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px))",
+    );
+    expect(wireflowStyles).toContain(
+      "scroll-padding-block: 16px calc(45vh + env(safe-area-inset-bottom, 0px))",
+    );
+  });
+
+  it("adds standalone keyboard scroll space outside the mypage security card", () => {
+    expect(wireflowStyles).toContain(
+      '[data-wireflow-screen^="U-ACCOUNT-"] .wf-account-hub:has(.wf-security-form input:focus)',
+    );
+    expect(wireflowStyles).toContain(
+      "padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px))",
+    );
+  });
 });

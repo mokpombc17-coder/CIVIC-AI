@@ -3,7 +3,7 @@
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
-import { useEffect, useRef, useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent, type ReactNode } from "react";
 import Image from "next/image";
 import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -24,13 +24,54 @@ type Profile = {
   response_version: number;
 };
 
-type SecurityIntent = "password" | "2fa-request" | "2fa-verify" | "2fa-disable" | null;
+type TwoFactorIntent = "2fa-request" | "2fa-verify" | "2fa-disable";
+type SecurityOperation = "password" | TwoFactorIntent;
+
+export type SecurityAccordionState = Readonly<{
+  passwordOpen: boolean;
+  twoFactorIntent: TwoFactorIntent | null;
+}>;
+
+type AccountFeedback = Readonly<{
+  deactivation: string;
+  load: string;
+  password: string;
+  twoFactor: string;
+}>;
+
+const initialSecurityAccordionState: SecurityAccordionState = Object.freeze({
+  passwordOpen: false,
+  twoFactorIntent: null,
+});
+
+const initialAccountFeedback: AccountFeedback = Object.freeze({
+  deactivation: "",
+  load: "",
+  password: "",
+  twoFactor: "",
+});
+
+export function togglePasswordAccordion(current: SecurityAccordionState): SecurityAccordionState {
+  return { ...current, passwordOpen: !current.passwordOpen };
+}
+
+export function toggleTwoFactorAccordion(
+  current: SecurityAccordionState,
+  nextIntent: TwoFactorIntent,
+): SecurityAccordionState {
+  return {
+    ...current,
+    twoFactorIntent: current.twoFactorIntent === null ? nextIntent : null,
+  };
+}
 
 export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDefinition }>) {
   const [profile, setProfile] = useState<Profile | null>(null);
-  const [message, setMessage] = useState("");
+  const [feedback, setFeedback] = useState<AccountFeedback>(initialAccountFeedback);
   const [busy, setBusy] = useState(false);
-  const [securityIntent, setSecurityIntent] = useState<SecurityIntent>(null);
+  const [securityAccordion, setSecurityAccordion] = useState<SecurityAccordionState>(
+    initialSecurityAccordionState,
+  );
   const [deactivationRequested, setDeactivationRequested] = useState(false);
   const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
 
@@ -42,7 +83,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         if (!active) return;
         setProfile(value);
       })
-      .catch((error: Error) => active && setMessage(error.message));
+      .catch((error: Error) => active && updateFeedback("load", error.message));
     return () => {
       active = false;
     };
@@ -52,12 +93,20 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     const operation = data.get("operation");
+    const feedbackTarget =
+      operation === "password"
+        ? "password"
+        : operation === "deactivate"
+          ? "deactivation"
+          : operation === "2fa-request" || operation === "2fa-verify" || operation === "2fa-disable"
+            ? "twoFactor"
+            : "load";
     if (operation !== "deactivate" && profile === null) {
-      setMessage("계정 정보를 불러온 뒤 다시 시도해 주세요.");
+      updateFeedback(feedbackTarget, "계정 정보를 불러온 뒤 다시 시도해 주세요.");
       return;
     }
     setBusy(true);
-    setMessage("");
+    updateFeedback(feedbackTarget, "");
     try {
       if (operation === "password") {
         if (!passwordConfirmationMatches(data)) {
@@ -73,16 +122,16 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         if (response.status !== 202) {
           throw new Error("인증 코드를 전송하지 못했습니다. 잠시 후 다시 시도해 주세요.");
         }
-        setSecurityIntent("2fa-verify");
-        setMessage("인증코드가 전송되었습니다.");
+        setSecurityAccordion((current) => ({ ...current, twoFactorIntent: "2fa-verify" }));
+        updateFeedback("twoFactor", "인증코드가 전송되었습니다.");
       } else if (operation === "2fa-verify") {
         const code = normalizeTwoFactorCode(data.get("code"));
         if (code === null) throw new Error("6자리 인증 코드를 입력해 주세요.");
         await mutation("/api/v1/account/2fa/enable", "POST", { code });
         const updated = await loadAccountProfile();
         setProfile(updated);
-        setSecurityIntent(null);
-        setMessage("로그인 2차 인증이 설정되었습니다.");
+        setSecurityAccordion((current) => ({ ...current, twoFactorIntent: null }));
+        updateFeedback("twoFactor", "로그인 2차 인증이 설정되었습니다.");
       } else if (operation === "2fa-disable") {
         await mutation("/api/v1/account/2fa/disable", "POST", {
           password: data.get("current_password"),
@@ -95,25 +144,38 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         location.assign("/reactivate");
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+      updateFeedback(
+        feedbackTarget,
+        error instanceof Error ? error.message : "요청을 처리하지 못했습니다.",
+      );
     } finally {
       setBusy(false);
     }
   }
 
-  function selectSecurityIntent(intent: SecurityIntent) {
-    setMessage("");
-    setSecurityIntent(intent);
+  function updateFeedback(target: keyof AccountFeedback, message: string) {
+    setFeedback((current) => ({ ...current, [target]: message }));
+  }
+
+  function togglePasswordPanel() {
+    updateFeedback("password", "");
+    setSecurityAccordion(togglePasswordAccordion);
+  }
+
+  function toggleTwoFactorPanel() {
+    if (profile === null) return;
+    updateFeedback("twoFactor", "");
+    const nextIntent: TwoFactorIntent = profile.two_factor_enabled ? "2fa-disable" : "2fa-request";
+    setSecurityAccordion((current) => toggleTwoFactorAccordion(current, nextIntent));
   }
 
   function openDeactivationDialog() {
-    setMessage("");
-    setSecurityIntent(null);
+    updateFeedback("deactivation", "");
     setDeactivationRequested(true);
   }
 
   function closeDeactivationDialog() {
-    setMessage("");
+    updateFeedback("deactivation", "");
     if (screen.id === "U-ACCOUNT-004") {
       location.assign("/account");
       return;
@@ -128,18 +190,19 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
       ) : (
         <AccountHomeSurface
           busy={busy}
-          intent={securityIntent}
-          message={message}
+          feedback={feedback}
           onDeactivate={openDeactivationDialog}
-          onIntent={selectSecurityIntent}
+          onPasswordToggle={togglePasswordPanel}
           onSubmit={submit}
+          onTwoFactorToggle={toggleTwoFactorPanel}
           profile={profile}
+          securityAccordion={securityAccordion}
         />
       )}
       {deactivationOpen ? (
         <DeactivationDialog
           busy={busy}
-          message={message}
+          message={feedback.deactivation}
           onCancel={closeDeactivationDialog}
           onSubmit={submit}
         />
@@ -150,30 +213,33 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
 
 function AccountHomeSurface({
   busy,
-  intent,
-  message,
+  feedback,
   onDeactivate,
-  onIntent,
+  onPasswordToggle,
   onSubmit,
+  onTwoFactorToggle,
   profile,
+  securityAccordion,
 }: Readonly<{
   busy: boolean;
-  intent: SecurityIntent;
-  message: string;
+  feedback: AccountFeedback;
   onDeactivate: () => void;
-  onIntent: (intent: SecurityIntent) => void;
+  onPasswordToggle: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onTwoFactorToggle: () => void;
   profile: Profile | null;
+  securityAccordion: SecurityAccordionState;
 }>) {
   return (
     <div className="wf-account-hub" data-wireflow-layout="account-hub">
       <AccountManagementSurface
         busy={busy}
-        intent={intent}
-        message={message}
-        onIntent={onIntent}
+        feedback={feedback}
+        onPasswordToggle={onPasswordToggle}
         onSubmit={onSubmit}
+        onTwoFactorToggle={onTwoFactorToggle}
         profile={profile}
+        securityAccordion={securityAccordion}
       />
       <div className="wf-account-session-actions">
         <div className="wf-account-logout">
@@ -194,53 +260,77 @@ function AccountHomeSurface({
 
 function AccountManagementSurface({
   busy,
-  intent,
-  message,
-  onIntent,
+  feedback,
+  onPasswordToggle,
   onSubmit,
+  onTwoFactorToggle,
   profile,
+  securityAccordion,
 }: Readonly<{
   busy: boolean;
-  intent: SecurityIntent;
-  message: string;
-  onIntent: (intent: SecurityIntent) => void;
+  feedback: AccountFeedback;
+  onPasswordToggle: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
+  onTwoFactorToggle: () => void;
   profile: Profile | null;
+  securityAccordion: SecurityAccordionState;
 }>) {
   const loaded = profile !== null;
-  const twoFactorIntent = profile?.two_factor_enabled ? "2fa-disable" : "2fa-request";
-  const twoFactorFormOpen = intent?.startsWith("2fa-") === true;
+  const passwordFormId = "wf-password-security-form";
+  const twoFactorFormId = "wf-two-factor-security-form";
+  const twoFactorOpen = securityAccordion.twoFactorIntent !== null;
   return (
-    <div
-      className={`wf-account-management${intent ? " wf-account-management-security-open" : ""}`}
-      data-wireflow-layout="account-management"
-    >
+    <div className="wf-account-management" data-wireflow-layout="account-management">
       <section aria-labelledby="wf-account-security-title" className="wf-account-section">
         <h2 id="wf-account-security-title">보안</h2>
-        {!intent && message ? (
+        {feedback.load ? (
           <p aria-live="polite" className="civic-form-message wf-account-load-message">
-            {message}
+            {feedback.load}
           </p>
         ) : null}
         <div className="wf-account-security-list">
           <SecurityAction
-            actionLabel="변경하기"
+            actionLabel={securityAccordion.passwordOpen ? "닫기" : "변경하기"}
+            controlsId={passwordFormId}
             disabled={busy || !loaded}
             description="비밀번호 변경 시 모든 기기에서 로그아웃됩니다."
-            onAction={() => onIntent(intent === "password" ? null : "password")}
+            expanded={securityAccordion.passwordOpen}
+            onAction={onPasswordToggle}
             title="비밀번호 변경"
-          />
+          >
+            {securityAccordion.passwordOpen ? (
+              <SecurityForm
+                busy={busy}
+                id={passwordFormId}
+                intent="password"
+                message={feedback.password}
+                onSubmit={onSubmit}
+              />
+            ) : null}
+          </SecurityAction>
           <SecurityAction
-            actionLabel={profile?.two_factor_enabled ? "해제하기" : "설정하기"}
+            actionLabel={
+              twoFactorOpen ? "닫기" : profile?.two_factor_enabled ? "해제하기" : "설정하기"
+            }
+            controlsId={twoFactorFormId}
             disabled={busy || !loaded}
             description="로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다."
-            onAction={() => onIntent(twoFactorFormOpen ? null : twoFactorIntent)}
+            expanded={twoFactorOpen}
+            onAction={onTwoFactorToggle}
+            statusMessage={twoFactorOpen ? "" : feedback.twoFactor}
             title="로그인 2차 인증"
-          />
+          >
+            {securityAccordion.twoFactorIntent ? (
+              <SecurityForm
+                busy={busy}
+                id={twoFactorFormId}
+                intent={securityAccordion.twoFactorIntent}
+                message={feedback.twoFactor}
+                onSubmit={onSubmit}
+              />
+            ) : null}
+          </SecurityAction>
         </div>
-        {intent ? (
-          <SecurityForm busy={busy} intent={intent} message={message} onSubmit={onSubmit} />
-        ) : null}
       </section>
     </div>
   );
@@ -248,71 +338,67 @@ function AccountManagementSurface({
 
 function SecurityAction({
   actionLabel,
+  children,
+  controlsId,
   description,
   disabled = false,
+  expanded,
   onAction,
+  statusMessage,
   title,
 }: Readonly<{
   actionLabel: string;
+  children?: ReactNode;
+  controlsId: string;
   description: string;
   disabled?: boolean;
+  expanded: boolean;
   onAction: () => void;
+  statusMessage?: string;
   title: string;
 }>) {
   return (
-    <article className="wf-account-security-card">
-      <div>
-        <h3>{title}</h3>
-        <p>{description}</p>
+    <article className={`wf-account-security-card${expanded ? " is-expanded" : ""}`}>
+      <div className="wf-account-security-summary">
+        <div className="wf-account-security-copy">
+          <h3>{title}</h3>
+          <p>{description}</p>
+          {statusMessage ? (
+            <p aria-live="polite" className="civic-form-message wf-account-security-feedback">
+              {statusMessage}
+            </p>
+          ) : null}
+        </div>
+        <WireflowButton
+          aria-controls={controlsId}
+          aria-expanded={expanded}
+          disabled={disabled}
+          onClick={onAction}
+          variant="secondary"
+        >
+          {actionLabel}
+        </WireflowButton>
       </div>
-      <WireflowButton disabled={disabled} onClick={onAction} variant="secondary">
-        {actionLabel}
-      </WireflowButton>
+      {children}
     </article>
   );
 }
 
 function SecurityForm({
   busy,
+  id,
   intent,
   message,
   onSubmit,
 }: Readonly<{
   busy: boolean;
-  intent: Exclude<SecurityIntent, null>;
+  id: string;
+  intent: SecurityOperation;
   message: string;
   onSubmit: (event: FormEvent<HTMLFormElement>) => Promise<void>;
 }>) {
-  const formRef = useRef<HTMLFormElement>(null);
-
-  useEffect(() => {
-    const form = formRef.current;
-    if (!form) return;
-
-    const frame = requestAnimationFrame(() => {
-      const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-      const behavior = reduceMotion ? "auto" : "smooth";
-      const scroller = form.closest<HTMLElement>('[data-platform-shell-content="true"]');
-      if (scroller) {
-        const formTop = form.getBoundingClientRect().top;
-        const scrollerTop = scroller.getBoundingClientRect().top;
-        scroller.scrollTo({
-          behavior,
-          top: scroller.scrollTop + formTop - scrollerTop - 16,
-        });
-      } else {
-        form.scrollIntoView({ behavior, block: "start" });
-      }
-      form
-        .querySelector<HTMLInputElement>('input:not([type="hidden"])')
-        ?.focus({ preventScroll: true });
-    });
-
-    return () => cancelAnimationFrame(frame);
-  }, [intent]);
-
   return (
-    <form className="wf-account-panel wf-security-form" onSubmit={onSubmit} ref={formRef}>
+    <form className="wf-security-form" id={id} onSubmit={onSubmit}>
       <input name="operation" type="hidden" value={intent} />
       {message ? (
         <p aria-live="polite" className="civic-form-message">
