@@ -51,6 +51,7 @@ import {
 } from "@/components/screens/account-functional-screen";
 import {
   ApiRequestError,
+  authErrorMessage,
   authStepAfterPopState,
   authCompletionDestination,
   authenticatedDestination,
@@ -836,13 +837,108 @@ describe("25 functional Main/Auth screens", () => {
     expect(duplicateEmailAccountState(null)).toBeNull();
   });
 
+  it("서버의 영문 인증 detail을 직접 노출하지 않고 로그인 문구로 변환한다", () => {
+    const invalidCredentials = new ApiRequestError(
+      401,
+      { code: "INVALID_CREDENTIALS", detail: "Email or password is invalid" },
+      "Email or password is invalid",
+    );
+    const unknown = new ApiRequestError(
+      418,
+      { code: "UNKNOWN_AUTH_ERROR", detail: "Unexpected authentication error" },
+      "Unexpected authentication error",
+    );
+
+    expect(authErrorMessage(invalidCredentials, "LOGIN")).toBe(
+      "이메일 또는 비밀번호가 올바르지 않습니다.",
+    );
+    expect(authErrorMessage(unknown, "LOGIN")).toBe(
+      "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    );
+    expect(authErrorMessage(new Error("Internal auth failure"), "LOGIN")).toBe(
+      "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+    );
+  });
+
+  it("네트워크·요청 제한·서비스 오류를 공통 한글 문구로 변환한다", () => {
+    expect(
+      authErrorMessage(
+        new ApiRequestError(0, { code: "NETWORK_ERROR" }, "Failed to fetch"),
+        "LOGIN",
+      ),
+    ).toBe("네트워크 연결을 확인한 후 다시 시도해 주세요.");
+    expect(authErrorMessage(new ApiRequestError(429, {}, "Too many requests"), "LOGIN")).toBe(
+      "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+    );
+    expect(
+      authErrorMessage(new ApiRequestError(429, {}, "Too many requests"), "VERIFICATION_RESEND"),
+    ).toBe("인증번호를 이미 보냈습니다. 잠시 후 다시 시도해 주세요.");
+    expect(
+      authErrorMessage(new ApiRequestError(503, {}, "Service unavailable"), "SIGNUP_START"),
+    ).toBe("서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.");
+  });
+
+  it("회원가입 인증·완료 오류를 단계에 맞는 문구로 변환한다", () => {
+    expect(
+      authErrorMessage(
+        new ApiRequestError(400, { code: "INVALID_EMAIL" }, "Invalid email"),
+        "SIGNUP_START",
+      ),
+    ).toBe("올바른 이메일 주소를 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(410, { code: "VERIFICATION_CODE_EXPIRED" }, "Code expired"),
+        "SIGNUP_VERIFY",
+      ),
+    ).toBe("인증번호가 만료되었습니다. 새 인증번호를 받아 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(422, { code: "INVALID_VERIFICATION_CODE" }, "Invalid code"),
+        "SIGNUP_VERIFY",
+      ),
+    ).toBe("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(410, { error_code: "SIGNUP_FLOW_EXPIRED" }, "Flow expired"),
+        "SIGNUP_COMPLETE",
+      ),
+    ).toBe("회원가입 시간이 만료되었습니다. 처음부터 다시 진행해 주세요.");
+  });
+
+  it("비밀번호 재설정 오류를 요청·인증번호·비밀번호 문제로 구분한다", () => {
+    expect(
+      authErrorMessage(
+        new ApiRequestError(422, { code: "INVALID_EMAIL" }, "Invalid email"),
+        "PASSWORD_RESET_REQUEST",
+      ),
+    ).toBe("올바른 이메일 주소를 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(410, { code: "PASSWORD_RESET_EXPIRED" }, "Reset expired"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("재설정 요청이 만료되었습니다. 비밀번호 찾기부터 다시 진행해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(400, { code: "INVALID_RESET_CODE" }, "Invalid code"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(422, { code: "PASSWORD_POLICY_VIOLATION" }, "Weak password"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
+  });
+
   it("이메일 중복 안내는 활성 계정을 로그인으로, 비활성 계정을 재활성화로 보낸다", () => {
     const activeHtml = renderToStaticMarkup(
       createElement(SignupDuplicateEmailNotice, { accountState: "ACTIVE" }),
     );
     expect(activeHtml).toContain("이미 가입된 이메일");
     expect(activeHtml).toContain('class="civic-form-alert civic-signup-duplicate"');
-    expect(activeHtml).toContain("사용 중인 계정으로 로그인해 주세요.");
+    expect(activeHtml).toContain("기존 계정으로 로그인해 주세요.");
     expect(activeHtml).not.toContain("대소문자를 무시한 동일 이메일이 있습니다.");
     expect(activeHtml).toContain('href="/login"');
     expect(activeHtml).toContain("로그인으로 이동");
@@ -852,6 +948,7 @@ describe("25 functional Main/Auth screens", () => {
       createElement(SignupDuplicateEmailNotice, { accountState: "INACTIVE" }),
     );
     expect(dormantHtml).toContain("이미 가입된 이메일");
+    expect(dormantHtml).toContain("비활성화된 계정에 사용 중인 이메일입니다.");
     expect(dormantHtml).toContain('href="/reactivate"');
     expect(dormantHtml).toContain("계정 재활성화");
     expect(dormantHtml).not.toContain("로그인으로 이동");

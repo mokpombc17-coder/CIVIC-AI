@@ -125,8 +125,9 @@ Content-Type: application/problem+json
 ```
 
 Frontend(AUTH-001)는 실패 응답의 `account_state`가 `INACTIVE`이면 상태 코드와 무관하게
-"비활성화된 계정" 경고와 `/reactivate` 텍스트 버튼을 보여 준다. 그 밖의 실패는 `detail` 문구를
-일반 오류로 보여 준다.
+"비활성화된 계정" 경고와 `/reactivate` 텍스트 버튼을 보여 준다. 그 밖의 실패는 서버의
+`detail`을 직접 노출하지 않고 `code`, HTTP 상태, 요청 단계에 대응하는 한글 문구를 보여 준다.
+알 수 없는 오류는 해당 요청 단계의 일반 오류 문구로 처리한다.
 
 ## RAG Resource Server 경계
 

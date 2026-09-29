@@ -67,6 +67,28 @@ const signupPasswordPattern =
 const signupPasswordPolicyMessage =
   "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.";
 
+export type AuthErrorOperation =
+  | "LOGIN"
+  | "QUICK_LOGIN"
+  | "SIGNUP_START"
+  | "SIGNUP_VERIFY"
+  | "SIGNUP_COMPLETE"
+  | "TWO_FACTOR_VERIFY"
+  | "VERIFICATION_RESEND"
+  | "PASSWORD_RESET_REQUEST"
+  | "PASSWORD_RESET_RESEND"
+  | "PASSWORD_RESET_CODE"
+  | "PASSWORD_RESET_COMPLETE"
+  | "REACTIVATION_REQUEST"
+  | "REACTIVATION_COMPLETE";
+
+class AuthUserFacingError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = "AuthUserFacingError";
+  }
+}
+
 export function signupStepFromHistory(value: unknown): string | null {
   if (!value || typeof value !== "object" || !("civicSignupStep" in value)) return null;
   const step = value.civicSignupStep;
@@ -183,8 +205,10 @@ export function AuthFunctionalScreen({
         await completeLogin(response);
       } else if (activeId === "AUTH-002") {
         const passwordProblem = signupPasswordProblem(draft.password, draft.passwordConfirmation);
-        if (passwordProblem) throw new Error(passwordProblem);
-        if (!draft.ageConfirmed) throw new Error("만 14세 이상 여부를 확인해 주세요.");
+        if (passwordProblem) throw new AuthUserFacingError(passwordProblem);
+        if (!draft.ageConfirmed) {
+          throw new AuthUserFacingError("만 14세 이상 여부를 확인해 주세요.");
+        }
         const response = await api("/api/v1/signup/flows", { email: draft.email });
         const body = (await response.json()) as {
           flow_id?: unknown;
@@ -192,7 +216,9 @@ export function AuthFunctionalScreen({
           acceptance_controls?: unknown;
         };
         if (typeof body.flow_id !== "string") {
-          throw new Error("가입 흐름 응답이 올바르지 않습니다.");
+          throw new AuthUserFacingError(
+            "회원가입을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+          );
         }
         const documents = readSignupDocuments(body.documents);
         const acceptanceControls = readSignupAcceptanceControls(body.acceptance_controls);
@@ -209,7 +235,7 @@ export function AuthFunctionalScreen({
           !draft.termsCheckedAt ||
           (privacyRequired && (!draft.privacy || !draft.privacyCheckedAt))
         ) {
-          throw new Error("이메일 인증과 필수 동의를 모두 확인해 주세요.");
+          throw new AuthUserFacingError("이메일 인증과 필수 동의를 모두 확인해 주세요.");
         }
         await api(signupCompletionPath(draft.flowId), {
           email: draft.email,
@@ -250,7 +276,9 @@ export function AuthFunctionalScreen({
       } else if (activeId === "AUTH-007") {
         const data = new FormData(event.currentTarget);
         const code = normalizePasswordResetCode(data.get("code"));
-        if (!/^\d{6}$/u.test(code)) throw new Error("6자리 인증 코드를 입력해 주세요.");
+        if (!/^\d{6}$/u.test(code)) {
+          throw new AuthUserFacingError("6자리 인증 코드를 입력해 주세요.");
+        }
         sessionStorage.setItem(passwordResetCodeKey, code);
         location.assign("/password-reset/complete");
       } else if (activeId === "AUTH-009") {
@@ -263,7 +291,7 @@ export function AuthFunctionalScreen({
       } else if (activeId === "AUTH-008") {
         const data = new FormData(event.currentTarget);
         if (data.get("new_password") !== data.get("new_password_confirmation")) {
-          throw new Error("새 비밀번호 확인이 일치하지 않습니다.");
+          throw new AuthUserFacingError("새 비밀번호 확인이 일치하지 않습니다.");
         }
         await api("/api/v1/auth/password-reset/complete", {
           code: normalizePasswordResetCode(data.get("code")),
@@ -287,7 +315,7 @@ export function AuthFunctionalScreen({
         setLoginDeactivated(true);
       } else {
         setMessageKind("error");
-        setMessage(error instanceof Error ? error.message : "요청을 처리하지 못했습니다.");
+        setMessage(authErrorMessage(error, authErrorOperation(activeId, verificationKind)));
       }
     } finally {
       setBusy(false);
@@ -303,7 +331,7 @@ export function AuthFunctionalScreen({
       await completeLogin(response);
     } catch (error) {
       setMessageKind("error");
-      setMessage(error instanceof Error ? error.message : "테스트 계정으로 로그인하지 못했습니다.");
+      setMessage(authErrorMessage(error, "QUICK_LOGIN"));
     } finally {
       setBusy(false);
     }
@@ -323,7 +351,7 @@ export function AuthFunctionalScreen({
       setMessage("최신 인증 코드를 다시 보냈습니다.");
     } catch (error) {
       setMessageKind("error");
-      setMessage(error instanceof Error ? error.message : "인증 코드를 다시 보내지 못했습니다.");
+      setMessage(authErrorMessage(error, "VERIFICATION_RESEND"));
     } finally {
       setBusy(false);
     }
@@ -333,7 +361,7 @@ export function AuthFunctionalScreen({
     const email = draft.email.trim();
     if (!isPasswordResetEmail(email)) {
       setMessageKind("error");
-      setMessage("로그인에 사용한 이메일을 먼저 입력해 주세요.");
+      setMessage("로그인에 사용한 이메일을 입력해 주세요.");
       return;
     }
     setBusy(true);
@@ -345,7 +373,7 @@ export function AuthFunctionalScreen({
       location.assign("/password-reset");
     } catch (error) {
       setMessageKind("error");
-      setMessage(error instanceof Error ? error.message : "재설정 이메일을 보내지 못했습니다.");
+      setMessage(authErrorMessage(error, "PASSWORD_RESET_REQUEST"));
     } finally {
       setBusy(false);
     }
@@ -365,9 +393,7 @@ export function AuthFunctionalScreen({
       setMessage("재설정 이메일을 다시 보냈습니다.");
     } catch (error) {
       setMessageKind("error");
-      setMessage(
-        error instanceof Error ? error.message : "재설정 이메일을 다시 보내지 못했습니다.",
-      );
+      setMessage(authErrorMessage(error, "PASSWORD_RESET_RESEND"));
     } finally {
       setBusy(false);
     }
@@ -408,7 +434,7 @@ export function AuthFunctionalScreen({
           {message ? (
             messageKind === "error" ? (
               <div aria-live="polite" className="civic-form-alert" role="status">
-                <strong>입력 내용을 확인해 주세요</strong>
+                <strong>확인해 주세요</strong>
                 <p>{message}</p>
               </div>
             ) : (
@@ -807,9 +833,7 @@ export function SignupDuplicateEmailNotice({
       <strong>이미 가입된 이메일</strong>
       {accountState === "INACTIVE" ? (
         <>
-          <p>
-            대소문자를 무시한 동일 이메일이 있습니다. 비활성화된 계정이니 재활성화 후 이용해 주세요.
-          </p>
+          <p>비활성화된 계정에 사용 중인 이메일입니다. 계정을 재활성화해 주세요.</p>
           <Link
             className="civic-auth-reactivate"
             data-wireflow-slot="signup-reactivate"
@@ -820,7 +844,7 @@ export function SignupDuplicateEmailNotice({
         </>
       ) : (
         <>
-          <p>사용 중인 계정으로 로그인해 주세요.</p>
+          <p>기존 계정으로 로그인해 주세요.</p>
           <Link
             className="wf-button wf-button-secondary"
             data-wireflow-slot="signup-login"
@@ -838,7 +862,7 @@ export function LoginDeactivatedNotice() {
   return (
     <div aria-live="polite" className="civic-form-alert civic-login-deactivated" role="status">
       <strong>비활성화된 계정</strong>
-      <p>이 계정은 비활성화 상태입니다. 재활성화를 완료하면 다시 로그인할 수 있습니다.</p>
+      <p>비활성화된 계정입니다. 계정을 재활성화한 후 로그인해 주세요.</p>
       <Link
         className="civic-auth-reactivate"
         data-wireflow-slot="login-deactivated-reactivate"
@@ -1073,13 +1097,13 @@ export function LegalDocumentLink({
 
 function readSignupDocuments(value: unknown): SignupDraft["documents"] {
   if (!value || typeof value !== "object") {
-    throw new Error("가입 문서를 불러오지 못했습니다.");
+    throw new AuthUserFacingError("가입 문서를 불러오지 못했습니다.");
   }
   const result: SignupDraft["documents"] = {};
   for (const id of ["TERMS", "ACCOUNT_RAG_PRIVACY"] as const) {
     const candidate = (value as Record<string, unknown>)[id];
     if (!candidate || typeof candidate !== "object") {
-      throw new Error("가입 문서를 불러오지 못했습니다.");
+      throw new AuthUserFacingError("가입 문서를 불러오지 못했습니다.");
     }
     const document = candidate as Record<string, unknown>;
     if (
@@ -1090,7 +1114,7 @@ function readSignupDocuments(value: unknown): SignupDraft["documents"] {
       typeof document.path !== "string" ||
       !document.path.startsWith("/")
     ) {
-      throw new Error("가입 문서 응답이 올바르지 않습니다.");
+      throw new AuthUserFacingError("가입 문서 응답이 올바르지 않습니다.");
     }
     result[id] = document as unknown as SignupDocument;
   }
@@ -1100,11 +1124,11 @@ function readSignupDocuments(value: unknown): SignupDraft["documents"] {
 export function readSignupAcceptanceControls(value: unknown): SignupDocumentId[] {
   if (value === undefined) return ["TERMS", "ACCOUNT_RAG_PRIVACY"];
   if (!Array.isArray(value) || value.some((item) => !isSignupDocumentId(item))) {
-    throw new Error("가입 동의 항목 응답이 올바르지 않습니다.");
+    throw new AuthUserFacingError("가입 동의 항목 응답이 올바르지 않습니다.");
   }
   const controls = [...new Set(value)] as SignupDocumentId[];
   if (!controls.includes("TERMS")) {
-    throw new Error("필수 이용약관 동의 항목을 불러오지 못했습니다.");
+    throw new AuthUserFacingError("필수 이용약관 동의 항목을 불러오지 못했습니다.");
   }
   return controls;
 }
@@ -1118,7 +1142,7 @@ function requiredDocument(
   id: SignupDocumentId,
 ): SignupDocument {
   const document = documents[id];
-  if (!document) throw new Error("가입 문서를 다시 확인해 주세요.");
+  if (!document) throw new AuthUserFacingError("가입 문서를 다시 확인해 주세요.");
   return document;
 }
 
@@ -1134,20 +1158,188 @@ export class ApiRequestError extends Error {
 }
 
 async function api(path: string, body: unknown): Promise<Response> {
-  const response = await fetch(path, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify(body),
-  });
+  let response: Response;
+  try {
+    response = await fetch(path, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(body),
+    });
+  } catch {
+    throw new ApiRequestError(0, { code: "NETWORK_ERROR" }, "인증 요청에 실패했습니다.");
+  }
   if (!response.ok) {
-    const problem = (await response.json().catch(() => ({}))) as Record<string, unknown>;
-    throw new ApiRequestError(
-      response.status,
-      problem,
-      typeof problem.detail === "string" ? problem.detail : "요청을 처리하지 못했습니다.",
-    );
+    const body = (await response.json().catch(() => null)) as unknown;
+    const problem =
+      body && typeof body === "object" && !Array.isArray(body)
+        ? (body as Record<string, unknown>)
+        : {};
+    throw new ApiRequestError(response.status, problem, "인증 요청에 실패했습니다.");
   }
   return response;
+}
+
+export function authErrorMessage(error: unknown, operation: AuthErrorOperation): string {
+  if (error instanceof AuthUserFacingError) return error.message;
+  if (!(error instanceof ApiRequestError)) return authOperationFallback(operation);
+
+  const code = authProblemCode(error.problem);
+  if (error.status === 0 || code === "NETWORK_ERROR") {
+    return "네트워크 연결을 확인한 후 다시 시도해 주세요.";
+  }
+  if (error.status === 429 || codeContains(code, "RATE_LIMIT", "TOO_MANY")) {
+    if (operation === "LOGIN") {
+      return "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+    }
+    if (operation === "SIGNUP_VERIFY" || operation === "TWO_FACTOR_VERIFY") {
+      return "인증 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.";
+    }
+    if (operation === "VERIFICATION_RESEND") {
+      return "인증번호를 이미 보냈습니다. 잠시 후 다시 시도해 주세요.";
+    }
+    return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (error.status >= 500) {
+    return "서비스에 일시적인 문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+
+  if (operation === "LOGIN") {
+    if (code === "ACCOUNT_DEACTIVATED") {
+      return "비활성화된 계정입니다. 계정을 재활성화한 후 로그인해 주세요.";
+    }
+    if (
+      error.status === 401 ||
+      error.status === 403 ||
+      codeContains(code, "CREDENTIAL", "INVALID_LOGIN")
+    ) {
+      return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    }
+  }
+
+  if (operation === "SIGNUP_START" && (error.status === 400 || error.status === 422)) {
+    return "올바른 이메일 주소를 입력해 주세요.";
+  }
+
+  if (operation === "SIGNUP_VERIFY" || operation === "TWO_FACTOR_VERIFY") {
+    if (error.status === 410 || codeContains(code, "EXPIRED")) {
+      return "인증번호가 만료되었습니다. 새 인증번호를 받아 주세요.";
+    }
+    if (
+      error.status === 400 ||
+      error.status === 401 ||
+      error.status === 404 ||
+      error.status === 422 ||
+      codeContains(
+        code,
+        "INVALID_CODE",
+        "CODE_INVALID",
+        "INVALID_VERIFICATION",
+        "VERIFICATION_CODE_INVALID",
+        "VERIFICATION_FAILED",
+      )
+    ) {
+      return "인증번호가 올바르지 않습니다. 다시 확인해 주세요.";
+    }
+  }
+
+  if (operation === "SIGNUP_COMPLETE") {
+    if (codeContains(code, "PASSWORD")) return signupPasswordPolicyMessage;
+    if (codeContains(code, "CONSENT", "TERMS", "PRIVACY", "ACCEPTANCE")) {
+      return "이메일 인증과 필수 동의를 모두 확인해 주세요.";
+    }
+    if (
+      error.status === 404 ||
+      error.status === 410 ||
+      codeContains(code, "FLOW_EXPIRED", "FLOW_NOT_FOUND", "INVALID_FLOW", "INVALID_STATE")
+    ) {
+      return "회원가입 시간이 만료되었습니다. 처음부터 다시 진행해 주세요.";
+    }
+  }
+
+  if (
+    (operation === "PASSWORD_RESET_REQUEST" || operation === "PASSWORD_RESET_RESEND") &&
+    (error.status === 400 || error.status === 422 || codeContains(code, "INVALID_EMAIL"))
+  ) {
+    return "올바른 이메일 주소를 입력해 주세요.";
+  }
+
+  if (operation === "PASSWORD_RESET_COMPLETE") {
+    if (codeContains(code, "PASSWORD") && !codeContains(code, "RESET")) {
+      return signupPasswordPolicyMessage;
+    }
+    if (error.status === 410 || codeContains(code, "EXPIRED")) {
+      return "재설정 요청이 만료되었습니다. 비밀번호 찾기부터 다시 진행해 주세요.";
+    }
+    if (
+      error.status === 400 ||
+      error.status === 401 ||
+      error.status === 404 ||
+      codeContains(code, "INVALID_CODE", "CODE_INVALID")
+    ) {
+      return "인증번호가 올바르지 않습니다. 다시 확인해 주세요.";
+    }
+  }
+
+  return authOperationFallback(operation);
+}
+
+function authErrorOperation(
+  screenId: string,
+  verificationKind: "SIGNUP" | "TWO_FACTOR",
+): AuthErrorOperation {
+  if (screenId === "AUTH-001") return "LOGIN";
+  if (screenId === "AUTH-002") return "SIGNUP_START";
+  if (screenId === "AUTH-004") return "SIGNUP_COMPLETE";
+  if (screenId === "AUTH-005") {
+    return verificationKind === "TWO_FACTOR" ? "TWO_FACTOR_VERIFY" : "SIGNUP_VERIFY";
+  }
+  if (screenId === "AUTH-007") return "PASSWORD_RESET_CODE";
+  if (screenId === "AUTH-008") return "PASSWORD_RESET_COMPLETE";
+  if (screenId === "AUTH-009") return "REACTIVATION_REQUEST";
+  if (screenId === "AUTH-010") return "REACTIVATION_COMPLETE";
+  return "SIGNUP_START";
+}
+
+function authOperationFallback(operation: AuthErrorOperation): string {
+  if (operation === "LOGIN") return "로그인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  if (operation === "QUICK_LOGIN") return "테스트 계정으로 로그인하지 못했습니다.";
+  if (operation === "SIGNUP_START") {
+    return "회원가입을 시작하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "SIGNUP_VERIFY" || operation === "TWO_FACTOR_VERIFY") {
+    return "인증번호를 확인하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "SIGNUP_COMPLETE") {
+    return "회원가입을 완료하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "VERIFICATION_RESEND") {
+    return "인증번호를 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "PASSWORD_RESET_REQUEST") {
+    return "재설정 이메일을 보내지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "PASSWORD_RESET_RESEND") {
+    return "재설정 이메일을 다시 보내지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "PASSWORD_RESET_CODE") {
+    return "인증번호를 확인하지 못했습니다. 다시 시도해 주세요.";
+  }
+  if (operation === "PASSWORD_RESET_COMPLETE") {
+    return "비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  if (operation === "REACTIVATION_REQUEST") {
+    return "계정 재활성화를 요청하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+  }
+  return "계정을 재활성화하지 못했습니다. 잠시 후 다시 시도해 주세요.";
+}
+
+function authProblemCode(problem: Readonly<Record<string, unknown>>): string {
+  const candidate = problem.code ?? problem.error_code;
+  return typeof candidate === "string" ? candidate.trim().toUpperCase() : "";
+}
+
+function codeContains(code: string, ...fragments: string[]): boolean {
+  return fragments.some((fragment) => code.includes(fragment));
 }
 
 export function duplicateEmailAccountState(error: unknown): DuplicateEmailAccountState | null {
@@ -1202,8 +1394,15 @@ export function signupRecovery(
 }
 
 async function redirectToRoleHome(returnTo: string | null): Promise<void> {
-  const response = await fetch("/api/v1/auth/me", { cache: "no-store" });
-  if (!response.ok) throw new Error("로그인 정보를 확인하지 못했습니다.");
+  let response: Response;
+  try {
+    response = await fetch("/api/v1/auth/me", { cache: "no-store" });
+  } catch {
+    throw new AuthUserFacingError("네트워크 연결을 확인한 후 다시 시도해 주세요.");
+  }
+  if (!response.ok) {
+    throw new AuthUserFacingError("로그인 정보를 확인하지 못했습니다. 다시 로그인해 주세요.");
+  }
   const currentUser = (await response.json()) as {
     user_id?: unknown;
     role?: unknown;
