@@ -116,9 +116,9 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
 
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
-│   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화]
-│       └── PlatformPageShell [bottom navigation 없음]
-│           └── AuthFunctionalScreen [가입 단계 history state 관리]
+│   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화, child scroll 선택]
+│       └── PlatformPageShell [bottom navigation 없음, 키보드에 맞춰 줄어드는 고정 viewport]
+│           └── AuthFunctionalScreen [가입 단계 history state 관리, 인증 grid가 내부 스크롤·bottom safe area 소유]
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
 │   ├── requireParticipantAccess
 │   └── EligibleParticipantShell 또는 AdminShell
@@ -288,8 +288,10 @@ JavaScript 메모리나 service worker cache에 저장하지 않고 Main/Auth의
 
 공개 인증 route는 Server Route가 `PublicAuthScreen`에 초기 화면과 query만 전달한다. 이 Client
 wrapper가 가입 단계의 `history.state` 변화와 상단 제목·뒤로가기 동작을 동기화하고,
-`AuthFunctionalScreen`은 입력 상태와 단계 전환을 소유한다. 가입 중 뒤로가기는 전체 페이지 이동이
-아니라 브라우저 history를 사용해 직전 가입 단계로 복귀한다.
+`PlatformPageShell`의 child scroll을 선택한다. `AuthFunctionalScreen`은 입력 상태와 단계 전환을
+소유하고, 인증 grid는 RAG 대화 화면과 같은 고정 viewport 안에서 내부 스크롤과 bottom safe area를
+담당한다. 가입 중 뒤로가기는 전체 페이지 이동이 아니라 브라우저 history를 사용해 직전 가입 단계로
+복귀한다.
 
 ## 인증 책임
 

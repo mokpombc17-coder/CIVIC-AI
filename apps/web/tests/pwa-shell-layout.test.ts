@@ -4,6 +4,7 @@ import { describe, expect, it } from "vitest";
 
 const webRoot = path.resolve(import.meta.dirname, "..");
 const globalStyles = readFileSync(path.join(webRoot, "app/globals.css"), "utf8");
+const wireflowStyles = readFileSync(path.join(webRoot, "app/wireflow.css"), "utf8");
 const platformShellStyles = readFileSync(
   path.join(webRoot, "components/platform-shell/platform-shell.module.css"),
   "utf8",
@@ -38,5 +39,18 @@ describe("standalone PWA shell sizing", () => {
   it("keeps standalone sizing free from the legacy viewport unit", () => {
     expect(globalStyles).not.toContain("min-height: 100vh");
     expect(platformShellStyles).not.toContain("height: 100vh");
+  });
+
+  it("gives public auth forms a bounded child scroller with bottom safe area", () => {
+    expect(wireflowStyles).toContain(
+      '.civic-public-auth-content > [data-wireflow-screen^="AUTH-"].civic-public-screen',
+    );
+    expect(wireflowStyles).toContain(
+      '.civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid',
+    );
+    expect(wireflowStyles).toContain("overflow-y: auto");
+    expect(wireflowStyles).toContain(
+      "padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px))",
+    );
   });
 });

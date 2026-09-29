@@ -42,6 +42,8 @@ export function PublicAuthScreen({
           ? { className: "civic-signup-account-shell" }
           : {})}
       bottomNavigation={null}
+      contentClassName="civic-public-auth-content"
+      scroll="child"
       title={header.title}
     >
       <AuthFunctionalScreen

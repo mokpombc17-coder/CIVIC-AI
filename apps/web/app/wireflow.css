@@ -6184,6 +6184,27 @@
   }
 }
 
+/* Keep public auth forms inside the keyboard-resized Platform Shell viewport, like U-RAG-001. */
+.civic-public-auth-content > [data-wireflow-screen^="AUTH-"].civic-public-screen {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid {
+  width: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
+  scroll-padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0px));
+  -webkit-overflow-scrolling: touch;
+}
+
 /* 관리자 문서 작업 공간은 페이지 스크롤 하나를 사용하고, 조밀한 운영 화면으로 정렬한다. */
 [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
   width: 100%;
