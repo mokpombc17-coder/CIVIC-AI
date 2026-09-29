@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.infra.opinionmap;
 
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationException;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationGatewayResult;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRequest;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
 import com.hamcheeze.vote.task.application.result.TaskResultForLlmV1;
@@ -69,7 +70,9 @@ class OpenRouterOpinionMapGenerationGatewayTest {
             respond(exchange, 200, successResponse());
         });
 
-        OpinionMapOptionExplanationV1 result = gateway().generate(request());
+        OpinionMapGenerationGatewayResult generated =
+                gateway().generateWithMetadata(request());
+        OpinionMapOptionExplanationV1 result = generated.output();
 
         result.validateAgainst(input());
         assertThat(result.status()).isEqualTo(
@@ -96,8 +99,23 @@ class OpenRouterOpinionMapGenerationGatewayTest {
                 .isFalse();
         assertThat(body.path("provider").path("require_parameters")
                 .asBoolean()).isTrue();
+        assertThat(body.path("usage").path("include").asBoolean()).isTrue();
         assertThat(body.path("max_tokens").asInt()).isEqualTo(2048);
         assertThat(body.path("stream").asBoolean()).isFalse();
+        assertThat(generated.provider()).isEqualTo("openrouter");
+        assertThat(generated.requestedModel())
+                .isEqualTo("openai/gpt-5.6-luna");
+        assertThat(generated.responseModel())
+                .isEqualTo("openai/gpt-5.6-luna-20260901");
+        assertThat(generated.providerGenerationId())
+                .isEqualTo("gen-test");
+        assertThat(generated.promptTokens()).isEqualTo(120L);
+        assertThat(generated.completionTokens()).isEqualTo(45L);
+        assertThat(generated.totalTokens()).isEqualTo(165L);
+        assertThat(generated.cachedTokens()).isEqualTo(20L);
+        assertThat(generated.reasoningTokens()).isEqualTo(5L);
+        assertThat(generated.cost()).isEqualByComparingTo("0.00042");
+        assertThat(generated.currency()).isEqualTo("USD");
     }
 
     @Test
@@ -219,7 +237,16 @@ class OpenRouterOpinionMapGenerationGatewayTest {
                 }
                 """.formatted(TASK_ID);
         try {
-            return "{\"choices\":[{\"finish_reason\":\"stop\","
+            return "{\"id\":\"gen-test\","
+                    + "\"model\":\"openai/gpt-5.6-luna-20260901\","
+                    + "\"usage\":{"
+                    + "\"prompt_tokens\":120,"
+                    + "\"completion_tokens\":45,"
+                    + "\"total_tokens\":165,"
+                    + "\"cost\":0.00042,"
+                    + "\"prompt_tokens_details\":{\"cached_tokens\":20},"
+                    + "\"completion_tokens_details\":{\"reasoning_tokens\":5}},"
+                    + "\"choices\":[{\"finish_reason\":\"stop\","
                     + "\"message\":{\"content\":"
                     + objectMapper.writeValueAsString(content)
                     + "}}]}";

@@ -51,6 +51,8 @@ class OpinionMapGenerationAdminServiceTest {
             mock(OpinionMapGenerationRepository.class);
     private final OpinionMapGenerationManualRequestRepository requests =
             mock(OpinionMapGenerationManualRequestRepository.class);
+    private final OpinionMapRegenerationStateService regenerations =
+            mock(OpinionMapRegenerationStateService.class);
 
     private OpinionMapGenerationAdminService service;
 
@@ -64,6 +66,7 @@ class OpinionMapGenerationAdminServiceTest {
                 generations,
                 requests,
                 policy(true),
+                regenerations,
                 Clock.fixed(REQUESTED_AT, ZoneOffset.UTC),
                 () -> REQUEST_ID);
         when(generations.save(any(OpinionMapGeneration.class)))
@@ -94,6 +97,8 @@ class OpinionMapGenerationAdminServiceTest {
         assertThat(execution.generation().status())
                 .isEqualTo(OpinionMapGenerationStatus.PENDING);
         assertThat(execution.generation().attemptCount()).isZero();
+        verify(state).enqueueManualRetryRun(
+                execution.generation(), "admin-a", REQUESTED_AT);
         ArgumentCaptor<OpinionMapGenerationManualRequest> audit =
                 ArgumentCaptor.forClass(
                         OpinionMapGenerationManualRequest.class);
@@ -180,6 +185,39 @@ class OpinionMapGenerationAdminServiceTest {
     }
 
     @Test
+    void enqueuesRegenerationForAnAvailableOpinionMap() {
+        Task task = closedTask();
+        TaskResultManifest manifest = manifest(task);
+        OpinionMapGeneration generation = available(task, manifest);
+        OpinionMapGenerationRun run = new OpinionMapGenerationRun(
+                new UUID(0, 91),
+                generation.id(),
+                2,
+                OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE,
+                OpinionMapGenerationRun.Status.PENDING,
+                0,
+                "admin-a",
+                REQUESTED_AT,
+                null,
+                null,
+                REQUESTED_AT);
+        when(tasks.findByIdForUpdate(task.id())).thenReturn(Optional.of(task));
+        when(manifests.findByTaskId(task.id()))
+                .thenReturn(Optional.of(manifest));
+        when(generations.findByTaskResultForUpdate(task.id(), 1))
+                .thenReturn(Optional.of(generation));
+        when(regenerations.enqueue(generation, "admin-a", null))
+                .thenReturn(new OpinionMapRegenerationStateService.Request(
+                        run, true));
+
+        var execution = service.regenerate(task.id(), "admin-a");
+
+        assertThat(execution.created()).isTrue();
+        assertThat(execution.run()).isEqualTo(run);
+        assertThat(execution.taskId()).isEqualTo(task.id());
+    }
+
+    @Test
     void rejectsTaskWithoutAResultEligibleClosure() {
         Task task = openTask();
         when(tasks.findByIdForUpdate(task.id())).thenReturn(Optional.of(task));
@@ -240,6 +278,24 @@ class OpinionMapGenerationAdminServiceTest {
                 true,
                 1,
                 Duration.ofSeconds(30),
+                task.closedAt().plusSeconds(5));
+        return generation;
+    }
+
+    private static OpinionMapGeneration available(
+            Task task,
+            TaskResultManifest manifest
+    ) {
+        OpinionMapGeneration generation = pending(task, manifest);
+        UUID claimId = new UUID(0, 82);
+        generation.claim(
+                claimId,
+                task.closedAt(),
+                Duration.ofSeconds(90),
+                3);
+        generation.succeed(
+                claimId,
+                "{\"status\":\"COMPLETED\"}",
                 task.closedAt().plusSeconds(5));
         return generation;
     }

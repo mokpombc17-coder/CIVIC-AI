@@ -7,6 +7,9 @@ import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQ
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailablePage;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Execution;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Action;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.RegenerationExecution;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRun;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRunHistory;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGeneration;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationStatus;
 
@@ -17,6 +20,14 @@ import java.util.UUID;
 final class OpinionMapGenerationAdminApiModels {
 
     private OpinionMapGenerationAdminApiModels() {
+    }
+
+    record RunHistoryResponse(
+            List<OpinionMapGenerationRunHistory> runs
+    ) {
+        RunHistoryResponse {
+            runs = List.copyOf(runs);
+        }
     }
 
     record DetailResponse(
@@ -31,6 +42,7 @@ final class OpinionMapGenerationAdminApiModels {
             Instant updatedAt,
             boolean canGenerate,
             boolean canRetry,
+            boolean canRegenerate,
             List<OptionResponse> options
     ) {
         static DetailResponse from(AdminOpinionMapGenerationView view) {
@@ -46,6 +58,7 @@ final class OpinionMapGenerationAdminApiModels {
                     view.updatedAt(),
                     view.canGenerate(),
                     view.canRetry(),
+                    view.canRegenerate(),
                     view.options().stream()
                             .map(OptionResponse::from)
                             .toList());
@@ -100,6 +113,34 @@ final class OpinionMapGenerationAdminApiModels {
                     generation.attemptCount(),
                     execution.action(),
                     generation.updatedAt());
+        }
+    }
+
+    record RegenerationResponse(
+            UUID taskId,
+            int resultVersion,
+            UUID runId,
+            int runNumber,
+            OpinionMapGenerationRun.Status status,
+            int attemptCount,
+            boolean created,
+            Instant requestedAt,
+            Instant updatedAt
+    ) {
+        static RegenerationResponse from(
+                RegenerationExecution execution
+        ) {
+            OpinionMapGenerationRun run = execution.run();
+            return new RegenerationResponse(
+                    execution.taskId().value(),
+                    execution.resultVersion(),
+                    run.runId(),
+                    run.runNumber(),
+                    run.status(),
+                    run.attemptCount(),
+                    execution.created(),
+                    run.requestedAt(),
+                    run.updatedAt());
         }
     }
 

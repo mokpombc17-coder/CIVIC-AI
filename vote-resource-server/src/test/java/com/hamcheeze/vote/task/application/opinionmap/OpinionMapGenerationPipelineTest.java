@@ -2,6 +2,8 @@ package com.hamcheeze.vote.task.application.opinionmap;
 
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationGateway;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapRevisionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskResultForLlmRenderer.RenderedTaskResultForLlm;
 import com.hamcheeze.vote.task.application.port.out.TaskResultViewRenderer.RenderedTaskResultView;
 import com.hamcheeze.vote.task.application.result.MyTaskOpinionMap;
@@ -42,6 +44,8 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -51,6 +55,7 @@ class OpinionMapGenerationPipelineTest {
     private static final Instant NOW =
             Instant.parse("2026-09-11T02:00:00Z");
     private static final String SOURCE_HASH = "b".repeat(64);
+    private static final UUID RUN_ID = new UUID(0, 11);
 
     @Test
     void generatesStoresAndProjectsTheSelectedOptionsExplanation() {
@@ -58,11 +63,20 @@ class OpinionMapGenerationPipelineTest {
                 new InMemoryGenerationRepository();
         OpinionMapGenerationPolicy policy = policy();
         ObjectMapper objectMapper = new ObjectMapper();
+        OpinionMapGenerationRunRepository runs = mock(
+                OpinionMapGenerationRunRepository.class);
+        OpinionMapRevisionRepository revisions = mock(
+                OpinionMapRevisionRepository.class);
+        when(runs.startInitialAttempt(
+                any(), any(), anyInt(), any(), any()))
+                .thenReturn(RUN_ID);
         OpinionMapGenerationStateService states =
                 new OpinionMapGenerationStateService(
                         repository,
                         policy,
                         objectMapper,
+                        runs,
+                        revisions,
                         Clock.fixed(NOW, ZoneOffset.UTC));
         VerifiedTaskResultView verified = verifiedResult(SOURCE_HASH);
         TaskResultViewVerificationService verification = mock(
@@ -83,7 +97,9 @@ class OpinionMapGenerationPipelineTest {
                         "task-result-jsonl", "c".repeat(64)),
                 () -> "opinion-map-prompt",
                 gateway,
-                policy);
+                policy,
+                emptyRegenerations(),
+                attempts());
 
         assertThat(states.enqueue(verified.manifest())).isTrue();
         assertThat(worker.executeOne()).isTrue();
@@ -116,11 +132,18 @@ class OpinionMapGenerationPipelineTest {
         InMemoryGenerationRepository repository =
                 new InMemoryGenerationRepository();
         OpinionMapGenerationPolicy policy = policy();
+        OpinionMapGenerationRunRepository runs = mock(
+                OpinionMapGenerationRunRepository.class);
+        when(runs.startInitialAttempt(
+                any(), any(), anyInt(), any(), any()))
+                .thenReturn(RUN_ID);
         OpinionMapGenerationStateService states =
                 new OpinionMapGenerationStateService(
                         repository,
                         policy,
                         new ObjectMapper(),
+                        runs,
+                        mock(OpinionMapRevisionRepository.class),
                         Clock.fixed(NOW, ZoneOffset.UTC));
         VerifiedTaskResultView enqueued = verifiedResult(SOURCE_HASH);
         VerifiedTaskResultView changed = verifiedResult("d".repeat(64));
@@ -136,7 +159,9 @@ class OpinionMapGenerationPipelineTest {
                         "unused", "e".repeat(64)),
                 () -> "prompt",
                 request -> completed(request.input()),
-                policy);
+                policy,
+                emptyRegenerations(),
+                attempts());
 
         states.enqueue(enqueued.manifest());
         worker.executeOne();
@@ -159,6 +184,27 @@ class OpinionMapGenerationPipelineTest {
                 Duration.ofSeconds(10),
                 Duration.ofSeconds(60),
                 5);
+    }
+
+    private static OpinionMapRegenerationStateService emptyRegenerations() {
+        OpinionMapRegenerationStateService regenerations = mock(
+                OpinionMapRegenerationStateService.class);
+        when(regenerations.claimNext()).thenReturn(Optional.empty());
+        return regenerations;
+    }
+
+    private static OpinionMapGenerationAttemptService attempts() {
+        OpinionMapGenerationAttemptService attempts = mock(
+                OpinionMapGenerationAttemptService.class);
+        when(attempts.start(any(), anyInt(), any()))
+                .thenAnswer(invocation -> new OpinionMapGenerationAttempt(
+                        new UUID(0, 12),
+                        invocation.getArgument(0),
+                        invocation.getArgument(1),
+                        "unknown",
+                        "unknown",
+                        NOW));
+        return attempts;
     }
 
     private static OpinionMapOptionExplanationV1 completed(

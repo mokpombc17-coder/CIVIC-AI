@@ -118,6 +118,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
                 generation.updatedAt(),
                 false,
                 status == Status.UNAVAILABLE && policy.enabled(),
+                status == Status.AVAILABLE && policy.enabled(),
                 options(task, summary, output));
     }
 
@@ -145,7 +146,7 @@ public class OpinionMapGenerationAdminDetailQueryService {
         return new AdminOpinionMapGenerationView(
                 task.id(), resultVersion, status, 0,
                 null, null, null, null, null,
-                canGenerate, false, options);
+                canGenerate, false, false, options);
     }
 
     private static List<OptionView> optionsWithoutCounts(Task task) {

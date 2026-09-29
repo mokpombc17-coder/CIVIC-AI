@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.task.application.opinionmap;
 
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapRevisionRepository;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGeneration;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationId;
@@ -21,6 +23,8 @@ public class OpinionMapGenerationStateService {
 
     private final OpinionMapGenerationRepository generations;
     private final OpinionMapGenerationPolicy policy;
+    private final OpinionMapGenerationRunRepository runs;
+    private final OpinionMapRevisionRepository revisions;
     private final ObjectMapper objectMapper;
     private final Clock clock;
 
@@ -28,20 +32,27 @@ public class OpinionMapGenerationStateService {
     public OpinionMapGenerationStateService(
             OpinionMapGenerationRepository generations,
             OpinionMapGenerationPolicy policy,
-            ObjectMapper objectMapper
+            ObjectMapper objectMapper,
+            OpinionMapGenerationRunRepository runs,
+            OpinionMapRevisionRepository revisions
     ) {
-        this(generations, policy, objectMapper, Clock.systemUTC());
+        this(generations, policy, objectMapper, runs, revisions,
+                Clock.systemUTC());
     }
 
     OpinionMapGenerationStateService(
             OpinionMapGenerationRepository generations,
             OpinionMapGenerationPolicy policy,
             ObjectMapper objectMapper,
+            OpinionMapGenerationRunRepository runs,
+            OpinionMapRevisionRepository revisions,
             Clock clock
     ) {
         this.generations = Objects.requireNonNull(
                 generations, "generations");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.runs = Objects.requireNonNull(runs, "runs");
+        this.revisions = Objects.requireNonNull(revisions, "revisions");
         this.objectMapper = Objects.requireNonNull(
                 objectMapper, "objectMapper");
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -64,7 +75,17 @@ public class OpinionMapGenerationStateService {
     }
 
     @Transactional
-    public Optional<OpinionMapGenerationClaim> claimNext() {
+    public OpinionMapGenerationRun enqueueManualRetryRun(
+            OpinionMapGeneration generation,
+            String requestedBy,
+            Instant requestedAt
+    ) {
+        return runs.enqueueManualRetry(
+                generation.id(), requestedBy, requestedAt);
+    }
+
+    @Transactional
+    public Optional<OpinionMapGenerationRunClaim> claimNext() {
         if (!policy.enabled()) {
             return Optional.empty();
         }
@@ -85,8 +106,16 @@ public class OpinionMapGenerationStateService {
             return Optional.empty();
         }
         generations.save(generation);
-        return Optional.of(new OpinionMapGenerationClaim(
+        UUID runId = runs.startInitialAttempt(
+                generation,
+                claimId,
+                generation.attemptCount(),
+                now,
+                policy.processingLeaseDuration());
+        return Optional.of(new OpinionMapGenerationRunClaim(
+                runId,
                 generation.id(),
+                OpinionMapGenerationRun.Trigger.TASK_CLOSED,
                 claimId,
                 generation.attemptCount(),
                 generation.taskId(),
@@ -97,8 +126,8 @@ public class OpinionMapGenerationStateService {
 
     @Transactional
     public boolean completeSuccess(
-            OpinionMapGenerationClaim claim,
-            OpinionMapOptionExplanationV1 result
+            OpinionMapGenerationRunClaim claim,
+            OpinionMapGenerationGatewayResult result
     ) {
         Objects.requireNonNull(claim, "claim");
         Objects.requireNonNull(result, "result");
@@ -108,23 +137,27 @@ public class OpinionMapGenerationStateService {
                         "claimed Opinion Map generation disappeared"));
         String outputJson;
         try {
-            outputJson = objectMapper.writeValueAsString(result);
+            outputJson = objectMapper.writeValueAsString(result.output());
         } catch (Exception exception) {
             throw new IllegalStateException(
                     "validated Opinion Map output could not be serialized",
                     exception);
         }
+        Instant completedAt = clock.instant();
         if (!generation.succeed(
-                claim.claimId(), outputJson, clock.instant())) {
+                claim.claimId(), outputJson, completedAt)) {
             return false;
         }
         generations.save(generation);
+        runs.synchronizeInitial(claim.runId(), generation);
+        revisions.insertAiRevision(
+                generation, claim.runId(), outputJson, result, completedAt);
         return true;
     }
 
     @Transactional
     public boolean completeFailure(
-            OpinionMapGenerationClaim claim,
+            OpinionMapGenerationRunClaim claim,
             String errorCode,
             boolean retryable
     ) {
@@ -143,22 +176,7 @@ public class OpinionMapGenerationStateService {
             return false;
         }
         generations.save(generation);
+        runs.synchronizeInitial(claim.runId(), generation);
         return true;
-    }
-
-    public record OpinionMapGenerationClaim(
-            OpinionMapGenerationId generationId,
-            UUID claimId,
-            int attemptNumber,
-            com.hamcheeze.vote.task.domain.common.TaskId taskId,
-            int resultVersion,
-            String sourceBodySha256,
-            String promptVersion
-    ) {
-        public OpinionMapGenerationClaim {
-            Objects.requireNonNull(generationId, "generationId");
-            Objects.requireNonNull(claimId, "claimId");
-            Objects.requireNonNull(taskId, "taskId");
-        }
     }
 }

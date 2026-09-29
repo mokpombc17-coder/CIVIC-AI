@@ -19,6 +19,7 @@ public record AdminOpinionMapGenerationView(
         Instant updatedAt,
         boolean canGenerate,
         boolean canRetry,
+        boolean canRegenerate,
         List<OptionView> options
 ) {
 
@@ -41,6 +42,10 @@ public record AdminOpinionMapGenerationView(
         if (canRetry && status != Status.UNAVAILABLE) {
             throw new IllegalArgumentException(
                     "only an unavailable result can be retried");
+        }
+        if (canRegenerate && status != Status.AVAILABLE) {
+            throw new IllegalArgumentException(
+                    "only an available result can be regenerated");
         }
         boolean generated = switch (status) {
             case PENDING, PROCESSING, RETRY_WAIT, AVAILABLE, UNAVAILABLE ->

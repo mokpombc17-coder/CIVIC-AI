@@ -1,6 +1,7 @@
 package com.hamcheeze.vote.task.infra.opinionmap;
 
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRequest;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationProvider;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationGateway;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1.AreaStatus;
@@ -20,6 +21,11 @@ import java.util.List;
         havingValue = "fake")
 final class FakeOpinionMapGenerationGateway
         implements OpinionMapGenerationGateway {
+
+    @Override
+    public OpinionMapGenerationProvider provider() {
+        return new OpinionMapGenerationProvider("fake", "fake");
+    }
 
     @Override
     public OpinionMapOptionExplanationV1 generate(

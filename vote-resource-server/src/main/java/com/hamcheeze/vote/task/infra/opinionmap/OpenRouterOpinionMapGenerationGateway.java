@@ -1,6 +1,8 @@
 package com.hamcheeze.vote.task.infra.opinionmap;
 
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationException;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationGatewayResult;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationProvider;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRequest;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationGateway;
 import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
@@ -12,6 +14,7 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import java.io.IOException;
+import java.math.BigDecimal;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -78,6 +81,19 @@ public final class OpenRouterOpinionMapGenerationGateway
     public OpinionMapOptionExplanationV1 generate(
             OpinionMapGenerationRequest request
     ) {
+        return generateWithMetadata(request).output();
+    }
+
+    @Override
+    public OpinionMapGenerationProvider provider() {
+        return new OpinionMapGenerationProvider(
+                "openrouter", required(properties.getModel(), "model"));
+    }
+
+    @Override
+    public OpinionMapGenerationGatewayResult generateWithMetadata(
+            OpinionMapGenerationRequest request
+    ) {
         Objects.requireNonNull(request, "request");
         HttpRequest httpRequest = request(request);
         try {
@@ -126,6 +142,7 @@ public final class OpenRouterOpinionMapGenerationGateway
                                     "strict", true,
                                     "schema", outputSchema)),
                     "provider", Map.of("require_parameters", true),
+                    "usage", Map.of("include", true),
                     "max_tokens", properties.getMaximumOutputTokens(),
                     "stream", false));
             return HttpRequest.newBuilder(endpoint)
@@ -150,12 +167,12 @@ public final class OpenRouterOpinionMapGenerationGateway
         }
     }
 
-    private OpinionMapOptionExplanationV1 handle(
+    private OpinionMapGenerationGatewayResult handle(
             HttpResponse<String> response
     ) {
         int status = response.statusCode();
         if (status >= 200 && status <= 299) {
-            return decode(response.body());
+            return decode(response);
         }
         boolean retryable = status == 408 || status == 429
                 || status >= 500 && status <= 599;
@@ -174,12 +191,15 @@ public final class OpenRouterOpinionMapGenerationGateway
                 retryable
                         ? "OpenRouter is temporarily unavailable"
                         : "OpenRouter rejected the request",
-                null);
+                null,
+                status);
     }
 
-    private OpinionMapOptionExplanationV1 decode(String responseBody) {
+    private OpinionMapGenerationGatewayResult decode(
+            HttpResponse<String> response
+    ) {
         try {
-            JsonNode root = objectMapper.readTree(responseBody);
+            JsonNode root = objectMapper.readTree(response.body());
             JsonNode choice = root.path("choices").path(0);
             String finishReason = text(choice, "finish_reason");
             JsonNode message = choice.path("message");
@@ -199,8 +219,31 @@ public final class OpenRouterOpinionMapGenerationGateway
                         null);
             }
             String content = text(message, "content");
-            return objectMapper.readValue(
+            OpinionMapOptionExplanationV1 output = objectMapper.readValue(
                     content, OpinionMapOptionExplanationV1.class);
+            JsonNode usage = root.path("usage");
+            BigDecimal cost = decimalOrNull(usage, "cost");
+            return new OpinionMapGenerationGatewayResult(
+                    output,
+                    "openrouter",
+                    required(properties.getModel(), "model"),
+                    textOrNull(root, "model"),
+                    textOrNull(root, "id"),
+                    response.headers().firstValue("x-request-id")
+                            .orElse(null),
+                    longOrNull(usage, "prompt_tokens"),
+                    longOrNull(usage, "completion_tokens"),
+                    longOrNull(usage, "total_tokens"),
+                    nestedLongOrNull(
+                            usage, "prompt_tokens_details", "cached_tokens"),
+                    nestedLongOrNull(
+                            usage,
+                            "completion_tokens_details",
+                            "reasoning_tokens"),
+                    cost,
+                    cost == null ? null : "USD",
+                    finishReason,
+                    response.statusCode());
         } catch (OpinionMapGenerationException exception) {
             throw exception;
         } catch (RuntimeException exception) {
@@ -219,6 +262,49 @@ public final class OpenRouterOpinionMapGenerationGateway
                     field + " must be a non-blank string");
         }
         return value.asText();
+    }
+
+    private static String textOrNull(JsonNode parent, String field) {
+        JsonNode value = parent.path(field);
+        return value.isTextual() && !value.asText().isBlank()
+                ? value.asText()
+                : null;
+    }
+
+    private static Long longOrNull(JsonNode parent, String field) {
+        JsonNode value = parent.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (!value.canConvertToLong() || value.asLong() < 0) {
+            throw new IllegalArgumentException(
+                    field + " must be a non-negative integer");
+        }
+        return value.asLong();
+    }
+
+    private static Long nestedLongOrNull(
+            JsonNode parent,
+            String objectField,
+            String valueField
+    ) {
+        JsonNode nested = parent.path(objectField);
+        return nested.isObject() ? longOrNull(nested, valueField) : null;
+    }
+
+    private static BigDecimal decimalOrNull(
+            JsonNode parent,
+            String field
+    ) {
+        JsonNode value = parent.path(field);
+        if (value.isMissingNode() || value.isNull()) {
+            return null;
+        }
+        if (!value.isNumber() || value.decimalValue().signum() < 0) {
+            throw new IllegalArgumentException(
+                    field + " must be a non-negative number");
+        }
+        return value.decimalValue();
     }
 
     private static JsonNode loadOutputSchema(ObjectMapper objectMapper) {
@@ -272,5 +358,16 @@ public final class OpenRouterOpinionMapGenerationGateway
     ) {
         return new OpinionMapGenerationException(
                 errorCode, retryable, message, cause);
+    }
+
+    private static OpinionMapGenerationException failure(
+            String errorCode,
+            boolean retryable,
+            String message,
+            Throwable cause,
+            Integer httpStatus
+    ) {
+        return new OpinionMapGenerationException(
+                errorCode, retryable, message, cause, httpStatus);
     }
 }

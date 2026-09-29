@@ -12,6 +12,10 @@ import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQ
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminQueryService.UnavailablePage;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.Execution;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAdminService.RegenerationExecution;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRun;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRunHistoryQueryService;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRunHistory;
 import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskOptionId;
@@ -23,6 +27,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import java.math.BigDecimal;
 import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
@@ -49,6 +54,8 @@ class OpinionMapGenerationAdminControllerTest {
             mock(OpinionMapGenerationAdminQueryService.class);
     private final OpinionMapGenerationAdminDetailQueryService details =
             mock(OpinionMapGenerationAdminDetailQueryService.class);
+    private final OpinionMapGenerationRunHistoryQueryService histories =
+            mock(OpinionMapGenerationRunHistoryQueryService.class);
     private final AuthenticatedUserIdResolver userIds =
             mock(AuthenticatedUserIdResolver.class);
     private final Authentication authentication = mock(Authentication.class);
@@ -60,7 +67,8 @@ class OpinionMapGenerationAdminControllerTest {
         when(userIds.resolve(authentication)).thenReturn("admin-a");
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new OpinionMapGenerationAdminController(
-                                commands, queries, details, userIds))
+                                commands, queries, details, histories,
+                                userIds))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
     }
@@ -86,6 +94,95 @@ class OpinionMapGenerationAdminControllerTest {
     }
 
     @Test
+    void regeneratesAnAvailableResultWithoutHidingIt() throws Exception {
+        UUID runId = new UUID(0, 22);
+        OpinionMapGenerationRun run = new OpinionMapGenerationRun(
+                runId,
+                new OpinionMapGenerationId(new UUID(0, 21)),
+                2,
+                OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE,
+                OpinionMapGenerationRun.Status.PENDING,
+                0,
+                "admin-a",
+                NOW,
+                null,
+                null,
+                NOW);
+        when(commands.regenerate(eq(TASK_ID), eq("admin-a"), eq("regen-1")))
+                .thenReturn(new RegenerationExecution(
+                        TASK_ID, 1, run, true));
+
+        mockMvc.perform(post(
+                        "/api/v1/admin/tasks/{taskId}/opinion-map-generation/regenerations",
+                        TASK_UUID)
+                        .header("Idempotency-Key", "regen-1")
+                        .principal(authentication))
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.taskId")
+                        .value(TASK_UUID.toString()))
+                .andExpect(jsonPath("$.runId").value(runId.toString()))
+                .andExpect(jsonPath("$.runNumber").value(2))
+                .andExpect(jsonPath("$.status").value("PENDING"))
+                .andExpect(jsonPath("$.created").value(true));
+    }
+
+    @Test
+    void returnsRunAndAttemptBillingHistory() throws Exception {
+        UUID runId = new UUID(0, 22);
+        UUID attemptId = new UUID(0, 23);
+        when(histories.findByTaskId(TASK_ID)).thenReturn(Optional.of(
+                List.of(new OpinionMapGenerationRunHistory(
+                        runId,
+                        1,
+                        2,
+                        OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE,
+                        OpinionMapGenerationRun.Status.AVAILABLE,
+                        1,
+                        "admin-a",
+                        NOW,
+                        NOW.plusSeconds(2),
+                        null,
+                        List.of(new OpinionMapGenerationRunHistory.Attempt(
+                                attemptId,
+                                1,
+                                "SUCCEEDED",
+                                "openrouter",
+                                "openai/gpt-5.6-luna",
+                                "openai/gpt-5.6-luna-20260901",
+                                "gen-1",
+                                "req-1",
+                                120L,
+                                45L,
+                                165L,
+                                20L,
+                                5L,
+                                new BigDecimal("0.00042"),
+                                "USD",
+                                "stop",
+                                200,
+                                null,
+                                null,
+                                NOW,
+                                NOW.plusSeconds(2),
+                                2000L))))));
+
+        mockMvc.perform(get(
+                        "/api/v1/admin/tasks/{taskId}/opinion-map-generation/runs",
+                        TASK_UUID))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.runs[0].runId")
+                        .value(runId.toString()))
+                .andExpect(jsonPath("$.runs[0].attempts[0].requestedModel")
+                        .value("openai/gpt-5.6-luna"))
+                .andExpect(jsonPath("$.runs[0].attempts[0].promptTokens")
+                        .value(120))
+                .andExpect(jsonPath("$.runs[0].attempts[0].completionTokens")
+                        .value(45))
+                .andExpect(jsonPath("$.runs[0].attempts[0].totalTokens")
+                        .value(165));
+    }
+
+    @Test
     void returnsEveryOptionSummaryForAdminReview() throws Exception {
         TaskOptionId optionId = new TaskOptionId(new UUID(0, 30));
         when(details.findByTaskId(TASK_ID)).thenReturn(Optional.of(
@@ -101,6 +198,7 @@ class OpinionMapGenerationAdminControllerTest {
                         NOW,
                         false,
                         false,
+                        true,
                         List.of(new OptionView(
                                 optionId,
                                 1,
@@ -120,6 +218,7 @@ class OpinionMapGenerationAdminControllerTest {
                 .andExpect(jsonPath("$.taskId")
                         .value(TASK_UUID.toString()))
                 .andExpect(jsonPath("$.status").value("AVAILABLE"))
+                .andExpect(jsonPath("$.canRegenerate").value(true))
                 .andExpect(jsonPath("$.options[0].optionId")
                         .value(optionId.value().toString()))
                 .andExpect(jsonPath("$.options[0].responseCount")

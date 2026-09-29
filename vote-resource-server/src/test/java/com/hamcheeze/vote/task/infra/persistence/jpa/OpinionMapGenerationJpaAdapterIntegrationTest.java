@@ -2,22 +2,33 @@ package com.hamcheeze.vote.task.infra.persistence.jpa;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationManualRequest;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationAttempt;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationGatewayResult;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRun;
+import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationRunClaim;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationAttemptRepository;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationAdminViewRepository;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationManualRequestRepository;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationRunHistoryRepository;
+import com.hamcheeze.vote.task.application.port.out.OpinionMapRevisionRepository;
 import com.hamcheeze.vote.task.application.port.out.TaskRepository;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGeneration;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationId;
 import com.hamcheeze.vote.task.domain.opinionmap.OpinionMapGenerationStatus;
 import com.hamcheeze.vote.task.domain.task.Task;
+import com.hamcheeze.vote.task.application.result.OpinionMapOptionExplanationV1;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.context.annotation.Import;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -26,6 +37,7 @@ import java.util.UUID;
 
 import static com.hamcheeze.vote.task.TaskTestFixtures.singleQuestion;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.Mockito.mock;
 
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest
@@ -47,6 +59,21 @@ class OpinionMapGenerationJpaAdapterIntegrationTest {
 
     @Autowired
     private TaskRepository tasks;
+
+    @Autowired
+    private OpinionMapGenerationRunRepository runs;
+
+    @Autowired
+    private OpinionMapGenerationRunHistoryRepository runHistories;
+
+    @Autowired
+    private OpinionMapGenerationAttemptRepository attempts;
+
+    @Autowired
+    private OpinionMapRevisionRepository revisions;
+
+    @Autowired
+    private JdbcTemplate jdbc;
 
     @Test
     void insertsIdempotentlyClaimsAndRestoresTheGeneration() {
@@ -143,5 +170,179 @@ class OpinionMapGenerationJpaAdapterIntegrationTest {
 
         assertThat(adminViews.findUnavailable(Optional.empty(), 10))
                 .isEmpty();
+    }
+
+    @Test
+    void recordsRegenerationAttemptUsageAndRevisionAdditively() {
+        OpinionMapGeneration generation = OpinionMapGeneration.pending(
+                new OpinionMapGenerationId(UUID.randomUUID()),
+                new TaskId(UUID.randomUUID()),
+                1,
+                "c".repeat(64),
+                "task-result-prompt/v1",
+                NOW);
+        generations.insertIfAbsent(generation);
+        OpinionMapGenerationRun run = runs.enqueueRegeneration(
+                generation.id(), "admin-a", "regen-test",
+                NOW.plusSeconds(1));
+        OpinionMapGenerationRunClaim claim = runs.claimNextRegeneration(
+                        NOW.plusSeconds(2),
+                        Duration.ofSeconds(60),
+                        3)
+                .orElseThrow();
+        OpinionMapGenerationAttempt attempt =
+                new OpinionMapGenerationAttempt(
+                        UUID.randomUUID(),
+                        run.runId(),
+                        claim.attemptNumber(),
+                        "openrouter",
+                        "openai/gpt-5.6-luna",
+                        NOW.plusSeconds(2));
+        attempts.insert(attempt);
+        OpinionMapGenerationGatewayResult result =
+                new OpinionMapGenerationGatewayResult(
+                        mock(OpinionMapOptionExplanationV1.class),
+                        "openrouter",
+                        "openai/gpt-5.6-luna",
+                        "openai/gpt-5.6-luna-20260901",
+                        "gen-test",
+                        "req-test",
+                        120L,
+                        45L,
+                        165L,
+                        20L,
+                        5L,
+                        new BigDecimal("0.00042"),
+                        "USD",
+                        "stop",
+                        200);
+        attempts.completeSuccess(
+                attempt.attemptId(),
+                result,
+                NOW.plusSeconds(3),
+                1000);
+        assertThat(runs.completeSuccess(
+                run.runId(), claim.claimId(), NOW.plusSeconds(3))).isTrue();
+        revisions.insertAiRevision(
+                generation,
+                run.runId(),
+                "{\"status\":\"COMPLETED\"}",
+                result,
+                NOW.plusSeconds(3));
+
+        assertThat(jdbc.queryForMap("""
+                        SELECT requested_model,
+                               response_model,
+                               prompt_tokens,
+                               completion_tokens,
+                               total_tokens,
+                               cost
+                        FROM opinion_map_generation_attempts
+                        WHERE attempt_id = ?
+                        """, attempt.attemptId()))
+                .containsEntry(
+                        "requested_model", "openai/gpt-5.6-luna")
+                .containsEntry(
+                        "response_model",
+                        "openai/gpt-5.6-luna-20260901")
+                .containsEntry("prompt_tokens", 120L)
+                .containsEntry("completion_tokens", 45L)
+                .containsEntry("total_tokens", 165L);
+        assertThat(jdbc.queryForObject("""
+                        SELECT count(*)
+                        FROM opinion_map_revisions
+                        WHERE run_id = ?
+                        """, Integer.class, run.runId())).isEqualTo(1);
+        assertThat(runHistories.findByTaskId(generation.taskId()))
+                .singleElement()
+                .satisfies(history -> {
+                    assertThat(history.runId()).isEqualTo(run.runId());
+                    assertThat(history.status())
+                            .isEqualTo(
+                                    OpinionMapGenerationRun.Status.AVAILABLE);
+                    assertThat(history.attempts())
+                            .singleElement()
+                            .satisfies(storedAttempt -> {
+                                assertThat(storedAttempt.requestedModel())
+                                        .isEqualTo("openai/gpt-5.6-luna");
+                                assertThat(storedAttempt.promptTokens())
+                                        .isEqualTo(120L);
+                                assertThat(storedAttempt.completionTokens())
+                                        .isEqualTo(45L);
+                            });
+                });
+    }
+
+    @Test
+    void manualRetryStartsANewRunSoAttemptNumbersCanRestart() {
+        OpinionMapGeneration generation = OpinionMapGeneration.pending(
+                new OpinionMapGenerationId(UUID.randomUUID()),
+                new TaskId(UUID.randomUUID()),
+                1,
+                "d".repeat(64),
+                "task-result-prompt/v1",
+                NOW);
+        generations.insertIfAbsent(generation);
+
+        UUID firstClaim = UUID.randomUUID();
+        generation.claim(
+                firstClaim, NOW, Duration.ofSeconds(60), 1);
+        generations.save(generation);
+        UUID firstRun = runs.startInitialAttempt(
+                generation,
+                firstClaim,
+                1,
+                NOW,
+                Duration.ofSeconds(60));
+        attempts.insert(new OpinionMapGenerationAttempt(
+                UUID.randomUUID(),
+                firstRun,
+                1,
+                "openrouter",
+                "openai/gpt-5.6-luna",
+                NOW));
+        generation.fail(
+                firstClaim,
+                "PROVIDER_TIMEOUT",
+                true,
+                1,
+                Duration.ofSeconds(30),
+                NOW.plusSeconds(1));
+        generations.save(generation);
+        runs.synchronizeInitial(firstRun, generation);
+
+        generation.scheduleManualRetry(NOW.plusSeconds(2));
+        generations.save(generation);
+        OpinionMapGenerationRun retryRun = runs.enqueueManualRetry(
+                generation.id(), "admin-a", NOW.plusSeconds(2));
+        UUID retryClaim = UUID.randomUUID();
+        generation.claim(
+                retryClaim,
+                NOW.plusSeconds(3),
+                Duration.ofSeconds(60),
+                3);
+        generations.save(generation);
+        UUID claimedRetryRun = runs.startInitialAttempt(
+                generation,
+                retryClaim,
+                1,
+                NOW.plusSeconds(3),
+                Duration.ofSeconds(60));
+        attempts.insert(new OpinionMapGenerationAttempt(
+                UUID.randomUUID(),
+                claimedRetryRun,
+                1,
+                "openrouter",
+                "openai/gpt-5.6-luna",
+                NOW.plusSeconds(3)));
+
+        assertThat(claimedRetryRun).isEqualTo(retryRun.runId());
+        assertThat(jdbc.queryForObject("""
+                        SELECT count(*)
+                        FROM opinion_map_generation_attempts
+                        WHERE attempt_number = 1
+                          AND run_id IN (?, ?)
+                        """, Integer.class, firstRun, claimedRetryRun))
+                .isEqualTo(2);
     }
 }

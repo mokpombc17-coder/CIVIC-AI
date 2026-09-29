@@ -166,6 +166,17 @@ public final class OpinionMapGeneration {
         return true;
     }
 
+    public void replaceAvailableOutput(String resultJson, Instant now) {
+        if (status != OpinionMapGenerationStatus.AVAILABLE) {
+            throw new IllegalStateException(
+                    "only an available Opinion Map can be replaced");
+        }
+        outputJson = requireText(resultJson, "outputJson");
+        completedAt = Objects.requireNonNull(now, "now");
+        updatedAt = now;
+        validateConsistency();
+    }
+
     public boolean fail(
             UUID claimId,
             String errorCode,

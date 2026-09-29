@@ -1,6 +1,5 @@
 package com.hamcheeze.vote.task.application.opinionmap;
 
-import com.hamcheeze.vote.task.application.opinionmap.OpinionMapGenerationStateService.OpinionMapGenerationClaim;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapGenerationGateway;
 import com.hamcheeze.vote.task.application.port.out.OpinionMapPromptProvider;
 import com.hamcheeze.vote.task.application.port.out.TaskResultForLlmRenderer;
@@ -35,6 +34,8 @@ public class OpinionMapGenerationWorker {
     private final OpinionMapPromptProvider prompts;
     private final OpinionMapGenerationGateway gateway;
     private final OpinionMapGenerationPolicy policy;
+    private final OpinionMapRegenerationStateService regenerations;
+    private final OpinionMapGenerationAttemptService attempts;
 
     public OpinionMapGenerationWorker(
             OpinionMapGenerationStateService states,
@@ -43,7 +44,9 @@ public class OpinionMapGenerationWorker {
             TaskResultForLlmRenderer renderer,
             OpinionMapPromptProvider prompts,
             OpinionMapGenerationGateway gateway,
-            OpinionMapGenerationPolicy policy
+            OpinionMapGenerationPolicy policy,
+            OpinionMapRegenerationStateService regenerations,
+            OpinionMapGenerationAttemptService attempts
     ) {
         this.states = Objects.requireNonNull(states, "states");
         this.verification = Objects.requireNonNull(
@@ -53,10 +56,14 @@ public class OpinionMapGenerationWorker {
         this.prompts = Objects.requireNonNull(prompts, "prompts");
         this.gateway = Objects.requireNonNull(gateway, "gateway");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.regenerations = Objects.requireNonNull(
+                regenerations, "regenerations");
+        this.attempts = Objects.requireNonNull(attempts, "attempts");
     }
 
     public boolean executeOne() {
-        Optional<OpinionMapGenerationClaim> claimed = states.claimNext();
+        Optional<OpinionMapGenerationRunClaim> claimed =
+                regenerations.claimNext().or(states::claimNext);
         if (claimed.isEmpty()) {
             return false;
         }
@@ -64,7 +71,10 @@ public class OpinionMapGenerationWorker {
         return true;
     }
 
-    void execute(OpinionMapGenerationClaim claim) {
+    void execute(OpinionMapGenerationRunClaim claim) {
+        OpinionMapGenerationAttempt attempt = attempts.start(
+                claim.runId(), claim.attemptNumber(), gateway.provider());
+        boolean providerSucceeded = false;
         try {
             VerifiedTaskResultView verified = verification
                     .findByTaskId(claim.taskId())
@@ -76,7 +86,8 @@ public class OpinionMapGenerationWorker {
             TaskResultForLlmV1 input = assembler.assemble(
                     claim.taskId(), verified);
             RenderedTaskResultForLlm rendered = renderer.render(input);
-            OpinionMapOptionExplanationV1 result = gateway.generate(
+            OpinionMapGenerationGatewayResult generated =
+                    gateway.generateWithMetadata(
                     new OpinionMapGenerationRequest(
                             claim.generationId().value(),
                             input,
@@ -84,6 +95,9 @@ public class OpinionMapGenerationWorker {
                             prompts.loadPrompt(),
                             claim.promptVersion(),
                             policy.requestTimeout()));
+            attempts.succeed(attempt, generated);
+            providerSucceeded = true;
+            OpinionMapOptionExplanationV1 result = generated.output();
             if (result.status()
                     != OpinionMapOptionExplanationV1.GenerationStatus.COMPLETED) {
                 throw new OpinionMapGenerationException(
@@ -92,31 +106,75 @@ public class OpinionMapGenerationWorker {
                         "generation gateway did not return a completed result");
             }
             result.validateAgainst(input);
-            states.completeSuccess(claim, result);
+            completeSuccess(claim, generated);
         } catch (OpinionMapGenerationException exception) {
-            states.completeFailure(
+            if (!providerSucceeded) {
+                attempts.fail(attempt, exception);
+            }
+            completeFailure(
                     claim, exception.errorCode(), exception.retryable());
             log.warn(
                     "Opinion Map generation failed: generationId={}, attempt={}, code={}, retryable={}",
                     claim.generationId().value(), claim.attemptNumber(),
                     exception.errorCode(), exception.retryable());
         } catch (IllegalArgumentException exception) {
-            states.completeFailure(
-                    claim, "OPINION_MAP_RESPONSE_INVALID", true);
+            OpinionMapGenerationException failure =
+                    new OpinionMapGenerationException(
+                            "OPINION_MAP_RESPONSE_INVALID",
+                            true,
+                            "Opinion Map response validation failed",
+                            exception);
+            if (!providerSucceeded) {
+                attempts.fail(attempt, failure);
+            }
+            completeFailure(claim, failure.errorCode(), failure.retryable());
             log.warn(
                     "Opinion Map response validation failed: generationId={}, attempt={}",
                     claim.generationId().value(), claim.attemptNumber());
         } catch (RuntimeException exception) {
-            states.completeFailure(
-                    claim, "OPINION_MAP_GENERATION_INTERNAL_ERROR", true);
+            OpinionMapGenerationException failure =
+                    new OpinionMapGenerationException(
+                            "OPINION_MAP_GENERATION_INTERNAL_ERROR",
+                            true,
+                            "Opinion Map generation failed unexpectedly",
+                            exception);
+            if (!providerSucceeded) {
+                attempts.fail(attempt, failure);
+            }
+            completeFailure(claim, failure.errorCode(), failure.retryable());
             log.warn(
                     "Opinion Map generation failed unexpectedly: generationId={}, attempt={}",
                     claim.generationId().value(), claim.attemptNumber());
         }
     }
 
+    private void completeSuccess(
+            OpinionMapGenerationRunClaim claim,
+            OpinionMapGenerationGatewayResult result
+    ) {
+        if (claim.trigger()
+                == OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE) {
+            regenerations.completeSuccess(claim, result);
+        } else {
+            states.completeSuccess(claim, result);
+        }
+    }
+
+    private void completeFailure(
+            OpinionMapGenerationRunClaim claim,
+            String errorCode,
+            boolean retryable
+    ) {
+        if (claim.trigger()
+                == OpinionMapGenerationRun.Trigger.ADMIN_REGENERATE) {
+            regenerations.completeFailure(claim, errorCode, retryable);
+        } else {
+            states.completeFailure(claim, errorCode, retryable);
+        }
+    }
+
     private static void verifyManifest(
-            OpinionMapGenerationClaim claim,
+            OpinionMapGenerationRunClaim claim,
             VerifiedTaskResultView verified
     ) {
         if (verified.manifest().resultVersion() != claim.resultVersion()

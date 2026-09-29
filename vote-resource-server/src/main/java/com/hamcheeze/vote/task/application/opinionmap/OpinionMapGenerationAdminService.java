@@ -32,6 +32,7 @@ public class OpinionMapGenerationAdminService {
     private final OpinionMapGenerationRepository generations;
     private final OpinionMapGenerationManualRequestRepository manualRequests;
     private final OpinionMapGenerationPolicy policy;
+    private final OpinionMapRegenerationStateService regenerations;
     private final Clock clock;
     private final Supplier<UUID> requestIds;
 
@@ -43,10 +44,12 @@ public class OpinionMapGenerationAdminService {
             OpinionMapGenerationStateService state,
             OpinionMapGenerationRepository generations,
             OpinionMapGenerationManualRequestRepository manualRequests,
-            OpinionMapGenerationPolicy policy
+            OpinionMapGenerationPolicy policy,
+            OpinionMapRegenerationStateService regenerations
     ) {
         this(tasks, manifests, finalizer, state, generations,
-                manualRequests, policy, Clock.systemUTC(), UUID::randomUUID);
+                manualRequests, policy, regenerations,
+                Clock.systemUTC(), UUID::randomUUID);
     }
 
     OpinionMapGenerationAdminService(
@@ -57,6 +60,7 @@ public class OpinionMapGenerationAdminService {
             OpinionMapGenerationRepository generations,
             OpinionMapGenerationManualRequestRepository manualRequests,
             OpinionMapGenerationPolicy policy,
+            OpinionMapRegenerationStateService regenerations,
             Clock clock,
             Supplier<UUID> requestIds
     ) {
@@ -68,8 +72,69 @@ public class OpinionMapGenerationAdminService {
         this.manualRequests = Objects.requireNonNull(
                 manualRequests, "manualRequests");
         this.policy = Objects.requireNonNull(policy, "policy");
+        this.regenerations = Objects.requireNonNull(
+                regenerations, "regenerations");
         this.clock = Objects.requireNonNull(clock, "clock");
         this.requestIds = Objects.requireNonNull(requestIds, "requestIds");
+    }
+
+    @Transactional
+    public RegenerationExecution regenerate(
+            TaskId taskId,
+            String requestedBy
+    ) {
+        return regenerate(taskId, requestedBy, null);
+    }
+
+    @Transactional
+    public RegenerationExecution regenerate(
+            TaskId taskId,
+            String requestedBy,
+            String idempotencyKey
+    ) {
+        Objects.requireNonNull(taskId, "taskId");
+        String actor = requireActor(requestedBy);
+        String normalizedIdempotencyKey = normalizeIdempotencyKey(
+                idempotencyKey);
+        requireEnabled();
+
+        Task task = tasks.findByIdForUpdate(taskId)
+                .orElseThrow(() -> TaskDomainException.invariant(
+                        "TASK_NOT_FOUND",
+                        "taskId",
+                        "the task does not exist"));
+        if (!task.resultEligible()) {
+            throw TaskDomainException.invariant(
+                    "TASK_RESULT_NOT_ELIGIBLE",
+                    "task.status",
+                    "only a result-eligible closed task can regenerate an Opinion Map");
+        }
+        TaskResultManifest manifest = manifests.findByTaskId(taskId)
+                .orElseThrow(() -> TaskDomainException.invariant(
+                        "TASK_RESULT_NOT_FINALIZED",
+                        "task.result",
+                        "the task result has not been finalized"));
+        OpinionMapGeneration generation = generations
+                .findByTaskResultForUpdate(
+                        taskId, manifest.resultVersion())
+                .orElseThrow(() -> TaskDomainException.invariant(
+                        "OPINION_MAP_NOT_CREATED",
+                        "opinionMapGeneration",
+                        "the Opinion Map has not been created"));
+        if (generation.status() != OpinionMapGenerationStatus.AVAILABLE) {
+            throw TaskDomainException.invariant(
+                    "OPINION_MAP_NOT_AVAILABLE",
+                    "opinionMapGeneration.status",
+                    "only an available Opinion Map can be regenerated");
+        }
+        OpinionMapRegenerationStateService.Request request =
+                regenerations.enqueue(
+                        generation, actor, normalizedIdempotencyKey);
+        return new RegenerationExecution(
+                generation.taskId(),
+                generation.resultVersion(),
+                request.run(),
+                request.created());
     }
 
     @Transactional
@@ -120,6 +185,7 @@ public class OpinionMapGenerationAdminService {
             Instant requestedAt = clock.instant();
             generation.scheduleManualRetry(requestedAt);
             generation = generations.save(generation);
+            state.enqueueManualRetryRun(generation, actor, requestedAt);
             recordManualRequest(
                     generation,
                     actor,
@@ -177,6 +243,18 @@ public class OpinionMapGenerationAdminService {
         return normalized;
     }
 
+    private static String normalizeIdempotencyKey(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > 100) {
+            throw new IllegalArgumentException(
+                    "idempotencyKey is too long");
+        }
+        return normalized;
+    }
+
     public record Execution(
             OpinionMapGeneration generation,
             Action action
@@ -195,5 +273,17 @@ public class OpinionMapGenerationAdminService {
         CREATED,
         RETRIED,
         UNCHANGED
+    }
+
+    public record RegenerationExecution(
+            TaskId taskId,
+            int resultVersion,
+            OpinionMapGenerationRun run,
+            boolean created
+    ) {
+        public RegenerationExecution {
+            Objects.requireNonNull(taskId, "taskId");
+            Objects.requireNonNull(run, "run");
+        }
     }
 }
