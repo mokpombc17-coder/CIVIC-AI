@@ -18,8 +18,21 @@ describe("PlatformShell", () => {
     expect(markup).toContain('data-platform-shell="true"');
     expect(markup).toContain('data-platform-shell-content="true"');
     expect(markup.match(/data-scroll="self"/g)).toHaveLength(2);
+    expect(markup).not.toContain('data-visual-viewport-sizing="true"');
     expect(markup.indexOf("공통 헤더")).toBeLessThan(markup.indexOf("도메인 콘텐츠"));
     expect(markup.indexOf("도메인 콘텐츠")).toBeLessThan(markup.indexOf("주요 메뉴"));
+  });
+
+  it("visual viewport sizing을 선택한 화면에만 client boundary를 표시한다", () => {
+    const markup = renderToStaticMarkup(
+      <PlatformShell header={<header>공통 헤더</header>} visualViewportSizing>
+        <p>입력 화면</p>
+      </PlatformShell>,
+    );
+
+    expect(markup).toContain('data-platform-shell-stage="true"');
+    expect(markup).toContain('data-visual-viewport-sizing="true"');
+    expect(markup).not.toContain('data-visual-viewport="true"');
   });
 
   it("child 모드에서는 자식 도메인에 스크롤 책임을 위임한다고 표시한다", () => {

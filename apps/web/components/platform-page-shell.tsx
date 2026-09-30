@@ -16,6 +16,7 @@ export type PlatformPageShellProps = Readonly<{
   headerActions?: ReactNode;
   scroll?: PlatformShellScroll;
   title: ReactNode;
+  visualViewportSizing?: boolean;
 }>;
 
 export function PlatformPageShell({
@@ -27,6 +28,7 @@ export function PlatformPageShell({
   headerActions,
   scroll = "self",
   title,
+  visualViewportSizing = false,
 }: PlatformPageShellProps) {
   return (
     <PlatformShell
@@ -39,6 +41,7 @@ export function PlatformPageShell({
         />
       }
       scroll={scroll}
+      visualViewportSizing={visualViewportSizing}
       {...(className ? { className } : {})}
       {...(contentClassName ? { contentClassName } : {})}
     >
