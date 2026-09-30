@@ -54,23 +54,31 @@ describe("standalone PWA shell sizing", () => {
     );
   });
 
-  it("adds standalone keyboard scroll space while an auth field is focused", () => {
-    expect(wireflowStyles).toContain("@media (display-mode: standalone)");
-    expect(wireflowStyles).toContain(".civic-auth-grid:focus-within");
-    expect(wireflowStyles).toContain(
-      "padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px))",
-    );
-    expect(wireflowStyles).toContain(
-      "scroll-padding-block: 16px calc(45vh + env(safe-area-inset-bottom, 0px))",
-    );
+  it("keeps public auth keyboard handling on the bounded child scroller", () => {
+    expect(wireflowStyles).not.toContain("--pwa-keyboard-inset");
+    expect(wireflowStyles).not.toContain(".civic-auth-grid:focus-within");
   });
 
-  it("adds standalone keyboard scroll space outside the mypage security card", () => {
+  it("delegates mypage scrolling to the bounded account hub", () => {
     expect(wireflowStyles).toContain(
-      '[data-wireflow-screen^="U-ACCOUNT-"] .wf-account-hub:has(.wf-security-form input:focus)',
+      ".civic-platform-participant-body:has(> .civic-functional-screen > .wf-account-hub)",
     );
-    expect(wireflowStyles).toContain(
-      "padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px))",
-    );
+    const accountHubRule = wireflowStyles.match(/^\.wf-account-hub \{(?<body>[^}]*)\}/m)?.groups
+      ?.body;
+    expect(accountHubRule).toBeDefined();
+    expect(accountHubRule).toContain("min-height: 0");
+    expect(accountHubRule).toContain("flex: 1 1 auto");
+    expect(accountHubRule).toContain("overflow-y: auto");
+  });
+
+  it("keeps expanded mypage security forms free from an internal divider", () => {
+    const securityFormRule = [
+      ...wireflowStyles.matchAll(/^\.wf-security-form \{(?<body>[^}]*)\}/gm),
+    ]
+      .map((match) => match.groups?.body)
+      .find((body) => body?.includes("display: grid"));
+    expect(securityFormRule).toBeDefined();
+    expect(securityFormRule).not.toContain("border-top");
+    expect(securityFormRule).toContain("padding: 0 20px 20px");
   });
 });

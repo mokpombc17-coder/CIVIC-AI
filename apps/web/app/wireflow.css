@@ -5623,6 +5623,21 @@
   min-height: 100%;
 }
 
+.civic-platform-participant-body:has(> .civic-functional-screen > .wf-account-hub) {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.civic-platform-participant-body > .civic-functional-screen:has(> .wf-account-hub) {
+  display: flex;
+  height: 100%;
+  min-height: 0;
+  flex: 1;
+  flex-direction: column;
+  overflow: hidden;
+}
+
 [data-platform-shell="true"]
   [data-wireflow-screen^="U-ACCOUNT"]
   > .wf-screen-heading[data-platform-heading="HIDDEN"] {
@@ -5631,8 +5646,14 @@
 
 .wf-account-hub {
   display: grid;
-  min-height: 100%;
+  min-height: 0;
+  flex: 1 1 auto;
   align-content: start;
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+  -webkit-overflow-scrolling: touch;
 }
 
 .wf-account-session-actions {
@@ -5756,9 +5777,8 @@
 .wf-security-form {
   display: grid;
   gap: 12px;
-  border-top: 1px solid var(--wf-line);
   margin: 0;
-  padding: 20px;
+  padding: 0 20px 20px;
   scroll-margin-block: 16px 24px;
 }
 
@@ -6218,17 +6238,6 @@
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   scroll-padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
-}
-
-@media (display-mode: standalone) {
-  .civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid:focus-within {
-    padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px));
-    scroll-padding-block: 16px calc(45vh + env(safe-area-inset-bottom, 0px));
-  }
-
-  [data-wireflow-screen^="U-ACCOUNT-"] .wf-account-hub:has(.wf-security-form input:focus) {
-    padding-bottom: calc(45vh + env(safe-area-inset-bottom, 0px));
-  }
 }
 
 /* 관리자 문서 작업 공간은 페이지 스크롤 하나를 사용하고, 조밀한 운영 화면으로 정렬한다. */
