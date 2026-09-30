@@ -5651,7 +5651,6 @@
   align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   -webkit-overflow-scrolling: touch;
 }
@@ -6234,7 +6233,6 @@
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   scroll-padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;

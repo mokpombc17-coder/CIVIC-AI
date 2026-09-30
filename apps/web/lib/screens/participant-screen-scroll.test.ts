@@ -17,13 +17,15 @@ describe("participantScreenScroll", () => {
 });
 
 describe("participantScreenUsesVisualViewport", () => {
-  it.each(["U-ACCOUNT-001", "U-ACCOUNT-002", "U-ACCOUNT-004"])(
-    "enables visual viewport sizing for %s",
-    (screenId) => expect(participantScreenUsesVisualViewport(screenId)).toBe(true),
-  );
-
-  it.each(["U-HOME-001", "U-RAG-001", "U-ACCOUNT-003", "U-VOTE-001"])(
-    "leaves %s on its existing viewport sizing",
-    (screenId) => expect(participantScreenUsesVisualViewport(screenId)).toBe(false),
+  it.each([
+    "U-HOME-001",
+    "U-RAG-001",
+    "U-ACCOUNT-001",
+    "U-ACCOUNT-002",
+    "U-ACCOUNT-003",
+    "U-ACCOUNT-004",
+    "U-VOTE-001",
+  ])("temporarily leaves %s on its existing viewport sizing", (screenId) =>
+    expect(participantScreenUsesVisualViewport(screenId)).toBe(false),
   );
 });

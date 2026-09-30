@@ -45,7 +45,7 @@ export function PublicAuthScreen({
       contentClassName="civic-public-auth-content"
       scroll="child"
       title={header.title}
-      visualViewportSizing
+      visualViewportSizing={false}
     >
       <AuthFunctionalScreen
         devQuickLoginEnabled={devQuickLoginEnabled}

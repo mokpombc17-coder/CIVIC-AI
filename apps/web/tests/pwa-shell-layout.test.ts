@@ -90,6 +90,16 @@ describe("standalone PWA shell sizing", () => {
     expect(accountHubRule).toContain("min-height: 0");
     expect(accountHubRule).toContain("flex: 1 1 auto");
     expect(accountHubRule).toContain("overflow-y: auto");
+    expect(accountHubRule).not.toContain("overscroll-behavior");
+  });
+
+  it("does not trap scroll chaining inside the public auth form", () => {
+    const authGridRule = wireflowStyles.match(
+      /^\.civic-public-auth-content \[data-wireflow-screen\^="AUTH-"\] \.civic-auth-grid \{(?<body>[^}]*)\}/m,
+    )?.groups?.body;
+    expect(authGridRule).toBeDefined();
+    expect(authGridRule).toContain("overflow-y: auto");
+    expect(authGridRule).not.toContain("overscroll-behavior");
   });
 
   it("keeps expanded mypage security forms free from an internal divider", () => {
