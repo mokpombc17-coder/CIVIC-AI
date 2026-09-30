@@ -492,18 +492,18 @@ export function AuthFunctionalScreen({
           >
             {busy ? "처리 중…" : action}
           </WireflowButton>
-          {isPasswordReset && passwordResetStep === "EMAIL" ? (
-            <p className="civic-password-reset-signup">
-              아직 계정이 없으신가요?{" "}
-              <Link data-wireflow-slot="password-reset-signup" href={"/signup/account" as Route}>
-                회원가입
-              </Link>
-            </p>
-          ) : null}
           {activeId === "AUTH-001" && devQuickLoginEnabled ? (
             <DevQuickLoginActions busy={busy} onLogin={quickLogin} />
           ) : null}
         </AuthFormCard>
+        {isPasswordReset && passwordResetStep === "EMAIL" ? (
+          <p className="civic-password-reset-signup">
+            아직 계정이 없으신가요?{" "}
+            <Link data-wireflow-slot="password-reset-signup" href={"/signup/account" as Route}>
+              회원가입
+            </Link>
+          </p>
+        ) : null}
         <AuthSupport
           activeId={activeId}
           busy={busy}

@@ -1233,6 +1233,9 @@ describe("25 functional Main/Auth screens", () => {
         expect(html).toContain("아직 계정이 없으신가요?");
         expect(html).toContain('data-wireflow-slot="password-reset-signup"');
         expect(html).toContain('href="/signup/account"');
+        expect(html.indexOf('data-wireflow-slot="password-reset-signup"')).toBeGreaterThan(
+          html.indexOf("</form>"),
+        );
       }
     }
   });
