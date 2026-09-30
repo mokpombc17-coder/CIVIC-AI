@@ -40,6 +40,18 @@
   color: var(--platform-shell-color-text);
 }
 
+@supports not (height: 100dvh) {
+  .stage {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  .shell {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+}
+
 @supports (color: color-mix(in srgb, white, black)) {
   .stage {
     --platform-shell-color-primary-alpha-12: color-mix(
