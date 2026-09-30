@@ -52,6 +52,17 @@
   }
 }
 
+@media (display-mode: standalone) {
+  .stage[data-visual-viewport="true"] {
+    height: var(--platform-visual-viewport-height);
+    min-height: 0;
+  }
+
+  .stage[data-visual-viewport="true"] .shell {
+    height: 100%;
+  }
+}
+
 .surface {
   display: grid;
   width: 100%;

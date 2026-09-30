@@ -9,6 +9,14 @@ const platformShellStyles = readFileSync(
   path.join(webRoot, "components/platform-shell/platform-shell.module.css"),
   "utf8",
 );
+const platformPageShellSource = readFileSync(
+  path.join(webRoot, "components/platform-page-shell.tsx"),
+  "utf8",
+);
+const visualViewportStageSource = readFileSync(
+  path.join(webRoot, "components/platform-shell/platform-visual-viewport-stage.tsx"),
+  "utf8",
+);
 
 describe("standalone PWA shell sizing", () => {
   it("anchors the document wrapper height chain without viewport minimums", () => {
@@ -39,6 +47,19 @@ describe("standalone PWA shell sizing", () => {
   it("keeps standalone sizing free from the legacy viewport unit", () => {
     expect(globalStyles).not.toContain("min-height: 100vh");
     expect(platformShellStyles).not.toContain("height: 100vh");
+  });
+
+  it("scopes visual viewport height to the standalone opt-in stage", () => {
+    expect(platformShellStyles).toContain("@media (display-mode: standalone)");
+    expect(platformShellStyles).toContain('.stage[data-visual-viewport="true"]');
+    expect(platformShellStyles).toContain("height: var(--platform-visual-viewport-height)");
+  });
+
+  it("keeps PlatformPageShell server-compatible and isolates viewport effects", () => {
+    expect(platformPageShellSource).not.toContain('"use client"');
+    expect(visualViewportStageSource.startsWith('"use client"')).toBe(true);
+    expect(visualViewportStageSource).toContain("window.visualViewport");
+    expect(visualViewportStageSource).not.toContain("window.innerHeight");
   });
 
   it("gives public auth forms a bounded child scroller with bottom safe area", () => {

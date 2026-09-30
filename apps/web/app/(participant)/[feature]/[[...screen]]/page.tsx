@@ -14,7 +14,10 @@ import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
 import { PublicAuthScreen } from "@/components/screens/public-auth-screen";
-import { participantScreenScroll } from "@/lib/screens/participant-screen-scroll";
+import {
+  participantScreenScroll,
+  participantScreenUsesVisualViewport,
+} from "@/lib/screens/participant-screen-scroll";
 
 type ParticipantPlaceholderPageProps = Readonly<{
   params: Promise<{ feature: string; screen?: string[] }>;
@@ -56,6 +59,7 @@ export default async function ParticipantPlaceholderPage({
           activeRoute={pathname}
           scroll={participantScreenScroll(definition.id)}
           title={heading.title}
+          visualViewportSizing={participantScreenUsesVisualViewport(definition.id)}
         >
           <MainFunctionalScreen screen={definition} />
         </EligibleParticipantShell>
@@ -69,6 +73,7 @@ export default async function ParticipantPlaceholderPage({
           activeRoute={pathname}
           scroll={participantScreenScroll(definition.id)}
           title={heading.title}
+          visualViewportSizing={participantScreenUsesVisualViewport(definition.id)}
         >
           <MainFunctionalScreen screen={definition} />
         </EligibleParticipantShell>

@@ -14,6 +14,7 @@ export type ParticipantShellProps = Readonly<{
   requiresLoginForProtectedLinks?: boolean;
   scroll?: PlatformShellScroll;
   title?: string;
+  visualViewportSizing?: boolean;
 }>;
 
 export function ParticipantShell({
@@ -26,6 +27,7 @@ export function ParticipantShell({
   requiresLoginForProtectedLinks = false,
   scroll = "self",
   title,
+  visualViewportSizing = false,
 }: ParticipantShellProps) {
   const section = participantSection(activeRoute);
   const resolvedBackHref = backHref ?? section.backHref;
@@ -53,6 +55,7 @@ export function ParticipantShell({
         {...(headerActions !== undefined ? { headerActions } : {})}
         scroll={scroll}
         title={headerTitle ?? title ?? section.title}
+        visualViewportSizing={visualViewportSizing}
       >
         <a className="civic-skip-link" href="#civic-content">
           <span data-nosnippet="">본문 바로가기</span>
