@@ -33,6 +33,18 @@
   color: var(--platform-shell-color-text);
 }
 
+@supports not (height: 100dvh) {
+  .stage {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  .shell {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+}
+
 @media (max-width: 480px) {
   .shell {
     max-width: none;

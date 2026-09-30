@@ -44,9 +44,37 @@ describe("standalone PWA shell sizing", () => {
 }`);
   });
 
-  it("keeps standalone sizing free from the legacy viewport unit", () => {
-    expect(globalStyles).not.toContain("min-height: 100vh");
-    expect(platformShellStyles).not.toContain("height: 100vh");
+  it("provides a legacy WebKit viewport fallback before standalone sizing", () => {
+    const globalFallback = `@supports not (height: 100dvh) {
+  html {
+    height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+}`;
+    const platformFallback = `@supports not (height: 100dvh) {
+  .stage {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  .shell {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+}`;
+
+    expect(globalStyles).toContain(globalFallback);
+    expect(platformShellStyles).toContain(platformFallback);
+    expect(globalStyles.indexOf(globalFallback)).toBeLessThan(
+      globalStyles.indexOf("@media (display-mode: standalone)"),
+    );
+    expect(platformShellStyles.indexOf(platformFallback)).toBeLessThan(
+      platformShellStyles.indexOf("@media (display-mode: standalone)"),
+    );
   });
 
   it("scopes visual viewport height to the standalone opt-in stage", () => {

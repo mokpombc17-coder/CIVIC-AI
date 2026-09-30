@@ -32,6 +32,17 @@ body {
     radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
 }
 
+@supports not (height: 100dvh) {
+  html {
+    height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+}
+
 .civic-confirm-dialog::backdrop {
   background: rgb(16 17 20 / 56%);
 }
