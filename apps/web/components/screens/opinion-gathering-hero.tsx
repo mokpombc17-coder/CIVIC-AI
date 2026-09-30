@@ -29,7 +29,7 @@ type OpinionGatheringHeroProps = {
   /** 바깥 반지름과 안쪽 반지름으로 도넛 두께를 조절합니다. */
   donutOuterRadius?: number;
   donutInnerRadius?: number;
-  /** 질문에 추가할 Tailwind 클래스 */
+  /** 질문에 추가할 클래스 */
   questionClassName?: string;
   className?: string;
   style?: CSSProperties;
@@ -73,6 +73,10 @@ const CALLOUT_LAYOUT = [
 
 function getColor(index: number, color?: string) {
   return color ?? FALLBACK_COLORS[index] ?? FALLBACK_COLORS[0];
+}
+
+function heroDashStyle(length: number): CSSProperties {
+  return { "--civic-hero-dash-length": `${length}` } as CSSProperties;
 }
 
 function pointOnCircle(centerX: number, centerY: number, radius: number, angleDegrees: number) {
@@ -127,6 +131,8 @@ export function OpinionGatheringHero({
     Math.max(0, Number.isFinite(donutInnerRadius) ? donutInnerRadius : DEFAULT_INNER_RADIUS),
     outerRadius - 1,
   );
+  const revealRadius = (outerRadius + innerRadius) / 2;
+  const revealLength = 2 * Math.PI * revealRadius;
   const safeRatios = items.map(({ ratio }) => (Number.isFinite(ratio) ? Math.max(0, ratio) : 0));
   const total = safeRatios.reduce((sum, ratio) => sum + ratio, 0) || 1;
   const normalizedRatios = safeRatios.map((ratio) => (ratio / total) * 100);
@@ -167,8 +173,11 @@ export function OpinionGatheringHero({
     const y = contact.y + verticalDirection * CALLOUT_DIAGONAL_STEP;
     const lineStartX = elbowX + direction * CALLOUT_HORIZONTAL_LENGTH;
     const labelEdgeX = lineStartX + direction * LABEL_LINE_GAP;
+    const pathLength =
+      Math.hypot(elbowX - contact.x, y - contact.y) + Math.abs(lineStartX - elbowX);
     return {
       path: `M ${contact.x} ${contact.y} L ${elbowX} ${y} H ${lineStartX}`,
+      pathLength,
       labelStyle: {
         left: `${(labelEdgeX / 360) * 100}%`,
         top: `${(y / 200) * 100}%`,
@@ -183,7 +192,7 @@ export function OpinionGatheringHero({
 
   return (
     <section
-      className={`civic-opinion-hero box-border w-full max-w-[402px] bg-white px-[22px] pb-0 pt-3 text-slate-900 max-[359px]:px-[18px] ${className}`.trim()}
+      className={`civic-opinion-hero ${className}`.trim()}
       data-home-hero-animate={animate ? "true" : undefined}
       data-nosnippet=""
       style={style}
@@ -191,30 +200,26 @@ export function OpinionGatheringHero({
       aria-label={accessibleSummary}
     >
       <h2
-        className={`civic-opinion-hero-question m-0 whitespace-pre-line ${questionClassName || "text-[clamp(20px,5.8vw,24px)] font-bold leading-[1.45] tracking-[-0.035em]"}`.trim()}
+        className={`civic-opinion-hero-question ${questionClassName || "civic-opinion-hero-question--default"}`.trim()}
       >
         {question}
       </h2>
 
-      <div className="relative mt-3 aspect-[360/200] w-full">
-        <svg
-          className="block h-full w-full overflow-visible"
-          viewBox="0 0 360 200"
-          aria-hidden="true"
-        >
+      <div className="civic-opinion-hero-chart">
+        <svg className="civic-opinion-hero-chart-svg" viewBox="0 0 360 200" aria-hidden="true">
           <defs>
             <mask id={revealMaskId} maskUnits="userSpaceOnUse" x="0" y="0" width="360" height="200">
               <circle
                 className="civic-hero-reveal"
                 cx={DONUT_CENTER_X}
                 cy={DONUT_CENTER_Y}
-                r={(outerRadius + innerRadius) / 2}
+                r={revealRadius}
                 fill="none"
                 stroke="white"
                 strokeWidth={outerRadius - innerRadius + 2}
-                pathLength={1}
-                strokeDasharray="1 1"
-                strokeDashoffset={1}
+                strokeDasharray={`${revealLength} ${revealLength}`}
+                strokeDashoffset={revealLength}
+                style={heroDashStyle(revealLength)}
                 transform={`rotate(-90 ${DONUT_CENTER_X} ${DONUT_CENTER_Y})`}
               />
             </mask>
@@ -223,23 +228,23 @@ export function OpinionGatheringHero({
           <circle
             cx={DONUT_CENTER_X}
             cy={DONUT_CENTER_Y}
-            r={(outerRadius + innerRadius) / 2}
+            r={revealRadius}
             fill="none"
             stroke="#e5e7eb"
             strokeWidth={outerRadius - innerRadius}
           />
 
           <g fill="none" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-            {callouts.map(({ path }, index) => (
+            {callouts.map(({ path, pathLength }, index) => (
               <path
                 key={`callout-${index}`}
                 className="civic-hero-line"
                 d={path}
                 stroke="#0054ff"
-                pathLength={1}
-                strokeDasharray="1 1"
-                strokeDashoffset={1}
+                strokeDasharray={`${pathLength} ${pathLength}`}
+                strokeDashoffset={pathLength}
                 opacity={0}
+                style={heroDashStyle(pathLength)}
               />
             ))}
           </g>
@@ -294,10 +299,10 @@ export function OpinionGatheringHero({
 
           {animate && debugReplay ? (
             <circle
-              className="cursor-pointer"
+              className="civic-hero-replay"
               cx={DONUT_CENTER_X}
               cy={DONUT_CENTER_Y}
-              r={(outerRadius + innerRadius) / 2}
+              r={revealRadius}
               fill="none"
               stroke="transparent"
               strokeWidth={outerRadius - innerRadius}
@@ -307,11 +312,11 @@ export function OpinionGatheringHero({
           ) : null}
         </svg>
 
-        <ul className="pointer-events-none absolute inset-0 m-0 list-none p-0" aria-hidden="true">
+        <ul className="civic-opinion-hero-labels" aria-hidden="true">
           {items.map(({ label }, index) => (
             <li
               key={`${label}-${index}`}
-              className="civic-hero-label absolute whitespace-nowrap rounded-[4px] bg-[#e5edff] px-[7px] py-[3px] text-[12px] font-normal leading-[16px] tracking-[-0.02em] text-[#163b80] opacity-0"
+              className="civic-hero-label"
               style={callouts[index]!.labelStyle}
             >
               {label}
