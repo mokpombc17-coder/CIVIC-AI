@@ -63,7 +63,10 @@ import {
   isPasswordResetEmail,
   LegalDocumentLink,
   LoginDeactivatedNotice,
+  passwordResetAction,
+  passwordResetCardTitle,
   passwordResetCodeFromSearch,
+  PasswordResetFields,
   safeReturnTarget,
   readSignupAcceptanceControls,
   SignupDuplicateEmailNotice,
@@ -843,6 +846,53 @@ describe("25 functional Main/Auth screens", () => {
     expect(passwordResetCodeFromSearch("?code=12345x")).toBeNull();
   });
 
+  it("비밀번호 재설정은 이메일·인증번호·새 비밀번호를 단계별로 분리한다", () => {
+    const onChange = () => undefined;
+    const emailHtml = renderToStaticMarkup(
+      createElement(PasswordResetFields, {
+        code: "",
+        email: "",
+        onCodeChange: onChange,
+        onEmailChange: onChange,
+        step: "EMAIL",
+      }),
+    );
+    const codeHtml = renderToStaticMarkup(
+      createElement(PasswordResetFields, {
+        code: "123456",
+        email: "citizen@example.com",
+        onCodeChange: onChange,
+        onEmailChange: onChange,
+        step: "CODE",
+      }),
+    );
+    const passwordHtml = renderToStaticMarkup(
+      createElement(PasswordResetFields, {
+        code: "123456",
+        email: "citizen@example.com",
+        onCodeChange: onChange,
+        onEmailChange: onChange,
+        step: "PASSWORD",
+      }),
+    );
+
+    expect(emailHtml).toContain('name="email"');
+    expect(emailHtml).not.toContain('name="code"');
+    expect(codeHtml).toContain('name="email"');
+    expect(codeHtml).toContain("readOnly");
+    expect(codeHtml).toContain('name="code"');
+    expect(codeHtml).not.toContain('name="new_password"');
+    expect(passwordHtml).toContain('name="new_password"');
+    expect(passwordHtml).toContain('name="new_password_confirmation"');
+    expect(passwordHtml).not.toContain('name="code"');
+    expect(passwordResetCardTitle("EMAIL")).toBe("이메일 입력");
+    expect(passwordResetCardTitle("CODE")).toBe("인증번호 입력");
+    expect(passwordResetCardTitle("PASSWORD")).toBe("새 비밀번호 설정");
+    expect(passwordResetAction("EMAIL")).toBe("인증번호 받기");
+    expect(passwordResetAction("CODE")).toBe("인증번호 확인");
+    expect(passwordResetAction("PASSWORD")).toBe("비밀번호 변경");
+  });
+
   it("가입 인증은 동의 단계로 이어지고 비밀번호 재설정·재활성화만 로그인으로 이동한다", () => {
     expect(authCompletionDestination("AUTH-005")).toBeNull();
     expect(authCompletionDestination("AUTH-008")).toBe("/login");
@@ -1048,7 +1098,7 @@ describe("25 functional Main/Auth screens", () => {
       "AUTH-004": "약관에 동의하고 가입하기",
       "AUTH-005": "인증하기",
       "AUTH-006": "가입 이메일 인증",
-      "AUTH-007": "인증하기",
+      "AUTH-007": "인증번호 받기",
       "AUTH-008": "비밀번호 변경",
       "AUTH-009": "인증 코드 받기",
       "AUTH-010": "계정 재활성화",
@@ -1078,9 +1128,11 @@ describe("25 functional Main/Auth screens", () => {
           ? createElement(AdminFunctionalScreen, { screen, adminCurrentUser: fullAdminSession })
           : createElement(MainFunctionalScreen, { screen }),
     );
-    expect(html).toContain(screen.id);
+    expect(html).toContain(screen.id === "AUTH-008" ? "AUTH-007" : screen.id);
     expect(html).toContain('<h1 id="civic-screen-title">');
-    expect(html).toContain(mainScreenPrimaryActions[screen.id]);
+    expect(html).toContain(
+      screen.id === "AUTH-008" ? passwordResetAction("EMAIL") : mainScreenPrimaryActions[screen.id],
+    );
     expect(html).toContain('class="wf-screen-heading"');
     expect(html).not.toContain('class="civic-screen-meta"');
     expect(html).not.toContain("준비 중");
@@ -1165,17 +1217,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(devHtml).toContain("관리자 테스트 로그인");
   });
 
-  it("인증 코드와 비밀번호 재설정은 최신 카드·안내 구조를 공유한다", () => {
+  it("인증 화면과 비밀번호 재설정은 단계에 맞는 카드·안내 구조를 사용한다", () => {
     for (const id of ["AUTH-005", "AUTH-006", "AUTH-007", "AUTH-008"]) {
       const screen = mainScreens.find((item) => item.id === id);
       if (!screen) throw new Error(`${id} missing`);
       const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen }));
       expect(html).toContain('class="wf-auth-form" method="post"');
-      expect(html).toContain('class="wf-auth-info"');
-      if (id === "AUTH-007") {
-        expect(html).toContain("인증 코드 입력");
-        expect(html).toContain('name="code"');
-        expect(html).not.toContain('name="email"');
+      if (id === "AUTH-005" || id === "AUTH-006") {
+        expect(html).toContain('class="wf-auth-info"');
+      } else {
+        expect(html).toContain("이메일 입력");
+        expect(html).toContain('name="email"');
+        expect(html).not.toContain('name="code"');
+        expect(html).not.toContain('class="wf-auth-info"');
       }
     }
   });

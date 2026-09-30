@@ -22,8 +22,8 @@ describe("PublicAuthScreen", () => {
   it.each([
     ["/login", ["next", "go"]],
     ["/signup/account", ["next", "next", "done"]],
-    ["/password-reset", ["done"]],
-    ["/password-reset/complete", ["next", "next", "done"]],
+    ["/password-reset", ["go"]],
+    ["/password-reset/complete", ["go"]],
   ])("%s 입력 순서에 맞는 모바일 키보드 액션을 제공한다", (pathname, expectedHints) => {
     const screen = getScreenByRoute(pathname);
     if (!screen) throw new TypeError(`${pathname} screen is missing`);
