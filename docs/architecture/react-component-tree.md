@@ -117,27 +117,25 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
 │   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화, child scroll 선택]
-│       └── PlatformPageShell [Server-compatible, bottom navigation 없음, child scroll 고정 viewport]
+│       └── PlatformPageShell [Server-compatible, bottom navigation 없음, child scroll 고정 viewport, visual viewport sizing 임시 비활성]
 │           └── PlatformShell
-│               └── PlatformVisualViewportStage [Client, standalone 텍스트 편집 중에만 visualViewport.height 공급]
-│                   └── AuthFunctionalScreen [가입 단계 history state 관리, 인증 grid가 내부 스크롤·bottom safe area 소유]
+│               └── AuthFunctionalScreen [가입 단계 history state 관리, 인증 grid가 내부 스크롤·bottom safe area 소유]
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
 │   ├── requireParticipantAccess
 │   └── EligibleParticipantShell 또는 AdminShell
 │       ├── EligibleParticipantShell
 │       │   └── PlatformPageShell
-│       │       └── 기존 frontend2 PlatformShell [정확히 1개, 계정 화면만 visual viewport sizing opt-in]
-│       │           └── PlatformVisualViewportStage [Client, standalone 텍스트 편집 중에만 높이 동기화]
-│       │               └── AppQueryProvider
-│       │                   └── ParticipantEligibilityGuard [Client, 본문 slot만 제어]
-│       │                       ├── /survey·인증 경로 제외
-│       │                       ├── 확인 중에도 header·navigation 유지
-│       │                       ├── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
-│       │                       ├── MainFunctionalScreen
-│       │                       └── AccountFunctionalScreen [conditional]
-│       │                           ├── AccountHubSurface [/mypage, 로그아웃]
-│       │                           ├── AccountManagementSurface [/mypage/profile, 보안 포함]
-│       │                           └── DeactivationDialog [/mypage/deactivate]
+│       │       └── 기존 frontend2 PlatformShell [정확히 1개, visual viewport sizing 임시 비활성]
+│       │           └── AppQueryProvider
+│       │               └── ParticipantEligibilityGuard [Client, 본문 slot만 제어]
+│       │                   ├── /survey·인증 경로 제외
+│       │                   ├── 확인 중에도 header·navigation 유지
+│       │                   ├── 필수 미제출: /survey?returnTo=<현재 경로> hard navigation
+│       │                   ├── MainFunctionalScreen
+│       │                   └── AccountFunctionalScreen [conditional]
+│       │                       ├── AccountHubSurface [/mypage, 로그아웃]
+│       │                       ├── AccountManagementSurface [/mypage/profile, 보안 포함]
+│       │                       └── DeactivationDialog [/mypage/deactivate]
 │       └── AdminShell
 │           └── MainFunctionalScreen
 ├── RAG
@@ -237,9 +235,11 @@ navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용�
 `.wf-account-hub`가 각각 내부 스크롤을 소유한다. 투표 화면은 `/vote`를 유일한 표준 주소로
 사용하며, 이관 전 계정 UI의 `/account` 주소만 같은 화면과 active menu에 매핑한다. 참여자 섹션 루트는 header 자리를 유지하는
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
-Public Auth 전체와 계정 관리 화면은 opt-in `PlatformVisualViewportStage`를 사용한다. 이 작은 Client boundary는
-standalone PWA의 텍스트 편집 중에만 `visualViewport.height`를 stage에 공급하며, `PlatformPageShell` 자체는
-Server-compatible 상태를 유지한다. RAG와 나머지 route는 기존 viewport sizing을 그대로 사용한다.
+`PlatformVisualViewportStage` opt-in 기능은 보존하지만 현재 Public Auth와 계정 관리 화면의 활성화 정책은
+모두 `false`다. 따라서 모든 참여자 route가 기존 viewport sizing을 유지하며 `PlatformPageShell`도
+Server-compatible 상태를 유지한다. standalone의 인증 grid와 계정 hub는 내부 스크롤 경계에서 세로
+gesture를 가두지 않고 viewport 쪽으로 전달한다. 이 child scroll 소유 구조를 실기기에서 검증한 뒤
+화면별 visual viewport 활성화를 다시 결정한다.
 정확한 landing route에서는 지연 로드된 swipe controller가 중앙 content surface에만 pointer gesture를 연결하며,
 header와 하단 navigation은 고정된 상태로 실제 navigation link를 실행한다.
 

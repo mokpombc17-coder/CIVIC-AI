@@ -15,7 +15,7 @@ describe("PublicAuthScreen", () => {
 
       expect(html.match(/data-scroll="child"/gu)).toHaveLength(2);
       expect(html).toContain("civic-public-auth-content");
-      expect(html).toContain('data-visual-viewport-sizing="true"');
+      expect(html).not.toContain('data-visual-viewport-sizing="true"');
     },
   );
 

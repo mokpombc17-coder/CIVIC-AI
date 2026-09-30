@@ -92,6 +92,16 @@ describe("standalone PWA shell sizing", () => {
     expect(accountHubRule).toContain("overflow-y: auto");
   });
 
+  it("lets standalone auth and account forms chain vertical gestures at scroll boundaries", () => {
+    expect(wireflowStyles).toContain(`@media (display-mode: standalone) {
+  .civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid,
+  [data-wireflow-screen^="U-ACCOUNT"] .wf-account-hub {
+    overscroll-behavior-y: auto;
+    touch-action: pan-y pinch-zoom;
+  }
+}`);
+  });
+
   it("keeps expanded mypage security forms free from an internal divider", () => {
     const securityFormRule = [
       ...wireflowStyles.matchAll(/^\.wf-security-form \{(?<body>[^}]*)\}/gm),

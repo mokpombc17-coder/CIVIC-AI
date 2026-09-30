@@ -8,11 +8,12 @@ const CHILD_SCROLL_SCREENS = new Set([
 ]);
 
 const VISUAL_VIEWPORT_SCREENS = new Set(["U-ACCOUNT-001", "U-ACCOUNT-002", "U-ACCOUNT-004"]);
+const VISUAL_VIEWPORT_SIZING_ENABLED = false;
 
 export function participantScreenScroll(screenId: string): PlatformShellScroll {
   return CHILD_SCROLL_SCREENS.has(screenId) ? "child" : "self";
 }
 
 export function participantScreenUsesVisualViewport(screenId: string): boolean {
-  return VISUAL_VIEWPORT_SCREENS.has(screenId);
+  return VISUAL_VIEWPORT_SIZING_ENABLED && VISUAL_VIEWPORT_SCREENS.has(screenId);
 }
