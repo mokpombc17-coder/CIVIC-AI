@@ -3,14 +3,7 @@
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
-import {
-  useEffect,
-  useRef,
-  useState,
-  useSyncExternalStore,
-  type FormEvent,
-  type ReactNode,
-} from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
 import { storeAnalyticsUserId } from "@/lib/analytics/user-id";
@@ -42,6 +35,8 @@ type SignupDocument = Readonly<{
   path: string;
 }>;
 
+export type PasswordResetStep = "EMAIL" | "CODE" | "PASSWORD";
+
 const initialDraft: SignupDraft = {
   email: "",
   password: "",
@@ -60,8 +55,6 @@ const defaultSignupPreferences = Object.freeze({
   preferred_language: "ko",
   rag_answer_detail: "balanced",
 });
-const passwordResetEmailKey = "civic:password-reset:email";
-const passwordResetCodeKey = "civic:password-reset:code";
 const signupPasswordPattern =
   /^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=])[A-Za-z0-9!@#$%^&*()_+\-=]{8,1024}$/u;
 const signupPasswordPolicyMessage =
@@ -119,24 +112,15 @@ export function AuthFunctionalScreen({
 }>) {
   const entryRecovery = signupRecovery(screen.id, false);
   const recoveryPathname = entryRecovery?.pathname;
-  const [activeId, setActiveId] = useState(screen.id);
+  const entryScreenId = screen.id === "AUTH-008" ? "AUTH-007" : screen.id;
+  const [activeId, setActiveId] = useState(entryScreenId);
   const [verificationKind, setVerificationKind] = useState<"SIGNUP" | "TWO_FACTOR">(() =>
     verificationKindFromSearch(initialSearch),
   );
   const [draft, setDraft] = useState<SignupDraft>(initialDraft);
-  const resetEmail = useSyncExternalStore(
-    subscribePasswordResetSession,
-    readPasswordResetEmail,
-    emptyPasswordResetValue,
-  );
-  const storedResetCode = useSyncExternalStore(
-    subscribePasswordResetSession,
-    readPasswordResetCode,
-    emptyPasswordResetValue,
-  );
-  const [editedResetCode, setEditedResetCode] = useState<string | null>(null);
-  const resetCode =
-    editedResetCode ?? passwordResetCodeFromSearch(initialSearch) ?? storedResetCode;
+  const [passwordResetStep, setPasswordResetStep] = useState<PasswordResetStep>("EMAIL");
+  const [resetEmail, setResetEmail] = useState("");
+  const [resetCode, setResetCode] = useState("");
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"error" | "info">("info");
   const [duplicateEmailState, setDuplicateEmailState] = useState<DuplicateEmailAccountState | null>(
@@ -154,21 +138,27 @@ export function AuthFunctionalScreen({
   }, [recoveryPathname]);
 
   useEffect(() => {
+    if (screen.id !== "AUTH-008") return;
+    history.replaceState(history.state, "", "/password-reset");
+    onActiveScreenChange?.("AUTH-007");
+  }, [onActiveScreenChange, screen.id]);
+
+  useEffect(() => {
     if (signupHistorySteps.has(screen.id)) {
       history.replaceState({ ...history.state, civicSignupStep: screen.id }, "");
     }
     const restoreStep = (event: PopStateEvent) => {
-      const nextId = authStepAfterPopState(event.state, screen.id);
+      const nextId = authStepAfterPopState(event.state, entryScreenId);
       setActiveId(nextId);
       onActiveScreenChange?.(nextId);
     };
     addEventListener("popstate", restoreStep);
     return () => removeEventListener("popstate", restoreStep);
-  }, [onActiveScreenChange, screen.id]);
+  }, [entryScreenId, onActiveScreenChange, screen.id]);
 
   useEffect(() => {
     resetAuthScrollTop(authGridRef.current);
-  }, [activeId]);
+  }, [activeId, passwordResetStep]);
 
   async function completeLogin(response: Response) {
     const returnTo = safeReturnTarget(location.search);
@@ -275,12 +265,42 @@ export function AuthFunctionalScreen({
         changeSignupStep("AUTH-005", "/signup/verify");
       } else if (activeId === "AUTH-007") {
         const data = new FormData(event.currentTarget);
-        const code = normalizePasswordResetCode(data.get("code"));
-        if (!/^\d{6}$/u.test(code)) {
-          throw new AuthUserFacingError("6자리 인증 코드를 입력해 주세요.");
+        if (passwordResetStep === "EMAIL") {
+          const email = resetEmail.trim();
+          if (!isPasswordResetEmail(email)) {
+            throw new AuthUserFacingError("로그인에 사용한 이메일을 입력해 주세요.");
+          }
+          await api("/api/v1/auth/password-reset/request", { email });
+          setResetEmail(email);
+          setResetCode("");
+          setPasswordResetStep("CODE");
+        } else if (passwordResetStep === "CODE") {
+          const code = normalizePasswordResetCode(data.get("code"));
+          if (!/^\d{6}$/u.test(code)) {
+            throw new AuthUserFacingError("6자리 인증 코드를 입력해 주세요.");
+          }
+
+          // TODO(api): 인증번호 검증 API가 준비되면 서버 성공 응답과 일회용 resetToken을
+          // 받은 경우에만 PASSWORD 단계로 이동한다. resetToken은 브라우저 저장소가 아닌
+          // 이 화면의 메모리에만 보관해야 한다.
+          setResetCode(code);
+          setPasswordResetStep("PASSWORD");
+        } else {
+          const newPassword = String(data.get("new_password") ?? "");
+          const newPasswordConfirmation = String(data.get("new_password_confirmation") ?? "");
+          const passwordProblem = signupPasswordProblem(newPassword, newPasswordConfirmation);
+          if (passwordProblem) throw new AuthUserFacingError(passwordProblem);
+
+          // TODO(api): 인증번호 검증 API가 resetToken을 반환하도록 변경되면 원본 인증번호
+          // 대신 resetToken과 새 비밀번호만 전송한다.
+          await api("/api/v1/auth/password-reset/complete", {
+            code: resetCode,
+            new_password: newPassword,
+          });
+          clearAuthSessionData();
+          sendAuthMessage("LOGOUT");
+          location.assign("/login");
         }
-        sessionStorage.setItem(passwordResetCodeKey, code);
-        location.assign("/password-reset/complete");
       } else if (activeId === "AUTH-009") {
         const data = new FormData(event.currentTarget);
         await api("/api/v1/auth/reactivation/request", {
@@ -288,20 +308,6 @@ export function AuthFunctionalScreen({
           password: data.get("password"),
         });
         location.assign("/reactivate/complete");
-      } else if (activeId === "AUTH-008") {
-        const data = new FormData(event.currentTarget);
-        if (data.get("new_password") !== data.get("new_password_confirmation")) {
-          throw new AuthUserFacingError("새 비밀번호 확인이 일치하지 않습니다.");
-        }
-        await api("/api/v1/auth/password-reset/complete", {
-          code: normalizePasswordResetCode(data.get("code")),
-          new_password: data.get("new_password"),
-        });
-        clearAuthSessionData();
-        sendAuthMessage("LOGOUT");
-        sessionStorage.removeItem(passwordResetEmailKey);
-        sessionStorage.removeItem(passwordResetCodeKey);
-        location.assign(authCompletionDestination(activeId) ?? "/login");
       } else if (activeId === "AUTH-010") {
         const data = new FormData(event.currentTarget);
         await api("/api/v1/auth/reactivation/complete", { code: data.get("code") });
@@ -315,7 +321,14 @@ export function AuthFunctionalScreen({
         setLoginDeactivated(true);
       } else {
         setMessageKind("error");
-        setMessage(authErrorMessage(error, authErrorOperation(activeId, verificationKind)));
+        setMessage(
+          authErrorMessage(
+            error,
+            activeId === "AUTH-007"
+              ? passwordResetOperation(passwordResetStep)
+              : authErrorOperation(activeId, verificationKind),
+          ),
+        );
       }
     } finally {
       setBusy(false);
@@ -357,26 +370,8 @@ export function AuthFunctionalScreen({
     }
   }
 
-  async function requestPasswordReset() {
-    const email = draft.email.trim();
-    if (!isPasswordResetEmail(email)) {
-      setMessageKind("error");
-      setMessage("로그인에 사용한 이메일을 입력해 주세요.");
-      return;
-    }
-    setBusy(true);
-    setMessage("");
-    try {
-      await api("/api/v1/auth/password-reset/request", { email });
-      sessionStorage.setItem(passwordResetEmailKey, email);
-      sessionStorage.removeItem(passwordResetCodeKey);
-      location.assign("/password-reset");
-    } catch (error) {
-      setMessageKind("error");
-      setMessage(authErrorMessage(error, "PASSWORD_RESET_REQUEST"));
-    } finally {
-      setBusy(false);
-    }
+  function openPasswordReset() {
+    location.assign("/password-reset");
   }
 
   async function resendPasswordReset() {
@@ -399,13 +394,29 @@ export function AuthFunctionalScreen({
     }
   }
 
+  function changePasswordResetEmail() {
+    setPasswordResetStep("EMAIL");
+    setResetCode("");
+    setMessage("");
+    setMessageKind("info");
+  }
+
   function changeSignupStep(id: string, pathname: string) {
     history.pushState({ ...history.state, civicSignupStep: id }, "", pathname);
     setActiveId(id);
     onActiveScreenChange?.(id);
   }
 
-  const action = mainScreenPrimaryActions[activeId] ?? mainScreenPrimaryActions[screen.id];
+  const isPasswordReset = activeId === "AUTH-007";
+  const action = isPasswordReset
+    ? passwordResetAction(passwordResetStep)
+    : (mainScreenPrimaryActions[activeId] ?? mainScreenPrimaryActions[screen.id]);
+  const cardTitle = isPasswordReset
+    ? passwordResetCardTitle(passwordResetStep)
+    : authCardTitle(activeId);
+  const cardSubtitle = isPasswordReset
+    ? passwordResetCardSubtitle(passwordResetStep, resetEmail)
+    : authCardSubtitle(activeId, draft.email);
   return (
     <ScreenFrame
       {...(activeId === "AUTH-005" && verificationKind === "TWO_FACTOR"
@@ -422,10 +433,10 @@ export function AuthFunctionalScreen({
       >
         {activeId === "AUTH-009" || activeId === "AUTH-010" ? <ReactivationNotes /> : null}
         <AuthFormCard
-          key={activeId}
+          key={isPasswordReset ? `${activeId}-${passwordResetStep}` : activeId}
           onSubmit={submit}
-          subtitle={authCardSubtitle(activeId, activeId === "AUTH-007" ? resetEmail : draft.email)}
-          title={authCardTitle(activeId)}
+          subtitle={cardSubtitle}
+          title={cardTitle}
         >
           {activeId === "AUTH-002" && duplicateEmailState ? (
             <SignupDuplicateEmailNotice accountState={duplicateEmailState} />
@@ -443,8 +454,16 @@ export function AuthFunctionalScreen({
               </p>
             )
           ) : null}
-          {renderFields(activeId, draft, setDraft, resetCode, setEditedResetCode, () =>
-            setDuplicateEmailState(null),
+          {isPasswordReset ? (
+            <PasswordResetFields
+              code={resetCode}
+              email={resetEmail}
+              onCodeChange={setResetCode}
+              onEmailChange={setResetEmail}
+              step={passwordResetStep}
+            />
+          ) : (
+            renderFields(activeId, draft, setDraft, () => setDuplicateEmailState(null))
           )}
           {activeId === "AUTH-004" ? (
             <WireflowButton
@@ -454,6 +473,16 @@ export function AuthFunctionalScreen({
               variant="secondary"
             >
               이전으로
+            </WireflowButton>
+          ) : null}
+          {isPasswordReset && passwordResetStep === "CODE" ? (
+            <WireflowButton
+              disabled={busy}
+              onClick={changePasswordResetEmail}
+              type="button"
+              variant="secondary"
+            >
+              이메일 변경
             </WireflowButton>
           ) : null}
           <WireflowButton
@@ -467,12 +496,21 @@ export function AuthFunctionalScreen({
             <DevQuickLoginActions busy={busy} onLogin={quickLogin} />
           ) : null}
         </AuthFormCard>
+        {isPasswordReset && passwordResetStep === "EMAIL" ? (
+          <p className="civic-password-reset-signup">
+            아직 계정이 없으신가요?{" "}
+            <Link data-wireflow-slot="password-reset-signup" href={"/signup/account" as Route}>
+              회원가입
+            </Link>
+          </p>
+        ) : null}
         <AuthSupport
           activeId={activeId}
           busy={busy}
-          onPasswordReset={requestPasswordReset}
+          onPasswordReset={openPasswordReset}
           onPasswordResetResend={resendPasswordReset}
           onResend={resendVerification}
+          passwordResetStep={passwordResetStep}
         />
       </div>
     </ScreenFrame>
@@ -515,8 +553,6 @@ function renderFields(
   id: string,
   draft: SignupDraft,
   setDraft: React.Dispatch<React.SetStateAction<SignupDraft>>,
-  resetCode: string,
-  setResetCode: (value: string) => void,
   onEmailEdit?: () => void,
 ) {
   if (id === "AUTH-001") {
@@ -683,21 +719,6 @@ function renderFields(
         <Link href={"/signup/verify" as Route}>인증 코드 입력</Link>
       </div>
     );
-  if (id === "AUTH-007")
-    return (
-      <Field
-        autoComplete="one-time-code"
-        enterKeyHint="done"
-        help={<CodeCountdown />}
-        inputMode="numeric"
-        label="6자리 인증 코드"
-        maxLength={6}
-        name="code"
-        placeholder="0 0 0 0 0 0"
-        value={resetCode}
-        onChange={setResetCode}
-      />
-    );
   if (id === "AUTH-009")
     return (
       <>
@@ -718,39 +739,85 @@ function renderFields(
         />
       </>
     );
-  if (id === "AUTH-008")
+  return <p>요청 정보를 확인한 뒤 계속 진행하세요.</p>;
+}
+
+export function PasswordResetFields({
+  code,
+  email,
+  onCodeChange,
+  onEmailChange,
+  step,
+}: Readonly<{
+  code: string;
+  email: string;
+  onCodeChange: (value: string) => void;
+  onEmailChange: (value: string) => void;
+  step: PasswordResetStep;
+}>) {
+  if (step === "EMAIL") {
+    return (
+      <Field
+        autoComplete="email"
+        enterKeyHint="go"
+        help="비밀번호를 재설정할 계정의 이메일을 입력해 주세요."
+        label="이메일"
+        name="email"
+        placeholder="name@example.com"
+        type="email"
+        value={email}
+        onChange={onEmailChange}
+      />
+    );
+  }
+
+  if (step === "CODE") {
     return (
       <>
         <Field
-          autoComplete="one-time-code"
+          autoComplete="email"
           enterKeyHint="next"
-          help="가장 최근에 받은 코드를 입력하세요."
+          label="이메일"
+          name="email"
+          readOnly
+          type="email"
+          value={email}
+        />
+        <Field
+          autoComplete="one-time-code"
+          enterKeyHint="done"
+          help={<CodeCountdown />}
           inputMode="numeric"
-          label="6자리 인증 코드"
+          label="6자리 인증번호"
           maxLength={6}
           name="code"
-          placeholder="0 0 0 0 0 0"
-          value={resetCode}
-          onChange={setResetCode}
-        />
-        <Field
-          autoComplete="new-password"
-          enterKeyHint="next"
-          help="8자 이상 · 영문·숫자·특수문자 포함"
-          label="새 비밀번호"
-          name="new_password"
-          type="password"
-        />
-        <Field
-          autoComplete="new-password"
-          enterKeyHint="done"
-          label="새 비밀번호 확인"
-          name="new_password_confirmation"
-          type="password"
+          placeholder="000000"
+          value={code}
+          onChange={onCodeChange}
         />
       </>
     );
-  return <p>요청 정보를 확인한 뒤 계속 진행하세요.</p>;
+  }
+
+  return (
+    <>
+      <Field
+        autoComplete="new-password"
+        enterKeyHint="next"
+        help="8자 이상 · 영문·숫자·특수문자 포함"
+        label="새 비밀번호"
+        name="new_password"
+        type="password"
+      />
+      <Field
+        autoComplete="new-password"
+        enterKeyHint="done"
+        label="새 비밀번호 확인"
+        name="new_password_confirmation"
+        type="password"
+      />
+    </>
+  );
 }
 
 function AuthSupport({
@@ -759,12 +826,14 @@ function AuthSupport({
   onPasswordReset,
   onPasswordResetResend,
   onResend,
+  passwordResetStep,
 }: Readonly<{
   activeId: string;
   busy: boolean;
   onPasswordReset: () => void;
   onPasswordResetResend: () => void;
   onResend: () => void;
+  passwordResetStep: PasswordResetStep;
 }>) {
   if (activeId === "AUTH-005" || activeId === "AUTH-006") {
     return (
@@ -777,7 +846,7 @@ function AuthSupport({
       />
     );
   }
-  if (activeId === "AUTH-007") {
+  if (activeId === "AUTH-007" && passwordResetStep === "CODE") {
     return (
       <AuthInfo
         actionLabel="코드 재발송"
@@ -785,17 +854,6 @@ function AuthSupport({
         disabled={busy}
         onAction={onPasswordResetResend}
         title="코드가 오지 않았나요?"
-      />
-    );
-  }
-  if (activeId === "AUTH-008") {
-    return (
-      <AuthInfo
-        actionLabel="이메일 재발송"
-        body="인증 코드가 만료되었거나 일치하지 않으면 이메일로 다시 받을 수 있습니다."
-        disabled={busy}
-        onAction={onPasswordResetResend}
-        title="새 코드가 필요한가요?"
       />
     );
   }
@@ -929,16 +987,37 @@ function authCardTitle(id: string): string {
   if (id === "AUTH-004") return "약관 동의·필수정보 확인";
   if (id === "AUTH-005") return "인증 코드 입력";
   if (id === "AUTH-006") return "인증 대기";
-  if (id === "AUTH-007") return "인증 코드 입력";
-  if (id === "AUTH-008") return "인증코드 입력";
+  if (id === "AUTH-007") return "이메일 입력";
+  if (id === "AUTH-008") return "새 비밀번호 설정";
   if (id === "AUTH-009" || id === "AUTH-010") return "재활성화 본인 확인";
   return "요청 정보";
 }
 
 function authCardSubtitle(id: string, email: string): string | undefined {
-  if (id !== "AUTH-005" && id !== "AUTH-007") return undefined;
+  if (id !== "AUTH-005") return undefined;
   const masked = maskAuthEmail(email);
   return masked ? `${masked}으로 코드를 전송했습니다.` : "등록 이메일로 코드를 전송했습니다.";
+}
+
+export function passwordResetAction(step: PasswordResetStep): string {
+  if (step === "EMAIL") return "인증번호 받기";
+  if (step === "CODE") return "인증번호 확인";
+  return "비밀번호 변경";
+}
+
+export function passwordResetCardTitle(step: PasswordResetStep): string {
+  if (step === "EMAIL") return "이메일 입력";
+  if (step === "CODE") return "인증번호 입력";
+  return "새 비밀번호 설정";
+}
+
+function passwordResetCardSubtitle(step: PasswordResetStep, email: string): string | undefined {
+  if (step === "EMAIL") return "비밀번호를 재설정할 계정을 확인합니다.";
+  const masked = maskAuthEmail(email);
+  if (step === "CODE") {
+    return masked ? `${masked}으로 인증번호를 전송했습니다.` : undefined;
+  }
+  return masked ? `${masked} 이메일 인증을 완료했습니다.` : "이메일 인증을 완료했습니다.";
 }
 
 export function maskAuthEmail(email: string): string | null {
@@ -959,6 +1038,7 @@ function Field({
   placeholder,
   help,
   onChange,
+  readOnly = false,
 }: {
   autoComplete?: string;
   enterKeyHint?: "done" | "go" | "next";
@@ -971,6 +1051,7 @@ function Field({
   placeholder?: string;
   help?: ReactNode;
   onChange?: (value: string) => void;
+  readOnly?: boolean;
 }) {
   const helpId = help ? `civic-auth-${name}-help` : undefined;
   return (
@@ -986,9 +1067,10 @@ function Field({
         name={name}
         onChange={onChange ? (event) => onChange(event.target.value) : undefined}
         placeholder={placeholder}
+        readOnly={readOnly}
         required
         type={type}
-        value={onChange ? value : undefined}
+        value={onChange || readOnly ? value : undefined}
       />
       {help ? (
         <small className="civic-field-help" id={helpId}>
@@ -1020,22 +1102,6 @@ export function passwordResetCodeFromSearch(search: string): string | null {
 
 function normalizePasswordResetCode(value: FormDataEntryValue | string | null): string {
   return typeof value === "string" ? value.replace(/\s/gu, "") : "";
-}
-
-function subscribePasswordResetSession(): () => void {
-  return () => undefined;
-}
-
-function readPasswordResetEmail(): string {
-  return sessionStorage.getItem(passwordResetEmailKey) ?? "";
-}
-
-function readPasswordResetCode(): string {
-  return sessionStorage.getItem(passwordResetCodeKey) ?? "";
-}
-
-function emptyPasswordResetValue(): string {
-  return "";
 }
 
 function Check({
@@ -1298,6 +1364,12 @@ function authErrorOperation(
   if (screenId === "AUTH-009") return "REACTIVATION_REQUEST";
   if (screenId === "AUTH-010") return "REACTIVATION_COMPLETE";
   return "SIGNUP_START";
+}
+
+function passwordResetOperation(step: PasswordResetStep): AuthErrorOperation {
+  if (step === "EMAIL") return "PASSWORD_RESET_REQUEST";
+  if (step === "CODE") return "PASSWORD_RESET_CODE";
+  return "PASSWORD_RESET_COMPLETE";
 }
 
 function authOperationFallback(operation: AuthErrorOperation): string {
