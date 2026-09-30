@@ -215,13 +215,102 @@
   --wf-blue-soft: #edf2ff;
 }
 
+.civic-opinion-hero {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 402px;
+  background: #fff;
+  color: #0f172a;
+  padding: 12px 22px 0;
+}
+
 .civic-opinion-hero-question {
+  margin: 0;
+  white-space: pre-line;
+}
+
+.civic-opinion-hero-question--default {
+  font-size: 24px;
   font-weight: 700;
+  letter-spacing: -0.035em;
+  line-height: 1.45;
+}
+
+.civic-opinion-hero-chart {
+  position: relative;
+  width: 100%;
+  margin-top: 12px;
+}
+
+.civic-opinion-hero-chart::before {
+  display: block;
+  padding-top: 55.5556%;
+  content: "";
+}
+
+.civic-opinion-hero-chart-svg,
+.civic-opinion-hero-labels {
+  position: absolute;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+}
+
+.civic-opinion-hero-chart-svg {
+  display: block;
+  overflow: visible;
+}
+
+.civic-opinion-hero-labels {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  pointer-events: none;
+}
+
+.civic-hero-label {
+  position: absolute;
+  border-radius: 4px;
+  background: #e5edff;
+  color: #163b80;
+  padding: 3px 7px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  line-height: 16px;
+  opacity: 0;
+  white-space: nowrap;
+}
+
+.civic-hero-replay {
+  cursor: pointer;
+}
+
+@media (max-width: 413px) {
+  .civic-opinion-hero-question--default {
+    font-size: 5.8vw;
+  }
+}
+
+@media (max-width: 359px) {
+  .civic-opinion-hero {
+    padding-right: 18px;
+    padding-left: 18px;
+  }
+}
+
+@media (max-width: 344px) {
+  .civic-opinion-hero-question--default {
+    font-size: 20px;
+  }
 }
 
 @keyframes civic-hero-donut-reveal {
   from {
-    stroke-dashoffset: 1;
+    stroke-dashoffset: var(--civic-hero-dash-length);
   }
   to {
     stroke-dashoffset: 0;
@@ -240,11 +329,11 @@
 @keyframes civic-hero-connector-reveal {
   0% {
     opacity: 0;
-    stroke-dashoffset: 1;
+    stroke-dashoffset: var(--civic-hero-dash-length);
   }
   1% {
     opacity: 1;
-    stroke-dashoffset: 1;
+    stroke-dashoffset: var(--civic-hero-dash-length);
   }
   100% {
     opacity: 1;
@@ -266,6 +355,24 @@
 
 .civic-opinion-hero--animated .civic-hero-label {
   animation: civic-hero-content-reveal 200ms 830ms ease-out both;
+}
+
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-reveal,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-line,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-ratios,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-label {
+  animation: none;
+}
+
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-reveal,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-line {
+  stroke-dashoffset: 0;
+}
+
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-line,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-ratios,
+.civic-opinion-hero[data-home-hero-animation-fallback="true"] .civic-hero-label {
+  opacity: 1;
 }
 
 @media (prefers-reduced-motion: reduce) {

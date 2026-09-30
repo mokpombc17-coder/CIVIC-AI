@@ -1377,6 +1377,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain('data-home-hero-replay=""');
     expect(html).toMatch(/<circle[^>]*data-home-hero-replay=""[^>]*>/);
     expect(html).not.toMatch(/<svg[^>]*data-home-hero-replay/);
+    expect(html).toContain('class="civic-opinion-hero-chart"');
+    expect(html).toContain('class="civic-opinion-hero-chart-svg"');
+    expect(html).toContain('class="civic-opinion-hero-labels"');
+    expect(html).toContain("--civic-hero-dash-length");
+    expect(html).toMatch(/stroke-dasharray="[\d.]+ [\d.]+"/u);
+    expect(html).not.toContain('pathLength="1"');
+    expect(html).not.toContain("aspect-[360/200]");
+    expect(html).not.toContain("list-none");
     expect(html).not.toContain("차트 애니메이션 다시 재생");
     expect(html).not.toContain("civic-opinion-hero--animated");
     expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');

@@ -47,6 +47,13 @@ const bootstrapSource = `(() => {
     completeAnimation();
   }
 
+  const forceFallback = () => {
+    if (completed) return;
+    hero.classList.remove(${JSON.stringify(homeHeroAnimationClassName)});
+    hero.dataset.homeHeroAnimationFallback = "true";
+    completeAnimation();
+  };
+
   const startAnimation = () => {
     if (hero.dataset.homeHeroAnimationState !== "pending") return;
     hero.dataset.homeHeroAnimationState = "running";
@@ -59,7 +66,7 @@ const bootstrapSource = `(() => {
       return;
     }
 
-    completionFallbackHandle = window.setTimeout(completeAnimation, ${homeHeroAnimationFallbackMs});
+    completionFallbackHandle = window.setTimeout(forceFallback, ${homeHeroAnimationFallbackMs});
   };
 
   hero.dataset.homeHeroAnimationState = "pending";

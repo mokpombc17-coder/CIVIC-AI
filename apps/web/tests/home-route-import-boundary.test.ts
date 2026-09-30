@@ -78,12 +78,16 @@ describe("home route import boundary", () => {
     expect(animationBootstrap).toContain('initialState === "pending"');
     expect(animationBootstrap).toContain('addEventListener("animationend"');
     expect(animationBootstrap).toContain("if (!hero.isConnected) return;");
+    expect(animationBootstrap).toContain('hero.dataset.homeHeroAnimationFallback = "true"');
+    expect(animationBootstrap).toContain("window.setTimeout(forceFallback");
     expect(animationBootstrap).toContain("window.requestAnimationFrame");
     expect(animationController).not.toContain("participantSwipeReadyEvent");
     expect(animationController).not.toContain("participantSwipeReady");
     expect(animationController).toContain("window.requestAnimationFrame");
     expect(animationController).not.toContain("requestIdleCallback");
     expect(animationController).toContain('addEventListener("animationend"');
+    expect(animationController).toContain('hero.dataset.homeHeroAnimationFallback = "true"');
+    expect(animationController).toContain("window.setTimeout(forceFallback");
     expect(animationController).toContain("homeHeroAnimationStartMark");
     expect(animationController).toContain('initialState === "pending"');
     expect(homeScreen).not.toMatch(
@@ -92,6 +96,8 @@ describe("home route import boundary", () => {
     expect(homeScreen.match(/prefetch=\{false\}/gu)).toHaveLength(3);
     expect(opinionHero).not.toMatch(/["']use client["']/u);
     expect(opinionHero).toContain("useId");
+    expect(opinionHero).toContain("--civic-hero-dash-length");
+    expect(opinionHero).not.toContain("pathLength={1}");
     expect(opinionHero).not.toMatch(/use(?:Effect|State)|window\.|document\./u);
     expect(opinionHero).toContain("suppressHydrationWarning");
   });
@@ -157,6 +163,10 @@ describe("home route import boundary", () => {
     expect(homeStyles).toContain('@import "../wireflow-core.css"');
     expect(homeStyles).not.toContain("wireflow-base.css");
     expect(homeStyles).toContain(".civic-opinion-hero-question");
+    expect(homeStyles).toContain(".civic-opinion-hero-chart");
+    expect(homeStyles).toContain(".civic-opinion-hero-labels");
+    expect(homeStyles).toContain('data-home-hero-animation-fallback="true"');
+    expect(homeStyles).toContain("var(--civic-hero-dash-length)");
     expect(homeStyles).toContain(".civic-header-user-trigger");
     expect(homeStyles).toContain(".civic-header-user-menu-item");
     expect(homeStyles).toContain(".wf-participant-home");
