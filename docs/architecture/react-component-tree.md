@@ -237,7 +237,7 @@ navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용�
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
 `PlatformVisualViewportStage` opt-in 기능은 보존하지만 현재 Public Auth와 계정 관리 화면의 활성화 정책은
 모두 `false`다. 따라서 모든 참여자 route가 기존 viewport sizing을 유지하며 `PlatformPageShell`도
-Server-compatible 상태를 유지한다. standalone의 인증 grid와 계정 hub는 내부 스크롤 경계에서 세로
+Server-compatible 상태를 유지한다. 인증 grid와 계정 hub는 내부 스크롤 경계에서 세로
 gesture를 가두지 않고 viewport 쪽으로 전달한다. 이 child scroll 소유 구조를 실기기에서 검증한 뒤
 화면별 visual viewport 활성화를 다시 결정한다.
 정확한 landing route에서는 지연 로드된 swipe controller가 중앙 content surface에만 pointer gesture를 연결하며,

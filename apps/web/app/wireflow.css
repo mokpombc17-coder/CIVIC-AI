@@ -5651,7 +5651,6 @@
   align-content: start;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   padding-bottom: env(safe-area-inset-bottom, 0px);
   -webkit-overflow-scrolling: touch;
 }
@@ -6234,18 +6233,9 @@
   flex: 1 1 auto;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
   padding-bottom: calc(16px + env(safe-area-inset-bottom, 0px));
   scroll-padding-block: 16px calc(16px + env(safe-area-inset-bottom, 0px));
   -webkit-overflow-scrolling: touch;
-}
-
-@media (display-mode: standalone) {
-  .civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid,
-  [data-wireflow-screen^="U-ACCOUNT"] .wf-account-hub {
-    overscroll-behavior-y: auto;
-    touch-action: pan-y pinch-zoom;
-  }
 }
 
 /* 관리자 문서 작업 공간은 페이지 스크롤 하나를 사용하고, 조밀한 운영 화면으로 정렬한다. */

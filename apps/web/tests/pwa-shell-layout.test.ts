@@ -90,16 +90,16 @@ describe("standalone PWA shell sizing", () => {
     expect(accountHubRule).toContain("min-height: 0");
     expect(accountHubRule).toContain("flex: 1 1 auto");
     expect(accountHubRule).toContain("overflow-y: auto");
+    expect(accountHubRule).not.toContain("overscroll-behavior");
   });
 
-  it("lets standalone auth and account forms chain vertical gestures at scroll boundaries", () => {
-    expect(wireflowStyles).toContain(`@media (display-mode: standalone) {
-  .civic-public-auth-content [data-wireflow-screen^="AUTH-"] .civic-auth-grid,
-  [data-wireflow-screen^="U-ACCOUNT"] .wf-account-hub {
-    overscroll-behavior-y: auto;
-    touch-action: pan-y pinch-zoom;
-  }
-}`);
+  it("does not trap scroll chaining inside the public auth form", () => {
+    const authGridRule = wireflowStyles.match(
+      /^\.civic-public-auth-content \[data-wireflow-screen\^="AUTH-"\] \.civic-auth-grid \{(?<body>[^}]*)\}/m,
+    )?.groups?.body;
+    expect(authGridRule).toBeDefined();
+    expect(authGridRule).toContain("overflow-y: auto");
+    expect(authGridRule).not.toContain("overscroll-behavior");
   });
 
   it("keeps expanded mypage security forms free from an internal divider", () => {
