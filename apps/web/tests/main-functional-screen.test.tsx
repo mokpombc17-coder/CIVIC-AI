@@ -1230,6 +1230,9 @@ describe("25 functional Main/Auth screens", () => {
         expect(html).toContain('name="email"');
         expect(html).not.toContain('name="code"');
         expect(html).not.toContain('class="wf-auth-info"');
+        expect(html).toContain("아직 계정이 없으신가요?");
+        expect(html).toContain('data-wireflow-slot="password-reset-signup"');
+        expect(html).toContain('href="/signup/account"');
       }
     }
   });
