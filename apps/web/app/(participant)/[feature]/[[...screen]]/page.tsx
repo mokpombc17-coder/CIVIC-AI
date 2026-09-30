@@ -14,6 +14,7 @@ import { ragReturnTarget } from "@/lib/auth/rag-return-target";
 import { screenFrameHeading } from "@/components/screens/screen-frame";
 import { devQuickLoginAvailable, readDevQuickLoginConfig } from "@/lib/server/dev-quick-login";
 import { PublicAuthScreen } from "@/components/screens/public-auth-screen";
+import { participantScreenScroll } from "@/lib/screens/participant-screen-scroll";
 
 type ParticipantPlaceholderPageProps = Readonly<{
   params: Promise<{ feature: string; screen?: string[] }>;
@@ -53,6 +54,7 @@ export default async function ParticipantPlaceholderPage({
         <EligibleParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
+          scroll={participantScreenScroll(definition.id)}
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
@@ -65,6 +67,7 @@ export default async function ParticipantPlaceholderPage({
         <EligibleParticipantShell
           {...(heading.backHref ? { backHref: heading.backHref } : {})}
           activeRoute={pathname}
+          scroll={participantScreenScroll(definition.id)}
           title={heading.title}
         >
           <MainFunctionalScreen screen={definition} />
@@ -90,8 +93,9 @@ export default async function ParticipantPlaceholderPage({
         activeRoute={pathname}
         eligibilityLoadingFallback={loadingFallback}
         {...(definition.id === "U-RAG-001"
-          ? { headerActions: <RagNewQuestionHeaderAction />, scroll: "child" as const }
+          ? { headerActions: <RagNewQuestionHeaderAction /> }
           : {})}
+        scroll={participantScreenScroll(definition.id)}
         title={heading.title}
       >
         <RagSessionBoundary

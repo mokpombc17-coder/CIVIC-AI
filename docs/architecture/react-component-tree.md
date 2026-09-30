@@ -117,7 +117,7 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
 ParticipantLayout [Server Route Layout, wireflow.css 소유] → ParticipantCatchAllPage [Server Route]
 ├── PUBLIC Main/Auth
 │   └── PublicAuthScreen [Client, 활성 인증 단계·header 동기화, child scroll 선택]
-│       └── PlatformPageShell [bottom navigation 없음, 키보드에 맞춰 줄어드는 고정 viewport]
+│       └── PlatformPageShell [bottom navigation 없음, child scroll 고정 viewport]
 │           └── AuthFunctionalScreen [가입 단계 history state 관리, 인증 grid가 내부 스크롤·bottom safe area 소유]
 ├── PARTICIPANT or AUTHENTICATED Main/Auth
 │   ├── requireParticipantAccess
@@ -229,8 +229,9 @@ Chat 신청 목록의 `상세 검토`는 `RequestDetailDrawer`를 열어 신청 
 
 참여자 `ParticipantShell`은 새 시각 레이아웃이 아니라 기존 `PlatformPageShell`의 얇은 route
 adapter다. 기존 header, safe area, overlay 계층, 표준 `/home`, `/rag`, `/chat`, `/vote`, `/mypage`
-navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용하고, `U-RAG-001`은 `child` scroll로
-전환해 header와 composer를 고정한 채 `.civic-rag-messages`만 스크롤한다. 투표 화면은 `/vote`를 유일한 표준 주소로
+navigation을 그대로 사용한다. 일반 화면은 `self` scroll을 사용한다. `U-RAG-001`과 계정 관리 화면은
+`child` scroll로 전환하며, RAG는 header와 composer를 고정한 채 `.civic-rag-messages`가, 계정 관리는
+`.wf-account-hub`가 각각 내부 스크롤을 소유한다. 투표 화면은 `/vote`를 유일한 표준 주소로
 사용하며, 이관 전 계정 UI의 `/account` 주소만 같은 화면과 active menu에 매핑한다. 참여자 섹션 루트는 header 자리를 유지하는
 비활성 뒤로가기 control을 표시하고, 하위 화면에서는 각 섹션 루트로 연결되는 활성 control로 바꾼다.
 정확한 landing route에서는 지연 로드된 swipe controller가 중앙 content surface에만 pointer gesture를 연결하며,
