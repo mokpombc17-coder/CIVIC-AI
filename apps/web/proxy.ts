@@ -1,6 +1,20 @@
 import { Buffer } from "node:buffer";
 import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
+import { classifyBrowserSupport } from "./lib/browser-support";
+
+const UNSUPPORTED_BROWSER_PATH = "/unsupported-browser.html";
+const BROWSER_SUPPORT_BYPASS_PATHS = new Set([
+  UNSUPPORTED_BROWSER_PATH,
+  "/unsupported-browser.css",
+  "/sw.js",
+  "/manifest.webmanifest",
+  "/favicon.ico",
+  "/robots.txt",
+  "/sitemap.xml",
+]);
+const STATIC_ASSET_PATH_PATTERN =
+  /\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$/iu;
 
 export function buildContentSecurityPolicy(
   nonce: string,
@@ -30,7 +44,50 @@ export function buildContentSecurityPolicy(
   return directives.join("; ");
 }
 
+export function isBrowserSupportBypassPath(pathname: string): boolean {
+  return (
+    pathname === "/api" ||
+    pathname.startsWith("/api/") ||
+    pathname === "/_next" ||
+    pathname.startsWith("/_next/") ||
+    BROWSER_SUPPORT_BYPASS_PATHS.has(pathname) ||
+    STATIC_ASSET_PATH_PATTERN.test(pathname)
+  );
+}
+
+export function isDocumentNavigation(request: NextRequest): boolean {
+  if (request.method !== "GET") {
+    return false;
+  }
+
+  const destination = request.headers.get("sec-fetch-dest");
+  if (destination && destination !== "document") {
+    return false;
+  }
+
+  return request.headers.get("accept")?.includes("text/html") ?? false;
+}
+
+function createUnsupportedBrowserResponse(request: NextRequest): NextResponse {
+  const url = request.nextUrl.clone();
+  url.pathname = UNSUPPORTED_BROWSER_PATH;
+  url.search = "";
+
+  const response = NextResponse.redirect(url, 307);
+  response.headers.set("cache-control", "private, no-store");
+  response.headers.set("vary", "User-Agent");
+  return response;
+}
+
 export function proxy(request: NextRequest) {
+  if (
+    !isBrowserSupportBypassPath(request.nextUrl.pathname) &&
+    isDocumentNavigation(request) &&
+    classifyBrowserSupport(request.headers.get("user-agent") ?? "") === "unsupported"
+  ) {
+    return createUnsupportedBrowserResponse(request);
+  }
+
   const nonce = Buffer.from(randomUUID()).toString("base64");
   const contentSecurityPolicy = buildContentSecurityPolicy(nonce);
   const requestHeaders = new Headers(request.headers);
@@ -45,7 +102,8 @@ export function proxy(request: NextRequest) {
 export const config = {
   matcher: [
     {
-      source: "/((?!api|_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt).*)",
+      source:
+        "/((?!api|_next|favicon\\.ico|sitemap\\.xml|robots\\.txt|sw\\.js|manifest\\.webmanifest|unsupported-browser\\.(?:html|css)|.*\\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },
