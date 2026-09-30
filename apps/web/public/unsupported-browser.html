@@ -12,34 +12,50 @@
     <link rel="stylesheet" href="/unsupported-browser.css" />
   </head>
   <body>
-    <main class="browser-support-page">
-      <section class="browser-support-card" aria-labelledby="browser-support-title">
-        <div class="brand" aria-label="CIVIC.AI 전남광주">
-          <span class="brand-name">CIVIC.AI</span>
-          <span class="brand-region">전남광주</span>
+    <div class="platform-stage">
+      <div class="platform-shell">
+        <div class="platform-surface">
+          <header class="browser-support-header">
+            <div class="browser-support-header-row">
+              <span aria-label="CIVIC.AI 전남광주" class="civic-home-brand">
+                <span class="civic-brand-title">CIVIC.AI</span>
+                <span class="civic-region-badge">전남광주</span>
+              </span>
+            </div>
+          </header>
+
+          <main class="browser-support-content">
+            <div class="browser-support-page">
+              <section class="browser-support-card" aria-labelledby="browser-support-title">
+                <header class="browser-support-card-heading">
+                  <h1 id="browser-support-title">
+                    기기 소프트웨어 또는 브라우저를 업데이트해 주세요
+                  </h1>
+                </header>
+                <p class="description">
+                  현재 환경에서는 일부 화면이나 기능이 정상적으로 표시되거나 동작하지 않을 수
+                  있습니다. 원활한 이용을 위해 최신 버전으로 업데이트해 주세요.
+                </p>
+
+                <div class="update-guide">
+                  <p>
+                    <strong>iPhone·iPad</strong> iOS 또는 iPadOS를 최신 버전으로 업데이트해 주세요.
+                  </p>
+                  <p>
+                    <strong>그 외 기기</strong> Safari, Chrome, Edge 또는 Firefox를 최신 버전으로
+                    업데이트해 주세요.
+                  </p>
+                </div>
+
+                <p class="reentry-description">업데이트 후 CIVIC.AI에 다시 접속해 주세요.</p>
+                <p class="support-baseline">
+                  지원 기준: iOS·iPadOS 및 Safari 16.4 이상 · Chrome·Edge·Firefox 111 이상
+                </p>
+              </section>
+            </div>
+          </main>
         </div>
-
-        <div class="notice-mark" aria-hidden="true">!</div>
-
-        <h1 id="browser-support-title">운영체제 또는 브라우저를 업데이트해 주세요</h1>
-        <p class="description">
-          현재 환경에서는 CIVIC.AI가 정상적으로 동작하는 것을 보장하기 어렵습니다. 안전하고 원활한
-          이용을 위해 최신 버전으로 업데이트해 주세요.
-        </p>
-
-        <div class="update-guide">
-          <p><strong>iPhone·iPad</strong> iOS 또는 iPadOS를 최신 버전으로 업데이트해 주세요.</p>
-          <p>
-            <strong>그 외 기기</strong> Safari, Chrome, Edge 또는 Firefox를 최신 버전으로 업데이트해
-            주세요.
-          </p>
-        </div>
-
-        <a class="retry-link" href="/home">업데이트 후 다시 확인</a>
-        <p class="support-baseline">
-          지원 기준: iOS·iPadOS 및 Safari 16.4 이상, Chrome·Edge·Firefox 111 이상
-        </p>
-      </section>
-    </main>
+      </div>
+    </div>
   </body>
 </html>
