@@ -10,15 +10,15 @@ describe("home opinion topics", () => {
   it("keeps the configured topic order and ratios", () => {
     expect(HOME_OPINION_TOPICS.map(({ id }) => id)).toEqual([
       "transfer-fare",
-      "public-parking",
       "heavy-rain-response",
+      "public-parking",
     ]);
-    expect(HOME_OPINION_TOPICS[1]?.items.map(({ ratio }) => ratio)).toEqual([39, 27, 34]);
-    expect(HOME_OPINION_TOPICS[2]?.items.map(({ ratio }) => ratio)).toEqual([56, 25, 19]);
+    expect(HOME_OPINION_TOPICS[1]?.items.map(({ ratio }) => ratio)).toEqual([56, 25, 19]);
+    expect(HOME_OPINION_TOPICS[2]?.items.map(({ ratio }) => ratio)).toEqual([39, 27, 34]);
   });
 
   it("places first through third rank from right to left with dark through light colors", () => {
-    const parkingItems = HOME_OPINION_TOPICS[1]!.items;
+    const parkingItems = HOME_OPINION_TOPICS[2]!.items;
     const displayItems = orderOpinionItemsForDisplay(parkingItems);
 
     expect(displayItems.map(({ label }) => label)).toEqual([
@@ -35,7 +35,7 @@ describe("home opinion topics", () => {
   });
 
   it("applies the same rank positions to the heavy rain response topic", () => {
-    const displayItems = orderOpinionItemsForDisplay(HOME_OPINION_TOPICS[2]!.items);
+    const displayItems = orderOpinionItemsForDisplay(HOME_OPINION_TOPICS[1]!.items);
 
     expect(displayItems.map(({ label }) => label)).toEqual([
       "하천·저지대 정비",
