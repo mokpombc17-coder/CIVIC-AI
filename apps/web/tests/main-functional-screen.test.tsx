@@ -67,6 +67,7 @@ import {
   passwordResetCardTitle,
   passwordResetCodeFromSearch,
   PasswordResetFields,
+  passwordResetNeedsNewCode,
   safeReturnTarget,
   readSignupAcceptanceControls,
   SignupDuplicateEmailNotice,
@@ -987,22 +988,48 @@ describe("25 functional Main/Auth screens", () => {
     ).toBe("올바른 이메일 주소를 입력해 주세요.");
     expect(
       authErrorMessage(
-        new ApiRequestError(410, { code: "PASSWORD_RESET_EXPIRED" }, "Reset expired"),
-        "PASSWORD_RESET_COMPLETE",
-      ),
-    ).toBe("재설정 요청이 만료되었습니다. 비밀번호 찾기부터 다시 진행해 주세요.");
-    expect(
-      authErrorMessage(
-        new ApiRequestError(400, { code: "INVALID_RESET_CODE" }, "Invalid code"),
-        "PASSWORD_RESET_COMPLETE",
+        new ApiRequestError(401, {}, "Authentication code is invalid"),
+        "PASSWORD_RESET_CODE",
       ),
     ).toBe("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
     expect(
+      authErrorMessage(new ApiRequestError(429, {}, "Too many requests"), "PASSWORD_RESET_CODE"),
+    ).toBe("인증 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.");
+    expect(
       authErrorMessage(
-        new ApiRequestError(422, { code: "PASSWORD_POLICY_VIOLATION" }, "Weak password"),
+        new ApiRequestError(401, { code: "PASSWORD_POLICY" }, "Weak password"),
         "PASSWORD_RESET_COMPLETE",
       ),
     ).toBe("비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_REUSED" }, "Password reused"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("기존 비밀번호와 다른 비밀번호를 사용해 주세요. 새 인증번호를 받아 다시 진행해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, {}, "Authentication code is invalid"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("인증 유효 시간이 지났습니다. 새 인증번호를 받아 다시 진행해 주세요.");
+  });
+
+  it("비밀번호 재설정 완료 실패 중 인증 상태가 소진된 경우만 인증번호 단계로 되돌린다", () => {
+    expect(passwordResetNeedsNewCode(new ApiRequestError(401, {}, "Code invalid"))).toBe(true);
+    expect(
+      passwordResetNeedsNewCode(
+        new ApiRequestError(401, { code: "PASSWORD_REUSED" }, "Password reused"),
+      ),
+    ).toBe(true);
+    expect(
+      passwordResetNeedsNewCode(
+        new ApiRequestError(401, { code: "PASSWORD_POLICY" }, "Weak password"),
+      ),
+    ).toBe(false);
+    expect(passwordResetNeedsNewCode(new ApiRequestError(429, {}, "Too many"))).toBe(false);
+    expect(passwordResetNeedsNewCode(new ApiRequestError(503, {}, "Unavailable"))).toBe(false);
+    expect(passwordResetNeedsNewCode(new Error("network"))).toBe(false);
   });
 
   it("이메일 중복 안내는 활성 계정을 로그인으로, 비활성 계정을 재활성화로 보낸다", () => {

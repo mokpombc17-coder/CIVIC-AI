@@ -1,5 +1,5 @@
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from "node:http";
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 import { LEGAL_DOCUMENTS } from "../../apps/web/lib/legal/legal-documents";
 
 const MOCK_API_HOST = "127.0.0.1";
@@ -12,6 +12,7 @@ let server: Server;
 let lastReactivationRequest: Record<string, unknown> | null = null;
 let lastPasswordResetRequest: Record<string, unknown> | null = null;
 let lastPasswordResetCompletion: Record<string, unknown> | null = null;
+let passwordResetVerified = false;
 let lastSignupCompletion: Record<string, unknown> | null = null;
 let signupFlowRequestCount = 0;
 
@@ -122,11 +123,35 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/auth/password-reset/request") {
       lastPasswordResetRequest = body;
+      passwordResetVerified = false;
       response.writeHead(202, { "set-cookie": authFlowCookie("reset-flow") }).end();
+      return;
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/verify") {
+      if (body.code !== "111222") {
+        return json(response, { status: 401, detail: "Authentication code is invalid" }, 401);
+      }
+      passwordResetVerified = true;
+      response.writeHead(204, { "set-cookie": authFlowCookie("reset-flow") }).end();
       return;
     }
     if (url.pathname === "/api/v1/auth/password-reset/complete") {
       lastPasswordResetCompletion = body;
+      if (!passwordResetVerified) {
+        return json(response, { status: 401, detail: "Authentication code is invalid" }, 401);
+      }
+      passwordResetVerified = false;
+      if (body.new_password === "OldCivic!234") {
+        return json(
+          response,
+          {
+            status: 401,
+            code: "PASSWORD_REUSED",
+            detail: "New password must differ from the current password",
+          },
+          401,
+        );
+      }
       response.writeHead(204).end();
       return;
     }
@@ -318,31 +343,61 @@ test("후속 가입 단계를 새로 열어 흐름 메타데이터가 없으면 
   await expect(page.getByRole("heading", { name: "필수 입력" })).toBeVisible();
 });
 
-test("비밀번호 재설정은 새 비밀번호 확인까지 일치해야 완료한다", async ({ page }) => {
+async function startPasswordReset(page: Page): Promise<void> {
+  await page.goto("/login");
+  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
+  await expect(page).toHaveURL(/\/password-reset$/u);
+  await expect(page.getByRole("heading", { name: "이메일 입력" })).toBeVisible();
+  await page.getByLabel("이메일").fill("citizen@example.com");
+  await page.getByRole("button", { name: "인증번호 받기" }).click();
+  await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
+  expect(lastPasswordResetRequest).toEqual({ email: "citizen@example.com" });
+}
+
+test("비밀번호 재설정은 서버가 확인한 인증번호로만 새 비밀번호 단계에 들어간다", async ({
+  page,
+}) => {
   lastPasswordResetRequest = null;
   lastPasswordResetCompletion = null;
-  await page.goto("/login");
-  await page.getByLabel("이메일").fill("citizen@example.com");
-  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
+  await startPasswordReset(page);
 
-  await expect(page).toHaveURL(/\/password-reset$/u);
-  await expect(page.getByRole("heading", { name: "비밀번호 재설정" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "인증 코드 입력" })).toBeVisible();
-  expect(lastPasswordResetRequest).toEqual({ email: "citizen@example.com" });
-  await page.getByRole("textbox", { name: "인증 코드" }).fill("111222");
-  await page.getByRole("button", { name: "인증하기" }).click();
+  await page.getByLabel("6자리 인증번호").fill("000000");
+  await page.getByRole("button", { name: "인증번호 확인" }).click();
+  await expect(page.getByText("인증번호가 올바르지 않습니다. 다시 확인해 주세요.")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
+  await expect(page.getByLabel("새 비밀번호", { exact: true })).toHaveCount(0);
 
-  await expect(page).toHaveURL(/\/password-reset\/complete$/u);
-  await expect(page.getByRole("heading", { name: "인증코드 입력" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "인증 코드" })).toHaveValue("111222");
+  await page.getByLabel("6자리 인증번호").fill("111222");
+  await page.getByRole("button", { name: "인증번호 확인" }).click();
+  await expect(page.getByRole("heading", { name: "새 비밀번호 설정" })).toBeVisible();
   await page.getByLabel("새 비밀번호", { exact: true }).fill("NewCivic!234");
   await page.getByLabel("새 비밀번호 확인").fill("NewCivic!234");
   await page.getByRole("button", { name: "비밀번호 변경" }).click();
   await expect(page).toHaveURL(/\/login$/u);
-  expect(lastPasswordResetCompletion).toEqual({
-    code: "111222",
-    new_password: "NewCivic!234",
-  });
+  expect(lastPasswordResetCompletion).toEqual({ new_password: "NewCivic!234" });
+});
+
+test("비밀번호 재설정 완료가 인증 상태를 소진하면 인증번호 단계로 돌아간다", async ({ page }) => {
+  lastPasswordResetRequest = null;
+  lastPasswordResetCompletion = null;
+  await startPasswordReset(page);
+
+  await page.getByLabel("6자리 인증번호").fill("111222");
+  await page.getByRole("button", { name: "인증번호 확인" }).click();
+  await expect(page.getByRole("heading", { name: "새 비밀번호 설정" })).toBeVisible();
+  await page.getByLabel("새 비밀번호", { exact: true }).fill("OldCivic!234");
+  await page.getByLabel("새 비밀번호 확인").fill("OldCivic!234");
+  await page.getByRole("button", { name: "비밀번호 변경" }).click();
+
+  await expect(
+    page.getByText(
+      "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 새 인증번호를 받아 다시 진행해 주세요.",
+    ),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
+  await expect(page.getByLabel("6자리 인증번호")).toHaveValue("");
+  await expect(page.getByRole("button", { name: "코드 재발송" })).toBeVisible();
+  await expect(page).toHaveURL(/\/password-reset$/u);
 });
 
 test("재활성화는 비밀번호와 등록 이메일 코드를 모두 확인한다", async ({ page }) => {

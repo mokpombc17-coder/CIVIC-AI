@@ -18,6 +18,7 @@ const routes: readonly RouteDefinition[] = [
   route("/api/v1/auth/logout", ["POST"]),
   route("/api/v1/auth/logout-all", ["POST"], true),
   route("/api/v1/auth/password-reset/request", ["POST"]),
+  route("/api/v1/auth/password-reset/verify", ["POST"]),
   route("/api/v1/auth/password-reset/complete", ["POST"]),
   route("/api/v1/auth/reactivation/request", ["POST"]),
   route("/api/v1/auth/reactivation/complete", ["POST"]),

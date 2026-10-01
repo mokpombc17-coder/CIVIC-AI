@@ -279,24 +279,23 @@ export function AuthFunctionalScreen({
           if (!/^\d{6}$/u.test(code)) {
             throw new AuthUserFacingError("6자리 인증 코드를 입력해 주세요.");
           }
-
-          // TODO(api): 인증번호 검증 API가 준비되면 서버 성공 응답과 일회용 resetToken을
-          // 받은 경우에만 PASSWORD 단계로 이동한다. resetToken은 브라우저 저장소가 아닌
-          // 이 화면의 메모리에만 보관해야 한다.
-          setResetCode(code);
+          await api("/api/v1/auth/password-reset/verify", { code });
           setPasswordResetStep("PASSWORD");
         } else {
           const newPassword = String(data.get("new_password") ?? "");
           const newPasswordConfirmation = String(data.get("new_password_confirmation") ?? "");
           const passwordProblem = signupPasswordProblem(newPassword, newPasswordConfirmation);
           if (passwordProblem) throw new AuthUserFacingError(passwordProblem);
-
-          // TODO(api): 인증번호 검증 API가 resetToken을 반환하도록 변경되면 원본 인증번호
-          // 대신 resetToken과 새 비밀번호만 전송한다.
-          await api("/api/v1/auth/password-reset/complete", {
-            code: resetCode,
-            new_password: newPassword,
-          });
+          try {
+            // 인증번호는 verify 단계에서 서버가 확인했고, 완료 요청은 auth flow 쿠키로 식별한다.
+            await api("/api/v1/auth/password-reset/complete", { new_password: newPassword });
+          } catch (error) {
+            if (passwordResetNeedsNewCode(error)) {
+              setResetCode("");
+              setPasswordResetStep("CODE");
+            }
+            throw error;
+          }
           clearAuthSessionData();
           sendAuthMessage("LOGOUT");
           location.assign("/login");
@@ -1257,7 +1256,11 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
     if (operation === "LOGIN") {
       return "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
     }
-    if (operation === "SIGNUP_VERIFY" || operation === "TWO_FACTOR_VERIFY") {
+    if (
+      operation === "SIGNUP_VERIFY" ||
+      operation === "TWO_FACTOR_VERIFY" ||
+      operation === "PASSWORD_RESET_CODE"
+    ) {
       return "인증 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.";
     }
     if (operation === "VERIFICATION_RESEND") {
@@ -1286,7 +1289,11 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
     return "올바른 이메일 주소를 입력해 주세요.";
   }
 
-  if (operation === "SIGNUP_VERIFY" || operation === "TWO_FACTOR_VERIFY") {
+  if (
+    operation === "SIGNUP_VERIFY" ||
+    operation === "TWO_FACTOR_VERIFY" ||
+    operation === "PASSWORD_RESET_CODE"
+  ) {
     if (error.status === 410 || codeContains(code, "EXPIRED")) {
       return "인증번호가 만료되었습니다. 새 인증번호를 받아 주세요.";
     }
@@ -1330,19 +1337,12 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
   }
 
   if (operation === "PASSWORD_RESET_COMPLETE") {
-    if (codeContains(code, "PASSWORD") && !codeContains(code, "RESET")) {
-      return signupPasswordPolicyMessage;
+    if (codeContains(code, "PASSWORD_POLICY")) return signupPasswordPolicyMessage;
+    if (code === "PASSWORD_REUSED") {
+      return "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 새 인증번호를 받아 다시 진행해 주세요.";
     }
-    if (error.status === 410 || codeContains(code, "EXPIRED")) {
-      return "재설정 요청이 만료되었습니다. 비밀번호 찾기부터 다시 진행해 주세요.";
-    }
-    if (
-      error.status === 400 ||
-      error.status === 401 ||
-      error.status === 404 ||
-      codeContains(code, "INVALID_CODE", "CODE_INVALID")
-    ) {
-      return "인증번호가 올바르지 않습니다. 다시 확인해 주세요.";
+    if (error.status === 401 || error.status === 410) {
+      return "인증 유효 시간이 지났습니다. 새 인증번호를 받아 다시 진행해 주세요.";
     }
   }
 
@@ -1408,6 +1408,15 @@ function authOperationFallback(operation: AuthErrorOperation): string {
 function authProblemCode(problem: Readonly<Record<string, unknown>>): string {
   const candidate = problem.code ?? problem.error_code;
   return typeof candidate === "string" ? candidate.trim().toUpperCase() : "";
+}
+
+// 비밀번호 규칙 위반을 제외한 완료 실패는 서버가 인증 상태를 소진했거나 만료한 경우다.
+export function passwordResetNeedsNewCode(error: unknown): boolean {
+  return (
+    error instanceof ApiRequestError &&
+    (error.status === 401 || error.status === 410) &&
+    !codeContains(authProblemCode(error.problem), "PASSWORD_POLICY")
+  );
 }
 
 function codeContains(code: string, ...fragments: string[]): boolean {
