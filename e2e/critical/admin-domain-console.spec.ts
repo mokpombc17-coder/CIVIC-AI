@@ -865,9 +865,9 @@ test("시뮬레이션 결과는 모든 성별 집단·도넛 분포·응답 이�
   await expect(page.getByText("보행 환경 개선이 모든 주민에게 도움이 됩니다.")).toBeVisible();
   await expect(page.getByRole("button", { name: /다음 결과/u })).toHaveCount(0);
   await page.getByRole("group", { name: "응답 목록 필터" }).getByLabel("성별").selectOption("남성");
-  await expect.poll(() => simulationResponseQueries).toContain(
-    "?offset=0&limit=20&gender=%EB%82%A8%EC%84%B1",
-  );
+  await expect
+    .poll(() => simulationResponseQueries)
+    .toContain("?offset=0&limit=20&gender=%EB%82%A8%EC%84%B1");
   await expect(page.getByText("골목길 안전을 먼저 개선해야 합니다.")).toHaveCount(0);
   await page.setViewportSize({ width: 640, height: 900 });
   await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
@@ -1242,8 +1242,11 @@ function scenarioFixture() {
 function simulationResponsePageFixture(gender: string | null) {
   const items = [1, 2, 3]
     .map((resultSlot) => {
-      const { schemaVersion: _schemaVersion, notice: _notice, ...item } =
-        simulationResultDetailFixture(resultSlot);
+      const {
+        schemaVersion: _schemaVersion,
+        notice: _notice,
+        ...item
+      } = simulationResultDetailFixture(resultSlot);
       return item;
     })
     .filter((item) => !gender || item.demographics.gender === gender);
