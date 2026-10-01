@@ -1275,9 +1275,10 @@ function preparationFixture() {
     status: preparationStatus,
     contentFingerprint: `sha256:${"a".repeat(64)}`,
     attemptCount: Math.max(1, preparationRequests),
-    processingStartedAt: "2026-09-05T01:00:00Z",
-    preparedAt: preparationStatus === "READY" ? "2026-09-05T01:01:00Z" : null,
-    updatedAt: "2026-09-05T01:01:00Z",
+    // 생성 지연(30분) 기준에 걸리지 않도록 현재 시각 기준으로 만든다.
+    processingStartedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    preparedAt: preparationStatus === "READY" ? new Date(Date.now() - 60_000).toISOString() : null,
+    updatedAt: new Date(Date.now() - 60_000).toISOString(),
     lastError:
       preparationStatus === "FAILED"
         ? {
@@ -1305,8 +1306,9 @@ for (const width of [394, 1440]) {
     await page.goto("/admin");
     const operations = page.getByRole("region", { name: "현재 처리 중" });
     const vote = operations.getByRole("listitem").filter({ hasText: "투표 AI" });
-    await expect(vote).toContainText("작업중");
+    await expect(vote).not.toContainText("작업중");
     await expect(vote).toContainText("생성 중");
+    await expect(vote).toContainText(/\d+분 경과/u);
     const operationBounds = await operations.boundingBox();
     const actionBounds = await vote.getByRole("link", { name: /처리 상세보기/ }).boundingBox();
     expect(operationBounds).not.toBeNull();
@@ -1320,6 +1322,8 @@ for (const width of [394, 1440]) {
     });
     preparationStatus = "FAILED";
     await expect(vote).toContainText("재시도 필요");
+    const alert = page.getByRole("alert").filter({ hasText: "AI 예상 답변 생성에 실패한 투표" });
+    await expect(alert).toContainText("1건");
     await vote.getByRole("link", { name: /처리 상세보기/ }).click();
     await expect(panel.getByRole("status")).toHaveText("재시도 필요");
     await panel.getByText("오류 상세 보기", { exact: true }).click();
