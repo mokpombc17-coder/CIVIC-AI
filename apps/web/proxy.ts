@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { classifyBrowserSupport } from "./lib/browser-support";
 
-const UNSUPPORTED_BROWSER_PATH = "/unsupported-browser.html";
+const UNSUPPORTED_BROWSER_PATH = "/unsupported-browser";
 const BROWSER_SUPPORT_BYPASS_PATHS = new Set([
   UNSUPPORTED_BROWSER_PATH,
   "/unsupported-browser.css",
@@ -50,6 +50,8 @@ export function isBrowserSupportBypassPath(pathname: string): boolean {
     pathname.startsWith("/api/") ||
     pathname === "/_next" ||
     pathname.startsWith("/_next/") ||
+    pathname === UNSUPPORTED_BROWSER_PATH ||
+    pathname.startsWith(`${UNSUPPORTED_BROWSER_PATH}/`) ||
     BROWSER_SUPPORT_BYPASS_PATHS.has(pathname) ||
     STATIC_ASSET_PATH_PATTERN.test(pathname)
   );
@@ -83,7 +85,7 @@ export function proxy(request: NextRequest) {
   if (
     !isBrowserSupportBypassPath(request.nextUrl.pathname) &&
     isDocumentNavigation(request) &&
-    classifyBrowserSupport(request.headers.get("user-agent") ?? "") === "unsupported"
+    classifyBrowserSupport(request.headers.get("user-agent") ?? "").support === "unsupported"
   ) {
     return createUnsupportedBrowserResponse(request);
   }
@@ -103,7 +105,7 @@ export const config = {
   matcher: [
     {
       source:
-        "/((?!api|_next|favicon\\.ico|sitemap\\.xml|robots\\.txt|sw\\.js|manifest\\.webmanifest|unsupported-browser\\.(?:html|css)|.*\\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$).*)",
+        "/((?!api|_next|favicon\\.ico|sitemap\\.xml|robots\\.txt|sw\\.js|manifest\\.webmanifest|unsupported-browser(?:/|$)|.*\\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

@@ -63,6 +63,9 @@ RootLayout [Server, 문서 CSP nonce 읽기]
 
 IndexPage / [Server Route] [redirect: /home]
 
+UnsupportedBrowserRouteHandler /unsupported-browser [Route Handler, UA 기반 독립 HTML document]
+└── /unsupported-browser.css [React·hydration·client bundle 비의존 style]
+
 PwaStartRouteHandler /pwa/start [Route Handler, manifest start_url, 독립 HTML document]
 ├── /pwa-start/start.css [startup 전용 style]
 └── /pwa-start/start.js [React 비의존 startup runtime]
@@ -285,6 +288,10 @@ idle scheduling 이후 애니메이션을 시작하고 도넛 click/touch debug 
 `ParticipantEligibilityGuard`를 실행한다. 보호 참여자 route는 `EligibleParticipantShell`에서
 `AppQueryProvider`와 guard를 즉시 조립하며 browser singleton query cache를 공유한다. 홈에 노출되는
 Next Link는 히어로 도중 route prefetch가 query runtime을 먼저 가져오지 않도록 prefetch를 끈다.
+
+`/unsupported-browser`는 Proxy가 명확한 최소 지원 버전 미달 환경만 보내는 Route Handler HTML이다.
+서버에서 정규화한 운영체제·브라우저 정보와 미달 사유만 문서에 포함하며, React hydration과 client
+bundle에 의존하지 않는다. 지원 환경 또는 판정 불가 환경이 직접 접근하면 `/home`으로 되돌린다.
 
 `/pwa/start`는 RootLayout과 React hydration을 거치지 않는 Route Handler HTML이다. 전용
 `start.js`는 standalone display mode 또는 iOS standalone flag가 없으면 Refresh를 호출하지 않고
