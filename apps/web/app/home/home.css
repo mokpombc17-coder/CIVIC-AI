@@ -241,6 +241,8 @@
 }
 
 .civic-opinion-hero-chart {
+  --civic-hero-label-outset: 18px;
+
   position: relative;
   width: 100%;
   margin-top: 12px;
@@ -305,6 +307,10 @@
   .civic-opinion-hero {
     padding-right: 18px;
     padding-left: 18px;
+  }
+
+  .civic-opinion-hero-chart {
+    --civic-hero-label-outset: 14px;
   }
 }
 
