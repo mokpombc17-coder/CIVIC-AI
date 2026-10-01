@@ -65,8 +65,9 @@ const LABEL_LINE_GAP = 0;
 const CALLOUT_HORIZONTAL_LENGTH = 20;
 const CALLOUT_DIAGONAL_STEP = 10;
 const CALLOUT_SEGMENT_INSET_DEGREES = 8;
-const WRAPPED_LABEL_WIDTH = 84;
+const LEFT_WRAPPED_LABEL_WIDTH = 100;
 const RIGHT_WRAPPED_LABEL_WIDTH = 78;
+const LEFT_WRAPPED_CALLOUT_HORIZONTAL_LENGTH = 5;
 const LABEL_VIEWPORT_GUTTER = 4;
 const CALLOUT_LAYOUT = [
   { side: "left", verticalDirection: -1, attachmentAngle: -132 },
@@ -214,7 +215,12 @@ export function OpinionGatheringHero({
     const segment = segments.find(({ itemIndex }) => itemIndex === index)!;
     const label = displayItems[index]?.label ?? "";
     const shouldWrapLabel = label.length >= 10;
-    const wrappedLabelWidth = side === "right" ? RIGHT_WRAPPED_LABEL_WIDTH : WRAPPED_LABEL_WIDTH;
+    const wrappedLabelWidth =
+      side === "right" ? RIGHT_WRAPPED_LABEL_WIDTH : LEFT_WRAPPED_LABEL_WIDTH;
+    const horizontalLength =
+      shouldWrapLabel && side === "left"
+        ? LEFT_WRAPPED_CALLOUT_HORIZONTAL_LENGTH
+        : CALLOUT_HORIZONTAL_LENGTH;
     const resolvedAttachmentAngle = resolveCalloutAttachmentAngle(
       attachmentAngle,
       segment.startAngle,
@@ -229,7 +235,7 @@ export function OpinionGatheringHero({
     );
     const elbowX = contact.x + direction * CALLOUT_DIAGONAL_STEP;
     const y = contact.y + verticalDirection * CALLOUT_DIAGONAL_STEP;
-    const lineStartX = elbowX + direction * CALLOUT_HORIZONTAL_LENGTH;
+    const lineStartX = elbowX + direction * horizontalLength;
     const labelEdgeX = lineStartX + direction * LABEL_LINE_GAP;
     const labelLeft = `${(labelEdgeX / 360) * 100}%`;
     const pathLength =
