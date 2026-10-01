@@ -240,7 +240,7 @@ export function permissionLabel(permission: string): string {
     {
       RAG_ADMIN: "문서 관리",
       CHAT_ADMIN: "채팅 관리",
-      VOTE_ADMIN: "과업·투표 관리",
+      VOTE_ADMIN: "투표 관리",
       SIMULATION_ADMIN: "시뮬레이션 실행·관리",
     }[permission] ?? permission
   );

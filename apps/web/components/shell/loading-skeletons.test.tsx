@@ -103,7 +103,7 @@ describe("route-aware loading skeletons", () => {
   it("관리 상세 화면도 실제 제목과 목록 복귀 링크를 먼저 표시한다", () => {
     const markup = renderToStaticMarkup(<AdminLoadingView pathname="/admin/tasks/create" />);
 
-    expect(markup).toMatch(/<h1[^>]*>과업 관리<\/h1>/);
+    expect(markup).toMatch(/<h1[^>]*>투표 관리<\/h1>/);
     expect(markup).toContain('href="/admin/tasks"');
     expect(markup).not.toContain("civic-skeleton-header-title");
   });

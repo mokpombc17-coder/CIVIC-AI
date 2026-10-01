@@ -88,7 +88,7 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
 
   await expect(page.getByRole("heading", { name: "citizen@example.com" })).toBeVisible();
   await page.getByRole("tab", { name: "권한 편집" }).click();
-  const permissionLabels = ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"];
+  const permissionLabels = ["문서 관리", "채팅 관리", "투표 관리", "시뮬레이션 실행·관리"];
   for (const permission of permissionLabels) {
     await expect(page.getByLabel(permission)).toBeVisible();
   }

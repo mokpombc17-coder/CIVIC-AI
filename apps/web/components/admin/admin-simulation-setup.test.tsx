@@ -96,7 +96,7 @@ describe("simulation setup", () => {
     });
   });
 
-  it("미리보기 요청은 과업별 정본 URL과 taskId 본문을 실제 fetch 경계에 전달한다", async () => {
+  it("미리보기 요청은 투표별 정본 URL과 taskId 본문을 실제 fetch 경계에 전달한다", async () => {
     const input = {
       modelType: "anthropic/claude-sonnet-4.6",
       personaCount: 10,
@@ -159,7 +159,7 @@ describe("simulation setup", () => {
     expect(html).not.toContain("전남·광주 페르소나만 기준으로 계산");
     expect(html).toContain("최소 100명 이상 최대 800명 이하");
     expect(html).toContain("가능한 페르소나 수");
-    expect(html).not.toContain("과업 단위 가상 패널 시뮬레이션");
+    expect(html).not.toContain("투표 단위 가상 패널 시뮬레이션");
     expect(html).not.toContain(
       "개별 CIVIC 사용자의 Persona 생성이나 사용자별 예측에는 사용되지 않습니다.",
     );
@@ -169,9 +169,9 @@ describe("simulation setup", () => {
     expect(html).toContain(">동작</button>");
   });
 
-  it("실행 관리 표 열 정의는 과업 실행에 필요한 정보만 다룬다", () => {
+  it("실행 관리 표 열 정의는 투표 실행에 필요한 정보만 다룬다", () => {
     expect(SIMULATION_TARGET_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
-      "과업 제목",
+      "투표 제목",
       "시뮬레이션 진행 상태",
       "최근 변경",
     ]);

@@ -92,7 +92,7 @@ describe("Opinion Map 관리자 재시도", () => {
     expect(html).toContain("다시 불러오기");
   });
 
-  it("페이지를 합칠 때 같은 과업은 최신 항목으로 교체한다", () => {
+  it("페이지를 합칠 때 같은 투표는 최신 항목으로 교체한다", () => {
     const current = [unavailableItem()];
     const incoming = [unavailableItem({ attemptCount: 4 }), unavailableItem({ taskId: "task-2" })];
 
@@ -123,7 +123,7 @@ function unavailableItem(
 ): OpinionMapUnavailableItem {
   return {
     taskId,
-    taskTitle: "우리 동네 생활 개선 과업",
+    taskTitle: "우리 동네 생활 개선 투표",
     resultVersion: 1,
     attemptCount: 3,
     lastErrorCode: "OPINION_MAP_OPENROUTER_TIMEOUT",

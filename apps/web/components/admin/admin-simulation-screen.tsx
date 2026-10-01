@@ -250,7 +250,7 @@ export type SimulationTargetRow = Readonly<{
 }>;
 
 export const SIMULATION_TARGET_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<SimulationTargetRow>> = [
-  { field: "title", headerName: "과업 제목", flex: 2, minWidth: 200 },
+  { field: "title", headerName: "투표 제목", flex: 2, minWidth: 200 },
   {
     field: "stateLabel",
     headerName: "시뮬레이션 진행 상태",
@@ -296,11 +296,11 @@ function SimulationTargets() {
         return;
       }
       const tasks = readSimulationTaskSummaries(await response.json());
-      if (!tasks) return setMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
+      if (!tasks) return setMessage("서버의 투표 목록 응답 형식을 확인해야 합니다.");
       setItems(tasks);
       setMessage("");
     } catch {
-      setMessage("네트워크 오류로 과업 목록을 불러오지 못했습니다.");
+      setMessage("네트워크 오류로 투표 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -329,16 +329,16 @@ function SimulationTargets() {
         role="search"
       >
         <ConsoleSearchControl
-          ariaLabel="시뮬레이션할 과업 검색"
+          ariaLabel="시뮬레이션할 투표 검색"
           onChange={setSearch}
-          placeholder="과업 제목을 검색해 주세요."
+          placeholder="투표 제목을 검색해 주세요."
           value={search}
         />
       </form>
       <ConsoleDataGrid
-        ariaLabel="시뮬레이션 과업 목록"
+        ariaLabel="시뮬레이션 투표 목록"
         columnDefs={SIMULATION_TARGET_GRID_COLUMNS}
-        emptyText={loading ? "과업을 불러오는 중입니다." : "조건에 맞는 과업이 없습니다."}
+        emptyText={loading ? "투표를 불러오는 중입니다." : "조건에 맞는 투표가 없습니다."}
         getRowId={(row) => row.taskId}
         height={480}
         onRowClicked={(row) => router.push(row.href as Route)}
@@ -404,7 +404,7 @@ function SimulationSetup({
     return () => window.clearTimeout(timer);
   }, [requestedPersonaCount, taskId]);
 
-  if (!taskId) return <MissingContext>먼저 시뮬레이션할 과업을 선택해 주세요.</MissingContext>;
+  if (!taskId) return <MissingContext>먼저 시뮬레이션할 투표를 선택해 주세요.</MissingContext>;
 
   const groups = options
     ? ([
@@ -745,7 +745,7 @@ function SimulationRetrySection({
       </header>
       <p>
         {recoveryMessage ??
-          "실행 요청은 자동으로 반복하지 않습니다. 실행 환경을 확인한 뒤 같은 과업에서 새 실행을 요청하세요."}
+          "실행 요청은 자동으로 반복하지 않습니다. 실행 환경을 확인한 뒤 같은 투표에서 새 실행을 요청하세요."}
       </p>
       {view.state === "REVIEW_REQUIRED" ? (
         <dl className="civic-domain-impact-list">
@@ -775,7 +775,7 @@ function SimulationRetrySection({
             className="civic-secondary-action"
             href={`/admin/simulations/setup?taskId=${encodeURIComponent(view.taskId)}` as Route}
           >
-            같은 과업으로 새 설정
+            같은 투표로 새 설정
           </Link>
         ) : null}
       </div>
@@ -1240,8 +1240,8 @@ function useSimulationResultDetail(simulationId: string | null, resultSlot: numb
 function TaskSnapshotCard({ task }: Readonly<{ task: TaskDetail | null }>) {
   return (
     <section className="civic-domain-description">
-      <h2>{task?.task.title ?? "과업 정보 불러오는 중"}</h2>
-      <p>{task?.task.question?.content ?? "투표 과업 질문을 확인하고 있습니다."}</p>
+      <h2>{task?.task.title ?? "투표 정보 불러오는 중"}</h2>
+      <p>{task?.task.question?.content ?? "투표 질문을 확인하고 있습니다."}</p>
       {task?.task.question ? (
         <ol className="civic-task-options-readonly">
           {task.task.question.options.map((option) => (
@@ -1296,7 +1296,7 @@ function MissingContext({ children }: Readonly<{ children: string }>) {
     <div className="civic-domain-empty">
       <p>{children}</p>
       <Link className="civic-primary-action" href="/admin/simulations">
-        과업 선택으로 돌아가기
+        투표 선택으로 돌아가기
       </Link>
     </div>
   );

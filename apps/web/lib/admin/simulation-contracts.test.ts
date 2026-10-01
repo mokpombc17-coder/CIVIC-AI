@@ -26,7 +26,7 @@ describe("simulation contracts", () => {
     const tasks = readSimulationTaskSummaries([
       {
         taskId,
-        title: "교통 정책 과업",
+        title: "교통 정책 투표",
         status: "OPEN",
         schedule: null,
         publishedAt: "2026-08-29T00:00:00Z",

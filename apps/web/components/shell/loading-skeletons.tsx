@@ -392,7 +392,7 @@ function AdminHomeLoadingSurface() {
   const metrics = [
     ["토론방 승인 대기", null],
     ["문서 처리 실패", null],
-    ["진행 중 과업", "현재 진행 중"],
+    ["진행 중 투표", "현재 진행 중"],
     ["시뮬레이션 사용 잔액", null],
   ] as const;
   return (
@@ -660,19 +660,19 @@ function adminListPresentation(kind: AdminListKind): Readonly<{
   if (kind === "TASKS") {
     return {
       filters: ["전체", "초안", "예약", "진행 중", "마감"],
-      headers: ["과업 제목", "상태", "시작", "마감", "종료 유형", "최근 변경", "작업"],
-      label: "과업 목록",
-      placeholder: "과업 제목 입력…",
-      searchLabel: "과업 제목 검색",
+      headers: ["투표 제목", "상태", "시작", "마감", "종료 유형", "최근 변경", "작업"],
+      label: "투표 목록",
+      placeholder: "투표 제목 입력…",
+      searchLabel: "투표 제목 검색",
     };
   }
   if (kind === "SIMULATIONS") {
     return {
       filters: [],
-      headers: ["과업 제목", "시뮬레이션 진행 상태", "최근 변경"],
-      label: "시뮬레이션 과업 목록",
-      placeholder: "과업 제목 입력…",
-      searchLabel: "시뮬레이션할 과업 찾기",
+      headers: ["투표 제목", "시뮬레이션 진행 상태", "최근 변경"],
+      label: "시뮬레이션 투표 목록",
+      placeholder: "투표 제목 입력…",
+      searchLabel: "시뮬레이션할 투표 찾기",
     };
   }
   return {

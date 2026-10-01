@@ -106,7 +106,7 @@ describe("관리자 결과 탭 집계", () => {
     expect(readTaskProgressSummary({ ...progress, ...patch })).toBeNull();
   });
 
-  it("다른 과업의 집계는 표시하지 않는다", async () => {
+  it("다른 투표의 집계는 표시하지 않는다", async () => {
     const request = vi
       .fn<typeof fetch>()
       .mockResolvedValueOnce(Response.json(detail()))
@@ -115,7 +115,7 @@ describe("관리자 결과 탭 집계", () => {
   });
 
   it.each(["DEADLINE_REACHED", "EARLY_CLOSED"] as const)(
-    "%s 과업은 확정 결과를 사용한다",
+    "%s 투표는 확정 결과를 사용한다",
     async (closure) => {
       const request = vi
         .fn<typeof fetch>()
@@ -151,12 +151,12 @@ describe("관리자 결과 탭 집계", () => {
   });
 
   it.each(["DRAFT", "SCHEDULED", "CLOSED"] as const)(
-    "%s 미발행·취소 과업은 집계를 호출하지 않는다",
+    "%s 미발행·취소 투표는 집계를 호출하지 않는다",
     async (status) => {
       const current = detail(status, status === "CLOSED" ? "CANCELLED" : null);
       expect(canViewTaskResults(current.task)).toBe(false);
       const request = vi.fn<typeof fetch>().mockResolvedValueOnce(Response.json(current));
-      await expect(loadTaskResults(taskId, request)).rejects.toThrow("과업만 결과");
+      await expect(loadTaskResults(taskId, request)).rejects.toThrow("투표만 결과");
       expect(request).toHaveBeenCalledTimes(1);
     },
   );

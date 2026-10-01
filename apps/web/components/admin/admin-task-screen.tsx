@@ -34,6 +34,12 @@ import {
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
 import { taskPreparationPresentation } from "@/lib/admin/task-preparation";
+import {
+  TASK_PREPARATION_DELAY_MS,
+  elapsedLabel,
+  parseTimestamp,
+  useNow,
+} from "@/lib/admin/elapsed";
 import { canViewTaskResults, loadTaskResults, type TaskResults } from "@/lib/admin/task-results";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
@@ -123,7 +129,7 @@ function AdminTaskWorkspace({
       const tasks = readTaskSummaries(await response.json());
       if (!tasks) {
         setItems([]);
-        setListMessage("서버의 과업 목록 응답 형식을 확인해야 합니다.");
+        setListMessage("서버의 투표 목록 응답 형식을 확인해야 합니다.");
         return;
       }
       setItems(tasks);
@@ -136,7 +142,7 @@ function AdminTaskWorkspace({
       }
     } catch {
       setItems([]);
-      setListMessage("네트워크 오류로 과업 목록을 불러오지 못했습니다.");
+      setListMessage("네트워크 오류로 투표 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
@@ -194,7 +200,7 @@ function AdminTaskWorkspace({
       <ConsolePane
         action={
           <button
-            aria-label="새 과업 만들기"
+            aria-label="새 투표 만들기"
             className="civic-primary-action civic-task-create-action"
             onClick={() => openEditor(null)}
             type="button"
@@ -207,12 +213,12 @@ function AdminTaskWorkspace({
                 strokeWidth="1.8"
               />
             </svg>
-            <span>새 과업 만들기</span>
+            <span>새 투표 만들기</span>
           </button>
         }
-        ariaLabel="과업 목록"
+        ariaLabel="투표 목록"
         subtitle={`${filtered.length}건 표시`}
-        title="과업 목록"
+        title="투표 목록"
       >
         <form
           className="console-toolbar"
@@ -220,14 +226,14 @@ function AdminTaskWorkspace({
           role="search"
         >
           <ConsoleSearchControl
-            ariaLabel="과업 제목 검색"
+            ariaLabel="투표 제목 검색"
             name="task-query"
             onChange={setKeyword}
-            placeholder="과업 제목을 검색해 주세요."
+            placeholder="투표 제목을 검색해 주세요."
             value={keyword}
           />
         </form>
-        <div aria-label="과업 상태" className="console-filter-group" role="group">
+        <div aria-label="투표 상태" className="console-filter-group" role="group">
           {(["ALL", "DRAFT", "SCHEDULED", "OPEN", "CLOSED"] as const).map((status) => (
             <button
               aria-pressed={statusFilter === status}
@@ -240,9 +246,9 @@ function AdminTaskWorkspace({
           ))}
         </div>
         <ConsoleDataGrid
-          ariaLabel="과업 목록 표"
+          ariaLabel="투표 목록 표"
           columnDefs={TASK_GRID_COLUMNS}
-          emptyText={loading ? "과업을 불러오는 중입니다." : "조건에 맞는 과업이 없습니다."}
+          emptyText={loading ? "투표를 불러오는 중입니다." : "조건에 맞는 투표가 없습니다."}
           getRowId={(task) => task.taskId}
           height={460}
           onRowClicked={selectTask}
@@ -253,7 +259,7 @@ function AdminTaskWorkspace({
       </ConsolePane>
 
       <ConsolePane
-        ariaLabel="과업 상세"
+        ariaLabel="투표 상세"
         subtitle={
           editing
             ? editorTaskId
@@ -265,20 +271,20 @@ function AdminTaskWorkspace({
         }
         title={
           editing
-            ? (editorSummary?.title ?? (editorTaskId ? "내용 수정" : "새 과업 만들기"))
+            ? (editorSummary?.title ?? (editorTaskId ? "내용 수정" : "새 투표 만들기"))
             : (selectedSummary?.title ??
-              (selectedTaskId ? "과업 상세" : "목록에서 과업을 선택하세요."))
+              (selectedTaskId ? "투표 상세" : "목록에서 투표를 선택하세요."))
         }
       >
         {editing ? (
           <TaskEditor key={editorTaskId ?? "new"} taskId={editorTaskId} />
         ) : !selectedTaskId ? (
-          <ConsoleEmpty title="목록에서 과업을 선택하세요." />
+          <ConsoleEmpty title="목록에서 투표를 선택하세요." />
         ) : (
           <>
             <ConsoleTabs
               activeId={tab}
-              ariaLabel="과업 상세 탭"
+              ariaLabel="투표 상세 탭"
               onSelect={(id) => switchTab(id as TaskWorkspaceTab)}
               tabs={tabs}
             />
@@ -335,7 +341,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       void requestTaskDetail(taskId).then((detail) => {
         if (!detail) return setMessage("수정할 초안을 불러오지 못했습니다.");
         if (detail.task.status !== "DRAFT") {
-          return setMessage("초안 상태의 과업만 전체 수정할 수 있습니다.");
+          return setMessage("초안 상태의 투표만 전체 수정할 수 있습니다.");
         }
         const nextContentEditable = taskContentEditAllowed(
           taskId,
@@ -407,7 +413,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
         return;
       }
       const saved = readTask(await response.json());
-      if (!saved) return setMessage("서버의 과업 저장 응답 형식을 확인해야 합니다.");
+      if (!saved) return setMessage("서버의 투표 저장 응답 형식을 확인해야 합니다.");
       router.push(`/admin/tasks/detail?taskId=${encodeURIComponent(saved.id)}` as Route);
     } catch {
       if (task) {
@@ -428,7 +434,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       <section className="civic-domain-form-section">
         <header>
           <span>{task ? "초안 전체 수정" : "새 초안"}</span>
-          <h2>과업 기본 정보</h2>
+          <h2>투표 기본 정보</h2>
         </header>
         <label className="civic-field">
           <span>제목</span>
@@ -595,7 +601,7 @@ function TaskOverviewTab({
 
   const load = useCallback(async () => {
     const loaded = await requestTaskDetail(taskId);
-    if (!loaded) return setMessage("과업 상세를 불러오지 못했습니다.");
+    if (!loaded) return setMessage("투표 상세를 불러오지 못했습니다.");
     setDetail(loaded);
     setMessage("");
   }, [taskId]);
@@ -711,12 +717,12 @@ function TaskOverviewTab({
         return;
       }
       const task = readTask(await response.json());
-      if (!task) return setMessage("서버의 과업 변경 응답 형식을 확인해야 합니다.");
+      if (!task) return setMessage("서버의 투표 변경 응답 형식을 확인해야 합니다.");
       const latest = await requestTaskDetail(task.id);
       setDetail(latest ?? { ...detail, task });
       setProblem(null);
       onTaskChanged();
-      setMessage("과업의 최신 상태를 반영했습니다.");
+      setMessage("투표의 최신 상태를 반영했습니다.");
     } catch {
       await load();
       setMessage("처리 결과가 불명확하여 상세·이력을 다시 조회했습니다. 자동 재전송하지 않습니다.");
@@ -729,7 +735,7 @@ function TaskOverviewTab({
     event.preventDefault();
     if (!detail || closePending) return;
     const task = detail.task;
-    if (task.status !== "OPEN") return setMessage("진행 중인 과업만 조기 종료할 수 있습니다.");
+    if (task.status !== "OPEN") return setMessage("진행 중인 투표만 조기 종료할 수 있습니다.");
     setClosePending(true);
     setCloseProblem(null);
     try {
@@ -755,7 +761,7 @@ function TaskOverviewTab({
       setCloseReason("");
       onEarlyCloseOpenChange(false);
       onTaskChanged();
-      setMessage("과업의 최신 상태를 반영했습니다.");
+      setMessage("투표의 최신 상태를 반영했습니다.");
     } catch {
       await load();
       setMessage("종료 결과가 불명확하여 최신 상태를 다시 확인했습니다. 자동 재전송하지 않습니다.");
@@ -764,7 +770,7 @@ function TaskOverviewTab({
     }
   }
 
-  if (!detail) return <ConsoleStatus>{message || "과업 상세를 불러오는 중입니다."}</ConsoleStatus>;
+  if (!detail) return <ConsoleStatus>{message || "투표 상세를 불러오는 중입니다."}</ConsoleStatus>;
   const task = detail.task;
   return (
     <section className="civic-domain-detail">
@@ -870,11 +876,11 @@ function TaskOverviewTab({
                 </div>
               </form>
             ) : (
-              <ConsoleStatus>진행 중인 과업만 조기 종료할 수 있습니다.</ConsoleStatus>
+              <ConsoleStatus>진행 중인 투표만 조기 종료할 수 있습니다.</ConsoleStatus>
             )
           ) : null}
         </div>
-        <aside aria-label="과업 운영" className="civic-task-detail-operations">
+        <aside aria-label="투표 운영" className="civic-task-detail-operations">
           <TaskPreparationPanel
             capabilities={detail.capabilities}
             onStart={() => void startPreparation()}
@@ -929,7 +935,7 @@ function LifecyclePanel({
         onSubmit(action, { opensAt, closesAt, reason });
       }}
     >
-      <h2>과업 발행</h2>
+      <h2>투표 발행</h2>
       <label className="civic-field">
         <span>동작</span>
         <select
@@ -1034,6 +1040,10 @@ export function TaskPreparationPanel({
 }>) {
   const presentation = taskPreparationPresentation(preparation, capabilities);
   const actionLabel = pending ? "생성 요청 중…" : presentation.action;
+  const processing = preparation?.status === "PROCESSING";
+  const now = useNow(30_000, processing);
+  const startedAt = parseTimestamp(preparation?.processingStartedAt);
+  const delayed = processing && startedAt !== null && now - startedAt >= TASK_PREPARATION_DELAY_MS;
   return (
     <section
       aria-label="AI 예상 답변 생성"
@@ -1046,6 +1056,12 @@ export function TaskPreparationPanel({
         </span>
       </header>
       <p className="civic-preparation-description">{presentation.description}</p>
+      {delayed ? (
+        <p className="civic-preparation-description" role="status">
+          생성 시간이 평소보다 오래 걸리고 있습니다. 계속 진행되지 않으면 운영 담당자에게 확인을
+          요청해 주세요.
+        </p>
+      ) : null}
       {preparation ? (
         <dl className="civic-domain-impact-list civic-preparation-metadata">
           <div>
@@ -1056,6 +1072,15 @@ export function TaskPreparationPanel({
             <div>
               <dt>생성 시작</dt>
               <dd>{formatDate(preparation.processingStartedAt)}</dd>
+            </div>
+          ) : null}
+          {processing && startedAt !== null ? (
+            <div>
+              <dt>경과 시간</dt>
+              <dd>
+                {elapsedLabel(startedAt, now)}
+                {delayed ? " · 지연" : ""}
+              </dd>
             </div>
           ) : null}
           {preparation.preparedAt ? (
@@ -1205,7 +1230,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
 
 function TaskSummaryGrid({ task }: Readonly<{ task: Task }>) {
   return (
-    <div aria-label="과업 요약" className="civic-user-summary-grid" role="group">
+    <div aria-label="투표 요약" className="civic-user-summary-grid" role="group">
       <Detail label="시작" value={formatDate(task.openedAt ?? task.schedule?.opensAt ?? null)} />
       <Detail label="마감" value={formatDate(task.schedule?.closesAt ?? task.closedAt)} />
       <Detail label="마감 사유" value={closureLabel(task.closureType)} />
@@ -1294,7 +1319,7 @@ function validateDraft(
   question: string,
   options: readonly DraftOption[],
 ): string | null {
-  if (!title.trim()) return "과업 제목을 입력해 주세요.";
+  if (!title.trim()) return "투표 제목을 입력해 주세요.";
   if (!question.trim()) return "질문을 입력해 주세요.";
   if (options.length < 2) return "선택지를 두 개 이상 입력해 주세요.";
   const normalized = options.map((option) => option.content.trim().replace(/\s+/gu, " "));
@@ -1339,7 +1364,7 @@ export function lifecycleActionLabel(action: LifecycleAction): string {
     "open-now": "즉시 발행",
     "start-now": "지금 시작",
     deadline: "마감 변경",
-    cancel: "과업 취소",
+    cancel: "투표 취소",
   }[action];
 }
 
@@ -1348,9 +1373,9 @@ function lifecycleEventLabel(event: string): string {
     {
       SCHEDULED: "예약 발행",
       RESCHEDULED: "예약·마감 변경",
-      OPENED: "과업 시작",
-      CLOSED: "과업 종료",
-      CANCELLED: "과업 취소",
+      OPENED: "투표 시작",
+      CLOSED: "투표 종료",
+      CANCELLED: "투표 취소",
     }[event] ?? "상태 변경"
   );
 }

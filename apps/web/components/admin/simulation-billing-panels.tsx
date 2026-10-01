@@ -196,7 +196,7 @@ export type UsageGridRow = Readonly<{
 
 export const USAGE_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<UsageGridRow>> = [
   { field: "day", headerName: "일자", minWidth: 110 },
-  { field: "taskTitle", headerName: "과업", flex: 2, minWidth: 160 },
+  { field: "taskTitle", headerName: "투표", flex: 2, minWidth: 160 },
   { field: "actorEmail", headerName: "실행 관리자", flex: 2, minWidth: 160 },
   { field: "personaLabel", headerName: "페르소나", minWidth: 90 },
   { field: "chargedLabel", headerName: "과금액", minWidth: 110 },

@@ -93,7 +93,7 @@ describe("simulation billing navigation", () => {
   it("사용량 표 열 정의는 공개 정산 정보만 다룬다", () => {
     expect(USAGE_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
       "일자",
-      "과업",
+      "투표",
       "실행 관리자",
       "페르소나",
       "과금액",

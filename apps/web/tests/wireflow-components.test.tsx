@@ -135,7 +135,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).toContain("CIVIC AI");
     expect(html).toContain("ADMIN");
     expect(html).toContain('aria-current="page"');
-    const labels = ["관리 홈", "사용자", "과업", "문서", "토론방", "시뮬레이션"];
+    const labels = ["관리 홈", "사용자", "투표", "문서", "토론방", "시뮬레이션"];
     for (const label of labels) expect(html).toContain(`>${label}</span>`);
     for (let index = 1; index < labels.length; index += 1) {
       expect(html.indexOf(`>${labels[index - 1]}</span>`)).toBeLessThan(
@@ -237,7 +237,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain('href="/admin/chat/export"');
   });
 
-  it("과업 화면은 목록·상세 통합 콘솔 워크스페이스로 렌더링한다", () => {
+  it("투표 화면은 목록·상세 통합 콘솔 워크스페이스로 렌더링한다", () => {
     const taskList = screenRegistry.find((screen) => screen.id === "A-TASK-001");
     if (!taskList) throw new Error("A-TASK-001 missing");
 
@@ -245,15 +245,15 @@ describe("latest Wire Flow shared product UI", () => {
 
     expect(html).toContain('data-wireflow-screen="A-TASK-001"');
     expect(html).toContain('data-wireflow-layout="admin-task-console"');
-    expect(html).toContain('aria-label="과업 목록"');
-    expect(html).toContain('aria-label="새 과업 만들기"');
-    expect(html).toContain('aria-label="과업 제목 검색"');
-    expect(html).toContain('aria-label="과업 상태"');
-    expect(html).toContain('aria-label="과업 목록 표"');
-    expect(html).toContain("목록에서 과업을 선택하세요.");
+    expect(html).toContain('aria-label="투표 목록"');
+    expect(html).toContain('aria-label="새 투표 만들기"');
+    expect(html).toContain('aria-label="투표 제목 검색"');
+    expect(html).toContain('aria-label="투표 상태"');
+    expect(html).toContain('aria-label="투표 목록 표"');
+    expect(html).toContain("목록에서 투표를 선택하세요.");
   });
 
-  it("작성 중 과업은 즉시 발행을 기본 동작으로 제공한다", () => {
+  it("작성 중 투표는 즉시 발행을 기본 동작으로 제공한다", () => {
     expect(lifecycleActions("DRAFT")).toEqual(["open-now", "schedule", "cancel"]);
     expect(lifecycleActionLabel("deadline")).toBe("마감 변경");
   });
@@ -323,13 +323,13 @@ describe("latest Wire Flow shared product UI", () => {
     expect(shouldPollTaskPreparation("PROCESSING", true, true)).toBe(false);
   });
 
-  it("기존 과업 편집은 서버의 canEditContent capability로 잠근다", () => {
+  it("기존 투표 편집은 서버의 canEditContent capability로 잠근다", () => {
     expect(taskContentEditAllowed(null, false)).toBe(true);
     expect(taskContentEditAllowed("task-id", true)).toBe(true);
     expect(taskContentEditAllowed("task-id", false)).toBe(false);
   });
 
-  it("새 과업 화면은 배경을 입력하고 초안을 저장하도록 안내한다", () => {
+  it("새 투표 화면은 배경을 입력하고 초안을 저장하도록 안내한다", () => {
     const taskCreate = screenRegistry.find((screen) => screen.id === "A-TASK-002");
     if (!taskCreate) throw new Error("A-TASK-002 missing");
 
@@ -341,7 +341,7 @@ describe("latest Wire Flow shared product UI", () => {
     expect(html).not.toContain("초안 생성");
   });
 
-  it("모든 과업 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {
+  it("모든 투표 화면 ID가 동일한 통합 워크스페이스를 렌더링한다", () => {
     for (const screenId of ["A-TASK-002", "A-TASK-003", "A-TASK-004", "A-TASK-005"]) {
       const definition = screenRegistry.find((screen) => screen.id === screenId);
       if (!definition) throw new Error(`${screenId} missing`);
@@ -350,11 +350,11 @@ describe("latest Wire Flow shared product UI", () => {
 
       expect(html).toContain(`data-wireflow-screen="${screenId}"`);
       expect(html).toContain('data-wireflow-layout="admin-task-console"');
-      expect(html).toContain('aria-label="과업 목록"');
+      expect(html).toContain('aria-label="투표 목록"');
     }
   });
 
-  it("과업 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
+  it("투표 그리드 컬럼과 화면·경로 매핑을 유지한다", () => {
     expect(TASK_GRID_COLUMNS.map((column) => column.headerName)).toEqual(["제목", "상태"]);
     expect(taskWorkspaceTabForScreen("A-TASK-003")).toBe("overview");
     expect(taskWorkspaceTabForScreen("A-TASK-005")).toBe("results");

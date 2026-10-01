@@ -3,7 +3,9 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import {
   AdminCurrentOperationsView,
+  AdminPreparationAlert,
   loadAdminCurrentOperations,
+  taskPreparationOperation,
 } from "@/components/admin/admin-current-operations";
 
 const taskId = "13000000-0000-4000-8000-000000000001";
@@ -20,7 +22,7 @@ describe("admin current operations", () => {
           {
             ...simulationTask("COMPLETED", 100),
             taskId: "13000000-0000-4000-8000-000000000002",
-            title: "완료된 과업",
+            title: "완료된 투표",
             latestSimulation: {
               ...simulationTask("COMPLETED", 100).latestSimulation,
               simulationId: "23000000-0000-4000-8000-000000000002",
@@ -213,7 +215,7 @@ function voteDetail(id: string, status: "PROCESSING" | "FAILED" | "READY" | "REJ
 }
 
 describe("투표 AI 생성 작업", () => {
-  it("생성 중과 재시도 필요만 작업중으로 표시하며 완료·미시작·거절은 제외한다", async () => {
+  it("생성 중·재시도 필요·내용 확인 필요를 상태 배지와 경과 시간으로 표시하고 완료·미시작은 제외한다", async () => {
     const states = ["PROCESSING", "FAILED", "READY", "REJECTED", null] as const;
     const details = states.map((status, index) => voteDetail(`vote-${index}`, status));
     const request = vi.fn(async (input: RequestInfo | URL) => {
@@ -227,18 +229,64 @@ describe("투표 AI 생성 작업", () => {
       canManageSimulation: false,
       canReadRag: false,
       request,
+      now: Date.parse("2026-09-05T01:12:00Z"),
     });
-    expect(result.total).toBe(2);
-    expect(result.items.map((item) => item.stage)).toEqual(["생성 중", "재시도 필요"]);
-    expect(result.items[1]).toMatchObject({
+    expect(result.total).toBe(3);
+    expect(result.items.map((item) => item.stage)).toEqual([
+      "재시도 필요",
+      "내용 확인 필요",
+      "생성 중",
+    ]);
+    expect(result.items[0]).toMatchObject({
       kind: "prediction",
       href: "/admin/tasks/detail?taskId=vote-1",
       progressPercent: null,
+      failed: true,
+      meta: "AI 예상 답변 · 실패 후 11분 · 2회 시도",
     });
+    expect(result.items[2]?.meta).toBe("AI 예상 답변 · 12분 경과 · 2회 시도");
+    expect(result.preparationFailures.map((item) => item.id)).toEqual([
+      "prediction:vote-1",
+      "prediction:vote-3",
+    ]);
     const html = renderToStaticMarkup(createElement(AdminCurrentOperationsView, { state: result }));
-    expect(html).toContain("작업중");
+    expect(html).not.toContain("작업중");
+    expect(html).toContain("재시도 필요");
     expect(html).toContain("투표 AI");
     expect(html).not.toContain("<progress");
+    const alert = renderToStaticMarkup(createElement(AdminPreparationAlert, { state: result }));
+    expect(alert).toContain('role="alert"');
+    expect(alert).toContain("AI 예상 답변 생성에 실패한 투표가 2건 있습니다.");
+    expect(alert).toContain('href="/admin/tasks/detail?taskId=vote-3"');
+  });
+
+  it("생성이 30분을 넘기면 생성 지연으로 표시하지만 실패 알림에는 넣지 않는다", () => {
+    const detail = voteDetail("vote-slow", "PROCESSING");
+    const operation = taskPreparationOperation(
+      detail as unknown as Parameters<typeof taskPreparationOperation>[0],
+      Date.parse("2026-09-05T01:45:00Z"),
+    );
+    expect(operation).toMatchObject({
+      stage: "생성 지연",
+      attention: true,
+      failed: false,
+      meta: "AI 예상 답변 · 45분 경과 · 2회 시도",
+    });
+  });
+
+  it("실패한 투표가 없으면 홈 경고를 렌더링하지 않는다", () => {
+    const html = renderToStaticMarkup(
+      createElement(AdminPreparationAlert, {
+        state: {
+          status: "ready",
+          items: [],
+          preparationFailures: [],
+          total: 0,
+          unavailableSources: [],
+        },
+      }),
+    );
+    expect(html).toBe("");
   });
 
   it("일부 상세 실패는 누락으로 알리고 다른 투표의 생성 작업을 유지한다", async () => {

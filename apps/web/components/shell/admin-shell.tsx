@@ -22,7 +22,7 @@ const adminNavigation = [
     label: "사용자",
     access: "HIGHEST_ADMIN",
   },
-  { type: "link", href: "/admin/tasks" as Route, label: "과업", access: "VOTE_ADMIN" },
+  { type: "link", href: "/admin/tasks" as Route, label: "투표", access: "VOTE_ADMIN" },
   { type: "link", href: "/admin/rag" as Route, label: "문서", access: "RAG_ADMIN" },
   { type: "link", href: "/admin/chat" as Route, label: "토론방", access: "CHAT_ADMIN" },
   {

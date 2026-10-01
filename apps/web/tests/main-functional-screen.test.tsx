@@ -652,7 +652,7 @@ describe("25 functional Main/Auth screens", () => {
     });
   });
 
-  it("관리 홈은 승인 대기·진행 중 과업·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
+  it("관리 홈은 승인 대기·진행 중 투표·시뮬레이션 사용 잔액을 실제 응답에서 계산한다", async () => {
     const chat = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input).startsWith("/api/v1/admin/user-labels?")) {
         return Response.json({
@@ -1255,7 +1255,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(conflict).toContain('class="wf-conflict-state"');
     expect(conflict).toContain("화면에 보인 상태");
     expect(conflict).toContain("최신 상태 보기");
-    expect(conflict).toContain("과업 목록으로");
+    expect(conflict).toContain("투표 목록으로");
 
     const progress = renderCommon("COMMON-003");
     expect(progress).toContain('class="wf-progress-state"');
@@ -1490,7 +1490,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(roles).toContain('class="civic-role-reason"');
     expect(roles.match(/name="roles"/g)).toHaveLength(3);
     expect(roles.match(/type="radio"/g)).toHaveLength(3);
-    for (const permission of ["문서 관리", "채팅 관리", "과업·투표 관리", "시뮬레이션 실행·관리"]) {
+    for (const permission of ["문서 관리", "채팅 관리", "투표 관리", "시뮬레이션 실행·관리"]) {
       expect(roles).toContain(permission);
     }
     expect(roles).not.toContain("RAG 관리");
@@ -1530,7 +1530,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("문서 처리 실패");
     expect(html).not.toContain("실패 작업 재시도 가능");
     expect(html).toContain("확인 중");
-    expect(html).toContain("진행 중 과업");
+    expect(html).toContain("진행 중 투표");
     expect(html).toContain("시뮬레이션 사용 잔액");
     expect(html).not.toContain("공용 지갑 잔액 확인 중");
     expect(html).not.toContain("실행 보류");
@@ -1542,7 +1542,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("사용자 관리 열기");
     expect(html).not.toContain("문서 관리 열기");
     expect(html).not.toContain("채팅 신청 열기");
-    expect(html).not.toContain("과업 관리 열기");
+    expect(html).not.toContain("투표 관리 열기");
     expect(html).not.toContain("시뮬레이션 열기");
     expect(html).not.toContain("RAG 자료");
     expect(html).not.toContain("오픈 예정");
@@ -1559,13 +1559,13 @@ describe("25 functional Main/Auth screens", () => {
           items: [
             {
               taskId: "task-1",
-              title: "교통 정책 과업",
+              title: "교통 정책 투표",
               stateLabel: "확인 필요",
               href: "/admin/simulations/status?simulationId=sim-1",
             },
             {
               taskId: "task-4",
-              title: "주거 정책 과업",
+              title: "주거 정책 투표",
               stateLabel: "확인 필요",
               href: "/admin/simulations/status?simulationId=sim-2",
             },
@@ -1581,9 +1581,9 @@ describe("25 functional Main/Auth screens", () => {
           labels: new Map(),
         },
         dueSoonTaskSummary: { status: "ready", count: 1, hasMore: false },
-        dueSoonTasks: [{ taskId: "task-2", title: "복지 과업", closesAt: "2026-08-31T10:00:00Z" }],
+        dueSoonTasks: [{ taskId: "task-2", title: "복지 투표", closesAt: "2026-08-31T10:00:00Z" }],
         upcomingTasks: [
-          { taskId: "task-3", title: "예약된 교통 과업", opensAt: "2026-08-31T09:00:00Z" },
+          { taskId: "task-3", title: "예약된 교통 투표", opensAt: "2026-08-31T09:00:00Z" },
         ],
         ragJobSummary: {
           status: "ready",
@@ -1608,17 +1608,17 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).not.toContain("civic-rag-failure-summary");
     expect(html).toContain("처리 실패 문서");
     expect(html).toContain("확인문서.pdf");
-    expect(html).toContain("마감 임박 과업");
-    expect(html).toContain("복지 과업");
-    expect(html).toContain("시작 예정 과업");
-    expect(html).toContain("예약된 교통 과업");
+    expect(html).toContain("마감 임박 투표");
+    expect(html).toContain("복지 투표");
+    expect(html).toContain("시작 예정 투표");
+    expect(html).toContain("예약된 교통 투표");
     expect(html).toContain("확인 필요 시뮬레이션");
     expect(html).toContain('확인 필요 시뮬레이션<span class="civic-home-section-count">2건</span>');
     expect(html).toContain(
       '<a class="civic-home-section-action civic-home-section-action--dark" href="/admin/simulations">전체 보기</a>',
     );
-    expect(html).toContain("교통 정책 과업");
-    expect(html).toContain("주거 정책 과업");
+    expect(html).toContain("교통 정책 투표");
+    expect(html).toContain("주거 정책 투표");
     expect(html).not.toContain("최근 권한 변경");
   });
 

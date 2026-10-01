@@ -978,7 +978,7 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
         </ConsoleStatus>
       ) : result.participations.length === 0 ? (
         <ConsoleStatus>
-          {result.scannedTasks}개 종료 과업에서 이 사용자의 응답을 찾지 못했습니다.
+          {result.scannedTasks}개 종료 투표에서 이 사용자의 응답을 찾지 못했습니다.
         </ConsoleStatus>
       ) : (
         <ul aria-label="투표 참여 목록" className="console-metrics console-field-grid is-stacked">
@@ -993,7 +993,7 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
                 <Link
                   href={`/admin/tasks/results?taskId=${encodeURIComponent(vote.taskId)}` as Route}
                 >
-                  과업 결과 보기
+                  투표 결과 보기
                 </Link>
               </span>
             </li>
@@ -1003,9 +1003,9 @@ function VoteScanResultView({ result }: Readonly<{ result: UserVoteScanResult }>
       {result.truncated || result.failedTasks > 0 ? (
         <ConsoleStatus>
           {result.truncated
-            ? `종료 과업 ${result.totalClosedTasks}개 중 최근 ${result.scannedTasks}개만 확인했습니다. `
+            ? `종료 투표 ${result.totalClosedTasks}개 중 최근 ${result.scannedTasks}개만 확인했습니다. `
             : ""}
-          {result.failedTasks > 0 ? `${result.failedTasks}개 과업은 결과 조회에 실패했습니다.` : ""}
+          {result.failedTasks > 0 ? `${result.failedTasks}개 투표는 결과 조회에 실패했습니다.` : ""}
         </ConsoleStatus>
       ) : null}
     </>
