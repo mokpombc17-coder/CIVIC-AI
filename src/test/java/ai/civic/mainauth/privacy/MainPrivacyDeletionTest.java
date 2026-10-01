@@ -133,8 +133,11 @@ class MainPrivacyDeletionTest extends PostgresIntegrationTest {
         jdbc.update("delete from opaque_auth_flows");
         var user = createUser();
         authentication.requestReactivation("delete-me@example.com", "Wrong123!");
-        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", user);
+        // Password reset issues a real challenge to active and deactivated accounts; an unverified
+        // account still receives an opaque flow keyed by the same identity.
+        jdbc.update("update users set state = 'PENDING_EMAIL_VERIFICATION' where id = ?", user);
         authentication.requestPasswordReset("delete-me@example.com");
+        jdbc.update("update users set state = 'ACTIVE' where id = ?", user);
         assertThat(jdbc.queryForObject(
                 "select count(*) from opaque_auth_flows", Integer.class)).isEqualTo(2);
 

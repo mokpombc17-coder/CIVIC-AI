@@ -80,7 +80,9 @@ public class AuthenticationFlowService {
         this.clock = clock;
     }
 
-    @Transactional(noRollbackFor = {AuthenticationException.class, NotificationDeliveryException.class})
+    @Transactional(noRollbackFor = {
+        AuthenticationException.class, AccountDeactivatedException.class, NotificationDeliveryException.class
+    })
     public LoginResult login(String email, String password, String sourceIp) {
         var account = authenticatePassword(email, password, sourceIp);
         if (account.twoFactorEnabled()) {
@@ -90,7 +92,7 @@ public class AuthenticationFlowService {
         return authenticated(account);
     }
 
-    @Transactional(noRollbackFor = AuthenticationException.class)
+    @Transactional(noRollbackFor = {AuthenticationException.class, AccountDeactivatedException.class})
     public LoginResult loginPwaWithoutSecondFactor(String email, String password, String sourceIp) {
         return authenticated(authenticatePassword(email, password, sourceIp));
     }
@@ -119,7 +121,8 @@ public class AuthenticationFlowService {
                 rs.getObject("id", UUID.class), rs.getString("state"), rs.getString("password_hash"),
                 rs.getBoolean("two_factor_enabled"), rs.getBoolean("must_change_password"),
                 AuthenticatedUserService.UserRole.valueOf(rs.getString("primary_role"))), identities.getFirst()) : null;
-        var eligible = account != null && "ACTIVE".equals(account.state());
+        var eligible = account != null
+                && ("ACTIVE".equals(account.state()) || "DEACTIVATED".equals(account.state()));
         var passwordHash = eligible ? account.passwordHash() : dummyPasswordHash;
         var passwordMatches = password != null && safeMatches(password, passwordHash);
         if (!eligible || !passwordMatches) {
@@ -127,6 +130,7 @@ public class AuthenticationFlowService {
             throw new AuthenticationException(PUBLIC_FAILURE);
         }
         clearFailures(normalized, sourceIp);
+        if ("DEACTIVATED".equals(account.state())) throw new AccountDeactivatedException();
         return account;
     }
 
@@ -205,13 +209,15 @@ public class AuthenticationFlowService {
         var normalized = normalize(email);
         if (normalized.isBlank()) throw new IllegalArgumentException("Email is required");
         identityLocks.lock(normalized);
-        // Account existence is disclosed on purpose: unknown and deactivated emails get a direct answer.
+        // Account existence is disclosed on purpose. Deactivated accounts may reset too, because
+        // reactivation needs the password; the account stays deactivated until reactivated.
         var states = jdbc.queryForList("""
                 select state from users where normalized_email = ? and deleted_at is null
                 """, String.class, normalized);
         var state = states.isEmpty() ? null : states.getFirst();
-        if ("DEACTIVATED".equals(state)) throw PasswordResetAccountException.forDeactivatedAccount();
-        if (!"ACTIVE".equals(state)) throw PasswordResetAccountException.forUnknownAccount();
+        if (!"ACTIVE".equals(state) && !"DEACTIVATED".equals(state)) {
+            throw new PasswordResetAccountException();
+        }
         var sentAt = recordChallengeSend(
                 credentialHashing.opaqueCompletionIdentity(normalized, PASSWORD_RESET), PASSWORD_RESET);
         var flow = requestPasswordReset(normalized);
@@ -220,7 +226,7 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
     public UUID requestPasswordReset(String email) {
-        return requestAccountChallenge(email, "ACTIVE", PASSWORD_RESET, false);
+        return requestAccountChallenge(email, PASSWORD_RESET, false);
     }
 
     @Transactional(noRollbackFor = AuthenticationException.class)
@@ -429,13 +435,14 @@ public class AuthenticationFlowService {
     }
 
     private UUID requestAccountChallenge(
-            String email, String requiredState, String purpose, boolean deliverSynchronously) {
+            String email, String purpose, boolean deliverSynchronously) {
         var normalized = normalize(email);
         identityLocks.lock(normalized);
         var ids = jdbc.query("""
-                select id from users where normalized_email = ? and state = ? for update
+                select id from users
+                where normalized_email = ? and state in ('ACTIVE', 'DEACTIVATED') for update
                 """,
-                (rs, rowNum) -> rs.getObject(1, UUID.class), normalized, requiredState);
+                (rs, rowNum) -> rs.getObject(1, UUID.class), normalized);
         if (ids.isEmpty()) return createDummyChallenge(normalized, purpose);
         return createChallenge(ids.getFirst(), normalized, purpose, deliverSynchronously);
     }

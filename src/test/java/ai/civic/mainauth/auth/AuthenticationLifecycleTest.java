@@ -1255,7 +1255,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordResetRequestTellsUnknownAndDeactivatedAccountsApart() throws Exception {
+    void passwordResetRequestRejectsEmailsWithoutAnAccount() throws Exception {
         startPasswordResetOverHttp("nobody@example.com")
                 .andExpect(status().isNotFound())
                 .andExpect(cookie().doesNotExist(AuthCookieFactory.AUTH_FLOW_COOKIE))
@@ -1264,15 +1264,44 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         startPasswordResetOverHttp("person@example.com")
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ACCOUNT_NOT_FOUND"));
-        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
-        startPasswordResetOverHttp("person@example.com")
-                .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ACCOUNT_DEACTIVATED"));
 
         assertThat(count("auth_challenges")).isZero();
         assertThat(count("opaque_auth_flows")).isZero();
         assertThat(count("auth_challenge_send_limits")).isZero();
         assertThat(count("notification_outbox")).isZero();
+    }
+
+    @Test
+    void deactivatedAccountResetsPasswordAndThenLearnsItMustReactivate() throws Exception {
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        var reset = auth.startPasswordReset("person@example.com").flowId();
+        setResetCode(reset, "654321");
+        auth.verifyPasswordReset(reset, "654321");
+        auth.completePasswordReset(reset, "Changed123!");
+
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+        assertThat(jdbc.queryForObject("select state from users where id = ?", String.class, userId))
+                .isEqualTo("DEACTIVATED");
+        mvc.perform(post("/api/v1/auth/login")
+                        .header("Origin", "https://localhost")
+                        .header("Sec-Fetch-Site", "same-origin")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"person@example.com\",\"password\":\"Changed123!\"}"))
+                .andExpect(status().isForbidden())
+                .andExpect(cookie().doesNotExist(AuthCookieFactory.ACCESS_TOKEN_COOKIE))
+                .andExpect(jsonPath("$.code").value("ACCOUNT_DEACTIVATED"))
+                .andExpect(jsonPath("$.account_state").value("INACTIVE"));
+    }
+
+    @Test
+    void deactivatedAccountWithAWrongPasswordFailsLikeAnUnknownAccount() {
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+
+        assertThat(captureFailure("person@example.com", "Wrong123!"))
+                .isEqualTo(captureFailure("unknown@example.com", "Wrong123!"))
+                .isEqualTo("Email or password is invalid");
+        assertThatThrownBy(() -> auth.login("person@example.com", "Valid123!", "127.0.0.2"))
+                .isInstanceOf(AccountDeactivatedException.class);
     }
 
     @Test

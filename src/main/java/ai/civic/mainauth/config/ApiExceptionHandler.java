@@ -1,5 +1,6 @@
 package ai.civic.mainauth.config;
 
+import ai.civic.mainauth.auth.AccountDeactivatedException;
 import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.ChallengeSendLimitException;
@@ -122,10 +123,16 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(PasswordResetAccountException.class)
     ProblemDetail passwordResetAccount(PasswordResetAccountException exception) {
-        var problem = exception.deactivated()
-                ? problem(HttpStatus.CONFLICT, "Account deactivated", exception.getMessage())
-                : problem(HttpStatus.NOT_FOUND, "Account not found", exception.getMessage());
+        var problem = problem(HttpStatus.NOT_FOUND, "Account not found", exception.getMessage());
         problem.setProperty("code", exception.code());
+        return problem;
+    }
+
+    @ExceptionHandler(AccountDeactivatedException.class)
+    ProblemDetail accountDeactivated(AccountDeactivatedException exception) {
+        var problem = problem(HttpStatus.FORBIDDEN, "Account deactivated", exception.getMessage());
+        problem.setProperty("code", "ACCOUNT_DEACTIVATED");
+        problem.setProperty("account_state", "INACTIVE");
         return problem;
     }
 
