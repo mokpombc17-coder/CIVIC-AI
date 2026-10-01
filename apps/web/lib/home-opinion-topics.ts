@@ -45,7 +45,7 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
   },
   {
     id: "tancheon-shared-path",
-    question: "탄천변 보행·자전거길,\n혼잡한 시간대에는 어떻게 운영할까요?",
+    question: "탄천변 보행·자전거길,\n사람들이 붐빌 때 어떻게 운영할까요?",
     items: [
       {
         label: "현재 구분 유지",
