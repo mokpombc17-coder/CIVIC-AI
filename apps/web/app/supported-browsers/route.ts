@@ -28,7 +28,7 @@ const REASON_MESSAGES: Record<UnsupportedBrowserReason, string> = {
 
 const STATUS_CONTENT = {
   supported: {
-    title: "현재 환경에서 CIVIC.AI를 이용할 수 있습니다",
+    title: "지원되는 환경입니다",
     description: "현재 기기 소프트웨어 또는 브라우저가 CIVIC.AI 지원 기준을 충족합니다.",
     statusMessage: "현재 환경은 지원 기준을 충족합니다.",
     prompt: "CIVIC.AI를 계속 이용하시겠어요?",

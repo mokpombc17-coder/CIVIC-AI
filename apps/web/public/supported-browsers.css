@@ -285,7 +285,7 @@ body {
 
 .browser-support-card[data-support-status="supported"] .recheck p {
   color: #59616b;
-  font-weight: 500;
+  font-weight: 400;
 }
 
 .retry-link {

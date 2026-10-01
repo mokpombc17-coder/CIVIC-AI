@@ -42,7 +42,7 @@ describe("browser support status route handler", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     expect(html).toContain('data-support-status="supported"');
-    expect(html).toContain("현재 환경에서 CIVIC.AI를 이용할 수 있습니다");
+    expect(html).toContain("지원되는 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 16.4');
     expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
     expect(html).toContain('<a class="retry-link" href="/home">이동하기</a>');
