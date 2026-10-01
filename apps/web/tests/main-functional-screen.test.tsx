@@ -1517,7 +1517,7 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html).toContain('data-home-hero-animate="true"');
-    expect(html.match(/data-home-hero-topic=/gu)).toHaveLength(2);
+    expect(html.match(/data-home-hero-topic=/gu)).toHaveLength(3);
     expect(html).toContain('data-home-hero-topic="transfer-fare"');
     expect(html).toContain('data-home-hero-topic="public-parking"');
     expect(html).toContain("동네 공영주차장,");
@@ -1527,6 +1527,14 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("39%");
     expect(html).toContain("27%");
     expect(html).toContain("34%");
+    expect(html).toContain('data-home-hero-topic="tancheon-shared-path"');
+    expect(html).toContain("탄천변 보행·자전거길,");
+    expect(html).toContain("현재 구분 유지");
+    expect(html).toContain("보행 공간 확대");
+    expect(html).toContain("자전거는 내려서 이동");
+    expect(html).toContain("24%");
+    expect(html).toContain("20%");
+    expect(html).toContain("56%");
     expect(html).toContain('data-home-hero-replay=""');
     expect(html).toMatch(/<circle[^>]*data-home-hero-replay=""[^>]*>/);
     expect(html).not.toMatch(/<svg[^>]*data-home-hero-replay/);

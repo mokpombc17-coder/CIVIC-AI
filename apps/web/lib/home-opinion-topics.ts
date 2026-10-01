@@ -43,4 +43,23 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
       },
     ],
   },
+  {
+    id: "tancheon-shared-path",
+    question: "탄천변 보행·자전거길,\n혼잡한 시간대에는 어떻게 운영하면 좋을까요?",
+    items: [
+      {
+        label: "현재 구분 유지",
+        ratio: 24,
+      },
+      {
+        // 혼잡 시간대에 자전거도로 일부를 보행 공간으로 전환하는 선택지입니다.
+        label: "보행 공간 확대",
+        ratio: 20,
+      },
+      {
+        label: "자전거는 내려서 이동",
+        ratio: 56,
+      },
+    ],
+  },
 ] as const;

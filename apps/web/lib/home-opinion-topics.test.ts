@@ -8,8 +8,13 @@ import { HOME_OPINION_TOPICS } from "./home-opinion-topics";
 
 describe("home opinion topics", () => {
   it("keeps the configured topic order and ratios", () => {
-    expect(HOME_OPINION_TOPICS.map(({ id }) => id)).toEqual(["transfer-fare", "public-parking"]);
+    expect(HOME_OPINION_TOPICS.map(({ id }) => id)).toEqual([
+      "transfer-fare",
+      "public-parking",
+      "tancheon-shared-path",
+    ]);
     expect(HOME_OPINION_TOPICS[1]?.items.map(({ ratio }) => ratio)).toEqual([39, 27, 34]);
+    expect(HOME_OPINION_TOPICS[2]?.items.map(({ ratio }) => ratio)).toEqual([24, 20, 56]);
   });
 
   it("places first through third rank from right to left with dark through light colors", () => {
@@ -27,6 +32,17 @@ describe("home opinion topics", () => {
       second: "#5b92ff",
       third: "#d6e3ff",
     });
+  });
+
+  it("applies the same rank positions to the Tancheon shared path topic", () => {
+    const displayItems = orderOpinionItemsForDisplay(HOME_OPINION_TOPICS[2]!.items);
+
+    expect(displayItems.map(({ label }) => label)).toEqual([
+      "보행 공간 확대",
+      "자전거는 내려서 이동",
+      "현재 구분 유지",
+    ]);
+    expect(displayItems.map(({ ratio }) => ratio)).toEqual([20, 56, 24]);
   });
 
   it("keeps the existing callout angle when it is inside the segment", () => {
