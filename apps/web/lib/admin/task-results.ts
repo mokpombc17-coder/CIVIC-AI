@@ -99,7 +99,7 @@ export async function loadTaskResults(
     const response = await request(base, init);
     if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
     const detail = readTaskDetail(await response.json());
-    if (!detail || detail.task.id !== taskId) throw new Error("과업 상세를 불러오지 못했습니다.");
+    if (!detail || detail.task.id !== taskId) throw new Error("투표 상세를 불러오지 못했습니다.");
     return detail.task;
   }
 
@@ -124,10 +124,10 @@ export async function loadTaskResults(
     // The task can close between reading its detail and reading the live aggregate.
     task = await readCurrentTask();
     if (task.status === "OPEN")
-      throw new Error("과업 상태가 변경 중입니다. 잠시 후 새로고침해 주세요.");
+      throw new Error("투표 상태가 변경 중입니다. 잠시 후 새로고침해 주세요.");
   }
   if (!canReadTaskResult(task)) {
-    throw new Error("진행 중이거나 정상 마감 또는 조기 종료된 과업만 결과를 조회할 수 있습니다.");
+    throw new Error("진행 중이거나 정상 마감 또는 조기 종료된 투표만 결과를 조회할 수 있습니다.");
   }
   const response = await request(`${base}/result-summary`, init);
   if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));

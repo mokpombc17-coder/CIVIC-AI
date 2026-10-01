@@ -472,7 +472,7 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
   });
 });
 
-test("토론방·과업의 목록과 상세 구분선은 같은 높이에서 시작하고 페이지를 늘리지 않는다", async ({
+test("토론방·투표의 목록과 상세 구분선은 같은 높이에서 시작하고 페이지를 늘리지 않는다", async ({
   context,
   page,
 }) => {
@@ -625,17 +625,17 @@ test("기존 채팅 통계 주소는 채팅방 관리의 통계 Drawer로 연결
   await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
 });
 
-test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
+test("Vote 관리자는 목록의 투표 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1280, height: 800 });
   task = taskFixture("OPEN");
   await page.goto("/admin/tasks");
 
-  const detailButton = page.getByRole("button", { name: "과업 상세" });
+  const detailButton = page.getByRole("button", { name: "투표 상세" });
   await detailButton.click();
 
   await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
-  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  const drawer = page.getByRole("dialog", { name: "투표 상세" });
   await expect(drawer).toBeVisible();
   await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
   await expect(drawer.getByRole("link", { name: "조기 종료" })).toBeVisible();
@@ -645,7 +645,7 @@ test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한
 
   const drawerBox = await drawer.boundingBox();
   const viewport = page.viewportSize();
-  if (!drawerBox || !viewport) throw new Error("과업 상세 Drawer 위치를 확인할 수 없습니다.");
+  if (!drawerBox || !viewport) throw new Error("투표 상세 Drawer 위치를 확인할 수 없습니다.");
   expect(Math.abs(drawerBox.x + drawerBox.width - viewport.width)).toBeLessThan(2);
   expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThan(2);
 
@@ -655,12 +655,12 @@ test("Vote 관리자는 목록의 과업 상세를 우측 Drawer에서 확인한
   await expect(detailButton).toBeFocused();
 });
 
-test("기존 과업 생성 주소는 목록의 새 과업 Drawer로 연결한다", async ({ context, page }) => {
+test("기존 투표 생성 주소는 목록의 새 투표 Drawer로 연결한다", async ({ context, page }) => {
   await authenticate(context);
   await page.goto("/admin/tasks/create");
 
   await expect(page).toHaveURL("/admin/tasks?create=1");
-  await expect(page.getByRole("dialog", { name: "새 과업 만들기" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "새 투표 만들기" })).toBeVisible();
 });
 
 test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
@@ -670,26 +670,26 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
   await authenticate(context);
   await page.setViewportSize({ width: 1138, height: 768 });
   await page.goto("/admin/tasks");
-  await page.getByRole("button", { name: "새 과업 만들기" }).click();
+  await page.getByRole("button", { name: "새 투표 만들기" }).click();
 
-  let createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  let createDrawer = page.getByRole("dialog", { name: "새 투표 만들기" });
   await expect(page).toHaveURL("/admin/tasks?create=1");
-  await expect(createDrawer.getByRole("navigation", { name: "과업 생성 단계" })).toBeVisible();
+  await expect(createDrawer.getByRole("navigation", { name: "투표 생성 단계" })).toBeVisible();
   await createDrawer.getByLabel("제목").fill("지역 정책 선호도 조사");
-  await createDrawer.getByLabel("상황 또는 사건").fill("운영 확인용 과업");
+  await createDrawer.getByLabel("상황 또는 사건").fill("운영 확인용 투표");
   await createDrawer.getByRole("button", { name: "다음" }).click();
   await createDrawer.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
 
-  await createDrawer.getByRole("button", { name: "새 과업 만들기 닫기" }).click();
+  await createDrawer.getByRole("button", { name: "새 투표 만들기 닫기" }).click();
   await expect(createDrawer).toBeHidden();
-  await page.getByRole("button", { name: "새 과업 만들기" }).click();
-  createDrawer = page.getByRole("dialog", { name: "새 과업 만들기" });
+  await page.getByRole("button", { name: "새 투표 만들기" }).click();
+  createDrawer = page.getByRole("dialog", { name: "새 투표 만들기" });
   await expect(createDrawer.getByRole("textbox", { name: "질문", exact: true })).toHaveValue(
     "어떤 안을 선호하시나요?",
   );
   await createDrawer.getByRole("button", { name: /기본 정보/ }).click();
   await expect(createDrawer.getByLabel("제목")).toHaveValue("지역 정책 선호도 조사");
-  await expect(createDrawer.getByLabel("상황 또는 사건")).toHaveValue("운영 확인용 과업");
+  await expect(createDrawer.getByLabel("상황 또는 사건")).toHaveValue("운영 확인용 투표");
   await createDrawer.getByRole("button", { name: /시민에게 물을 내용/ }).click();
   await createDrawer.getByRole("button", { name: "다음" }).click();
   await expect(createDrawer.getByText("질문 설명", { exact: true })).toHaveCount(0);
@@ -701,11 +701,11 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
     .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
   await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
-  const drawer = page.getByRole("dialog", { name: "과업 상세" });
+  const drawer = page.getByRole("dialog", { name: "투표 상세" });
   await expect(drawer).toBeVisible();
   expect(createdTaskBody).toMatchObject({
     title: "지역 정책 선호도 조사",
-    description: "운영 확인용 과업",
+    description: "운영 확인용 투표",
     question: { description: null },
   });
   await drawer.getByLabel("동작").selectOption("open-now");
@@ -726,11 +726,11 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
 }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
-  task = taskFixture("OPEN", "교통 정책 과업");
+  task = taskFixture("OPEN", "교통 정책 투표");
 
   latestSimulationState = null;
   await page.goto("/admin/simulations");
-  let row = page.getByRole("row", { name: /교통 정책 과업/ });
+  let row = page.getByRole("row", { name: /교통 정책 투표/ });
   const stateBadgeWidths: number[] = [];
   await expect(row).toContainText("준비됨");
   stateBadgeWidths.push(
@@ -742,7 +742,7 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
 
   latestSimulationState = "RUNNING";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 과업/ });
+  row = page.getByRole("row", { name: /교통 정책 투표/ });
   await expect(row).toContainText("진행 중");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
@@ -753,7 +753,7 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
 
   latestSimulationState = "COMPLETED";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 과업/ });
+  row = page.getByRole("row", { name: /교통 정책 투표/ });
   await expect(row).toContainText("완료");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
@@ -767,7 +767,7 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
 test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적용된다", async ({ context, page }) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1440, height: 900 });
-  task = taskFixture("OPEN", "교통 정책 과업");
+  task = taskFixture("OPEN", "교통 정책 투표");
 
   const adminResponse = await page.goto("/admin");
   const contentSecurityPolicy = adminResponse?.headers()["content-security-policy"] ?? "";
@@ -777,12 +777,12 @@ test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적
   await page.getByRole("link", { name: "시뮬레이션", exact: true }).click();
   await expect(page).toHaveURL("/admin/simulations");
 
-  const grid = page.getByRole("region", { name: "시뮬레이션 과업 목록" });
+  const grid = page.getByRole("region", { name: "시뮬레이션 투표 목록" });
   const rootWrapper = grid.locator(".ag-root-wrapper");
   const headerRow = grid.locator(".ag-header-row");
   await expect(rootWrapper).toBeVisible();
   await expect(headerRow).toBeVisible();
-  await expect(grid.getByRole("row", { name: /교통 정책 과업/u })).toBeVisible();
+  await expect(grid.getByRole("row", { name: /교통 정책 투표/u })).toBeVisible();
   await expect(rootWrapper).toHaveCSS("display", "flex");
   await expect(headerRow).toHaveCSS("display", "flex");
 
@@ -891,7 +891,7 @@ test("관리자 검색창은 화면별 레이아웃에서도 하나의 문서관
   for (const [route, label] of [
     ["/admin/chat", "토론방 검색"],
     ["/admin/chat/categories", "토론방 이름 검색"],
-    ["/admin/tasks", "과업 제목 검색"],
+    ["/admin/tasks", "투표 제목 검색"],
   ] as const) {
     await page.goto(route);
     const input = page.locator(`input.console-search-input[aria-label="${label}"]:not(:disabled)`);
@@ -1022,7 +1022,7 @@ function categoryFixture(categoryId: string, name: string, version: number) {
   };
 }
 
-function taskFixture(status: "DRAFT" | "OPEN", title = "기존 정책 과업") {
+function taskFixture(status: "DRAFT" | "OPEN", title = "기존 정책 투표") {
   return {
     id: taskId,
     title,
@@ -1275,9 +1275,10 @@ function preparationFixture() {
     status: preparationStatus,
     contentFingerprint: `sha256:${"a".repeat(64)}`,
     attemptCount: Math.max(1, preparationRequests),
-    processingStartedAt: "2026-09-05T01:00:00Z",
-    preparedAt: preparationStatus === "READY" ? "2026-09-05T01:01:00Z" : null,
-    updatedAt: "2026-09-05T01:01:00Z",
+    // 생성 지연(30분) 기준에 걸리지 않도록 현재 시각 기준으로 만든다.
+    processingStartedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    preparedAt: preparationStatus === "READY" ? new Date(Date.now() - 60_000).toISOString() : null,
+    updatedAt: new Date(Date.now() - 60_000).toISOString(),
     lastError:
       preparationStatus === "FAILED"
         ? {
@@ -1305,8 +1306,9 @@ for (const width of [394, 1440]) {
     await page.goto("/admin");
     const operations = page.getByRole("region", { name: "현재 처리 중" });
     const vote = operations.getByRole("listitem").filter({ hasText: "투표 AI" });
-    await expect(vote).toContainText("작업중");
+    await expect(vote).not.toContainText("작업중");
     await expect(vote).toContainText("생성 중");
+    await expect(vote).toContainText(/\d+분 경과/u);
     const operationBounds = await operations.boundingBox();
     const actionBounds = await vote.getByRole("link", { name: /처리 상세보기/ }).boundingBox();
     expect(operationBounds).not.toBeNull();
@@ -1320,6 +1322,8 @@ for (const width of [394, 1440]) {
     });
     preparationStatus = "FAILED";
     await expect(vote).toContainText("재시도 필요");
+    const alert = page.getByRole("alert").filter({ hasText: "AI 예상 답변 생성에 실패한 투표" });
+    await expect(alert).toContainText("1건");
     await vote.getByRole("link", { name: /처리 상세보기/ }).click();
     await expect(panel.getByRole("status")).toHaveText("재시도 필요");
     await panel.getByText("오류 상세 보기", { exact: true }).click();

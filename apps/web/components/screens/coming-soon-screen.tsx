@@ -8,7 +8,7 @@ type ComingSoonScreenProps = Readonly<{
 
 const ownerLabels = {
   CHAT: "채팅",
-  DECISION: "과업·투표",
+  DECISION: "투표",
   SIMULATION: "시뮬레이션",
 } as const;
 

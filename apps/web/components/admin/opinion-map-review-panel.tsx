@@ -471,7 +471,7 @@ function opinionMapStatusLabel(status: OpinionMapGenerationStatus): string {
 function opinionMapStatusMessage(generation: OpinionMapGeneration): string {
   switch (generation.status) {
     case "NOT_ELIGIBLE":
-      return "아직 결과 대상이 아니거나 정성 요약 비대상으로 종료된 과업입니다.";
+      return "아직 결과 대상이 아니거나 정성 요약 비대상으로 종료된 투표입니다.";
     case "NOT_CREATED":
       return generation.canGenerate
         ? "아직 정성 요약 생성 이력이 없습니다."

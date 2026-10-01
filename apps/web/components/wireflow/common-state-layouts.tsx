@@ -38,7 +38,7 @@ export function WireflowConflictState({
           최신 상태 보기
         </Link>
         <Link className="wf-button wf-button-secondary" href={listHref}>
-          과업 목록으로
+          투표 목록으로
         </Link>
       </div>
     </section>

@@ -199,7 +199,7 @@ describe("Opinion Map 관리자 검수 계약", () => {
     ).toBeNull();
   });
 
-  it("관리자 프록시로 GET을 no-store로 보내고 과업 ID를 검증한다", async () => {
+  it("관리자 프록시로 GET을 no-store로 보내고 투표 ID를 검증한다", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json(availableGeneration()));
     await expect(requestOpinionMapGeneration(taskId, request)).resolves.toMatchObject({
       taskId,
@@ -209,7 +209,7 @@ describe("Opinion Map 관리자 검수 계약", () => {
       cache: "no-store",
     });
 
-    request.mockResolvedValueOnce(Response.json({ ...availableGeneration(), taskId: "다른-과업" }));
+    request.mockResolvedValueOnce(Response.json({ ...availableGeneration(), taskId: "다른-투표" }));
     await expect(requestOpinionMapGeneration(taskId, request)).rejects.toThrow(
       "정성 요약 조회 응답 형식을 확인하지 못했습니다.",
     );
@@ -373,7 +373,7 @@ describe("Opinion Map 관리자 검수 화면", () => {
     expect(html).not.toContain("0.000315 USD");
   });
 
-  it("생성 이력이 없고 생성 가능한 과업에는 생성 버튼을 표시한다", () => {
+  it("생성 이력이 없고 생성 가능한 투표에는 생성 버튼을 표시한다", () => {
     const generation = readOpinionMapGeneration({
       ...availableGeneration(),
       resultVersion: null,

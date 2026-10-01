@@ -3,7 +3,11 @@
 import { useEffect, useState, type ReactNode } from "react";
 import type { Route } from "next";
 import Link from "next/link";
-import { AdminCurrentOperations } from "@/components/admin/admin-current-operations";
+import {
+  AdminCurrentOperations,
+  AdminPreparationAlert,
+  useAdminCurrentOperations,
+} from "@/components/admin/admin-current-operations";
 import { OpinionMapRetryPanel } from "@/components/admin/opinion-map-retry-panel";
 import { AdminUserWorkspace } from "@/components/admin/admin-user-workspace";
 import { ConsoleMetricStrip } from "@/components/admin/console/console-ui";
@@ -219,8 +223,14 @@ export function AdminHome({
 }) {
   const failures = ragJobSummary.status === "ready" ? ragJobSummary.recentFailures : [];
   const attentionItems = attentionSimulations.status === "ready" ? attentionSimulations.items : [];
+  const currentOperations = useAdminCurrentOperations({
+    canManageSimulation,
+    canReadRag,
+    canManageVote,
+  });
   return (
     <div className="civic-admin-home" data-wireflow-layout="admin-home">
+      <AdminPreparationAlert state={currentOperations} />
       <ConsoleMetricStrip
         ariaLabel="관리 현황"
         metrics={[
@@ -248,7 +258,7 @@ export function AdminHome({
               : {}),
           },
           {
-            label: "진행 중 과업",
+            label: "진행 중 투표",
             value: metricCount(activeTaskSummary),
             href: "/admin/tasks" as Route,
           },
@@ -276,10 +286,10 @@ export function AdminHome({
           <HomeSection
             action={
               <Link className="civic-home-section-action" href="/admin/tasks">
-                과업 관리
+                투표 관리
               </Link>
             }
-            title="마감 임박 과업"
+            title="마감 임박 투표"
           >
             {dueSoonTasks.map((task) => (
               <HomeRow
@@ -287,7 +297,7 @@ export function AdminHome({
                   <Link
                     href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
                   >
-                    과업 보기
+                    투표 보기
                   </Link>
                 }
                 key={task.taskId}
@@ -301,10 +311,10 @@ export function AdminHome({
           <HomeSection
             action={
               <Link className="civic-home-section-action" href="/admin/tasks">
-                과업 관리
+                투표 관리
               </Link>
             }
-            title="시작 예정 과업"
+            title="시작 예정 투표"
           >
             {upcomingTasks.map((task) => (
               <HomeRow
@@ -312,7 +322,7 @@ export function AdminHome({
                   <Link
                     href={`/admin/tasks/detail?taskId=${encodeURIComponent(task.taskId)}` as Route}
                   >
-                    과업 보기
+                    투표 보기
                   </Link>
                 }
                 key={task.taskId}
@@ -364,11 +374,7 @@ export function AdminHome({
             ))}
           </HomeSection>
         ) : null}
-        <AdminCurrentOperations
-          canManageSimulation={canManageSimulation}
-          canReadRag={canReadRag}
-          canManageVote={canManageVote}
-        />
+        <AdminCurrentOperations state={currentOperations} />
       </div>
     </div>
   );

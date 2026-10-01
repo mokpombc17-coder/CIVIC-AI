@@ -246,9 +246,9 @@ export async function scanUserVoteParticipation(
   request: typeof fetch = authenticatedFetch,
 ): Promise<UserVoteScanResult> {
   const tasksResponse = await request("/api/v1/admin/tasks", { cache: "no-store" });
-  if (!tasksResponse.ok) throw new Error("과업 목록을 불러오지 못했습니다.");
+  if (!tasksResponse.ok) throw new Error("투표 목록을 불러오지 못했습니다.");
   const tasks = readTaskSummaries(await tasksResponse.json());
-  if (!tasks) throw new Error("과업 목록 응답 형식을 확인하지 못했습니다.");
+  if (!tasks) throw new Error("투표 목록 응답 형식을 확인하지 못했습니다.");
 
   const closed = tasks.filter((task) => task.status === "CLOSED");
   const scannable = closed.slice(0, VOTE_SCAN_TASK_LIMIT);
