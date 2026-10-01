@@ -37,6 +37,8 @@ type SignupDocument = Readonly<{
 
 export type PasswordResetStep = "EMAIL" | "CODE" | "PASSWORD";
 
+export type PasswordResetSchedule = Readonly<{ expiresAt: string; resendAvailableAt: string }>;
+
 const initialDraft: SignupDraft = {
   email: "",
   password: "",
@@ -89,6 +91,9 @@ export function signupStepFromHistory(value: unknown): string | null {
 }
 
 export function authStepAfterPopState(value: unknown, entryScreenId: string): string {
+  if (value && typeof value === "object" && "civicAuthStep" in value) {
+    if (value.civicAuthStep === "AUTH-007") return "AUTH-007";
+  }
   return signupStepFromHistory(value) ?? entryScreenId;
 }
 
@@ -121,6 +126,9 @@ export function AuthFunctionalScreen({
   const [passwordResetStep, setPasswordResetStep] = useState<PasswordResetStep>("EMAIL");
   const [resetEmail, setResetEmail] = useState("");
   const [resetCode, setResetCode] = useState("");
+  // 원본 이메일 대신 서버가 돌려준 가린 이메일과 일정으로 이후 단계를 표시한다.
+  const [resetMaskedEmail, setResetMaskedEmail] = useState("");
+  const [resetSchedule, setResetSchedule] = useState<PasswordResetSchedule | null>(null);
   const [message, setMessage] = useState("");
   const [messageKind, setMessageKind] = useState<"error" | "info">("info");
   const [duplicateEmailState, setDuplicateEmailState] = useState<DuplicateEmailAccountState | null>(
@@ -270,8 +278,11 @@ export function AuthFunctionalScreen({
           if (!isPasswordResetEmail(email)) {
             throw new AuthUserFacingError("로그인에 사용한 이메일을 입력해 주세요.");
           }
-          await api("/api/v1/auth/password-reset/request", { email });
+          const response = await api("/api/v1/auth/password-reset/request", { email });
+          const started = readPasswordResetResponse(await response.json().catch(() => null));
           setResetEmail(email);
+          setResetMaskedEmail(started.maskedEmail ?? maskAuthEmail(email) ?? "");
+          setResetSchedule(started.schedule);
           setResetCode("");
           setPasswordResetStep("CODE");
         } else if (passwordResetStep === "CODE") {
@@ -286,16 +297,8 @@ export function AuthFunctionalScreen({
           const newPasswordConfirmation = String(data.get("new_password_confirmation") ?? "");
           const passwordProblem = signupPasswordProblem(newPassword, newPasswordConfirmation);
           if (passwordProblem) throw new AuthUserFacingError(passwordProblem);
-          try {
-            // 인증번호는 verify 단계에서 서버가 확인했고, 완료 요청은 auth flow 쿠키로 식별한다.
-            await api("/api/v1/auth/password-reset/complete", { new_password: newPassword });
-          } catch (error) {
-            if (passwordResetNeedsNewCode(error)) {
-              setResetCode("");
-              setPasswordResetStep("CODE");
-            }
-            throw error;
-          }
+          // 인증번호는 verify 단계에서 서버가 확인했고, 완료 요청은 auth flow 쿠키로 식별한다.
+          await api("/api/v1/auth/password-reset/complete", { new_password: newPassword });
           clearAuthSessionData();
           sendAuthMessage("LOGOUT");
           location.assign("/login");
@@ -319,15 +322,16 @@ export function AuthFunctionalScreen({
       } else if (activeId === "AUTH-001" && isDeactivatedAccountError(error)) {
         setLoginDeactivated(true);
       } else {
+        const operation =
+          activeId === "AUTH-007"
+            ? passwordResetOperation(passwordResetStep)
+            : authErrorOperation(activeId, verificationKind);
+        if (activeId === "AUTH-007") {
+          const nextStep = passwordResetStepAfterError(operation, error);
+          if (nextStep) movePasswordResetStep(nextStep);
+        }
         setMessageKind("error");
-        setMessage(
-          authErrorMessage(
-            error,
-            activeId === "AUTH-007"
-              ? passwordResetOperation(passwordResetStep)
-              : authErrorOperation(activeId, verificationKind),
-          ),
-        );
+        setMessage(authErrorMessage(error, operation));
       }
     } finally {
       setBusy(false);
@@ -369,23 +373,30 @@ export function AuthFunctionalScreen({
     }
   }
 
+  // 로그인 화면의 이메일은 URL이나 브라우저 저장소를 거치지 않고 화면 상태로만 넘긴다.
   function openPasswordReset() {
-    location.assign("/password-reset");
+    setResetEmail(draft.email.trim());
+    movePasswordResetStep("EMAIL");
+    setMessage("");
+    setMessageKind("info");
+    history.pushState({ ...history.state, civicAuthStep: "AUTH-007" }, "", "/password-reset");
+    setActiveId("AUTH-007");
+    onActiveScreenChange?.("AUTH-007");
   }
 
   async function resendPasswordReset() {
-    if (!isPasswordResetEmail(resetEmail)) {
-      setMessageKind("error");
-      setMessage("로그인 화면에서 재설정 이메일을 다시 요청해 주세요.");
-      return;
-    }
     setBusy(true);
     setMessage("");
     try {
-      await api("/api/v1/auth/password-reset/request", { email: resetEmail });
+      const response = await api("/api/v1/auth/password-reset/resend", {});
+      const resent = readPasswordResetResponse(await response.json().catch(() => null));
+      if (resent.schedule) setResetSchedule(resent.schedule);
+      setResetCode("");
       setMessageKind("info");
-      setMessage("재설정 이메일을 다시 보냈습니다.");
+      setMessage("인증번호를 다시 보냈습니다.");
     } catch (error) {
+      const nextStep = passwordResetStepAfterError("PASSWORD_RESET_RESEND", error);
+      if (nextStep) movePasswordResetStep(nextStep);
       setMessageKind("error");
       setMessage(authErrorMessage(error, "PASSWORD_RESET_RESEND"));
     } finally {
@@ -393,9 +404,17 @@ export function AuthFunctionalScreen({
     }
   }
 
-  function changePasswordResetEmail() {
-    setPasswordResetStep("EMAIL");
+  function movePasswordResetStep(step: PasswordResetStep) {
     setResetCode("");
+    if (step === "EMAIL") {
+      setResetMaskedEmail("");
+      setResetSchedule(null);
+    }
+    setPasswordResetStep(step);
+  }
+
+  function changePasswordResetEmail() {
+    movePasswordResetStep("EMAIL");
     setMessage("");
     setMessageKind("info");
   }
@@ -414,7 +433,7 @@ export function AuthFunctionalScreen({
     ? passwordResetCardTitle(passwordResetStep)
     : authCardTitle(activeId);
   const cardSubtitle = isPasswordReset
-    ? passwordResetCardSubtitle(passwordResetStep, resetEmail)
+    ? passwordResetCardSubtitle(passwordResetStep, resetMaskedEmail)
     : authCardSubtitle(activeId, draft.email);
   return (
     <ScreenFrame
@@ -457,6 +476,7 @@ export function AuthFunctionalScreen({
             <PasswordResetFields
               code={resetCode}
               email={resetEmail}
+              expiresAt={resetSchedule?.expiresAt ?? null}
               onCodeChange={setResetCode}
               onEmailChange={setResetEmail}
               step={passwordResetStep}
@@ -509,6 +529,7 @@ export function AuthFunctionalScreen({
           onPasswordReset={openPasswordReset}
           onPasswordResetResend={resendPasswordReset}
           onResend={resendVerification}
+          passwordResetResendAvailableAt={resetSchedule?.resendAvailableAt ?? null}
           passwordResetStep={passwordResetStep}
         />
       </div>
@@ -744,12 +765,14 @@ function renderFields(
 export function PasswordResetFields({
   code,
   email,
+  expiresAt = null,
   onCodeChange,
   onEmailChange,
   step,
 }: Readonly<{
   code: string;
   email: string;
+  expiresAt?: string | null;
   onCodeChange: (value: string) => void;
   onEmailChange: (value: string) => void;
   step: PasswordResetStep;
@@ -785,7 +808,7 @@ export function PasswordResetFields({
         <Field
           autoComplete="one-time-code"
           enterKeyHint="done"
-          help={<CodeCountdown />}
+          help={expiresAt ? <ExpiryCountdown expiresAt={expiresAt} /> : <CodeCountdown />}
           inputMode="numeric"
           label="6자리 인증번호"
           maxLength={6}
@@ -825,6 +848,7 @@ function AuthSupport({
   onPasswordReset,
   onPasswordResetResend,
   onResend,
+  passwordResetResendAvailableAt,
   passwordResetStep,
 }: Readonly<{
   activeId: string;
@@ -832,8 +856,10 @@ function AuthSupport({
   onPasswordReset: () => void;
   onPasswordResetResend: () => void;
   onResend: () => void;
+  passwordResetResendAvailableAt: string | null;
   passwordResetStep: PasswordResetStep;
 }>) {
+  const resendWait = useSecondsUntil(passwordResetResendAvailableAt);
   if (activeId === "AUTH-005" || activeId === "AUTH-006") {
     return (
       <AuthInfo
@@ -848,9 +874,9 @@ function AuthSupport({
   if (activeId === "AUTH-007" && passwordResetStep === "CODE") {
     return (
       <AuthInfo
-        actionLabel="코드 재발송"
+        actionLabel={resendWait > 0 ? `코드 재발송 (${resendWait}초)` : "코드 재발송"}
         body="아래 버튼을 클릭하여 다시 받을 수 있습니다."
-        disabled={busy}
+        disabled={busy || resendWait > 0}
         onAction={onPasswordResetResend}
         title="코드가 오지 않았나요?"
       />
@@ -962,6 +988,34 @@ function CodeCountdown() {
   return `남은 시간 ${minutes}:${seconds}`;
 }
 
+function ExpiryCountdown({ expiresAt }: Readonly<{ expiresAt: string }>) {
+  const remaining = useSecondsUntil(expiresAt);
+  const minutes = String(Math.floor(remaining / 60)).padStart(2, "0");
+  const seconds = String(remaining % 60).padStart(2, "0");
+  return `남은 시간 ${minutes}:${seconds}`;
+}
+
+function useSecondsUntil(target: string | null): number {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    if (!target) return;
+    const tick = () => setNow(Date.now());
+    // 대상 시각이 바뀌면 다음 1초를 기다리지 않고 남은 시간을 바로 다시 계산한다.
+    const immediate = setTimeout(tick, 0);
+    const timer = setInterval(tick, 1000);
+    return () => {
+      clearTimeout(immediate);
+      clearInterval(timer);
+    };
+  }, [target]);
+  return secondsUntil(target, now);
+}
+
+export function secondsUntil(target: string | null | undefined, now: number): number {
+  const at = target ? Date.parse(target) : Number.NaN;
+  return Number.isNaN(at) ? 0 : Math.max(0, Math.ceil((at - now) / 1000));
+}
+
 function authTitle(id: string): string {
   return (
     {
@@ -1010,9 +1064,8 @@ export function passwordResetCardTitle(step: PasswordResetStep): string {
   return "새 비밀번호 설정";
 }
 
-function passwordResetCardSubtitle(step: PasswordResetStep, email: string): string | undefined {
+function passwordResetCardSubtitle(step: PasswordResetStep, masked: string): string | undefined {
   if (step === "EMAIL") return "비밀번호를 재설정할 계정을 확인합니다.";
-  const masked = maskAuthEmail(email);
   if (step === "CODE") {
     return masked ? `${masked}으로 인증번호를 전송했습니다.` : undefined;
   }
@@ -1252,6 +1305,9 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
   if (error.status === 0 || code === "NETWORK_ERROR") {
     return "네트워크 연결을 확인한 후 다시 시도해 주세요.";
   }
+  if (code === "PASSWORD_RESET_RESEND_COOLDOWN" || code === "PASSWORD_RESET_RESEND_LIMIT") {
+    return sendLimitMessage(error.problem, code);
+  }
   if (error.status === 429 || codeContains(code, "RATE_LIMIT", "TOO_MANY")) {
     if (operation === "LOGIN") {
       return "로그인 시도가 너무 많습니다. 잠시 후 다시 시도해 주세요.";
@@ -1287,6 +1343,15 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
 
   if (operation === "SIGNUP_START" && (error.status === 400 || error.status === 422)) {
     return "올바른 이메일 주소를 입력해 주세요.";
+  }
+
+  if (operation === "PASSWORD_RESET_CODE") {
+    if (code === "PASSWORD_RESET_ATTEMPTS_EXCEEDED") {
+      return "인증번호를 5회 잘못 입력했습니다. 인증번호를 다시 받아 주세요.";
+    }
+    if (code === "PASSWORD_RESET_EXPIRED") {
+      return "인증번호가 만료되었습니다. 인증번호를 다시 받아 주세요.";
+    }
   }
 
   if (
@@ -1339,11 +1404,18 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
   if (operation === "PASSWORD_RESET_COMPLETE") {
     if (codeContains(code, "PASSWORD_POLICY")) return signupPasswordPolicyMessage;
     if (code === "PASSWORD_REUSED") {
-      return "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 새 인증번호를 받아 다시 진행해 주세요.";
+      return "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 인증번호를 다시 받아 진행해 주세요.";
+    }
+    if (code === "PASSWORD_RESET_NOT_VERIFIED") {
+      return "인증번호 확인이 필요합니다. 인증번호를 입력해 주세요.";
     }
     if (error.status === 401 || error.status === 410) {
-      return "인증 유효 시간이 지났습니다. 새 인증번호를 받아 다시 진행해 주세요.";
+      return "인증 유효 시간이 지났습니다. 인증번호를 다시 받아 주세요.";
     }
+  }
+
+  if (operation === "PASSWORD_RESET_RESEND" && error.status === 401) {
+    return "재설정 요청이 만료되었습니다. 이메일을 다시 입력해 주세요.";
   }
 
   return authOperationFallback(operation);
@@ -1410,13 +1482,40 @@ function authProblemCode(problem: Readonly<Record<string, unknown>>): string {
   return typeof candidate === "string" ? candidate.trim().toUpperCase() : "";
 }
 
-// 비밀번호 규칙 위반을 제외한 완료 실패는 서버가 인증 상태를 소진했거나 만료한 경우다.
-export function passwordResetNeedsNewCode(error: unknown): boolean {
-  return (
-    error instanceof ApiRequestError &&
-    (error.status === 401 || error.status === 410) &&
-    !codeContains(authProblemCode(error.problem), "PASSWORD_POLICY")
+export function readPasswordResetResponse(value: unknown): Readonly<{
+  maskedEmail: string | null;
+  schedule: PasswordResetSchedule | null;
+}> {
+  const body = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  const maskedEmail = typeof body.masked_email === "string" ? body.masked_email : null;
+  const schedule =
+    typeof body.expires_at === "string" && typeof body.resend_available_at === "string"
+      ? { expiresAt: body.expires_at, resendAvailableAt: body.resend_available_at }
+      : null;
+  return { maskedEmail, schedule };
+}
+
+// 실패 후 이동할 단계. 재설정 요청이 소진됐으면 이메일부터, 인증 상태만 잃었으면 인증번호부터 다시 진행한다.
+export function passwordResetStepAfterError(
+  operation: AuthErrorOperation,
+  error: unknown,
+): PasswordResetStep | null {
+  if (!(error instanceof ApiRequestError) || error.status !== 401) return null;
+  const code = authProblemCode(error.problem);
+  if (operation === "PASSWORD_RESET_RESEND") return "EMAIL";
+  if (operation !== "PASSWORD_RESET_COMPLETE" || code === "PASSWORD_POLICY") return null;
+  return code === "PASSWORD_REUSED" ? "EMAIL" : "CODE";
+}
+
+function sendLimitMessage(problem: Readonly<Record<string, unknown>>, code: string): string {
+  const wait = secondsUntil(
+    typeof problem.retry_at === "string" ? problem.retry_at : null,
+    Date.now(),
   );
+  if (code === "PASSWORD_RESET_RESEND_LIMIT") {
+    return `인증번호 요청 횟수를 초과했습니다. ${Math.max(1, Math.ceil(wait / 60))}분 후에 다시 시도해 주세요.`;
+  }
+  return `${Math.max(1, wait)}초 후에 다시 받을 수 있습니다.`;
 }
 
 function codeContains(code: string, ...fragments: string[]): boolean {

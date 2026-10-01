@@ -13,6 +13,7 @@ let lastReactivationRequest: Record<string, unknown> | null = null;
 let lastPasswordResetRequest: Record<string, unknown> | null = null;
 let lastPasswordResetCompletion: Record<string, unknown> | null = null;
 let passwordResetVerified = false;
+let passwordResetResendCount = 0;
 let lastSignupCompletion: Record<string, unknown> | null = null;
 let signupFlowRequestCount = 0;
 
@@ -124,12 +125,29 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/auth/password-reset/request") {
       lastPasswordResetRequest = body;
       passwordResetVerified = false;
-      response.writeHead(202, { "set-cookie": authFlowCookie("reset-flow") }).end();
-      return;
+      return json(
+        response,
+        { masked_email: "ci***@example.com", ...passwordResetSchedule(60) },
+        202,
+        authFlowCookie("reset-flow"),
+      );
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/resend") {
+      passwordResetResendCount += 1;
+      passwordResetVerified = false;
+      return json(response, passwordResetSchedule(60), 202, authFlowCookie("reset-flow"));
     }
     if (url.pathname === "/api/v1/auth/password-reset/verify") {
       if (body.code !== "111222") {
-        return json(response, { status: 401, detail: "Authentication code is invalid" }, 401);
+        return json(
+          response,
+          {
+            status: 401,
+            code: "PASSWORD_RESET_CODE_MISMATCH",
+            detail: "Authentication code is invalid",
+          },
+          401,
+        );
       }
       passwordResetVerified = true;
       response.writeHead(204, { "set-cookie": authFlowCookie("reset-flow") }).end();
@@ -138,7 +156,15 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/auth/password-reset/complete") {
       lastPasswordResetCompletion = body;
       if (!passwordResetVerified) {
-        return json(response, { status: 401, detail: "Authentication code is invalid" }, 401);
+        return json(
+          response,
+          {
+            status: 401,
+            code: "PASSWORD_RESET_NOT_VERIFIED",
+            detail: "Authentication code is invalid",
+          },
+          401,
+        );
       }
       passwordResetVerified = false;
       if (body.new_password === "OldCivic!234") {
@@ -345,14 +371,51 @@ test("후속 가입 단계를 새로 열어 흐름 메타데이터가 없으면 
 
 async function startPasswordReset(page: Page): Promise<void> {
   await page.goto("/login");
+  await page.getByLabel("이메일").fill("citizen@example.com");
   await page.getByRole("button", { name: "비밀번호 재설정" }).click();
   await expect(page).toHaveURL(/\/password-reset$/u);
   await expect(page.getByRole("heading", { name: "이메일 입력" })).toBeVisible();
+  await expect(page.getByLabel("이메일")).toHaveValue("citizen@example.com");
+  await page.getByRole("button", { name: "인증번호 받기" }).click();
+  await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
+  await expect(page.getByText("ci***@example.com으로 인증번호를 전송했습니다.")).toBeVisible();
+  expect(lastPasswordResetRequest).toEqual({ email: "citizen@example.com" });
+}
+
+test("로그인 화면에서 연 비밀번호 재설정은 이메일을 바꿀 수 있고 뒤로가기로 로그인에 돌아간다", async ({
+  page,
+}) => {
+  lastPasswordResetRequest = null;
+  await page.goto("/login");
+  await page.getByLabel("이메일").fill("first@example.com");
+  await page.getByRole("button", { name: "비밀번호 재설정" }).click();
+  await expect(page.getByLabel("이메일")).toHaveValue("first@example.com");
   await page.getByLabel("이메일").fill("citizen@example.com");
   await page.getByRole("button", { name: "인증번호 받기" }).click();
   await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
   expect(lastPasswordResetRequest).toEqual({ email: "citizen@example.com" });
-}
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/login$/u);
+  await expect(page.getByRole("button", { name: "로그인", exact: true })).toBeVisible();
+});
+
+test("비밀번호 재설정 코드 재발송은 서버가 알려준 시각까지 잠기고 같은 흐름으로 다시 보낸다", async ({
+  page,
+}) => {
+  passwordResetResendCount = 0;
+  await startPasswordReset(page);
+  const resend = page.getByRole("button", { name: /^코드 재발송/u });
+  await expect(resend).toBeDisabled();
+  await expect(resend).toHaveText(/코드 재발송 \(\d+초\)/u);
+
+  await page.clock.install();
+  await page.clock.fastForward(61_000);
+  await expect(resend).toHaveText("코드 재발송");
+  await resend.click();
+  await expect(page.getByText("인증번호를 다시 보냈습니다.")).toBeVisible();
+  expect(passwordResetResendCount).toBe(1);
+});
 
 test("비밀번호 재설정은 서버가 확인한 인증번호로만 새 비밀번호 단계에 들어간다", async ({
   page,
@@ -377,7 +440,7 @@ test("비밀번호 재설정은 서버가 확인한 인증번호로만 새 비�
   expect(lastPasswordResetCompletion).toEqual({ new_password: "NewCivic!234" });
 });
 
-test("비밀번호 재설정 완료가 인증 상태를 소진하면 인증번호 단계로 돌아간다", async ({ page }) => {
+test("비밀번호 재설정에서 기존 비밀번호를 쓰면 이메일 단계로 돌아간다", async ({ page }) => {
   lastPasswordResetRequest = null;
   lastPasswordResetCompletion = null;
   await startPasswordReset(page);
@@ -391,12 +454,11 @@ test("비밀번호 재설정 완료가 인증 상태를 소진하면 인증번�
 
   await expect(
     page.getByText(
-      "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 새 인증번호를 받아 다시 진행해 주세요.",
+      "기존 비밀번호와 다른 비밀번호를 사용해 주세요. 인증번호를 다시 받아 진행해 주세요.",
     ),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
-  await expect(page.getByLabel("6자리 인증번호")).toHaveValue("");
-  await expect(page.getByRole("button", { name: "코드 재발송" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "이메일 입력" })).toBeVisible();
+  await expect(page.getByLabel("이메일")).toHaveValue("citizen@example.com");
   await expect(page).toHaveURL(/\/password-reset$/u);
 });
 
@@ -423,6 +485,14 @@ test("재활성화는 비밀번호와 등록 이메일 코드를 모두 확인�
   await page.getByRole("button", { name: "계정 재활성화" }).click();
   await expect(page).toHaveURL(/\/login$/u);
 });
+
+function passwordResetSchedule(resendAfterSeconds: number): Record<string, string> {
+  const now = Date.now();
+  return {
+    expires_at: new Date(now + 10 * 60_000).toISOString(),
+    resend_available_at: new Date(now + resendAfterSeconds * 1000).toISOString(),
+  };
+}
 
 function authFlowCookie(value: string): string {
   return `${FLOW_COOKIE}=${value}; Path=/; Secure; HttpOnly; SameSite=Strict`;
