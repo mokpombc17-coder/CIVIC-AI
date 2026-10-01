@@ -740,7 +740,9 @@ function SimulationResults({
             voteLinked ? (
               <Link
                 className="wf-button wf-button-secondary"
-                href={`/admin/tasks/results?taskId=${encodeURIComponent(result.task.id)}` as Route}
+                href={
+                  `/admin/simulations/vote?taskId=${encodeURIComponent(result.task.id)}` as Route
+                }
               >
                 투표 결과와 비교
               </Link>
