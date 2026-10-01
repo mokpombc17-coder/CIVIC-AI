@@ -45,7 +45,7 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
   },
   {
     id: "heavy-rain-response",
-    question: "집중호우에 대비해,\n어디에 우선 투자할까요?",
+    question: "집중호우로 인한 도심 침수,\n무엇부터 보강할까요?",
     items: [
       {
         label: "하수관로 용량 확대",
