@@ -8,7 +8,14 @@ import {
   loadSimulationTarget,
   type SimulationTarget,
 } from "@/components/admin/simulation-scenario-panels";
-import { CompareBar, formatDifference } from "@/components/admin/vote-simulation-comparison";
+import {
+  ResultDonut,
+  simulationDonutData,
+  VoteSimulationDetails,
+  VoteSimulationOptionTable,
+  VoteSimulationSummary,
+  voteDonutData,
+} from "@/components/admin/vote-simulation-analysis";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
@@ -226,6 +233,10 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
         </Link>
       </header>
 
+      {voteResult && current?.result ? (
+        <VoteSimulationSummary result={current.result} rows={rows} vote={voteResult} />
+      ) : null}
+
       <div className="civic-vote-compare-sides civic-vote-simulation-sides">
         <article aria-label="실제 투표 결과" className="civic-vote-compare-side is-vote">
           <header>
@@ -241,19 +252,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
             </p>
           </header>
           {voteResult ? (
-            <ol>
-              {voteResult.options.map((option) => (
-                <li key={option.key}>
-                  <strong>{option.content}</strong>
-                  <CompareBar
-                    count={option.count}
-                    label={`${option.content} 실제 투표 비율`}
-                    rate={option.rate * 100}
-                    tone="vote"
-                  />
-                </li>
-              ))}
-            </ol>
+            <ResultDonut data={voteDonutData(voteResult)} total={voteResult.responseCount} />
           ) : vote.status === "error" ? (
             <p className="civic-vote-compare-note" role="status">
               {vote.message}
@@ -318,38 +317,15 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
           ) : null}
 
           {current?.result ? (
-            <ol>
-              {(rows.length > 0
-                ? rows
-                : current.result.optionResults.map((option) => ({
-                    optionId: option.optionId,
-                    content: option.content,
-                    simulationCount: option.count,
-                    simulationRate: option.percentage,
-                    differencePoints: null,
-                  }))
-              ).map((row) => (
-                <li key={row.optionId}>
-                  <strong>
-                    {row.content}
-                    {row.differencePoints === null ? null : (
-                      <span
-                        aria-label={`실제 투표 대비 ${formatDifference(row.differencePoints)}`}
-                        className="civic-vote-compare-diff"
-                      >
-                        {formatDifference(row.differencePoints)}
-                      </span>
-                    )}
-                  </strong>
-                  <CompareBar
-                    count={row.simulationCount}
-                    label={`${row.content} AI 시뮬레이션 비율`}
-                    rate={row.simulationRate}
-                    tone="simulation"
-                  />
-                </li>
-              ))}
-            </ol>
+            <ResultDonut
+              data={simulationDonutData(current.result, rows)}
+              differences={
+                rows.length > 0
+                  ? new Map(rows.map((row) => [row.optionId, row.differencePoints]))
+                  : undefined
+              }
+              total={current.result.denominators.filtered}
+            />
           ) : runs.status === "ready" && !active ? (
             <p className="civic-vote-compare-note">
               아직 실행한 시뮬레이션이 없습니다. 아래에서 바로 실행할 수 있습니다.
@@ -372,16 +348,14 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
                 `/admin/simulations/results?simulationId=${encodeURIComponent(current.id)}` as Route
               }
             >
-              응답 이유 보기
+              시뮬레이션 결과 화면에서 보기
             </Link>
           ) : null}
         </article>
       </div>
-      {rows.length > 0 ? (
-        <p className="civic-vote-compare-note">
-          오른쪽 %p는 AI 시뮬레이션 비율에서 실제 투표 비율을 뺀 값입니다. 생성형 AI로 만든 가상
-          패널 결과이므로 참고용으로 활용해 주세요.
-        </p>
+      <VoteSimulationOptionTable rows={rows} />
+      {current?.result ? (
+        <VoteSimulationDetails key={current.id} result={current.result} simulationId={current.id} />
       ) : null}
 
       <section aria-labelledby="vote-simulation-run-title" className="civic-vote-simulation-run">

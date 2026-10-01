@@ -1,0 +1,306 @@
+.summary {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.summary > div {
+  display: grid;
+  align-content: start;
+  gap: 4px;
+  min-width: 0;
+  padding: 16px 18px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+}
+
+.summary > div > span {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.summary > div > strong {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  font-variant-numeric: tabular-nums;
+}
+
+.summary > div > p {
+  margin: 0;
+  overflow-wrap: anywhere;
+  color: var(--wf-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.summary > div > p b {
+  color: var(--wf-ink);
+}
+
+.summary > .matchCard {
+  border-color: #9fd8bf;
+  background: #effaf4;
+}
+
+.summary > .matchCard > strong {
+  color: #0f7a4f;
+}
+
+.summary > .mismatchCard {
+  border-color: #f2c39b;
+  background: #fff6ec;
+}
+
+.summary > .mismatchCard > strong {
+  color: #b2560b;
+}
+
+.chart {
+  display: grid;
+  gap: 18px;
+  justify-items: stretch;
+  container-type: inline-size;
+}
+
+.chart figure {
+  width: min(100%, 170px);
+}
+
+.legend {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.legend li {
+  display: grid;
+  grid-template-columns: 10px minmax(0, 1fr) 54px 46px auto;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0;
+  border-bottom: 1px solid var(--wf-line);
+  font-size: 13px;
+}
+
+.legend li:last-child {
+  border-bottom: 0;
+}
+
+.legend strong {
+  min-width: 0;
+  overflow-wrap: anywhere;
+  line-height: 1.4;
+}
+
+.legend .rate {
+  font-weight: 800;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.legend small {
+  color: var(--wf-muted);
+  text-align: right;
+}
+
+.swatch {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  flex: 0 0 auto;
+  border-radius: 3px;
+}
+
+.diff {
+  display: inline-block;
+  min-width: 64px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.diffClose {
+  background: #effaf4;
+  color: #0f7a4f;
+}
+
+.diffOver {
+  background: #eef3ff;
+  color: #1d4ed8;
+}
+
+.diffUnder {
+  background: #fff1ec;
+  color: #c2410c;
+}
+
+.section {
+  display: grid;
+  gap: 14px;
+}
+
+.sectionHeader {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 12px 20px;
+}
+
+.sectionHeader h3 {
+  margin: 0;
+  font-size: 17px;
+  letter-spacing: -0.02em;
+}
+
+.sectionHeader p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+.tableWrap {
+  min-width: 0;
+  overflow-x: auto;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+.optionTable {
+  width: 100%;
+  min-width: 640px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.optionTable th,
+.optionTable td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--wf-line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.optionTable thead th {
+  background: var(--wf-surface);
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.optionTable tbody tr:last-child th,
+.optionTable tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.optionTable tbody th {
+  min-width: 150px;
+  font-weight: 700;
+}
+
+.optionTable tbody th .swatch {
+  margin-right: 8px;
+}
+
+.optionTable td:nth-child(2) {
+  width: 36%;
+}
+
+.optionTable td:nth-child(3),
+.optionTable td:nth-child(4) {
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+
+.optionTable td b {
+  display: block;
+  font-size: 14px;
+}
+
+.optionTable td small {
+  color: var(--wf-muted);
+}
+
+.pairedBars {
+  display: grid;
+  gap: 6px;
+}
+
+.pairedBar {
+  display: grid;
+  grid-template-columns: 26px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.pairedBar small {
+  color: var(--wf-muted);
+  font-size: 11px;
+  font-weight: 700;
+}
+
+.track {
+  display: block;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: var(--wf-surface);
+}
+
+.track i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  transition: width 280ms ease;
+}
+
+.track .simulatedFill {
+  opacity: 0.55;
+}
+
+.note {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* 좌우 카드가 좁아지면 인원 수를 숨겨 선택지 문구가 한 줄을 유지하게 한다. */
+@container (max-width: 380px) {
+  .legend li {
+    grid-template-columns: 10px minmax(0, 1fr) 48px auto;
+    gap: 6px;
+  }
+
+  .legend small {
+    display: none;
+  }
+}
+
+@media (max-width: 1100px) {
+  .summary {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 520px) {
+  .summary {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .track i {
+    transition: none;
+  }
+}

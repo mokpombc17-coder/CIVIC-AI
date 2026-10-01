@@ -765,7 +765,7 @@ function SimulationResults({
 // 투표 없이 작성한 시뮬레이션 스냅샷은 Simulation 서비스가 이 상태값으로 표시한다.
 const SCENARIO_TASK_STATUS = "SIMULATION_ONLY";
 
-function useSimulationResponses(
+export function useSimulationResponses(
   simulationId: string | null,
   initialSlot: number | null,
 ): SimulationResponsesView {
@@ -1099,7 +1099,7 @@ function useSimulationResult(simulationId: string | null) {
   };
 }
 
-function useSimulationResultComparisons(
+export function useSimulationResultComparisons(
   simulationId: string | null,
   result: SimulationResult | null,
   dimension: SimulationResultDimension,

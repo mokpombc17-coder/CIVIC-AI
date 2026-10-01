@@ -446,6 +446,37 @@ export function buildVoteSimulationComparison(
   });
 }
 
+export type VoteSimulationSummary = Readonly<{
+  voteTop: VoteSimulationComparisonRow;
+  simulationTop: VoteSimulationComparisonRow;
+  topMatches: boolean;
+  // 선택지별 |차이|의 평균 (%p)
+  meanAbsoluteDifference: number;
+  largestGap: VoteSimulationComparisonRow;
+}>;
+
+export function summarizeVoteSimulationComparison(
+  rows: readonly VoteSimulationComparisonRow[],
+): VoteSimulationSummary | null {
+  const [first] = rows;
+  if (!first) return null;
+  const pick = (
+    better: (left: VoteSimulationComparisonRow, right: VoteSimulationComparisonRow) => boolean,
+  ) => rows.reduce((current, row) => (better(row, current) ? row : current), first);
+  const voteTop = pick((row, current) => row.voteRate > current.voteRate);
+  const simulationTop = pick((row, current) => row.simulationRate > current.simulationRate);
+  return {
+    voteTop,
+    simulationTop,
+    topMatches: voteTop.optionId === simulationTop.optionId,
+    meanAbsoluteDifference:
+      rows.reduce((total, row) => total + Math.abs(row.differencePoints), 0) / rows.length,
+    largestGap: pick(
+      (row, current) => Math.abs(row.differencePoints) > Math.abs(current.differencePoints),
+    ),
+  };
+}
+
 export function latestCompletedSimulations(
   views: readonly SimulationView[],
 ): readonly SimulationView[] {

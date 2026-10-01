@@ -4,6 +4,7 @@ import {
   latestCompletedSimulations,
   readSimulationResponsePage,
   readSimulationScenario,
+  summarizeVoteSimulationComparison,
   validateSimulationScenarioDraft,
   type SimulationView,
 } from "./simulation-contracts";
@@ -189,6 +190,31 @@ describe("simulation scenario contracts", () => {
       simulation,
     );
     expect(byOrder.map((row) => row.simulationRate)).toEqual([34, 66]);
+  });
+
+  it("1위 일치 여부·평균 차이·가장 큰 차이를 요약한다", () => {
+    const rows = buildVoteSimulationComparison(
+      {
+        responseCount: 10,
+        options: [
+          { key: "O1", content: "필요", count: 7, rate: 0.7 },
+          { key: "O2", content: "불필요", count: 3, rate: 0.3 },
+        ],
+      },
+      {
+        optionResults: [
+          { optionId: optionA, displayOrder: 1, content: "필요", count: 40, percentage: 40 },
+          { optionId: optionB, displayOrder: 2, content: "불필요", count: 60, percentage: 60 },
+        ],
+      },
+    );
+    const summary = summarizeVoteSimulationComparison(rows);
+    expect(summary?.topMatches).toBe(false);
+    expect(summary?.voteTop.content).toBe("필요");
+    expect(summary?.simulationTop.content).toBe("불필요");
+    expect(summary?.meanAbsoluteDifference).toBeCloseTo(30);
+    expect(summary?.largestGap.differencePoints).toBeCloseTo(-30);
+    expect(summarizeVoteSimulationComparison([])).toBeNull();
   });
 
   it("완료된 시뮬레이션만 최신순으로 고른다", () => {
