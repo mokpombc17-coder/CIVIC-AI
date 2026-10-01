@@ -733,7 +733,7 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
   await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
 });
 
-test("시뮬레이션 목록은 독립 시뮬레이션의 최신 실행 상태에 맞는 화면으로 연결한다", async ({
+test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을 별도 목록으로 보여준다", async ({
   context,
   page,
 }) => {
@@ -743,9 +743,10 @@ test("시뮬레이션 목록은 독립 시뮬레이션의 최신 실행 상태�
 
   latestSimulationState = null;
   await page.goto("/admin/simulations");
-  await expect(page.getByText("투표에서 실행한 시뮬레이션은 해당 투표의 결과 탭")).toBeVisible();
-  await expect(page.getByRole("row", { name: /교통 정책 투표/ })).toHaveCount(0);
-  let row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
+  const voteList = page.getByRole("region", { name: "투표 기반 시뮬레이션 목록" });
+  const scenarioList = page.getByRole("region", { name: "시뮬레이션 목록", exact: true });
+  await expect(voteList.getByRole("row", { name: /교통 정책 투표/ })).toHaveCount(0);
+  let row = scenarioList.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   const stateBadgeWidths: number[] = [];
   await expect(row).toContainText("미실행");
   stateBadgeWidths.push(
@@ -756,17 +757,18 @@ test("시뮬레이션 목록은 독립 시뮬레이션의 최신 실행 상태�
 
   latestSimulationState = "RUNNING";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
+  row = scenarioList.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   await expect(row).toContainText("진행 중");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
+  await expect(voteList.getByRole("row", { name: /교통 정책 투표/ })).toContainText("진행 중");
   await row.click();
   await expect(page).toHaveURL(`/admin/simulations/status?simulationId=${simulationId}`);
 
   latestSimulationState = "COMPLETED";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
+  row = scenarioList.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   await expect(row).toContainText("완료");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
@@ -774,6 +776,10 @@ test("시뮬레이션 목록은 독립 시뮬레이션의 최신 실행 상태�
   await row.click();
   await expect(page).toHaveURL(`/admin/simulations/results?simulationId=${simulationId}`);
   expect(stateBadgeWidths).toEqual([76, 76, 76]);
+
+  await page.goto("/admin/simulations");
+  await voteList.getByRole("row", { name: /교통 정책 투표/ }).click();
+  await expect(page).toHaveURL(`/admin/tasks/results?taskId=${taskId}`);
 });
 
 test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적용된다", async ({ context, page }) => {
@@ -789,7 +795,7 @@ test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적
   await page.getByRole("link", { name: "시뮬레이션", exact: true }).click();
   await expect(page).toHaveURL("/admin/simulations");
 
-  const grid = page.getByRole("region", { name: "시뮬레이션 목록" });
+  const grid = page.getByRole("region", { name: "시뮬레이션 목록", exact: true });
   const rootWrapper = grid.locator(".ag-root-wrapper");
   const headerRow = grid.locator(".ag-header-row");
   await expect(rootWrapper).toBeVisible();

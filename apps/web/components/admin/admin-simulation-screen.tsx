@@ -15,7 +15,7 @@ import { formatKrw } from "@/lib/admin/format";
 import {
   loadSimulationTarget,
   SimulationScenarioEditor,
-  SimulationScenarioList,
+  SimulationLists,
   type SimulationTarget,
 } from "@/components/admin/simulation-scenario-panels";
 import {
@@ -125,7 +125,7 @@ function SimulationHub({ initialSection }: Readonly<{ initialSection: Simulation
     <>
       <ConsoleMetricStrip ariaLabel="공용 지갑 요약" metrics={walletMetricItems(walletState)} />
       <SimulationSectionTabs active={section} onSelect={switchSection} />
-      {section === "run" ? <SimulationScenarioList /> : null}
+      {section === "run" ? <SimulationLists /> : null}
       <SimulationBillingSection
         onWalletChange={(wallet) => setWalletState({ status: "ready", wallet })}
         section={section}
@@ -732,7 +732,7 @@ function SimulationResults({
   );
 }
 
-// 독립 시뮬레이션 스냅샷은 Simulation 서비스가 이 상태값으로 표시한다.
+// 투표 없이 작성한 시뮬레이션 스냅샷은 Simulation 서비스가 이 상태값으로 표시한다.
 const SCENARIO_TASK_STATUS = "SIMULATION_ONLY";
 
 function useSimulationResponses(
@@ -1144,7 +1144,9 @@ function TaskSnapshotCard({ target }: Readonly<{ target: SimulationTarget | null
     <section className="civic-domain-description">
       {target ? (
         <span className="civic-simulation-target-kind">
-          {target.kind === "vote" ? "투표 기반 시뮬레이션 · 결과를 투표와 비교" : "독립 시뮬레이션"}
+          {target.kind === "vote"
+            ? "투표 기반 시뮬레이션 · 결과를 투표와 비교"
+            : "직접 작성한 시뮬레이션"}
         </span>
       ) : null}
       <h2>{target?.title ?? "시뮬레이션 대상 불러오는 중"}</h2>

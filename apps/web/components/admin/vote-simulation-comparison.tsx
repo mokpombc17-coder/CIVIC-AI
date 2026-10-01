@@ -171,65 +171,68 @@ export function VoteSimulationComparison({
 
       {vote && current?.result ? (
         <>
-          <dl className="civic-vote-compare-summary">
-            <div>
-              <dt>실제 투표</dt>
-              <dd>
-                {vote.responseCount.toLocaleString("ko-KR")}명 응답
-                {vote.observedAt ? " · 진행 중 집계" : ""}
-              </dd>
-            </div>
-            <div>
-              <dt>AI 시뮬레이션</dt>
-              <dd>
-                페르소나 {current.result.denominators.filtered.toLocaleString("ko-KR")}명
-                {current.result.unansweredCount > 0
-                  ? ` · 미응답 ${current.result.unansweredCount.toLocaleString("ko-KR")}명`
-                  : ""}
-              </dd>
-            </div>
-          </dl>
-          <div className="civic-vote-compare-table-wrap">
-            <table className="civic-vote-compare-table">
-              <thead>
-                <tr>
-                  <th scope="col">선택지</th>
-                  <th scope="col">실제 투표</th>
-                  <th scope="col">AI 시뮬레이션</th>
-                  <th scope="col">차이</th>
-                </tr>
-              </thead>
-              <tbody>
+          <div className="civic-vote-compare-sides">
+            <article aria-label="실제 투표 결과" className="civic-vote-compare-side is-vote">
+              <header>
+                <h3>실제 투표</h3>
+                <p>
+                  {vote.responseCount.toLocaleString("ko-KR")}명 응답
+                  {vote.observedAt ? " · 진행 중 집계" : ""}
+                </p>
+              </header>
+              <ol>
                 {rows.map((row) => (
-                  <tr key={row.optionId}>
-                    <th scope="row">{row.content}</th>
-                    <td>
-                      <CompareBar
-                        count={row.voteCount}
-                        label={`${row.content} 실제 투표 비율`}
-                        rate={row.voteRate}
-                        tone="vote"
-                      />
-                    </td>
-                    <td>
-                      <CompareBar
-                        count={row.simulationCount}
-                        label={`${row.content} AI 시뮬레이션 비율`}
-                        rate={row.simulationRate}
-                        tone="simulation"
-                      />
-                    </td>
-                    <td className="civic-vote-compare-diff">
-                      {formatDifference(row.differencePoints)}
-                    </td>
-                  </tr>
+                  <li key={row.optionId}>
+                    <strong>{row.content}</strong>
+                    <CompareBar
+                      count={row.voteCount}
+                      label={`${row.content} 실제 투표 비율`}
+                      rate={row.voteRate}
+                      tone="vote"
+                    />
+                  </li>
                 ))}
-              </tbody>
-            </table>
+              </ol>
+            </article>
+            <article
+              aria-label="AI 시뮬레이션 결과"
+              className="civic-vote-compare-side is-simulation"
+            >
+              <header>
+                <h3>AI 시뮬레이션</h3>
+                <p>
+                  페르소나 {current.result.denominators.filtered.toLocaleString("ko-KR")}명
+                  {current.result.unansweredCount > 0
+                    ? ` · 미응답 ${current.result.unansweredCount.toLocaleString("ko-KR")}명`
+                    : ""}
+                </p>
+              </header>
+              <ol>
+                {rows.map((row) => (
+                  <li key={row.optionId}>
+                    <strong>
+                      {row.content}
+                      <span
+                        aria-label={`실제 투표 대비 ${formatDifference(row.differencePoints)}`}
+                        className="civic-vote-compare-diff"
+                      >
+                        {formatDifference(row.differencePoints)}
+                      </span>
+                    </strong>
+                    <CompareBar
+                      count={row.simulationCount}
+                      label={`${row.content} AI 시뮬레이션 비율`}
+                      rate={row.simulationRate}
+                      tone="simulation"
+                    />
+                  </li>
+                ))}
+              </ol>
+            </article>
           </div>
           <p className="civic-vote-compare-note">
-            차이는 AI 시뮬레이션 비율에서 실제 투표 비율을 뺀 값입니다. 생성형 AI로 만든 가상 패널
-            결과이므로 참고용으로 활용해 주세요.
+            오른쪽 %p는 AI 시뮬레이션 비율에서 실제 투표 비율을 뺀 값입니다. 생성형 AI로 만든 가상
+            패널 결과이므로 참고용으로 활용해 주세요.
           </p>
           <div className="civic-form-actions">
             <Link className="wf-button wf-button-secondary" href={setupHref}>

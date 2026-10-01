@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   loadSimulationTarget,
   scenarioRow,
+  voteSimulationRow,
   SimulationScenarioEditor,
 } from "@/components/admin/simulation-scenario-panels";
 import { formatDifference } from "@/components/admin/vote-simulation-comparison";
@@ -91,6 +92,47 @@ describe("simulation scenario panels", () => {
       stateLabel: "미실행",
       href: `/admin/simulations/setup?taskId=${id}`,
     });
+  });
+
+  it("투표 기반 목록은 실행 이력이 있는 투표만 담고 완료 결과는 투표 비교로 연결한다", () => {
+    const summary = {
+      taskId: id,
+      title: "투표",
+      status: "OPEN" as const,
+      createdAt: "2026-10-01T00:00:00Z",
+      updatedAt: "2026-10-01T00:00:00Z",
+      closedAt: null,
+      closureType: null,
+      openedAt: null,
+      publishedAt: null,
+      schedule: null,
+    };
+    const run = {
+      simulationId: "71000000-0000-4000-8000-0000000000aa",
+      taskId: id,
+      state: "COMPLETED" as const,
+      personaCount: 100,
+      progressPercent: 100,
+      cancelRequested: false,
+      errorCode: null,
+      resumeAt: null,
+      retryAvailableAt: null,
+      waitReason: null,
+      createdAt: "2026-10-01T00:00:00Z",
+      startedAt: "2026-10-01T00:00:00Z",
+      completedAt: "2026-10-01T00:05:00Z",
+      deadlineAt: "2026-10-01T01:00:00Z",
+      estimatedCompletionAt: null,
+      canCancel: false,
+    };
+    expect(voteSimulationRow({ ...summary, latestSimulation: null })).toBeNull();
+    expect(voteSimulationRow({ ...summary, latestSimulation: run })).toMatchObject({
+      stateLabel: "완료",
+      href: `/admin/tasks/results?taskId=${id}`,
+    });
+    expect(
+      voteSimulationRow({ ...summary, latestSimulation: { ...run, state: "RUNNING" } })?.href,
+    ).toBe(`/admin/simulations/status?simulationId=${run.simulationId}`);
   });
 
   it("작성 폼에 투표 불러오기와 선택지 편집을 제공한다", () => {

@@ -1372,59 +1372,62 @@
   min-width: 240px;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-summary {
+[data-wireflow-shell="admin"] .civic-vote-compare-sides {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px;
-  margin: 0;
+  gap: 12px;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-summary div {
-  padding: 12px 14px;
+[data-wireflow-shell="admin"] .civic-vote-compare-side {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--wf-line);
+  border-top-width: 4px;
   border-radius: var(--wf-radius);
-  background: var(--wf-surface);
+  background: #fff;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-summary dt {
-  color: var(--wf-muted);
-  font-size: 12px;
-  font-weight: 700;
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-vote {
+  border-top-color: var(--wf-blue);
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-summary dd {
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-simulation {
+  border-top-color: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header p {
   margin: 4px 0 0;
-  font-size: 15px;
-  font-weight: 700;
-}
-
-[data-wireflow-shell="admin"] .civic-vote-compare-table-wrap {
-  overflow-x: auto;
-}
-
-[data-wireflow-shell="admin"] .civic-vote-compare-table {
-  width: 100%;
-  min-width: 560px;
-  border-collapse: collapse;
+  color: var(--wf-muted);
   font-size: 13px;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-table th,
-[data-wireflow-shell="admin"] .civic-vote-compare-table td {
-  padding: 12px 10px;
-  border-bottom: 1px solid var(--wf-line);
-  text-align: left;
-  vertical-align: middle;
+[data-wireflow-shell="admin"] .civic-vote-compare-side ol {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-table thead th {
-  color: var(--wf-muted);
-  font-size: 12px;
-  font-weight: 700;
+[data-wireflow-shell="admin"] .civic-vote-compare-side li {
+  display: grid;
+  gap: 6px;
 }
 
-[data-wireflow-shell="admin"] .civic-vote-compare-table tbody th {
-  width: 26%;
-  font-weight: 700;
+[data-wireflow-shell="admin"] .civic-vote-compare-side li > strong {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
   overflow-wrap: anywhere;
 }
 
@@ -1476,7 +1479,9 @@
 }
 
 [data-wireflow-shell="admin"] .civic-vote-compare-diff {
-  width: 1%;
+  flex: none;
+  color: var(--wf-muted);
+  font-size: 12px;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -1511,10 +1516,35 @@
   min-height: 48px;
 }
 
-[data-wireflow-shell="admin"] .civic-simulation-list-note {
-  margin: 0 0 12px;
+[data-wireflow-shell="admin"] .civic-simulation-list-section {
+  display: grid;
+  gap: 12px;
+  margin-top: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header p {
+  margin: 4px 0 0;
   color: var(--wf-muted);
   font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header > span {
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-weight: 700;
 }
 
 [data-wireflow-shell="admin"] .civic-simulation-scenario-heading {
@@ -1554,7 +1584,7 @@
 }
 
 @media (max-width: 640px) {
-  [data-wireflow-shell="admin"] .civic-vote-compare-summary {
+  [data-wireflow-shell="admin"] .civic-vote-compare-sides {
     grid-template-columns: 1fr;
   }
 }

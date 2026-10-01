@@ -21,6 +21,7 @@ import {
   validateSimulationScenarioDraft,
   type SimulationScenario,
   type SimulationState,
+  type SimulationTaskSummary,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 
@@ -32,7 +33,7 @@ export type SimulationTarget = Readonly<{
   options: readonly Readonly<{ id: string; content: string }>[];
 }>;
 
-// 독립 시뮬레이션과 투표는 같은 taskId 자리를 공유하므로 시나리오를 먼저 확인한다.
+// 직접 작성한 시뮬레이션과 투표는 같은 taskId 자리를 공유하므로 시나리오를 먼저 확인한다.
 export async function loadSimulationTarget(
   targetId: string,
   request: typeof fetch = authenticatedFetch,
@@ -122,44 +123,97 @@ function scenarioStateTone(state: SimulationState | null): ScenarioRow["stateTon
         : "neutral";
 }
 
-export function SimulationScenarioList() {
-  const router = useRouter();
-  const [items, setItems] = useState<readonly SimulationScenario[]>([]);
-  const [search, setSearch] = useState("");
+type VoteSimulationRow = Readonly<{
+  taskId: string;
+  title: string;
+  stateLabel: string;
+  stateTone: ScenarioRow["stateTone"];
+  updatedLabel: string;
+  href: string;
+}>;
+
+const VOTE_SIMULATION_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<VoteSimulationRow>> = [
+  { field: "title", headerName: "투표 제목", flex: 2, minWidth: 200 },
+  {
+    field: "stateLabel",
+    headerName: "최근 실행 상태",
+    minWidth: 150,
+    cellRenderer: (params: Readonly<{ data?: VoteSimulationRow }>) =>
+      params.data ? (
+        <span className="civic-simulation-state-cell">
+          <ConsoleBadge tone={params.data.stateTone}>{params.data.stateLabel}</ConsoleBadge>
+        </span>
+      ) : null,
+  },
+  { field: "updatedLabel", headerName: "최근 실행", minWidth: 150 },
+];
+
+// 투표 기반 결과는 투표 결과 탭에서 실제 투표와 나란히 본다.
+export function voteSimulationRow(task: SimulationTaskSummary): VoteSimulationRow | null {
+  const latest = task.latestSimulation;
+  if (!latest) return null;
+  const presentation = simulationTargetPresentation(latest.state);
+  return {
+    taskId: task.taskId,
+    title: task.title,
+    stateLabel: presentation.label,
+    stateTone: scenarioStateTone(latest.state),
+    updatedLabel: formatDate(latest.completedAt ?? latest.startedAt ?? latest.createdAt),
+    href:
+      presentation.target === "results"
+        ? `/admin/tasks/results?taskId=${encodeURIComponent(task.taskId)}`
+        : simulationTargetHref(task.taskId, latest),
+  };
+}
+
+function useListLoader<T>(path: string, read: (value: unknown) => readonly T[] | null) {
+  const [items, setItems] = useState<readonly T[]>([]);
   const [message, setMessage] = useState("");
   const [loading, setLoading] = useState(true);
-
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await authenticatedFetch("/api/v1/admin/simulation-scenarios", {
-        cache: "no-store",
-      });
+      const response = await authenticatedFetch(path, { cache: "no-store" });
       if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
-      const scenarios = readSimulationScenarios(await response.json());
-      if (!scenarios) return setMessage("서버의 시뮬레이션 목록 응답 형식을 확인해야 합니다.");
-      setItems(scenarios);
+      const next = read(await response.json());
+      if (!next) return setMessage("서버의 목록 응답 형식을 확인해야 합니다.");
+      setItems(next);
       setMessage("");
     } catch {
-      setMessage("네트워크 오류로 시뮬레이션 목록을 불러오지 못했습니다.");
+      setMessage("네트워크 오류로 목록을 불러오지 못했습니다.");
     } finally {
       setLoading(false);
     }
-  }, []);
-
+  }, [path, read]);
   useEffect(() => {
     const timer = window.setTimeout(() => void load(), 0);
     return () => window.clearTimeout(timer);
   }, [load]);
+  return { items, loading, message, reload: load };
+}
 
-  const rows = useMemo(() => {
-    const normalized = search.trim().toLocaleLowerCase("ko-KR");
-    return (
-      normalized
-        ? items.filter((item) => item.title.toLocaleLowerCase("ko-KR").includes(normalized))
-        : items
-    ).map(scenarioRow);
-  }, [items, search]);
+function matches(title: string, keyword: string): boolean {
+  const normalized = keyword.trim().toLocaleLowerCase("ko-KR");
+  return !normalized || title.toLocaleLowerCase("ko-KR").includes(normalized);
+}
+
+export function SimulationLists() {
+  const router = useRouter();
+  const [search, setSearch] = useState("");
+  const scenarios = useListLoader("/api/v1/admin/simulation-scenarios", readSimulationScenarios);
+  const votes = useListLoader("/api/v1/admin/simulation-tasks", readSimulationTaskSummaries);
+
+  const voteRows = useMemo(
+    () =>
+      votes.items
+        .filter((task) => matches(task.title, search))
+        .flatMap((task) => voteSimulationRow(task) ?? []),
+    [search, votes.items],
+  );
+  const scenarioRows = useMemo(
+    () => scenarios.items.filter((item) => matches(item.title, search)).map(scenarioRow),
+    [scenarios.items, search],
+  );
 
   return (
     <>
@@ -167,45 +221,86 @@ export function SimulationScenarioList() {
         className="civic-domain-toolbar civic-simulation-toolbar console-toolbar"
         onSubmit={(event) => {
           event.preventDefault();
-          void load();
+          void scenarios.reload();
+          void votes.reload();
         }}
         role="search"
       >
         <ConsoleSearchControl
           ariaLabel="시뮬레이션 검색"
           onChange={setSearch}
-          placeholder="시뮬레이션 제목을 검색해 주세요."
+          placeholder="투표 또는 시뮬레이션 제목을 검색해 주세요."
           value={search}
         />
-        <button
-          className="civic-primary-action civic-simulation-create-action"
-          onClick={() => router.push("/admin/simulations/setup" as Route)}
-          type="button"
-        >
-          새 시뮬레이션 만들기
-        </button>
       </form>
-      <p className="civic-simulation-list-note">
-        투표에서 실행한 시뮬레이션은 해당 투표의 결과 탭에서 실제 투표 결과와 함께 확인합니다.
-      </p>
-      <ConsoleDataGrid
-        ariaLabel="시뮬레이션 목록"
-        columnDefs={SCENARIO_GRID_COLUMNS}
-        emptyText={
-          loading
-            ? "시뮬레이션을 불러오는 중입니다."
-            : "아직 만든 시뮬레이션이 없습니다. 새 시뮬레이션을 만들어 주세요."
-        }
-        getRowId={(row) => row.scenarioId}
-        height={480}
-        onRowClicked={(row) => router.push(row.href as Route)}
-        rowData={rows}
-      />
-      {message ? (
-        <p aria-live="polite" className="civic-domain-empty" role="status">
-          {message}
-        </p>
-      ) : null}
+
+      <section
+        aria-labelledby="vote-simulation-list-title"
+        className="civic-simulation-list-section"
+      >
+        <header>
+          <div>
+            <h2 id="vote-simulation-list-title">투표 기반 시뮬레이션</h2>
+            <p>
+              투표 상세에서 실행한 시뮬레이션입니다. 완료된 결과는 투표 결과 탭에서 실제 투표와
+              좌우로 비교합니다.
+            </p>
+          </div>
+          <span>{voteRows.length.toLocaleString("ko-KR")}건</span>
+        </header>
+        <ConsoleDataGrid
+          ariaLabel="투표 기반 시뮬레이션 목록"
+          columnDefs={VOTE_SIMULATION_GRID_COLUMNS}
+          emptyText={
+            votes.loading
+              ? "투표 기반 시뮬레이션을 불러오는 중입니다."
+              : "아직 투표로 실행한 시뮬레이션이 없습니다. 투표 상세에서 실행할 수 있습니다."
+          }
+          getRowId={(row) => row.taskId}
+          height={280}
+          onRowClicked={(row) => router.push(row.href as Route)}
+          rowData={voteRows}
+        />
+        {votes.message ? (
+          <p aria-live="polite" className="civic-domain-empty" role="status">
+            {votes.message}
+          </p>
+        ) : null}
+      </section>
+
+      <section aria-labelledby="simulation-list-title" className="civic-simulation-list-section">
+        <header>
+          <div>
+            <h2 id="simulation-list-title">시뮬레이션</h2>
+            <p>투표 없이 질문과 선택지를 직접 작성한 시뮬레이션입니다.</p>
+          </div>
+          <button
+            className="civic-primary-action civic-simulation-create-action"
+            onClick={() => router.push("/admin/simulations/setup" as Route)}
+            type="button"
+          >
+            새 시뮬레이션 만들기
+          </button>
+        </header>
+        <ConsoleDataGrid
+          ariaLabel="시뮬레이션 목록"
+          columnDefs={SCENARIO_GRID_COLUMNS}
+          emptyText={
+            scenarios.loading
+              ? "시뮬레이션을 불러오는 중입니다."
+              : "아직 만든 시뮬레이션이 없습니다. 새 시뮬레이션을 만들어 주세요."
+          }
+          getRowId={(row) => row.scenarioId}
+          height={280}
+          onRowClicked={(row) => router.push(row.href as Route)}
+          rowData={scenarioRows}
+        />
+        {scenarios.message ? (
+          <p aria-live="polite" className="civic-domain-empty" role="status">
+            {scenarios.message}
+          </p>
+        ) : null}
+      </section>
     </>
   );
 }
