@@ -1068,19 +1068,13 @@ describe("25 functional Main/Auth screens", () => {
     expect(secondsUntil(null, Date.now())).toBe(0);
   });
 
-  it("비밀번호 재설정 요청은 가입되지 않은 이메일과 비활성 계정을 구분해 안내한다", () => {
+  it("비밀번호 재설정 요청은 가입되지 않은 이메일을 안내한다", () => {
     expect(
       authErrorMessage(
         new ApiRequestError(404, { code: "PASSWORD_RESET_ACCOUNT_NOT_FOUND" }, "Not found"),
         "PASSWORD_RESET_REQUEST",
       ),
     ).toBe("가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해 주세요.");
-    expect(
-      authErrorMessage(
-        new ApiRequestError(409, { code: "PASSWORD_RESET_ACCOUNT_DEACTIVATED" }, "Deactivated"),
-        "PASSWORD_RESET_REQUEST",
-      ),
-    ).toBe("비활성화된 계정입니다. 계정을 재활성화한 뒤 이용해 주세요.");
     expect(
       passwordResetStepAfterError(
         "PASSWORD_RESET_REQUEST",

@@ -1398,9 +1398,6 @@ export function authErrorMessage(error: unknown, operation: AuthErrorOperation):
     if (code === "PASSWORD_RESET_ACCOUNT_NOT_FOUND") {
       return "가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해 주세요.";
     }
-    if (code === "PASSWORD_RESET_ACCOUNT_DEACTIVATED") {
-      return "비활성화된 계정입니다. 계정을 재활성화한 뒤 이용해 주세요.";
-    }
   }
 
   if (
