@@ -30,7 +30,7 @@ describe("browser support status route handler", () => {
     expect(html).toContain('class="current-environment-name">iOS 13.7');
     expect(html).toContain("현재 iOS 버전이 지원 기준보다 낮습니다.");
     expect(html).toContain("업데이트를 마치셨나요?");
-    expect(html).toContain('<a class="retry-link" href="/supported-browsers">다시 확인</a>');
+    expect(html).toContain('<a class="retry-link" href="/supported-browsers">확인하기</a>');
     expect(html).toContain('class="update-guide"');
     expect(html).not.toContain("<script");
   });
@@ -45,7 +45,7 @@ describe("browser support status route handler", () => {
     expect(html).toContain("현재 환경에서 CIVIC.AI를 이용할 수 있습니다");
     expect(html).toContain('class="current-environment-name">iOS 16.4');
     expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
-    expect(html).toContain('<a class="retry-link" href="/home">CIVIC.AI로 이동</a>');
+    expect(html).toContain('<a class="retry-link" href="/home">이동하기</a>');
     expect(html).not.toContain('class="update-guide"');
   });
 
@@ -59,7 +59,7 @@ describe("browser support status route handler", () => {
     expect(html).toContain("현재 환경의 지원 여부를 자동으로 확인하기 어렵습니다");
     expect(html).toContain('class="current-environment-name">확인할 수 없는 환경');
     expect(html).toContain("서비스 이용을 제한하지 않습니다.");
-    expect(html).toContain('<a class="retry-link" href="/home">CIVIC.AI로 이동</a>');
+    expect(html).toContain('<a class="retry-link" href="/home">이동하기</a>');
     expect(html).not.toContain('class="update-guide"');
   });
 

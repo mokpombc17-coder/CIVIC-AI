@@ -32,7 +32,7 @@ const STATUS_CONTENT = {
     description: "현재 기기 소프트웨어 또는 브라우저가 CIVIC.AI 지원 기준을 충족합니다.",
     statusMessage: "현재 환경은 지원 기준을 충족합니다.",
     prompt: "CIVIC.AI를 계속 이용하시겠어요?",
-    actionLabel: "CIVIC.AI로 이동",
+    actionLabel: "이동하기",
     actionHref: "/home",
   },
   unknown: {
@@ -41,7 +41,7 @@ const STATUS_CONTENT = {
       "브라우저 정보를 충분히 확인할 수 없지만 서비스 이용을 제한하지 않습니다. 화면이나 기능에 문제가 있으면 최신 버전으로 업데이트해 주세요.",
     statusMessage: "현재 환경은 자동 판정 대상이 아니며 서비스 이용을 제한하지 않습니다.",
     prompt: "CIVIC.AI 이용을 계속할 수 있습니다.",
-    actionLabel: "CIVIC.AI로 이동",
+    actionLabel: "이동하기",
     actionHref: "/home",
   },
   unsupported: {
@@ -49,7 +49,7 @@ const STATUS_CONTENT = {
     description:
       "현재 환경에서는 일부 화면이나 기능이 정상적으로 표시되거나 동작하지 않을 수 있습니다. 원활한 이용을 위해 최신 버전으로 업데이트해 주세요.",
     prompt: "업데이트를 마치셨나요?",
-    actionLabel: "다시 확인",
+    actionLabel: "확인하기",
     actionHref: "/supported-browsers",
   },
 } as const;
