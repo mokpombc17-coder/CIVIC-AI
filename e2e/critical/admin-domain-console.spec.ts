@@ -746,6 +746,11 @@ test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을
   const voteList = page.getByRole("region", { name: "투표 기반 시뮬레이션 목록" });
   const scenarioList = page.getByRole("region", { name: "시뮬레이션 목록", exact: true });
   await expect(voteList.getByRole("row", { name: /교통 정책 투표/ })).toHaveCount(0);
+  const voteBox = await voteList.boundingBox();
+  const scenarioBox = await scenarioList.boundingBox();
+  expect(voteBox && scenarioBox).toBeTruthy();
+  expect(voteBox!.x + voteBox!.width).toBeLessThanOrEqual(scenarioBox!.x);
+  expect(Math.abs(voteBox!.y - scenarioBox!.y)).toBeLessThan(2);
   let row = scenarioList.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   const stateBadgeWidths: number[] = [];
   await expect(row).toContainText("미실행");

@@ -191,7 +191,7 @@ AdminLayout [Server Route Layout, wireflow.css + admin-console.css 소유] → A
     │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도/재생성·활성 run 폴링]
     ├── AdminSimulationScreen [SONA 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [시뮬레이션 목록·공용 지갑·가격 정책·사용량·근거 이관]
-    │   ├── SimulationLists [투표 기반 시뮬레이션 목록(완료 시 투표 결과 탭 비교로 이동)과 직접 작성한 시뮬레이션 목록을 별도 섹션으로 표시]
+    │   ├── SimulationLists [투표 기반 시뮬레이션 목록(완료 시 투표 결과 탭 비교로 이동)과 직접 작성한 시뮬레이션 목록을 좌우 2열로 표시, 좁은 화면은 세로]
     │   ├── SimulationScenarioEditor [질문·선택지 작성, VoteImportDialog로 투표 내용 복사]
     │   ├── 대상(직접 작성한 시뮬레이션 또는 투표) 실행 전 비용/시간 견적·설정
     │   ├── 활성 데이터 번들 기반 패널 필터

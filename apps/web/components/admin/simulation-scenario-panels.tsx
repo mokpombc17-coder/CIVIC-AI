@@ -83,11 +83,11 @@ type ScenarioRow = Readonly<{
 }>;
 
 const SCENARIO_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ScenarioRow>> = [
-  { field: "title", headerName: "시뮬레이션 제목", flex: 2, minWidth: 200 },
+  { field: "title", headerName: "시뮬레이션 제목", flex: 2, minWidth: 160 },
   {
     field: "stateLabel",
     headerName: "진행 상태",
-    minWidth: 150,
+    minWidth: 110,
     cellRenderer: (params: Readonly<{ data?: ScenarioRow }>) =>
       params.data ? (
         <span className="civic-simulation-state-cell">
@@ -95,7 +95,7 @@ const SCENARIO_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<ScenarioRow>> = [
         </span>
       ) : null,
   },
-  { field: "updatedLabel", headerName: "최근 변경", minWidth: 150 },
+  { field: "updatedLabel", headerName: "최근 변경", minWidth: 170 },
 ];
 
 export function scenarioRow(scenario: SimulationScenario): ScenarioRow {
@@ -133,11 +133,11 @@ type VoteSimulationRow = Readonly<{
 }>;
 
 const VOTE_SIMULATION_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<VoteSimulationRow>> = [
-  { field: "title", headerName: "투표 제목", flex: 2, minWidth: 200 },
+  { field: "title", headerName: "투표 제목", flex: 2, minWidth: 160 },
   {
     field: "stateLabel",
     headerName: "최근 실행 상태",
-    minWidth: 150,
+    minWidth: 120,
     cellRenderer: (params: Readonly<{ data?: VoteSimulationRow }>) =>
       params.data ? (
         <span className="civic-simulation-state-cell">
@@ -145,7 +145,7 @@ const VOTE_SIMULATION_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<VoteSimulationRo
         </span>
       ) : null,
   },
-  { field: "updatedLabel", headerName: "최근 실행", minWidth: 150 },
+  { field: "updatedLabel", headerName: "최근 실행", minWidth: 170 },
 ];
 
 // 투표 기반 결과는 투표 결과 탭에서 실제 투표와 나란히 본다.
@@ -234,73 +234,74 @@ export function SimulationLists() {
         />
       </form>
 
-      <section
-        aria-labelledby="vote-simulation-list-title"
-        className="civic-simulation-list-section"
-      >
-        <header>
-          <div>
-            <h2 id="vote-simulation-list-title">투표 기반 시뮬레이션</h2>
-            <p>
-              투표 상세에서 실행한 시뮬레이션입니다. 완료된 결과는 투표 결과 탭에서 실제 투표와
-              좌우로 비교합니다.
+      <div className="civic-simulation-list-columns">
+        <section
+          aria-labelledby="vote-simulation-list-title"
+          className="civic-simulation-list-section"
+        >
+          <header>
+            <div>
+              <h2 id="vote-simulation-list-title">투표 기반 시뮬레이션</h2>
+              <p>
+                투표 상세에서 실행했습니다. 완료 결과는 투표 결과 탭에서 실제 투표와 비교합니다.
+              </p>
+            </div>
+            <span>{voteRows.length.toLocaleString("ko-KR")}건</span>
+          </header>
+          <ConsoleDataGrid
+            ariaLabel="투표 기반 시뮬레이션 목록"
+            columnDefs={VOTE_SIMULATION_GRID_COLUMNS}
+            emptyText={
+              votes.loading
+                ? "투표 기반 시뮬레이션을 불러오는 중입니다."
+                : "아직 투표로 실행한 시뮬레이션이 없습니다. 투표 상세에서 실행할 수 있습니다."
+            }
+            getRowId={(row) => row.taskId}
+            height={420}
+            onRowClicked={(row) => router.push(row.href as Route)}
+            rowData={voteRows}
+          />
+          {votes.message ? (
+            <p aria-live="polite" className="civic-domain-empty" role="status">
+              {votes.message}
             </p>
-          </div>
-          <span>{voteRows.length.toLocaleString("ko-KR")}건</span>
-        </header>
-        <ConsoleDataGrid
-          ariaLabel="투표 기반 시뮬레이션 목록"
-          columnDefs={VOTE_SIMULATION_GRID_COLUMNS}
-          emptyText={
-            votes.loading
-              ? "투표 기반 시뮬레이션을 불러오는 중입니다."
-              : "아직 투표로 실행한 시뮬레이션이 없습니다. 투표 상세에서 실행할 수 있습니다."
-          }
-          getRowId={(row) => row.taskId}
-          height={280}
-          onRowClicked={(row) => router.push(row.href as Route)}
-          rowData={voteRows}
-        />
-        {votes.message ? (
-          <p aria-live="polite" className="civic-domain-empty" role="status">
-            {votes.message}
-          </p>
-        ) : null}
-      </section>
+          ) : null}
+        </section>
 
-      <section aria-labelledby="simulation-list-title" className="civic-simulation-list-section">
-        <header>
-          <div>
-            <h2 id="simulation-list-title">시뮬레이션</h2>
-            <p>투표 없이 질문과 선택지를 직접 작성한 시뮬레이션입니다.</p>
-          </div>
-          <button
-            className="civic-primary-action civic-simulation-create-action"
-            onClick={() => router.push("/admin/simulations/setup" as Route)}
-            type="button"
-          >
-            새 시뮬레이션 만들기
-          </button>
-        </header>
-        <ConsoleDataGrid
-          ariaLabel="시뮬레이션 목록"
-          columnDefs={SCENARIO_GRID_COLUMNS}
-          emptyText={
-            scenarios.loading
-              ? "시뮬레이션을 불러오는 중입니다."
-              : "아직 만든 시뮬레이션이 없습니다. 새 시뮬레이션을 만들어 주세요."
-          }
-          getRowId={(row) => row.scenarioId}
-          height={280}
-          onRowClicked={(row) => router.push(row.href as Route)}
-          rowData={scenarioRows}
-        />
-        {scenarios.message ? (
-          <p aria-live="polite" className="civic-domain-empty" role="status">
-            {scenarios.message}
-          </p>
-        ) : null}
-      </section>
+        <section aria-labelledby="simulation-list-title" className="civic-simulation-list-section">
+          <header>
+            <div>
+              <h2 id="simulation-list-title">시뮬레이션</h2>
+              <p>투표 없이 질문과 선택지를 직접 작성했습니다.</p>
+            </div>
+            <button
+              className="civic-primary-action civic-simulation-create-action"
+              onClick={() => router.push("/admin/simulations/setup" as Route)}
+              type="button"
+            >
+              새 시뮬레이션 만들기
+            </button>
+          </header>
+          <ConsoleDataGrid
+            ariaLabel="시뮬레이션 목록"
+            columnDefs={SCENARIO_GRID_COLUMNS}
+            emptyText={
+              scenarios.loading
+                ? "시뮬레이션을 불러오는 중입니다."
+                : "아직 만든 시뮬레이션이 없습니다. 새 시뮬레이션을 만들어 주세요."
+            }
+            getRowId={(row) => row.scenarioId}
+            height={420}
+            onRowClicked={(row) => router.push(row.href as Route)}
+            rowData={scenarioRows}
+          />
+          {scenarios.message ? (
+            <p aria-live="polite" className="civic-domain-empty" role="status">
+              {scenarios.message}
+            </p>
+          ) : null}
+        </section>
+      </div>
     </>
   );
 }
@@ -618,7 +619,7 @@ function formatDate(value: string | null): string {
     ? value
     : new Intl.DateTimeFormat("ko-KR", {
         dateStyle: "medium",
-        timeStyle: "medium",
+        timeStyle: "short",
         timeZone: "Asia/Seoul",
       }).format(date);
 }
