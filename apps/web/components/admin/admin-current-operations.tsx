@@ -4,10 +4,12 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
+  readSimulationScenarios,
   readSimulationTaskSummaries,
   simulationTargetHref,
   simulationTargetPresentation,
   type SimulationState,
+  type SimulationView,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { readTaskDetail, readTaskSummaries, type TaskDetail } from "@/lib/admin/domain-contracts";
@@ -309,33 +311,60 @@ function collectSource(
   if (source.warning) unavailableSources.push(`${label} 일부`);
 }
 
+type SimulationTarget = Readonly<{ id: string; title: string; latest: SimulationView | null }>;
+
+// 투표 기반 실행과 직접 작성한 시뮬레이션 실행을 함께 보여준다. 한쪽만 실패하면 일부 누락으로 알린다.
 async function loadCurrentSimulationOperations(
   request: typeof fetch,
 ): Promise<OperationSourceResult> {
-  try {
-    const response = await request("/api/v1/admin/simulation-tasks", { cache: "no-store" });
-    if (!response.ok) return { status: "unavailable" };
-    const tasks = readSimulationTaskSummaries(await response.json());
-    if (!tasks) return { status: "unavailable" };
-    const items = tasks.flatMap((task): readonly AdminCurrentOperation[] => {
-      const latest = task.latestSimulation;
+  const [votes, scenarios] = await Promise.all([
+    loadSimulationTargets(request, "/api/v1/admin/simulation-tasks", (value) =>
+      readSimulationTaskSummaries(value)?.map((task) => ({
+        id: task.taskId,
+        title: task.title,
+        latest: task.latestSimulation,
+      })),
+    ),
+    loadSimulationTargets(request, "/api/v1/admin/simulation-scenarios", (value) =>
+      readSimulationScenarios(value)?.map((scenario) => ({
+        id: scenario.scenarioId,
+        title: scenario.title,
+        latest: scenario.latestSimulation,
+      })),
+    ),
+  ]);
+  if (!votes && !scenarios) return { status: "unavailable" };
+  const items = [...(votes ?? []), ...(scenarios ?? [])].flatMap(
+    ({ id, title, latest }): readonly AdminCurrentOperation[] => {
       if (!latest || simulationTargetPresentation(latest.state).tone !== "running") return [];
       return [
         {
-          href: simulationTargetHref(task.taskId, latest),
+          href: simulationTargetHref(id, latest),
           id: `simulation:${latest.simulationId}`,
           kind: "simulation",
           meta: simulationOperationMeta(latest.personaCount, latest.estimatedCompletionAt),
           progressPercent: latest.progressPercent,
           sortTimestamp: validTimestamp(latest.startedAt ?? latest.createdAt),
           stage: activeSimulationStateLabel(latest.state),
-          title: task.title,
+          title,
         },
       ];
-    });
-    return { status: "ready", items, total: items.length, warning: false };
+    },
+  );
+  return { status: "ready", items, total: items.length, warning: !votes || !scenarios };
+}
+
+async function loadSimulationTargets(
+  request: typeof fetch,
+  path: string,
+  read: (value: unknown) => readonly SimulationTarget[] | undefined,
+): Promise<readonly SimulationTarget[] | null> {
+  try {
+    const response = await request(path, { cache: "no-store" });
+    if (!response.ok) return null;
+    return read(await response.json()) ?? null;
   } catch {
-    return { status: "unavailable" };
+    return null;
   }
 }
 
