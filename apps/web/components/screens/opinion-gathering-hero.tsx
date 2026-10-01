@@ -5,12 +5,6 @@ export type OpinionItem = {
   ratio: number;
   /** 도넛 주변에 표시할 이유 또는 관점 문구입니다. */
   label: string;
-  /** 생략하면 기본 파란색 팔레트를 사용합니다. */
-  color?: string;
-  /** 도넛 안의 비율 글자색입니다. */
-  ratioTextColor?: string;
-  /** 기본 라벨 방향을 유지하면서 원하는 연결선 접점 각도를 지정합니다. */
-  calloutAngle?: number;
 };
 
 type OpinionGatheringHeroProps = {
@@ -41,24 +35,27 @@ const DEFAULT_ITEMS: readonly [OpinionItem, OpinionItem, OpinionItem] = [
   {
     label: "현행 유지",
     ratio: 20,
-    color: "#d6e3ff",
-    ratioTextColor: "#0054ff",
   },
   {
     label: "공통안 마련",
     ratio: 48,
-    color: "#0054f5",
-    ratioTextColor: "#ffffff",
   },
   {
     label: "일부 기준 통일",
     ratio: 32,
-    color: "#5b92ff",
-    ratioTextColor: "#ffffff",
   },
 ];
 
-const FALLBACK_COLORS = ["#d6e3ff", "#0054f5", "#5b92ff"] as const;
+export const OPINION_RANK_COLORS = {
+  first: "#0054f5",
+  second: "#5b92ff",
+  third: "#d6e3ff",
+} as const;
+const DISPLAY_COLORS = [
+  OPINION_RANK_COLORS.third,
+  OPINION_RANK_COLORS.first,
+  OPINION_RANK_COLORS.second,
+] as const;
 const DONUT_CENTER_X = 180;
 const DONUT_CENTER_Y = 100;
 const DEFAULT_OUTER_RADIUS = 85;
@@ -74,8 +71,24 @@ const CALLOUT_LAYOUT = [
   { side: "left", verticalDirection: 1, attachmentAngle: 138 },
 ] as const;
 
-function getColor(index: number, color?: string) {
-  return color ?? FALLBACK_COLORS[index] ?? FALLBACK_COLORS[0];
+function getColor(index: number) {
+  return DISPLAY_COLORS[index] ?? DISPLAY_COLORS[0];
+}
+
+/** 표시 위치: 3위(왼쪽 위), 1위(오른쪽), 2위(왼쪽 아래). */
+export function orderOpinionItemsForDisplay(
+  items: readonly [OpinionItem, OpinionItem, OpinionItem],
+): readonly [OpinionItem, OpinionItem, OpinionItem] {
+  const rankedItems = items
+    .map((item, originalIndex) => ({
+      item,
+      originalIndex,
+      ratio: Number.isFinite(item.ratio) ? Math.max(0, item.ratio) : 0,
+    }))
+    .sort((left, right) => right.ratio - left.ratio || left.originalIndex - right.originalIndex)
+    .map(({ item }) => item);
+
+  return [rankedItems[2]!, rankedItems[0]!, rankedItems[1]!];
 }
 
 function heroDashStyle(length: number): CSSProperties {
@@ -156,7 +169,10 @@ export function OpinionGatheringHero({
   );
   const revealRadius = (outerRadius + innerRadius) / 2;
   const revealLength = 2 * Math.PI * revealRadius;
-  const safeRatios = items.map(({ ratio }) => (Number.isFinite(ratio) ? Math.max(0, ratio) : 0));
+  const displayItems = orderOpinionItemsForDisplay(items);
+  const safeRatios = displayItems.map(({ ratio }) =>
+    Number.isFinite(ratio) ? Math.max(0, ratio) : 0,
+  );
   const total = safeRatios.reduce((sum, ratio) => sum + ratio, 0) || 1;
   const normalizedRatios = safeRatios.map((ratio) => (ratio / total) * 100);
   const safeSeparatorWidth = Number.isFinite(separatorWidth) ? Math.max(0, separatorWidth) : 1.5;
@@ -183,22 +199,21 @@ export function OpinionGatheringHero({
       endAngle,
       separatorStart: pointOnCircle(DONUT_CENTER_X, DONUT_CENTER_Y, innerRadius, startAngle),
       separatorEnd: pointOnCircle(DONUT_CENTER_X, DONUT_CENTER_Y, outerRadius, startAngle),
-      color: getColor(index, items[index]?.color),
+      color: getColor(index),
       path: createDonutSegmentPath(startAngle, endAngle, outerRadius, innerRadius),
       ratio,
       ratioPosition,
-      ratioTextColor: items[index]?.ratioTextColor ?? (index === 0 ? "#0054ff" : "#ffffff"),
+      ratioTextColor: index === 0 ? "#0054ff" : "#ffffff",
     };
   });
   const visibleSegments = segments.filter(({ ratio }) => ratio > 0);
   const callouts = CALLOUT_LAYOUT.map(({ side, verticalDirection, attachmentAngle }, index) => {
     const segment = segments.find(({ itemIndex }) => itemIndex === index)!;
-    const label = items[index]?.label ?? "";
+    const label = displayItems[index]?.label ?? "";
     const shouldWrapLabel = label.length >= 10;
-    const useWideRightLabel = side === "right" && label.length >= 10;
     const horizontalLength = shouldWrapLabel ? 0 : CALLOUT_HORIZONTAL_LENGTH;
     const resolvedAttachmentAngle = resolveCalloutAttachmentAngle(
-      items[index]?.calloutAngle ?? attachmentAngle,
+      attachmentAngle,
       segment.startAngle,
       segment.endAngle,
     );
@@ -213,15 +228,20 @@ export function OpinionGatheringHero({
     const y = contact.y + verticalDirection * CALLOUT_DIAGONAL_STEP;
     const lineStartX = elbowX + direction * horizontalLength;
     const labelEdgeX = lineStartX + direction * LABEL_LINE_GAP;
+    const labelLeft = `${(labelEdgeX / 360) * 100}%`;
     const pathLength =
       Math.hypot(elbowX - contact.x, y - contact.y) + Math.abs(lineStartX - elbowX);
     return {
       path: `M ${contact.x} ${contact.y} L ${elbowX} ${y} H ${lineStartX}`,
       pathLength,
       labelStyle: {
-        left: `${(labelEdgeX / 360) * 100}%`,
+        left: shouldWrapLabel
+          ? side === "left"
+            ? `clamp(100px, ${labelLeft}, calc(100% - 4px))`
+            : `clamp(4px, ${labelLeft}, calc(100% - 100px))`
+          : labelLeft,
         top: `${(y / 200) * 100}%`,
-        width: useWideRightLabel ? "100px" : undefined,
+        width: shouldWrapLabel ? "100px" : undefined,
         whiteSpace: shouldWrapLabel ? "normal" : undefined,
         wordBreak: shouldWrapLabel ? "keep-all" : undefined,
         transform: `translate(${side === "left" ? "-100%" : "0"}, -50%)`,
@@ -229,7 +249,7 @@ export function OpinionGatheringHero({
     };
   });
 
-  const accessibleSummary = `${question} ${items
+  const accessibleSummary = `${question} ${displayItems
     .map(({ label }, index) => `${label} ${Math.round(normalizedRatios[index]!)}%`)
     .join(", ")}`;
 
@@ -356,7 +376,7 @@ export function OpinionGatheringHero({
         </svg>
 
         <ul className="civic-opinion-hero-labels" aria-hidden="true">
-          {items.map(({ label }, index) => (
+          {displayItems.map(({ label }, index) => (
             <li
               key={`${label}-${index}`}
               className="civic-hero-label"

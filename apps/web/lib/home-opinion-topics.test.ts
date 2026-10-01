@@ -1,12 +1,32 @@
 import { describe, expect, it } from "vitest";
-import { resolveCalloutAttachmentAngle } from "@/components/screens/opinion-gathering-hero";
+import {
+  OPINION_RANK_COLORS,
+  orderOpinionItemsForDisplay,
+  resolveCalloutAttachmentAngle,
+} from "@/components/screens/opinion-gathering-hero";
 import { HOME_OPINION_TOPICS } from "./home-opinion-topics";
 
 describe("home opinion topics", () => {
   it("keeps the configured topic order and ratios", () => {
     expect(HOME_OPINION_TOPICS.map(({ id }) => id)).toEqual(["transfer-fare", "public-parking"]);
     expect(HOME_OPINION_TOPICS[1]?.items.map(({ ratio }) => ratio)).toEqual([39, 27, 34]);
-    expect(HOME_OPINION_TOPICS[1]?.items[1].calloutAngle).toBe(-40);
+  });
+
+  it("places first through third rank from right to left with dark through light colors", () => {
+    const parkingItems = HOME_OPINION_TOPICS[1]!.items;
+    const displayItems = orderOpinionItemsForDisplay(parkingItems);
+
+    expect(displayItems.map(({ label }) => label)).toEqual([
+      "방문객·단기 주차 우선",
+      "주민·장기 주차 우선",
+      "선착순 이용",
+    ]);
+    expect(displayItems.map(({ ratio }) => ratio)).toEqual([27, 39, 34]);
+    expect(OPINION_RANK_COLORS).toEqual({
+      first: "#0054f5",
+      second: "#5b92ff",
+      third: "#d6e3ff",
+    });
   });
 
   it("keeps the existing callout angle when it is inside the segment", () => {
