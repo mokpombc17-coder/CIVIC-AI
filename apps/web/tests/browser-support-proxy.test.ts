@@ -22,12 +22,12 @@ function createNavigationRequest(
   });
 }
 
-describe("unsupported browser proxy gate", () => {
+describe("browser support proxy gate", () => {
   it("redirects a clearly unsupported document navigation to the route handler", () => {
     const response = proxy(createNavigationRequest("/home?source=test", IOS_13_SAFARI));
 
     expect(response.status).toBe(307);
-    expect(response.headers.get("location")).toBe("https://civic.example/unsupported-browser");
+    expect(response.headers.get("location")).toBe("https://civic.example/supported-browsers");
     expect(response.headers.get("cache-control")).toBe("private, no-store");
     expect(response.headers.get("vary")).toBe("User-Agent");
   });
@@ -60,9 +60,9 @@ describe("unsupported browser proxy gate", () => {
     "/_next/static/chunks/app.js",
     "/sw.js",
     "/manifest.webmanifest",
-    "/unsupported-browser",
-    "/unsupported-browser/",
-    "/unsupported-browser.css",
+    "/supported-browsers",
+    "/supported-browsers/",
+    "/supported-browsers.css",
     "/assets/platform-navigation/home.png",
   ])("bypasses infrastructure and static paths without a redirect loop: %s", (pathname) => {
     expect(isBrowserSupportBypassPath(pathname)).toBe(true);
@@ -74,7 +74,7 @@ describe("unsupported browser proxy gate", () => {
 
     expect(serializedMatcher).toContain("api|_next|");
     expect(serializedMatcher).toContain("sw\\\\.js");
-    expect(serializedMatcher).toContain("unsupported-browser(?:/|$)");
+    expect(serializedMatcher).toContain("supported-browsers(?:/|$)");
     expect(serializedMatcher).toContain("next-router-prefetch");
     expect(serializedMatcher).toContain('"purpose","value":"prefetch"');
   });

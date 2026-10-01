@@ -1,7 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
-import { GET } from "../app/unsupported-browser/route";
+import { GET } from "../app/supported-browsers/route";
 
 const IOS_13_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1";
@@ -9,13 +9,13 @@ const IOS_16_4_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1";
 
 function createRequest(userAgent: string): Request {
-  return new Request("https://civic.example/unsupported-browser", {
+  return new Request("https://civic.example/supported-browsers", {
     headers: { "user-agent": userAgent },
   });
 }
 
-describe("unsupported browser route handler", () => {
-  it("returns a plain HTML guide with the normalized environment and no client script", async () => {
+describe("browser support status route handler", () => {
+  it("shows the update guide and retry action for an unsupported environment", async () => {
     const response = GET(createRequest(IOS_13_SAFARI));
     const html = await response.text();
 
@@ -25,19 +25,42 @@ describe("unsupported browser route handler", () => {
     expect(response.headers.get("vary")).toBe("User-Agent");
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(response.headers.get("content-security-policy")).toContain("script-src 'none'");
-    expect(html).toContain('class="civic-home-brand"');
-    expect(html).toContain('class="civic-brand-title">CIVIC.AI');
-    expect(html).toContain('class="civic-region-badge">전남광주');
-    expect(html).toContain('class="platform-stage"');
-    expect(html).toContain('class="platform-shell"');
-    expect(html).toContain('class="browser-support-card"');
+    expect(html).toContain('data-support-status="unsupported"');
     expect(html).toContain("기기 소프트웨어 또는 브라우저를 업데이트해 주세요");
     expect(html).toContain('class="current-environment-name">iOS 13.7');
     expect(html).toContain("현재 iOS 버전이 지원 기준보다 낮습니다.");
     expect(html).toContain("업데이트를 마치셨나요?");
-    expect(html).toContain('<a class="retry-link" href="/home">다시 확인</a>');
-    expect(html).not.toContain("업데이트 후 CIVIC.AI에 다시 접속해 주세요.");
+    expect(html).toContain('<a class="retry-link" href="/supported-browsers">다시 확인</a>');
+    expect(html).toContain('class="update-guide"');
     expect(html).not.toContain("<script");
+  });
+
+  it("shows a supported status and home action instead of redirecting", async () => {
+    const response = GET(createRequest(IOS_16_4_SAFARI));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(html).toContain('data-support-status="supported"');
+    expect(html).toContain("현재 환경에서 CIVIC.AI를 이용할 수 있습니다");
+    expect(html).toContain('class="current-environment-name">iOS 16.4');
+    expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
+    expect(html).toContain('<a class="retry-link" href="/home">CIVIC.AI로 이동</a>');
+    expect(html).not.toContain('class="update-guide"');
+  });
+
+  it("shows an allowed unknown status and home action instead of redirecting", async () => {
+    const response = GET(createRequest("CIVIC-Test-Browser/1.0"));
+    const html = await response.text();
+
+    expect(response.status).toBe(200);
+    expect(response.headers.get("location")).toBeNull();
+    expect(html).toContain('data-support-status="unknown"');
+    expect(html).toContain("현재 환경의 지원 여부를 자동으로 확인하기 어렵습니다");
+    expect(html).toContain('class="current-environment-name">확인할 수 없는 환경');
+    expect(html).toContain("서비스 이용을 제한하지 않습니다.");
+    expect(html).toContain('<a class="retry-link" href="/home">CIVIC.AI로 이동</a>');
+    expect(html).not.toContain('class="update-guide"');
   });
 
   it("does not interpolate the raw user-agent into the document", async () => {
@@ -47,21 +70,9 @@ describe("unsupported browser route handler", () => {
     expect(await response.text()).not.toContain(rawMarker);
   });
 
-  it.each([IOS_16_4_SAFARI, "CIVIC-Test-Browser/1.0"])(
-    "redirects supported and unknown direct visits back to home",
-    (userAgent) => {
-      const response = GET(createRequest(userAgent));
-
-      expect(response.status).toBe(307);
-      expect(response.headers.get("location")).toBe("https://civic.example/home");
-      expect(response.headers.get("cache-control")).toBe("private, no-store");
-      expect(response.headers.get("vary")).toBe("User-Agent");
-    },
-  );
-
-  it("keeps the guide stylesheet independent while matching the auth shell", async () => {
+  it("keeps the status page independent while matching the auth shell", async () => {
     const guideStyles = await readFile(
-      path.join(process.cwd(), "apps/web/public/unsupported-browser.css"),
+      path.join(process.cwd(), "apps/web/public/supported-browsers.css"),
       "utf8",
     );
 
