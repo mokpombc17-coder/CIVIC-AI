@@ -108,7 +108,7 @@ HomeLayout /home [Server Route Layout, home.css 소유] → HomePage /home [Serv
             │           ├── GET /api/v1/me/service-eligibility [browser singleton cache 공유]
             │           ├── 확인 중: 정적 홈 surface 유지, 별도 indicator 없음
             │           └── 필수 미제출: /survey?returnTo=/home hard navigation
-            ├── HomeHeroAnimationController [Client, 5초 순서형 주제 전환·도넛 replay 및 inline bootstrap 미실행 시 fallback]
+            ├── HomeHeroAnimationController [Client, 10초 순서형 주제 전환·도넛 replay 및 inline bootstrap 미실행 시 fallback]
             ├── ParticipantHomeScreen [U-HOME-001, 홈 route가 직접 조립]
             │   ├── OpinionGatheringHero × topic [SSR: 주제 데이터 순서대로 질문·회색 도넛·replay 표식, 비활성 topic은 hidden]
             │   └── ParticipantHomeLayout Suspense [fallback: 보호 동작을 /login?returnTo=...로 연결]
