@@ -160,6 +160,37 @@ describe("simulation scenario contracts", () => {
     ]);
   });
 
+  it("확정 결과의 표시 순서 키(O1)도 시뮬레이션 선택지와 맞춘다", () => {
+    const simulation = {
+      optionResults: [
+        { optionId: optionA, displayOrder: 1, content: "필요", count: 34, percentage: 34 },
+        { optionId: optionB, displayOrder: 2, content: "불필요", count: 66, percentage: 66 },
+      ],
+    };
+    const closed = buildVoteSimulationComparison(
+      {
+        responseCount: 4,
+        options: [
+          { key: "O1", content: "필요", count: 3, rate: 0.75 },
+          { key: "O2", content: "불필요", count: 1, rate: 0.25 },
+        ],
+      },
+      simulation,
+    );
+    expect(closed.map((row) => row.simulationCount)).toEqual([34, 66]);
+    const byOrder = buildVoteSimulationComparison(
+      {
+        responseCount: 4,
+        options: [
+          { key: "O1", content: "문구가 바뀐 선택지", count: 3, rate: 0.75 },
+          { key: "O2", content: "또 다른 문구", count: 1, rate: 0.25 },
+        ],
+      },
+      simulation,
+    );
+    expect(byOrder.map((row) => row.simulationRate)).toEqual([34, 66]);
+  });
+
   it("완료된 시뮬레이션만 최신순으로 고른다", () => {
     const completed = latestCompletedSimulations([
       view("70000000-0000-4000-8000-000000000011", "COMPLETED", "2026-09-01T00:00:00Z"),

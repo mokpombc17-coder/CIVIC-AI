@@ -404,7 +404,25 @@ export type VoteSimulationComparisonRow = Readonly<{
   differencePoints: number;
 }>;
 
-// 실제 투표와 시뮬레이션은 같은 투표 스냅샷의 선택지 ID로 맞춘다.
+// 진행 중 집계는 선택지 ID를, 확정 결과는 "O1"처럼 표시 순서 키를 쓴다.
+// ID → 선택지 문구 → 표시 순서 순으로 맞춰 어느 쪽에서도 같은 선택지를 비교한다.
+function findSimulatedOption(
+  options: SimulationResult["optionResults"],
+  vote: Readonly<{ key: string; content: string }>,
+) {
+  const byId = options.find((item) => item.optionId === vote.key);
+  if (byId) return byId;
+  const content = normalizeOptionContent(vote.content);
+  const byContent = options.find((item) => normalizeOptionContent(item.content) === content);
+  if (byContent) return byContent;
+  const order = /^O([1-9]\d*)$/u.exec(vote.key)?.[1];
+  return order ? options.find((item) => item.displayOrder === Number(order)) : undefined;
+}
+
+function normalizeOptionContent(value: string): string {
+  return value.trim().replace(/\s+/gu, " ");
+}
+
 export function buildVoteSimulationComparison(
   vote: Readonly<{
     responseCount: number;
@@ -413,7 +431,7 @@ export function buildVoteSimulationComparison(
   simulation: Pick<SimulationResult, "optionResults">,
 ): readonly VoteSimulationComparisonRow[] {
   return vote.options.map((option) => {
-    const simulated = simulation.optionResults.find((item) => item.optionId === option.key);
+    const simulated = findSimulatedOption(simulation.optionResults, option);
     const voteRate = option.rate * 100;
     const simulationRate = simulated?.percentage ?? 0;
     return {
