@@ -1604,3 +1604,83 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---- 투표 기반 시뮬레이션 전용 화면 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading p {
+  margin: 6px 0 0;
+  color: var(--wf-muted);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side {
+  padding: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side > .wf-button {
+  justify-self: start;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-side-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress progress {
+  width: 100%;
+  height: 8px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}

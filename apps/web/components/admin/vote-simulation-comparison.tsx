@@ -253,7 +253,7 @@ export function VoteSimulationComparison({
   );
 }
 
-function CompareBar({
+export function CompareBar({
   count,
   label,
   rate,

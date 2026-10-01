@@ -94,7 +94,7 @@ describe("simulation scenario panels", () => {
     });
   });
 
-  it("투표 기반 목록은 실행 이력이 있는 투표만 담고 완료 결과는 투표 비교로 연결한다", () => {
+  it("투표 기반 목록은 미실행 투표까지 담고 모두 전용 비교 화면으로 연결한다", () => {
     const summary = {
       taskId: id,
       title: "투표",
@@ -125,14 +125,17 @@ describe("simulation scenario panels", () => {
       estimatedCompletionAt: null,
       canCancel: false,
     };
-    expect(voteSimulationRow({ ...summary, latestSimulation: null })).toBeNull();
+    expect(voteSimulationRow({ ...summary, latestSimulation: null })).toMatchObject({
+      stateLabel: "미실행",
+      href: `/admin/simulations/vote?taskId=${id}`,
+    });
     expect(voteSimulationRow({ ...summary, latestSimulation: run })).toMatchObject({
       stateLabel: "완료",
-      href: `/admin/tasks/results?taskId=${id}`,
+      href: `/admin/simulations/vote?taskId=${id}`,
     });
     expect(
-      voteSimulationRow({ ...summary, latestSimulation: { ...run, state: "RUNNING" } })?.href,
-    ).toBe(`/admin/simulations/status?simulationId=${run.simulationId}`);
+      voteSimulationRow({ ...summary, latestSimulation: { ...run, state: "RUNNING" } }).stateLabel,
+    ).toBe("진행 중");
   });
 
   it("작성 폼에 투표 불러오기와 선택지 편집을 제공한다", () => {

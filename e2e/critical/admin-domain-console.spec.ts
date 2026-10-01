@@ -172,6 +172,16 @@ test.beforeAll(async () => {
         },
       ]);
     }
+    if (
+      url.pathname === "/api/v1/admin/simulations" &&
+      url.searchParams.get("taskId") === taskId &&
+      request.method === "GET"
+    ) {
+      return json(
+        response,
+        latestSimulationState ? [simulationFixture(latestSimulationState)] : [],
+      );
+    }
     if (url.pathname === "/api/v1/admin/simulation-scenarios" && request.method === "GET") {
       return json(response, [scenarioFixture()]);
     }
@@ -745,7 +755,7 @@ test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을
   await page.goto("/admin/simulations");
   const voteList = page.getByRole("region", { name: "투표 기반 시뮬레이션 목록" });
   const scenarioList = page.getByRole("region", { name: "시뮬레이션 목록", exact: true });
-  await expect(voteList.getByRole("row", { name: /교통 정책 투표/ })).toHaveCount(0);
+  await expect(voteList.getByRole("row", { name: /교통 정책 투표/ })).toContainText("미실행");
   const voteBox = await voteList.boundingBox();
   const scenarioBox = await scenarioList.boundingBox();
   expect(voteBox && scenarioBox).toBeTruthy();
@@ -784,7 +794,16 @@ test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을
 
   await page.goto("/admin/simulations");
   await voteList.getByRole("row", { name: /교통 정책 투표/ }).click();
-  await expect(page).toHaveURL(`/admin/tasks/results?taskId=${taskId}`);
+  await expect(page).toHaveURL(`/admin/simulations/vote?taskId=${taskId}`);
+  const voteSide = page.getByRole("article", { name: "실제 투표 결과" });
+  const simulationSide = page.getByRole("article", { name: "AI 시뮬레이션 결과" });
+  await expect(voteSide).toBeVisible();
+  await expect(simulationSide).toContainText(/%p/u);
+  const voteSideBox = await voteSide.boundingBox();
+  const simulationSideBox = await simulationSide.boundingBox();
+  expect(voteSideBox!.x + voteSideBox!.width).toBeLessThanOrEqual(simulationSideBox!.x);
+  expect(voteSideBox!.y).toBeLessThan(900);
+  await expect(page.getByRole("heading", { name: "다시 실행" })).toBeVisible();
 });
 
 test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적용된다", async ({ context, page }) => {

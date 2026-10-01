@@ -148,21 +148,18 @@ const VOTE_SIMULATION_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<VoteSimulationRo
   { field: "updatedLabel", headerName: "최근 실행", minWidth: 170 },
 ];
 
-// 투표 기반 결과는 투표 결과 탭에서 실제 투표와 나란히 본다.
-export function voteSimulationRow(task: SimulationTaskSummary): VoteSimulationRow | null {
+// 투표 기반 시뮬레이션은 전용 화면에서 실제 투표와 나란히 비교하고 바로 실행한다.
+export function voteSimulationRow(task: SimulationTaskSummary): VoteSimulationRow {
   const latest = task.latestSimulation;
-  if (!latest) return null;
-  const presentation = simulationTargetPresentation(latest.state);
   return {
     taskId: task.taskId,
     title: task.title,
-    stateLabel: presentation.label,
-    stateTone: scenarioStateTone(latest.state),
-    updatedLabel: formatDate(latest.completedAt ?? latest.startedAt ?? latest.createdAt),
-    href:
-      presentation.target === "results"
-        ? `/admin/tasks/results?taskId=${encodeURIComponent(task.taskId)}`
-        : simulationTargetHref(task.taskId, latest),
+    stateLabel: latest ? simulationTargetPresentation(latest.state).label : "미실행",
+    stateTone: scenarioStateTone(latest?.state ?? null),
+    updatedLabel: latest
+      ? formatDate(latest.completedAt ?? latest.startedAt ?? latest.createdAt)
+      : "—",
+    href: `/admin/simulations/vote?taskId=${encodeURIComponent(task.taskId)}`,
   };
 }
 
@@ -204,10 +201,7 @@ export function SimulationLists() {
   const votes = useListLoader("/api/v1/admin/simulation-tasks", readSimulationTaskSummaries);
 
   const voteRows = useMemo(
-    () =>
-      votes.items
-        .filter((task) => matches(task.title, search))
-        .flatMap((task) => voteSimulationRow(task) ?? []),
+    () => votes.items.filter((task) => matches(task.title, search)).map(voteSimulationRow),
     [search, votes.items],
   );
   const scenarioRows = useMemo(
@@ -243,7 +237,7 @@ export function SimulationLists() {
             <div>
               <h2 id="vote-simulation-list-title">투표 기반 시뮬레이션</h2>
               <p>
-                투표 상세에서 실행했습니다. 완료 결과는 투표 결과 탭에서 실제 투표와 비교합니다.
+                투표를 선택하면 실제 투표와 시뮬레이션 결과를 나란히 보고 바로 실행할 수 있습니다.
               </p>
             </div>
             <span>{voteRows.length.toLocaleString("ko-KR")}건</span>
@@ -254,7 +248,7 @@ export function SimulationLists() {
             emptyText={
               votes.loading
                 ? "투표 기반 시뮬레이션을 불러오는 중입니다."
-                : "아직 투표로 실행한 시뮬레이션이 없습니다. 투표 상세에서 실행할 수 있습니다."
+                : "시뮬레이션할 수 있는 투표가 없습니다."
             }
             getRowId={(row) => row.taskId}
             height={420}

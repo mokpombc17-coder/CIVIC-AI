@@ -237,18 +237,28 @@ function SimulationRunWorkspace({
 
 export type SimulationStateTone = "neutral" | "active" | "danger" | "success";
 
-function SimulationSetup({
+export function SimulationSetup({
   defaultPanelOpen = false,
+  hideTarget = false,
+  onStarted,
   query,
   taskId,
-}: Readonly<{ defaultPanelOpen?: boolean; query: AdminQuery; taskId: string | null }>) {
+}: Readonly<{
+  defaultPanelOpen?: boolean;
+  // 대상 정보를 이미 보여주는 화면에서는 질문 카드를 생략한다.
+  hideTarget?: boolean;
+  // 지정하면 실행 직후 상태 화면으로 이동하지 않고 호출한 화면이 진행 상황을 이어 보여준다.
+  onStarted?: (view: SimulationView) => void;
+  query: AdminQuery;
+  taskId: string | null;
+}>) {
   const [target, setTarget] = useState<SimulationTarget | null>(null);
   const [options, setOptions] = useState<SimulationOptions | null>(null);
   const [personaCount, setPersonaCount] = useState(SIMULATION_PERSONA_COUNT_MIN);
   const [filters, setFilters] = useState<Record<string, readonly string[]>>({});
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   const [message, setMessage] = useState("");
-  const { pending, start, startMessage } = useStartSimulation(taskId);
+  const { pending, start, startMessage } = useStartSimulation(taskId, onStarted);
   const requestedPersonaCount = positiveInteger(first(query.personaCount));
   const runInput = options ? buildDefaultSimulationRunInput(personaCount, options, filters) : null;
   const capacityState = useSimulationCapacity(
@@ -321,7 +331,7 @@ function SimulationSetup({
         void start(runInput, previewState.preview.policyFingerprint);
       }}
     >
-      <TaskSnapshotCard target={target} />
+      {hideTarget ? null : <TaskSnapshotCard target={target} />}
       <section className="civic-domain-form-section">
         <header>
           <h2>기본 실행 설정</h2>
@@ -808,7 +818,7 @@ function useSimulationResponses(
   };
 }
 
-function useStartSimulation(taskId: string | null) {
+function useStartSimulation(taskId: string | null, onStarted?: (view: SimulationView) => void) {
   const router = useRouter();
   const requestRef = useRef<{ key: string; signature: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -834,6 +844,8 @@ function useStartSimulation(taskId: string | null) {
         if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
         const created = readSimulationView(await response.json());
         if (!created) return setMessage("서버의 실행 요청 응답 형식을 확인해야 합니다.");
+        requestRef.current = null;
+        if (onStarted) return onStarted(created);
         router.push(
           `/admin/simulations/status?simulationId=${encodeURIComponent(created.simulationId)}` as Route,
         );
@@ -845,7 +857,7 @@ function useStartSimulation(taskId: string | null) {
         setPending(false);
       }
     },
-    [router, taskId],
+    [onStarted, router, taskId],
   );
 
   return { pending, start, startMessage: message };
