@@ -26,24 +26,6 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
     ],
   },
   {
-    id: "public-parking",
-    question: "동네 공영주차장,\n어떤 이용을 우선하면 좋을까요?",
-    items: [
-      {
-        label: "주민·장기 주차 우선",
-        ratio: 39,
-      },
-      {
-        label: "방문객·단기 주차 우선",
-        ratio: 27,
-      },
-      {
-        label: "선착순 이용",
-        ratio: 34,
-      },
-    ],
-  },
-  {
     id: "heavy-rain-response",
     question: "집중호우로 인한 도심 침수,\n어디에 먼저 투자할까요?",
     items: [
@@ -58,6 +40,24 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
       {
         label: "하천·저지대 정비",
         ratio: 19,
+      },
+    ],
+  },
+  {
+    id: "public-parking",
+    question: "동네 공영주차장,\n어떤 이용을 우선하면 좋을까요?",
+    items: [
+      {
+        label: "주민·장기 주차 우선",
+        ratio: 39,
+      },
+      {
+        label: "방문객·단기 주차 우선",
+        ratio: 27,
+      },
+      {
+        label: "선착순 이용",
+        ratio: 34,
       },
     ],
   },
