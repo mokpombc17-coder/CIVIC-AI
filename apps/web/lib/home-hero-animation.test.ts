@@ -7,8 +7,8 @@ import {
 } from "./home-hero-animation";
 
 describe("home hero animation replay", () => {
-  it("keeps each opinion topic visible for thirty seconds and crossfades briefly", () => {
-    expect(homeHeroTopicRotationMs).toBe(30_000);
+  it("keeps each opinion topic visible for fifteen seconds and crossfades briefly", () => {
+    expect(homeHeroTopicRotationMs).toBe(15_000);
     expect(homeHeroTopicTransitionMs).toBe(240);
   });
 

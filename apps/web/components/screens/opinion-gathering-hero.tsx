@@ -66,6 +66,7 @@ const CALLOUT_HORIZONTAL_LENGTH = 20;
 const CALLOUT_DIAGONAL_STEP = 10;
 const CALLOUT_SEGMENT_INSET_DEGREES = 8;
 const WRAPPED_LABEL_WIDTH = 84;
+const RIGHT_WRAPPED_LABEL_WIDTH = 78;
 const LABEL_VIEWPORT_GUTTER = 4;
 const CALLOUT_LAYOUT = [
   { side: "left", verticalDirection: -1, attachmentAngle: -132 },
@@ -213,6 +214,7 @@ export function OpinionGatheringHero({
     const segment = segments.find(({ itemIndex }) => itemIndex === index)!;
     const label = displayItems[index]?.label ?? "";
     const shouldWrapLabel = label.length >= 10;
+    const wrappedLabelWidth = side === "right" ? RIGHT_WRAPPED_LABEL_WIDTH : WRAPPED_LABEL_WIDTH;
     const resolvedAttachmentAngle = resolveCalloutAttachmentAngle(
       attachmentAngle,
       segment.startAngle,
@@ -238,11 +240,11 @@ export function OpinionGatheringHero({
       labelStyle: {
         left: shouldWrapLabel
           ? side === "left"
-            ? `clamp(calc(${WRAPPED_LABEL_WIDTH}px - var(--civic-hero-label-outset, 18px)), ${labelLeft}, calc(100% - ${LABEL_VIEWPORT_GUTTER}px))`
-            : `clamp(${LABEL_VIEWPORT_GUTTER}px, ${labelLeft}, calc(100% - ${WRAPPED_LABEL_WIDTH}px + var(--civic-hero-label-outset, 18px)))`
+            ? `clamp(calc(${wrappedLabelWidth}px - var(--civic-hero-label-outset, 18px)), ${labelLeft}, calc(100% - ${LABEL_VIEWPORT_GUTTER}px))`
+            : `clamp(${LABEL_VIEWPORT_GUTTER}px, ${labelLeft}, calc(100% - ${wrappedLabelWidth}px + var(--civic-hero-label-outset, 18px)))`
           : labelLeft,
         top: `${(y / 200) * 100}%`,
-        width: shouldWrapLabel ? `${WRAPPED_LABEL_WIDTH}px` : undefined,
+        width: shouldWrapLabel ? `${wrappedLabelWidth}px` : undefined,
         paddingRight: shouldWrapLabel && side === "right" ? "3px" : undefined,
         whiteSpace: shouldWrapLabel ? "normal" : undefined,
         wordBreak: shouldWrapLabel ? "keep-all" : undefined,
