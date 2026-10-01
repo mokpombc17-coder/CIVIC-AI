@@ -7,8 +7,8 @@ import {
   buildDefaultSimulationRunInput,
   requestAdminSimulationPreview,
   requestAdminSimulationStart,
-  SIMULATION_TARGET_GRID_COLUMNS,
   SimulationPreviewCard,
+  SimulationSetup,
   simulationRunPath,
   simulationRunStageForScreen,
 } from "@/components/admin/admin-simulation-screen";
@@ -169,12 +169,17 @@ describe("simulation setup", () => {
     expect(html).toContain(">동작</button>");
   });
 
-  it("실행 관리 표 열 정의는 투표 실행에 필요한 정보만 다룬다", () => {
-    expect(SIMULATION_TARGET_GRID_COLUMNS.map((column) => column.headerName)).toEqual([
-      "투표 제목",
-      "시뮬레이션 진행 상태",
-      "최근 변경",
-    ]);
+  it("같은 대상의 실행이 진행 중이면 실행 버튼을 막고 이유를 보여준다", () => {
+    const html = renderToStaticMarkup(
+      <SimulationSetup
+        onStarted={vi.fn()}
+        query={{}}
+        runBlockedReason="진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다."
+        taskId="task-1"
+      />,
+    );
+    expect(html).toContain("진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다.");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*type="submit"/u);
   });
 
   it("화면 ID와 단계별 정본 경로를 유지한다", () => {

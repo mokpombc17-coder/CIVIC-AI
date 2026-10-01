@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
 import { OpinionMapReviewPanel } from "@/components/admin/opinion-map-review-panel";
+import { VoteSimulationComparison } from "@/components/admin/vote-simulation-comparison";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
   ConsoleEmpty,
@@ -116,6 +117,10 @@ function AdminTaskWorkspace({
   const [listMessage, setListMessage] = useState("");
   const [loading, setLoading] = useState(true);
   const autoSelectPending = useRef(screen.id === "A-TASK-001");
+  // 다른 화면에서 특정 투표로 들어오면 좁은 화면(목록 아래 상세)에서도 상세가 바로 보이게 한다.
+  const revealDetailPending = useRef(
+    Boolean(initialTaskId) && (screen.id === "A-TASK-003" || screen.id === "A-TASK-005"),
+  );
 
   const loadList = useCallback(async () => {
     setLoading(true);
@@ -152,6 +157,12 @@ function AdminTaskWorkspace({
     const timer = window.setTimeout(() => void loadList(), 0);
     return () => window.clearTimeout(timer);
   }, [loadList]);
+
+  useEffect(() => {
+    if (loading || !revealDetailPending.current) return;
+    revealDetailPending.current = false;
+    revealTaskDetailPane();
+  }, [loading]);
 
   const filtered = useMemo(() => {
     const normalized = keyword.trim().toLocaleLowerCase("ko-KR");
@@ -307,6 +318,14 @@ function AdminTaskWorkspace({
       </ConsolePane>
     </ConsoleWorkspace>
   );
+}
+
+function revealTaskDetailPane() {
+  const pane = document.querySelector<HTMLElement>('section.console-pane[aria-label="투표 상세"]');
+  if (!pane || typeof window === "undefined") return;
+  // 목록과 상세가 나란히 보이는 넓은 화면에서는 스크롤하지 않는다.
+  if (pane.getBoundingClientRect().top < window.innerHeight * 0.5) return;
+  pane.scrollIntoView({ block: "start" });
 }
 
 function syncTaskUrl(view: TaskWorkspaceView) {
@@ -815,6 +834,14 @@ function TaskOverviewTab({
                 조기 종료
               </button>
             ) : null}
+            {task.question ? (
+              <Link
+                className="wf-button wf-button-secondary"
+                href={`/admin/simulations/setup?taskId=${encodeURIComponent(task.id)}` as Route}
+              >
+                이 투표로 시뮬레이션
+              </Link>
+            ) : null}
             {canViewTaskResults(task) ? (
               <button
                 className="wf-button wf-button-secondary civic-task-results-action"
@@ -1164,6 +1191,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
             다시 시도
           </button>
         ) : null}
+        <VoteSimulationComparison taskId={taskId} vote={null} />
         <OpinionMapReviewPanel taskId={taskId} />
       </>
     );
@@ -1223,6 +1251,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
         </div>
         {message ? <StatusMessage>{message}</StatusMessage> : null}
       </section>
+      <VoteSimulationComparison taskId={taskId} vote={result} />
       <OpinionMapReviewPanel taskId={taskId} />
     </>
   );

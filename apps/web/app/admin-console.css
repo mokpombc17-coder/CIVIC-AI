@@ -1336,3 +1336,351 @@
   background: #eef2ff;
   color: #3730a3;
 }
+
+/* ---- 투표 결과 · AI 시뮬레이션 병렬 비교 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-compare {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-run {
+  min-width: 240px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--wf-line);
+  border-top-width: 4px;
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-vote {
+  border-top-color: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-simulation {
+  border-top-color: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side ol {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side li {
+  display: grid;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side li > strong {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar {
+  display: grid;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar strong {
+  color: var(--wf-ink);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress::-webkit-progress-bar {
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-webkit-progress-value {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-moz-progress-bar {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"]
+  .civic-vote-compare-bar.is-simulation
+  progress::-webkit-progress-value {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-simulation progress::-moz-progress-bar {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-diff {
+  flex: none;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-note {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty p {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* ---- 독립 시뮬레이션 목록·작성 ---- */
+
+[data-wireflow-shell="admin"] .civic-simulation-create-action {
+  flex: none;
+  min-height: 48px;
+}
+
+/* 투표 기반 시뮬레이션(좌)과 직접 작성한 시뮬레이션(우)을 나란히 둔다. */
+[data-wireflow-shell="admin"] .civic-simulation-list-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section {
+  display: grid;
+  grid-template-rows: minmax(64px, auto) auto;
+  gap: 12px;
+  min-width: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header > span {
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-scenario-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-target-kind {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog {
+  display: grid;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  [data-wireflow-shell="admin"] .civic-simulation-list-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-wireflow-shell="admin"] .civic-vote-compare-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 투표 기반 시뮬레이션 전용 화면 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading p {
+  margin: 6px 0 0;
+  color: var(--wf-muted);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side {
+  padding: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side > .wf-button {
+  justify-self: start;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-side-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress progress {
+  width: 100%;
+  height: 8px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}

@@ -132,6 +132,7 @@ const nextConfig: NextConfig = {
               "simulation-options",
               "simulation-capacity",
               "simulation-tasks/:path*",
+              "simulation-scenarios/:path*",
               "simulation-billing/:path*",
             ].map((path) => ({
               source: `/api/v1/admin/${path}`,

@@ -16,6 +16,7 @@ describe("admin current operations", () => {
   it("시뮬레이션과 문서의 진행 작업을 병렬 소스에서 합친다", async () => {
     const request = vi.fn(async (input: RequestInfo | URL) => {
       const url = String(input);
+      if (url === "/api/v1/admin/simulation-scenarios") return Response.json([]);
       if (url === "/api/v1/admin/simulation-tasks") {
         return Response.json([
           simulationTask("RUNNING", 68),
@@ -88,7 +89,13 @@ describe("admin current operations", () => {
   });
 
   it("권한이 있는 소스만 조회하고 진행 작업이 없으면 안정적인 빈 상태를 만든다", async () => {
-    const request = vi.fn(async () => Response.json([simulationTask("COMPLETED", 100)]));
+    const request = vi.fn(async (input: RequestInfo | URL) =>
+      Response.json(
+        String(input) === "/api/v1/admin/simulation-scenarios"
+          ? []
+          : [simulationTask("COMPLETED", 100)],
+      ),
+    );
 
     const result = await loadAdminCurrentOperations({
       canManageSimulation: true,
@@ -97,7 +104,7 @@ describe("admin current operations", () => {
     });
     const html = renderToStaticMarkup(createElement(AdminCurrentOperationsView, { state: result }));
 
-    expect(request).toHaveBeenCalledTimes(1);
+    expect(request).toHaveBeenCalledTimes(2);
     expect(result).toMatchObject({ status: "ready", total: 0, items: [] });
     expect(html).toContain("현재 처리 중인 작업이 없습니다.");
   });
@@ -105,6 +112,7 @@ describe("admin current operations", () => {
   it("일부 소스 조회가 실패해도 확인된 진행 작업은 유지한다", async () => {
     const request = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === "/api/v1/rag/folders") return new Response(null, { status: 503 });
+      if (String(input) === "/api/v1/admin/simulation-scenarios") return Response.json([]);
       return Response.json([simulationTask("WAITING_PROVIDER", 44)]);
     });
 
@@ -213,6 +221,64 @@ function voteDetail(id: string, status: "PROCESSING" | "FAILED" | "READY" | "REJ
       : null,
   };
 }
+
+describe("직접 작성한 시뮬레이션 실행", () => {
+  it("투표 기반 실행과 함께 홈 현재 처리 중에 표시하고 한쪽 실패는 일부 누락으로 알린다", async () => {
+    const scenarioId = "33000000-0000-4000-8000-000000000001";
+    const scenarioSimulationId = "33000000-0000-4000-8000-000000000002";
+    const running = simulationTask("RUNNING", 41).latestSimulation;
+    const scenario = {
+      scenarioId,
+      title: "버스 노선 개편 사전 검토",
+      description: null,
+      question: {
+        id: "33000000-0000-4000-8000-000000000003",
+        content: "질문",
+        description: null,
+        options: [
+          { id: "33000000-0000-4000-8000-00000000000a", displayOrder: 1, content: "A" },
+          { id: "33000000-0000-4000-8000-00000000000b", displayOrder: 2, content: "B" },
+        ],
+      },
+      sourceTaskId: null,
+      createdAt: "2026-10-01T00:00:00Z",
+      updatedAt: "2026-10-01T00:00:00Z",
+      latestSimulation: { ...running, simulationId: scenarioSimulationId, taskId: scenarioId },
+    };
+    const request = vi.fn(async (input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url === "/api/v1/admin/simulation-scenarios") return Response.json([scenario]);
+      if (url === "/api/v1/admin/simulation-tasks")
+        return Response.json([simulationTask("RUNNING", 68)]);
+      return new Response(null, { status: 404 });
+    });
+    const result = await loadAdminCurrentOperations({
+      canManageSimulation: true,
+      canReadRag: false,
+      request: request as typeof fetch,
+    });
+    expect(result.total).toBe(2);
+    expect(result.unavailableSources).toEqual([]);
+    expect(result.items.find((item) => item.title === "버스 노선 개편 사전 검토")).toMatchObject({
+      kind: "simulation",
+      href: `/admin/simulations/status?simulationId=${scenarioSimulationId}`,
+      progressPercent: 41,
+    });
+
+    const partial = vi.fn(async (input: RequestInfo | URL) =>
+      String(input) === "/api/v1/admin/simulation-scenarios"
+        ? Response.json([scenario])
+        : new Response(null, { status: 503 }),
+    );
+    const partialResult = await loadAdminCurrentOperations({
+      canManageSimulation: true,
+      canReadRag: false,
+      request: partial as typeof fetch,
+    });
+    expect(partialResult.total).toBe(1);
+    expect(partialResult.unavailableSources).toEqual(["시뮬레이션 일부"]);
+  });
+});
 
 describe("투표 AI 생성 작업", () => {
   it("생성 중·재시도 필요·내용 확인 필요를 상태 배지와 경과 시간으로 표시하고 완료·미시작은 제외한다", async () => {
@@ -358,6 +424,7 @@ it("투표 상세가 멈춰도 제한 시간 안에 확인된 투표와 다른 �
       const url = String(input);
       if (url === "/api/v1/admin/simulation-tasks")
         return Response.json([simulationTask("RUNNING", 68)]);
+      if (url === "/api/v1/admin/simulation-scenarios") return Response.json([]);
       if (url === "/api/v1/admin/tasks")
         return Response.json([
           { ...detail.task, taskId: "vote-ready" },

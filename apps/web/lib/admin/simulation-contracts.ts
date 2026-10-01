@@ -294,3 +294,144 @@ export function isPersonaCountWithinLimit(
     personaCount <= maxPersonaCount
   );
 }
+
+const scenarioQuestionSchema = z
+  .object({
+    id: canonicalUuidSchema,
+    content: z.string().min(1),
+    description: z.string().nullable(),
+    options: z.array(taskOptionSchema).min(2).max(10),
+  })
+  .strict();
+
+const simulationScenarioSchema = z
+  .object({
+    scenarioId: canonicalUuidSchema,
+    title: z.string().min(1),
+    description: z.string().nullable(),
+    question: scenarioQuestionSchema,
+    sourceTaskId: canonicalUuidSchema.nullable(),
+    createdAt: z.string().min(1),
+    updatedAt: z.string().min(1),
+    latestSimulation: simulationViewSchema.nullable(),
+  })
+  .strict();
+
+export type SimulationScenario = z.infer<typeof simulationScenarioSchema>;
+
+export function readSimulationScenario(value: unknown): SimulationScenario | null {
+  const parsed = simulationScenarioSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export function readSimulationScenarios(value: unknown): readonly SimulationScenario[] | null {
+  const parsed = z.array(simulationScenarioSchema).safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export type SimulationScenarioDraft = Readonly<{
+  title: string;
+  description: string | null;
+  question: Readonly<{
+    content: string;
+    description: string | null;
+    options: readonly Readonly<{ content: string }>[];
+  }>;
+  sourceTaskId: string | null;
+}>;
+
+export function validateSimulationScenarioDraft(draft: SimulationScenarioDraft): string | null {
+  if (!draft.title.trim()) return "시뮬레이션 제목을 입력해 주세요.";
+  if (draft.title.trim().length > 200) return "시뮬레이션 제목은 200자 이하로 입력해 주세요.";
+  if ((draft.description?.length ?? 0) > 2000) return "배경은 2,000자 이하로 입력해 주세요.";
+  if (!draft.question.content.trim()) return "질문을 입력해 주세요.";
+  if (draft.question.content.trim().length > 1000) return "질문은 1,000자 이하로 입력해 주세요.";
+  if ((draft.question.description?.length ?? 0) > 2000)
+    return "질문 설명은 2,000자 이하로 입력해 주세요.";
+  const options = draft.question.options;
+  if (options.length < 2 || options.length > 10) return "선택지는 2~10개로 입력해 주세요.";
+  const normalized = options.map((option) => option.content.trim().replace(/\s+/gu, " "));
+  if (normalized.some((option) => !option)) return "모든 선택지 내용을 입력해 주세요.";
+  if (options.some((option) => option.content.trim().length > 255))
+    return "선택지는 255자 이하로 입력해 주세요.";
+  if (new Set(normalized).size !== normalized.length)
+    return "같은 내용의 선택지는 중복해서 사용할 수 없습니다.";
+  return null;
+}
+
+export const UNANSWERED_OPTION_FILTER = "UNANSWERED";
+
+const simulationResponseItemSchema = z
+  .object({
+    resultSlot: z.number().int().positive(),
+    selectedOptionId: canonicalUuidSchema.nullable(),
+    reason: z.string().nullable(),
+    demographics: z
+      .object({
+        gender: z.string().nullable(),
+        ageGroup: z.string().nullable(),
+      })
+      .strict(),
+  })
+  .strict();
+
+const simulationResponsePageSchema = z
+  .object({
+    schemaVersion: z.literal("CIVIC_TASK_SIMULATION_RESPONSE_PAGE_V1"),
+    notice: z.literal("이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다."),
+    total: z.number().int().nonnegative(),
+    offset: z.number().int().nonnegative(),
+    limit: z.number().int().positive(),
+    items: z.array(simulationResponseItemSchema),
+  })
+  .strict();
+
+export type SimulationResponsePage = z.infer<typeof simulationResponsePageSchema>;
+
+export function readSimulationResponsePage(value: unknown): SimulationResponsePage | null {
+  const parsed = simulationResponsePageSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
+export type VoteSimulationComparisonRow = Readonly<{
+  optionId: string;
+  content: string;
+  voteCount: number;
+  voteRate: number;
+  simulationCount: number;
+  simulationRate: number;
+  // 시뮬레이션 비율 - 실제 투표 비율 (%p)
+  differencePoints: number;
+}>;
+
+// 실제 투표와 시뮬레이션은 같은 투표 스냅샷의 선택지 ID로 맞춘다.
+export function buildVoteSimulationComparison(
+  vote: Readonly<{
+    responseCount: number;
+    options: readonly Readonly<{ key: string; content: string; count: number; rate: number }>[];
+  }>,
+  simulation: Pick<SimulationResult, "optionResults">,
+): readonly VoteSimulationComparisonRow[] {
+  return vote.options.map((option) => {
+    const simulated = simulation.optionResults.find((item) => item.optionId === option.key);
+    const voteRate = option.rate * 100;
+    const simulationRate = simulated?.percentage ?? 0;
+    return {
+      optionId: option.key,
+      content: option.content,
+      voteCount: option.count,
+      voteRate,
+      simulationCount: simulated?.count ?? 0,
+      simulationRate,
+      differencePoints: simulationRate - voteRate,
+    };
+  });
+}
+
+export function latestCompletedSimulations(
+  views: readonly SimulationView[],
+): readonly SimulationView[] {
+  return views
+    .filter((view) => view.state === "COMPLETED")
+    .toSorted((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt));
+}

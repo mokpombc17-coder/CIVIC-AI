@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
-import type { SimulationResult, SimulationResultDetail } from "@/lib/admin/simulation-contracts";
+import type { SimulationResult, SimulationResponsePage } from "@/lib/admin/simulation-contracts";
 import {
   buildComparisonInsight,
   buildDonutData,
@@ -57,14 +57,38 @@ const result = {
   resultSlots: [1, 2, 3],
 } satisfies SimulationResult;
 
-const detail = {
-  schemaVersion: "CIVIC_TASK_SIMULATION_SLOT_DETAIL_V1",
+const responsePage = {
+  schemaVersion: "CIVIC_TASK_SIMULATION_RESPONSE_PAGE_V1",
   notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
-  resultSlot: 1,
-  selectedOptionId: optionIds[1],
-  reason: "돌봄 공백을 줄이는 일이 가장 시급하다고 생각합니다.",
-  demographics: { gender: "여성", ageGroup: "30대" },
-} satisfies SimulationResultDetail;
+  total: 45,
+  offset: 20,
+  limit: 20,
+  items: [
+    {
+      resultSlot: 21,
+      selectedOptionId: optionIds[1],
+      reason: "돌봄 공백을 줄이는 일이 가장 시급하다고 생각합니다.",
+      demographics: { gender: "여성", ageGroup: "30대" },
+    },
+    {
+      resultSlot: 22,
+      selectedOptionId: null,
+      reason: null,
+      demographics: { gender: null, ageGroup: "20대" },
+    },
+  ],
+} satisfies SimulationResponsePage;
+
+const responses = {
+  filters: { ageGroup: null, gender: null, optionId: null },
+  highlightSlot: 21,
+  loading: false,
+  message: "",
+  offset: 20,
+  onFiltersChange: vi.fn(),
+  onOffsetChange: vi.fn(),
+  page: responsePage,
+};
 
 const genderComparisons = [
   {
@@ -117,15 +141,11 @@ describe("simulation result explorer", () => {
         comparisonLoading={false}
         comparisonMessage=""
         comparisons={genderComparisons}
-        detail={detail}
-        detailMessage=""
         dimension="gender"
         loading={false}
         onDimensionChange={vi.fn()}
-        onNextResult={vi.fn()}
-        onPreviousResult={vi.fn()}
+        responses={responses}
         result={result}
-        resultIndex={0}
         simulationId="cccccccc-cccc-4ccc-8ccc-cccccccccccc"
       />,
     );
@@ -138,6 +158,13 @@ describe("simulation result explorer", () => {
     expect(html).toContain("45.0%");
     expect(html).toContain("응답자가 이렇게 답한 이유");
     expect(html).toContain("돌봄 공백을 줄이는 일이 가장 시급하다고 생각합니다.");
+    expect(html).toContain("45명 중 21–40번째");
+    expect(html).toContain("2 / 3 페이지");
+    expect(html).toContain('aria-current="true"');
+    expect(html).toContain("미응답");
+    expect(html).toContain("기록된 이유가 없습니다.");
+    expect(html).toContain('aria-label="응답 목록 필터"');
+    expect(html).not.toContain("다음 결과");
     expect(html).not.toContain("성별 결과 필터");
     expect(html).not.toContain("실행 모델");
     expect(html).not.toContain("이 결과는 생성형 AI를 사용해 생성한 가상 패널");
