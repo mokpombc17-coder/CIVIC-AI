@@ -44,21 +44,20 @@ export const HOME_OPINION_TOPICS: readonly HomeOpinionTopic[] = [
     ],
   },
   {
-    id: "tancheon-shared-path",
-    question: "탄천변 보행·자전거길,\n사람들이 붐빌 때 어떻게 운영할까요?",
+    id: "heavy-rain-response",
+    question: "집중호우에 대비해,\n어디에 우선 투자할까요?",
     items: [
       {
-        label: "현재 구분 유지",
-        ratio: 24,
-      },
-      {
-        // 혼잡 시간대에 자전거도로 일부를 보행 공간으로 전환하는 선택지입니다.
-        label: "보행 공간 확대",
-        ratio: 20,
-      },
-      {
-        label: "자전거는 내려서 이동",
+        label: "하수관로 용량 확대",
         ratio: 56,
+      },
+      {
+        label: "빗물저류시설 확충",
+        ratio: 25,
+      },
+      {
+        label: "하천·저지대 정비",
+        ratio: 19,
       },
     ],
   },

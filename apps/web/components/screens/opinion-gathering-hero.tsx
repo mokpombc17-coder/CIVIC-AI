@@ -214,7 +214,7 @@ export function OpinionGatheringHero({
   const callouts = CALLOUT_LAYOUT.map(({ side, verticalDirection, attachmentAngle }, index) => {
     const segment = segments.find(({ itemIndex }) => itemIndex === index)!;
     const label = displayItems[index]?.label ?? "";
-    const shouldWrapLabel = label.length >= 10;
+    const shouldWrapLabel = label.length >= 9;
     const wrappedLabelWidth =
       side === "right" ? RIGHT_WRAPPED_LABEL_WIDTH : LEFT_WRAPPED_LABEL_WIDTH;
     const horizontalLength =
