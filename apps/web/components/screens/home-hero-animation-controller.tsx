@@ -8,9 +8,9 @@ import {
   homeHeroAnimationCompletionSelector,
   homeHeroAnimationEndMark,
   homeHeroAnimationFallbackMs,
-  homeHeroAnimationReplaySelector,
   homeHeroAnimationRootSelector,
   homeHeroAnimationStartMark,
+  homeHeroTopicAdvanceSelector,
   homeHeroTopicRotationMs,
   homeHeroTopicSelector,
   homeHeroTopicTransitionMs,
@@ -34,14 +34,15 @@ export function HomeHeroAnimationController() {
     let topicRotationHandle = 0;
     let topicTransitionFrameHandle = 0;
     let topicTransitionCleanupHandle = 0;
+    let topicTransitioning = false;
     const animationTarget = hero.querySelector<HTMLElement>(homeHeroAnimationCompletionSelector);
     const topicRoot = document.querySelector<HTMLElement>(homeHeroTopicsRootSelector);
     const topicPanels = topicRoot
       ? Array.from(topicRoot.querySelectorAll<HTMLElement>(homeHeroTopicSelector))
       : [];
-    const replayTargets = topicRoot
-      ? Array.from(topicRoot.querySelectorAll<SVGElement>(homeHeroAnimationReplaySelector))
-      : Array.from(hero.querySelectorAll<SVGElement>(homeHeroAnimationReplaySelector));
+    const topicAdvanceTargets = topicRoot
+      ? Array.from(topicRoot.querySelectorAll<SVGElement>(homeHeroTopicAdvanceSelector))
+      : Array.from(hero.querySelectorAll<SVGElement>(homeHeroTopicAdvanceSelector));
     let activeTopicIndex = Math.max(
       0,
       topicPanels.findIndex((topic) => !topic.hidden),
@@ -84,16 +85,11 @@ export function HomeHeroAnimationController() {
       completionFallbackHandle = window.setTimeout(forceFallback, homeHeroAnimationFallbackMs);
     };
 
-    const replayAnimation = (event: Event) => {
-      const targetHero = (event.currentTarget as Element).closest<HTMLElement>(
-        homeHeroAnimationRootSelector,
-      );
-      if (!active || !targetHero || targetHero.dataset.homeHeroAnimationState === "pending") return;
-      replayHomeHeroAnimation(targetHero);
-    };
-
     const rotateTopic = () => {
-      if (!active || topicPanels.length < 2) return;
+      if (!active || topicPanels.length < 2 || topicTransitioning) return;
+
+      window.clearTimeout(topicRotationHandle);
+      topicTransitioning = true;
 
       const nextTopicIndex = (activeTopicIndex + 1) % topicPanels.length;
       const currentTopic = topicPanels[activeTopicIndex];
@@ -135,9 +131,14 @@ export function HomeHeroAnimationController() {
         topicTransitionCleanupHandle = window.setTimeout(() => {
           if (!active) return;
           currentTopic.hidden = true;
+          topicTransitioning = false;
         }, homeHeroTopicTransitionMs);
         topicRotationHandle = window.setTimeout(rotateTopic, homeHeroTopicRotationMs);
       });
+    };
+
+    const advanceTopic = () => {
+      rotateTopic();
     };
 
     const queueAnimationStart = () => {
@@ -146,8 +147,8 @@ export function HomeHeroAnimationController() {
       });
     };
 
-    replayTargets.forEach((replayTarget) => {
-      replayTarget.addEventListener("click", replayAnimation);
+    topicAdvanceTargets.forEach((topicAdvanceTarget) => {
+      topicAdvanceTarget.addEventListener("click", advanceTopic);
     });
 
     const initialState = hero.dataset.homeHeroAnimationState;
@@ -172,8 +173,8 @@ export function HomeHeroAnimationController() {
       window.cancelAnimationFrame(topicTransitionFrameHandle);
       window.clearTimeout(topicTransitionCleanupHandle);
       animationTarget?.removeEventListener("animationend", handleAnimationEnd);
-      replayTargets.forEach((replayTarget) => {
-        replayTarget.removeEventListener("click", replayAnimation);
+      topicAdvanceTargets.forEach((topicAdvanceTarget) => {
+        topicAdvanceTarget.removeEventListener("click", advanceTopic);
       });
       if (ownsInitialAnimation && !completed) {
         hero.classList.remove(homeHeroAnimationClassName);

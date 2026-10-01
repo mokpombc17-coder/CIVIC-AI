@@ -62,12 +62,12 @@ const DEFAULT_OUTER_RADIUS = 85;
 const DEFAULT_INNER_RADIUS = 30.6;
 // SVG 좌표계(360 × 200). 접점에서 동일한 길이의 선을 만든 후 라벨을 배치합니다.
 const LABEL_LINE_GAP = 0;
-const CALLOUT_HORIZONTAL_LENGTH = 20;
+const CALLOUT_HORIZONTAL_LENGTH = 14;
 const CALLOUT_DIAGONAL_STEP = 10;
 const CALLOUT_SEGMENT_INSET_DEGREES = 8;
 const LEFT_WRAPPED_LABEL_WIDTH = 90;
 const RIGHT_WRAPPED_LABEL_WIDTH = 78;
-const LEFT_WRAPPED_CALLOUT_HORIZONTAL_LENGTH = 10;
+const LEFT_WRAPPED_CALLOUT_HORIZONTAL_LENGTH = 20;
 const LABEL_VIEWPORT_GUTTER = 4;
 const CALLOUT_LAYOUT = [
   { side: "left", verticalDirection: -1, attachmentAngle: -132 },
@@ -380,7 +380,7 @@ export function OpinionGatheringHero({
               stroke="transparent"
               strokeWidth={outerRadius - innerRadius}
               pointerEvents="stroke"
-              data-home-hero-replay=""
+              data-home-hero-advance=""
             />
           ) : null}
         </svg>

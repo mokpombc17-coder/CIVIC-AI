@@ -1535,9 +1535,9 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("24%");
     expect(html).toContain("20%");
     expect(html).toContain("56%");
-    expect(html).toContain('data-home-hero-replay=""');
-    expect(html).toMatch(/<circle[^>]*data-home-hero-replay=""[^>]*>/);
-    expect(html).not.toMatch(/<svg[^>]*data-home-hero-replay/);
+    expect(html).toContain('data-home-hero-advance=""');
+    expect(html).toMatch(/<circle[^>]*data-home-hero-advance=""[^>]*>/);
+    expect(html).not.toMatch(/<svg[^>]*data-home-hero-advance/);
     expect(html).toContain('class="civic-opinion-hero-chart"');
     expect(html).toContain('class="civic-opinion-hero-chart-svg"');
     expect(html).toContain('class="civic-opinion-hero-labels"');
