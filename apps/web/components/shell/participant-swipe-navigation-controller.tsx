@@ -135,7 +135,6 @@ export function ParticipantSwipeNavigationController({
         gesture ||
         hasParticipantSwipeBlockingOverlay(document) ||
         !event.isPrimary ||
-        (event.pointerType === "mouse" && event.button !== 0) ||
         !isSupportedPointer(event)
       ) {
         return;
@@ -286,7 +285,5 @@ function findNavigationLink(targetRoute: PlatformNavigationHref): HTMLAnchorElem
 }
 
 function isSupportedPointer(event: PointerEvent): boolean {
-  if (event.pointerType === "touch" || event.pointerType === "pen") return true;
-  if (event.pointerType !== "mouse") return false;
-  return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+  return event.pointerType === "touch" || event.pointerType === "pen";
 }

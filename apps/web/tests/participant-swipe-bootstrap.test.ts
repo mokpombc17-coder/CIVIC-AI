@@ -136,12 +136,10 @@ function createHarness({ reactReady = false }: Readonly<{ reactReady?: boolean }
     Record<string, unknown> & {
       cancelAnimationFrame: (handle: number) => void;
       clearTimeout: (handle: number) => void;
-      location: { hostname: string };
       matchMedia: () => { matches: boolean };
       requestAnimationFrame: (callback: () => void) => number;
       setTimeout: (callback: () => void, delay: number) => number;
     };
-  windowTarget.location = { hostname: "localhost" };
   windowTarget.matchMedia = () => ({ matches: false });
   windowTarget.requestAnimationFrame = (callback) => {
     const handle = nextHandle++;
@@ -202,6 +200,35 @@ function createHarness({ reactReady = false }: Readonly<{ reactReady?: boolean }
 }
 
 describe("pre-hydration participant swipe takeover", () => {
+  it("ignores mouse drag gestures in every environment", () => {
+    const harness = createHarness();
+
+    harness.surface.dispatch("pointerdown", {
+      clientX: 240,
+      clientY: 100,
+      pointerType: "mouse",
+      timeStamp: 0,
+    });
+    harness.surface.dispatch("pointermove", {
+      clientX: 120,
+      clientY: 100,
+      pointerType: "mouse",
+      timeStamp: 20,
+    });
+    harness.surface.dispatch("pointerup", {
+      clientX: 120,
+      clientY: 100,
+      pointerType: "mouse",
+      timeStamp: 30,
+    });
+    harness.runTimers();
+
+    expect(harness.surface.style.transform).toBe("");
+    expect(harness.surface.capturedPointers.size).toBe(0);
+    expect(harness.homeLink.clickCount).toBe(0);
+    expect(harness.ragLink.clickCount).toBe(0);
+  });
+
   it("does not install bootstrap listeners after React already owns the surface", () => {
     const harness = createHarness({ reactReady: true });
 

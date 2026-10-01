@@ -3,6 +3,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
 import { WireflowBadge } from "@/components/wireflow/wireflow-primitives";
+import { HOME_OPINION_TOPICS } from "@/lib/home-opinion-topics";
 import { HOME_SEARCH_DESCRIPTION } from "@/lib/home-search";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { OpinionGatheringHero } from "./opinion-gathering-hero";
@@ -23,7 +24,20 @@ export function ParticipantHomeScreen({
 
   return (
     <ScreenFrame screen={screen}>
-      <OpinionGatheringHero debugReplay />
+      <div className="civic-home-hero-topics" data-home-hero-topics="">
+        {HOME_OPINION_TOPICS.map((topic, index) => (
+          <div
+            key={topic.id}
+            className="civic-home-hero-topic"
+            data-home-hero-topic={topic.id}
+            data-home-hero-topic-active={index === 0 ? "true" : "false"}
+            aria-hidden={index !== 0}
+            hidden={index !== 0}
+          >
+            <OpinionGatheringHero debugReplay items={topic.items} question={topic.question} />
+          </div>
+        ))}
+      </div>
       <section className="wf-card wf-home-welcome">
         <WireflowBadge>참여 안내</WireflowBadge>
         <h2>배우고, 토론하고, 함께 결정합니다.</h2>
