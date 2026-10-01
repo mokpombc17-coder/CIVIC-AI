@@ -156,9 +156,7 @@
   };
 
   const isSupportedPointer = (event) => {
-    if (event.pointerType === "touch" || event.pointerType === "pen") return true;
-    if (event.pointerType !== "mouse") return false;
-    return ["localhost", "127.0.0.1", "::1"].includes(window.location.hostname);
+    return event.pointerType === "touch" || event.pointerType === "pen";
   };
 
   const handlePointerDown = (event) => {
@@ -172,7 +170,6 @@
       gesture ||
       document.querySelector(blockingOverlaySelector) ||
       !event.isPrimary ||
-      (event.pointerType === "mouse" && event.button !== 0) ||
       !isSupportedPointer(event)
     ) {
       return;

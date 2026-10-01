@@ -78,6 +78,10 @@ describe("participant bottom navigation swipe", () => {
       join(webRoot, "public", "assets", "participant-swipe-bootstrap.js"),
       "utf8",
     );
+    const controller = readFileSync(
+      join(webRoot, "components", "shell", "participant-swipe-navigation-controller.tsx"),
+      "utf8",
+    );
 
     expect(participantSwipeReactReadyEvent).toBe("civic:participant-swipe-react-ready");
     expect(bootstrap).toContain("civic-participant-swipe-bootstrap-ready");
@@ -96,6 +100,8 @@ describe("participant bottom navigation swipe", () => {
     expect(bootstrap).toContain("targetLink.click()");
     expect(bootstrap).not.toContain("history.pushState");
     expect(bootstrap).not.toContain("router.push");
+    expect(bootstrap).not.toMatch(/localhost|127\.0\.0\.1|pointerType === "mouse"/u);
+    expect(controller).not.toMatch(/localhost|127\.0\.0\.1|pointerType === "mouse"/u);
   });
 
   it("RAG 메시지 스크롤 영역은 세로 스크롤을 유지하며 수평 pointer gesture를 허용한다", () => {
