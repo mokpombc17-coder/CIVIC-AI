@@ -205,6 +205,13 @@ public class AuthenticationFlowService {
         var normalized = normalize(email);
         if (normalized.isBlank()) throw new IllegalArgumentException("Email is required");
         identityLocks.lock(normalized);
+        // Account existence is disclosed on purpose: unknown and deactivated emails get a direct answer.
+        var states = jdbc.queryForList("""
+                select state from users where normalized_email = ? and deleted_at is null
+                """, String.class, normalized);
+        var state = states.isEmpty() ? null : states.getFirst();
+        if ("DEACTIVATED".equals(state)) throw PasswordResetAccountException.forDeactivatedAccount();
+        if (!"ACTIVE".equals(state)) throw PasswordResetAccountException.forUnknownAccount();
         var sentAt = recordChallengeSend(
                 credentialHashing.opaqueCompletionIdentity(normalized, PASSWORD_RESET), PASSWORD_RESET);
         var flow = requestPasswordReset(normalized);

@@ -3,6 +3,7 @@ package ai.civic.mainauth.config;
 import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.AuthorizationException;
 import ai.civic.mainauth.auth.ChallengeSendLimitException;
+import ai.civic.mainauth.auth.PasswordResetAccountException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.RateLimitExceededException;
 import ai.civic.mainauth.auth.RefreshTokenConflictException;
@@ -117,6 +118,15 @@ public class ApiExceptionHandler {
     @ExceptionHandler(RateLimitExceededException.class)
     ProblemDetail rateLimited(RateLimitExceededException exception) {
         return problem(HttpStatus.TOO_MANY_REQUESTS, "Request rate limited", exception.getMessage());
+    }
+
+    @ExceptionHandler(PasswordResetAccountException.class)
+    ProblemDetail passwordResetAccount(PasswordResetAccountException exception) {
+        var problem = exception.deactivated()
+                ? problem(HttpStatus.CONFLICT, "Account deactivated", exception.getMessage())
+                : problem(HttpStatus.NOT_FOUND, "Account not found", exception.getMessage());
+        problem.setProperty("code", exception.code());
+        return problem;
     }
 
     @ExceptionHandler(ChallengeSendLimitException.class)

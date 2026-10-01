@@ -1245,32 +1245,44 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
-    void passwordResetRequestReturnsTheScheduleWithoutRevealingTheAccount() throws Exception {
-        var known = startPasswordResetOverHttp("Person@Example.com")
+    void passwordResetRequestReturnsTheSchedule() throws Exception {
+        startPasswordResetOverHttp("Person@Example.com")
                 .andExpect(status().isAccepted())
                 .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 600))
                 .andExpect(jsonPath("$.masked_email").value("pe***@example.com"))
                 .andExpect(jsonPath("$.expires_at").isString())
-                .andExpect(jsonPath("$.resend_available_at").isString())
-                .andReturn().getResponse().getContentAsString();
-        var unknown = startPasswordResetOverHttp("nobody@example.com")
-                .andExpect(status().isAccepted())
-                .andExpect(jsonPath("$.masked_email").value("no***@example.com"))
-                .andReturn().getResponse().getContentAsString();
-
-        assertThat(fieldNames(known)).isEqualTo(fieldNames(unknown));
+                .andExpect(jsonPath("$.resend_available_at").isString());
     }
 
     @Test
-    void passwordResetRequestsShareOneCooldownWhetherOrNotTheAccountExists() throws Exception {
-        for (var email : new String[] {"person@example.com", "nobody@example.com"}) {
-            startPasswordResetOverHttp(email).andExpect(status().isAccepted());
-            startPasswordResetOverHttp(email)
-                    .andExpect(status().isTooManyRequests())
-                    .andExpect(jsonPath("$.code").value("PASSWORD_RESET_RESEND_COOLDOWN"))
-                    .andExpect(jsonPath("$.retry_at").isString())
-                    .andExpect(header().exists("Retry-After"));
-        }
+    void passwordResetRequestTellsUnknownAndDeactivatedAccountsApart() throws Exception {
+        startPasswordResetOverHttp("nobody@example.com")
+                .andExpect(status().isNotFound())
+                .andExpect(cookie().doesNotExist(AuthCookieFactory.AUTH_FLOW_COOKIE))
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ACCOUNT_NOT_FOUND"));
+        jdbc.update("update users set state = 'PENDING_EMAIL_VERIFICATION' where id = ?", userId);
+        startPasswordResetOverHttp("person@example.com")
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ACCOUNT_NOT_FOUND"));
+        jdbc.update("update users set state = 'DEACTIVATED', deactivated_at = now() where id = ?", userId);
+        startPasswordResetOverHttp("person@example.com")
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ACCOUNT_DEACTIVATED"));
+
+        assertThat(count("auth_challenges")).isZero();
+        assertThat(count("opaque_auth_flows")).isZero();
+        assertThat(count("auth_challenge_send_limits")).isZero();
+        assertThat(count("notification_outbox")).isZero();
+    }
+
+    @Test
+    void passwordResetRequestsShareOneCooldownPerEmail() throws Exception {
+        startPasswordResetOverHttp("person@example.com").andExpect(status().isAccepted());
+        startPasswordResetOverHttp("Person@Example.com")
+                .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_RESEND_COOLDOWN"))
+                .andExpect(jsonPath("$.retry_at").isString())
+                .andExpect(header().exists("Retry-After"));
     }
 
     @Test
@@ -1352,7 +1364,8 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     @Test
     void unknownAndRealPasswordResetFlowsAnswerEveryStepIdentically() throws Exception {
         var real = auth.startPasswordReset("person@example.com").flowId();
-        var unknown = auth.startPasswordReset("nobody@example.com").flowId();
+        // Opaque flows are no longer issued by the request API but stay indistinguishable if presented.
+        var unknown = auth.requestPasswordReset("nobody@example.com");
         var steps = new String[][] {
                 {"complete", "{\"new_password\":\"Changed123!\"}"},
                 {"verify", "{\"code\":\"000000\"}"},
@@ -1373,7 +1386,7 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
         allowImmediateResend();
         auth.startPasswordReset("person@example.com");
-        auth.startPasswordReset("nobody@example.com");
+        auth.requestPasswordReset("nobody@example.com");
         assertThat(responseOf("verify", unknown, "{\"code\":\"000000\"}"))
                 .isEqualTo(responseOf("verify", real, "{\"code\":\"000000\"}"))
                 .contains("PASSWORD_RESET_EXPIRED");
@@ -1390,12 +1403,6 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     private String responseOf(String step, UUID flow, String body) throws Exception {
         var response = passwordResetRequest(step, flow, body).andReturn().getResponse();
         return response.getStatus() + " " + response.getContentAsString();
-    }
-
-    private java.util.Set<String> fieldNames(String json) throws Exception {
-        var names = new java.util.TreeSet<String>();
-        new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).fieldNames().forEachRemaining(names::add);
-        return names;
     }
 
     private void setResetCode(UUID flow, String code) throws Exception {
