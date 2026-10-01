@@ -45,7 +45,7 @@ const STATUS_CONTENT = {
     actionHref: "/home",
   },
   unsupported: {
-    title: "업데이트가 필요한 환경입니다",
+    title: "소프트웨어 버전 업데이트가 필요한 환경입니다",
     description:
       "현재 환경에서는 일부 화면이나 기능이 정상적으로 표시되거나 동작하지 않을 수 있습니다. 원활한 이용을 위해 최신 버전으로 업데이트해 주세요.",
     prompt: "업데이트를 마치셨나요?",
@@ -89,23 +89,6 @@ function getStatusMessage(result: BrowserSupportResult): string | null {
   return REASON_MESSAGES[result.reason];
 }
 
-function renderUpdateGuide(result: BrowserSupportResult): string {
-  if (result.support !== "unsupported") {
-    return "";
-  }
-
-  return `
-                <div class="update-guide">
-                  <p>
-                    <strong>iPhone·iPad</strong> iOS 또는 iPadOS를 최신 버전으로 업데이트해 주세요.
-                  </p>
-                  <p>
-                    <strong>그 외 기기</strong> Safari, Chrome, Edge 또는 Firefox를 최신 버전으로
-                    업데이트해 주세요.
-                  </p>
-                </div>`;
-}
-
 export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
   const content = STATUS_CONTENT[result.support];
   const environmentLabel = escapeHtml(getEnvironmentLabel(result));
@@ -113,7 +96,6 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
   const statusMessageMarkup = statusMessage
     ? `<p class="current-environment-reason">${escapeHtml(statusMessage)}</p>`
     : "";
-  const updateGuide = renderUpdateGuide(result);
   const prompt = content.prompt ? `<p>${escapeHtml(content.prompt)}</p>` : "";
 
   return `<!doctype html>
@@ -162,7 +144,6 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
                   <span>Safari — 16.4 이상</span>
                   <span>Chrome·Edge·Firefox — 111 이상</span>
                 </div>
-${updateGuide}
 
                 <div class="recheck">
                   ${prompt}

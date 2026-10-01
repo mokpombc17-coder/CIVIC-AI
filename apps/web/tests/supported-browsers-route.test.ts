@@ -19,7 +19,7 @@ function createRequest(userAgent: string): Request {
 }
 
 describe("browser support status route handler", () => {
-  it("shows the update guide and retry action for an unsupported environment", async () => {
+  it("shows the support baseline and retry action for an unsupported environment", async () => {
     const response = GET(createRequest(IOS_13_SAFARI));
     const html = await response.text();
 
@@ -30,12 +30,13 @@ describe("browser support status route handler", () => {
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(response.headers.get("content-security-policy")).toContain("script-src 'none'");
     expect(html).toContain('data-support-status="unsupported"');
-    expect(html).toContain("업데이트가 필요한 환경입니다");
+    expect(html).toContain("소프트웨어 버전 업데이트가 필요한 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 13.7');
     expect(html).toContain("현재 iOS 버전이 지원 기준보다 낮습니다.");
     expect(html).toContain("업데이트를 마치셨나요?");
     expect(html).toContain('<a class="retry-link" href="/supported-browsers">확인하기</a>');
-    expect(html).toContain('class="update-guide"');
+    expect(html).not.toContain("iOS 또는 iPadOS를 최신 버전으로 업데이트해 주세요.");
+    expect(html).not.toContain("Safari, Chrome, Edge 또는 Firefox를 최신 버전으로");
     expect(html).not.toContain("<script");
   });
 

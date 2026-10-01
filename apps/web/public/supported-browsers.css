@@ -245,27 +245,6 @@ body {
   line-height: 21px;
 }
 
-.update-guide {
-  display: grid;
-  gap: 12px;
-  color: #121417;
-}
-
-.update-guide p {
-  margin: 0;
-  font-size: 14px;
-  line-height: 21px;
-}
-
-.update-guide strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #121417;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 22.5px;
-}
-
 .recheck {
   display: grid;
   gap: 8px;
