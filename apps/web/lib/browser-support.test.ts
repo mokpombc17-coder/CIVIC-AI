@@ -6,8 +6,12 @@ const USER_AGENTS = {
     "Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1",
   ios13Chrome:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/140.0.7339.122 Mobile/15E148 Safari/604.1",
+  ios163Safari:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Mobile/15E148 Safari/604.1",
   ios164Safari:
     "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1",
+  ios164Chrome:
+    "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) CriOS/111.0.5563.101 Mobile/15E148 Safari/604.1",
   ipad13Safari:
     "Mozilla/5.0 (iPad; CPU OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1",
   ipad164Safari:
@@ -39,6 +43,7 @@ describe("classifyBrowserSupport", () => {
   it.each([
     USER_AGENTS.ios13Safari,
     USER_AGENTS.ios13Chrome,
+    USER_AGENTS.ios163Safari,
     USER_AGENTS.ipad13Safari,
     USER_AGENTS.safari163,
     USER_AGENTS.chrome110,
@@ -50,6 +55,7 @@ describe("classifyBrowserSupport", () => {
 
   it.each([
     USER_AGENTS.ios164Safari,
+    USER_AGENTS.ios164Chrome,
     USER_AGENTS.ipad164Safari,
     USER_AGENTS.safari164,
     USER_AGENTS.chrome111,
@@ -70,13 +76,17 @@ describe("classifyBrowserSupport", () => {
     expect(classifyBrowserSupport(userAgent).support).toBe("unknown");
   });
 
-  it("reports iOS as the reason even when the browser app version looks current", () => {
-    expect(classifyBrowserSupport(USER_AGENTS.ios13Chrome)).toEqual({
+  it.each([
+    [USER_AGENTS.ios13Safari, "13.7"],
+    [USER_AGENTS.ios13Chrome, "13.7"],
+    [USER_AGENTS.ios163Safari, "16.3"],
+  ])("reports iOS as the reason before the browser version", (userAgent, version) => {
+    expect(classifyBrowserSupport(userAgent)).toEqual({
       support: "unsupported",
       environment: {
         os: {
           name: "iOS",
-          version: "13.7",
+          version,
         },
       },
       reason: "ios-version",

@@ -28,7 +28,7 @@ const REASON_MESSAGES: Record<UnsupportedBrowserReason, string> = {
 
 const STATUS_CONTENT = {
   supported: {
-    title: "지원되는 환경입니다",
+    title: "이용할 수 있는 환경입니다",
     description: "현재 기기 소프트웨어 또는 브라우저가 CIVIC.AI 지원 기준을 충족합니다.",
     statusMessage: "현재 환경은 지원 기준을 충족합니다.",
     prompt: null,
@@ -154,9 +154,10 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
                 </section>
 
                 <div class="support-baseline">
-                  <strong>지원 버전</strong>
-                  <span>iOS·iPadOS 및 Safari 16.4 이상</span>
-                  <span>Chrome·Edge·Firefox 111 이상</span>
+                  <strong>최소 지원 기준</strong>
+                  <span>iPhone·iPad — iOS·iPadOS 16.4 이상</span>
+                  <span>Safari — 16.4 이상</span>
+                  <span>Chrome·Edge·Firefox — 111 이상</span>
                 </div>
 ${updateGuide}
 

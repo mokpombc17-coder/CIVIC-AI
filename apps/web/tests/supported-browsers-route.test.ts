@@ -7,6 +7,10 @@ const IOS_13_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 13_7 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/13.1.2 Mobile/15E148 Safari/604.1";
 const IOS_16_4_SAFARI =
   "Mozilla/5.0 (iPhone; CPU iPhone OS 16_4 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.4 Mobile/15E148 Safari/604.1";
+const MACOS_SAFARI_16_3 =
+  "Mozilla/5.0 (Macintosh; Intel Mac OS X 13_2) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.3 Safari/605.1.15";
+const WINDOWS_CHROME_110 =
+  "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/110.0.0.0 Safari/537.36";
 
 function createRequest(userAgent: string): Request {
   return new Request("https://civic.example/supported-browsers", {
@@ -42,7 +46,7 @@ describe("browser support status route handler", () => {
     expect(response.status).toBe(200);
     expect(response.headers.get("location")).toBeNull();
     expect(html).toContain('data-support-status="supported"');
-    expect(html).toContain("지원되는 환경입니다");
+    expect(html).toContain("이용할 수 있는 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 16.4');
     expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
     expect(html).not.toContain("CIVIC.AI를 계속 이용하시겠어요?");
@@ -64,11 +68,27 @@ describe("browser support status route handler", () => {
     expect(html).not.toContain('class="update-guide"');
   });
 
-  it("shows the current environment before the supported version", async () => {
+  it("shows the current environment before the minimum support baseline", async () => {
     const html = await GET(createRequest(IOS_16_4_SAFARI)).text();
 
-    expect(html.indexOf("현재 접속 환경")).toBeLessThan(html.indexOf("지원 버전"));
+    expect(html.indexOf("현재 접속 환경")).toBeLessThan(html.indexOf("최소 지원 기준"));
+    expect(html).toContain("iPhone·iPad — iOS·iPadOS 16.4 이상");
+    expect(html).toContain("Safari — 16.4 이상");
+    expect(html).toContain("Chrome·Edge·Firefox — 111 이상");
   });
+
+  it.each([
+    [MACOS_SAFARI_16_3, "Safari 16.3", "현재 Safari 버전이 지원 기준보다 낮습니다."],
+    [WINDOWS_CHROME_110, "Chrome 110", "현재 Chrome 버전이 지원 기준보다 낮습니다."],
+  ])(
+    "shows the environment that caused the unsupported result",
+    async (userAgent, label, reason) => {
+      const html = await GET(createRequest(userAgent)).text();
+
+      expect(html).toContain(`class="current-environment-name">${label}`);
+      expect(html).toContain(reason);
+    },
+  );
 
   it("does not interpolate the raw user-agent into the document", async () => {
     const rawMarker = "<script>alert('raw-user-agent')</script>";
