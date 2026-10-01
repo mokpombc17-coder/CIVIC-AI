@@ -65,7 +65,7 @@ const LABEL_LINE_GAP = 0;
 const CALLOUT_HORIZONTAL_LENGTH = 20;
 const CALLOUT_DIAGONAL_STEP = 10;
 const CALLOUT_SEGMENT_INSET_DEGREES = 8;
-const LEFT_WRAPPED_LABEL_WIDTH = 100;
+const LEFT_WRAPPED_LABEL_WIDTH = 90;
 const RIGHT_WRAPPED_LABEL_WIDTH = 78;
 const LEFT_WRAPPED_CALLOUT_HORIZONTAL_LENGTH = 5;
 const LABEL_VIEWPORT_GUTTER = 4;
@@ -251,7 +251,7 @@ export function OpinionGatheringHero({
           : labelLeft,
         top: `${(y / 200) * 100}%`,
         width: shouldWrapLabel ? `${wrappedLabelWidth}px` : undefined,
-        paddingRight: shouldWrapLabel && side === "right" ? "3px" : undefined,
+        paddingRight: shouldWrapLabel ? (side === "right" ? "3px" : "5px") : undefined,
         whiteSpace: shouldWrapLabel ? "normal" : undefined,
         wordBreak: shouldWrapLabel ? "keep-all" : undefined,
         transform: `translate(${side === "left" ? "-100%" : "0"}, -50%)`,
