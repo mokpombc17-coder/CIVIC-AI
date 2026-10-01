@@ -343,11 +343,17 @@ export type SimulationScenarioDraft = Readonly<{
 export function validateSimulationScenarioDraft(draft: SimulationScenarioDraft): string | null {
   if (!draft.title.trim()) return "시뮬레이션 제목을 입력해 주세요.";
   if (draft.title.trim().length > 200) return "시뮬레이션 제목은 200자 이하로 입력해 주세요.";
+  if ((draft.description?.length ?? 0) > 2000) return "배경은 2,000자 이하로 입력해 주세요.";
   if (!draft.question.content.trim()) return "질문을 입력해 주세요.";
+  if (draft.question.content.trim().length > 1000) return "질문은 1,000자 이하로 입력해 주세요.";
+  if ((draft.question.description?.length ?? 0) > 2000)
+    return "질문 설명은 2,000자 이하로 입력해 주세요.";
   const options = draft.question.options;
   if (options.length < 2 || options.length > 10) return "선택지는 2~10개로 입력해 주세요.";
   const normalized = options.map((option) => option.content.trim().replace(/\s+/gu, " "));
   if (normalized.some((option) => !option)) return "모든 선택지 내용을 입력해 주세요.";
+  if (options.some((option) => option.content.trim().length > 255))
+    return "선택지는 255자 이하로 입력해 주세요.";
   if (new Set(normalized).size !== normalized.length)
     return "같은 내용의 선택지는 중복해서 사용할 수 없습니다.";
   return null;

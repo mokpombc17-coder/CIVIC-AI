@@ -128,10 +128,16 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
       if (!views) throw new Error("서버의 시뮬레이션 목록 응답 형식을 확인해야 합니다.");
       setRuns({ status: "ready", runs: views });
     } catch (error) {
-      setRuns({
-        status: "error",
-        message: error instanceof Error ? error.message : "시뮬레이션 목록을 불러오지 못했습니다.",
-      });
+      // 폴링 중 일시 오류는 직전 이력을 유지해 진행 중 실행 추적이 끊기지 않게 한다.
+      setRuns((current) =>
+        current.status === "ready"
+          ? current
+          : {
+              status: "error",
+              message:
+                error instanceof Error ? error.message : "시뮬레이션 목록을 불러오지 못했습니다.",
+            },
+      );
     }
   }, [taskId]);
 
@@ -385,7 +391,15 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
           </h2>
           <p>페르소나 수와 조건을 정하고 예상 비용을 확인한 뒤 바로 실행합니다.</p>
         </header>
-        <SimulationSetup hideTarget onStarted={onStarted} query={{}} taskId={taskId} />
+        <SimulationSetup
+          hideTarget
+          onStarted={onStarted}
+          query={{}}
+          runBlockedReason={
+            active ? "진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다." : null
+          }
+          taskId={taskId}
+        />
       </section>
     </div>
   );

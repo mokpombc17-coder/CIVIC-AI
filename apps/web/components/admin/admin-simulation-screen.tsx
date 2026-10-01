@@ -242,6 +242,7 @@ export function SimulationSetup({
   hideTarget = false,
   onStarted,
   query,
+  runBlockedReason = null,
   taskId,
 }: Readonly<{
   defaultPanelOpen?: boolean;
@@ -250,6 +251,8 @@ export function SimulationSetup({
   // 지정하면 실행 직후 상태 화면으로 이동하지 않고 호출한 화면이 진행 상황을 이어 보여준다.
   onStarted?: (view: SimulationView) => void;
   query: AdminQuery;
+  // 같은 대상의 실행이 진행 중이면 중복 과금을 막기 위해 실행을 막는다.
+  runBlockedReason?: string | null;
   taskId: string | null;
 }>) {
   const [target, setTarget] = useState<SimulationTarget | null>(null);
@@ -258,13 +261,25 @@ export function SimulationSetup({
   const [filters, setFilters] = useState<Record<string, readonly string[]>>({});
   const [panelOpen, setPanelOpen] = useState(defaultPanelOpen);
   const [message, setMessage] = useState("");
-  const { pending, start, startMessage } = useStartSimulation(taskId, onStarted);
   const requestedPersonaCount = positiveInteger(first(query.personaCount));
   const runInput = options ? buildDefaultSimulationRunInput(personaCount, options, filters) : null;
   const capacityState = useSimulationCapacity(
     options ? normalizeCapacityInput(personaCount, "", filters) : null,
   );
   const previewState = useSimulationPreview(taskId, runInput);
+  const resetPreview = previewState.reset;
+  const handleStarted = useCallback(
+    (view: SimulationView) => {
+      // 같은 화면에 머무르므로 다음 실행은 비용 확인부터 다시 거치게 한다.
+      resetPreview();
+      onStarted?.(view);
+    },
+    [onStarted, resetPreview],
+  );
+  const { pending, start, startMessage } = useStartSimulation(
+    taskId,
+    onStarted ? handleStarted : undefined,
+  );
 
   useEffect(() => {
     if (!taskId) return;
@@ -325,7 +340,7 @@ export function SimulationSetup({
       className="civic-domain-form"
       onSubmit={(event) => {
         event.preventDefault();
-        if (!runInput) return;
+        if (!runInput || runBlockedReason) return;
         if (!capacityState.capacity?.canSimulate) return;
         if (!canStart || !previewState.preview) return void previewState.load();
         void start(runInput, previewState.preview.policyFingerprint);
@@ -388,6 +403,7 @@ export function SimulationSetup({
           className="civic-primary-action"
           disabled={
             !canSubmit ||
+            Boolean(runBlockedReason) ||
             pending ||
             capacityState.pending ||
             !capacityState.capacity?.canSimulate ||
@@ -407,8 +423,10 @@ export function SimulationSetup({
                   : "예상 비용 확인"}
         </button>
       </div>
-      {message || startMessage || capacityMessage ? (
-        <StatusMessage>{message || startMessage || capacityMessage}</StatusMessage>
+      {runBlockedReason || message || startMessage || capacityMessage ? (
+        <StatusMessage>
+          {runBlockedReason || message || startMessage || capacityMessage}
+        </StatusMessage>
       ) : null}
     </form>
   );
@@ -959,11 +977,14 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
     }
   }, [input, signature, taskId]);
 
+  const reset = useCallback(() => setResult(null), []);
+
   return {
     load,
     message,
     pending,
     preview: current?.preview ?? null,
+    reset,
     wallet: current?.wallet ?? null,
   };
 }

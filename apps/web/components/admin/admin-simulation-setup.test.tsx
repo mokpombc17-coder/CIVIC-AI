@@ -8,6 +8,7 @@ import {
   requestAdminSimulationPreview,
   requestAdminSimulationStart,
   SimulationPreviewCard,
+  SimulationSetup,
   simulationRunPath,
   simulationRunStageForScreen,
 } from "@/components/admin/admin-simulation-screen";
@@ -166,6 +167,19 @@ describe("simulation setup", () => {
     expect(html).not.toContain("표본 시드");
     expect(html).toContain('aria-label="시뮬레이션 실행 단계"');
     expect(html).toContain(">동작</button>");
+  });
+
+  it("같은 대상의 실행이 진행 중이면 실행 버튼을 막고 이유를 보여준다", () => {
+    const html = renderToStaticMarkup(
+      <SimulationSetup
+        onStarted={vi.fn()}
+        query={{}}
+        runBlockedReason="진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다."
+        taskId="task-1"
+      />,
+    );
+    expect(html).toContain("진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다.");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*type="submit"/u);
   });
 
   it("화면 ID와 단계별 정본 경로를 유지한다", () => {

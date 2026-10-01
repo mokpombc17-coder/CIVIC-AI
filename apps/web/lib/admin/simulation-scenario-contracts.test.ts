@@ -92,6 +92,18 @@ describe("simulation scenario contracts", () => {
         question: { ...draft.question, options: [{ content: "A" }] },
       }),
     ).toBe("선택지는 2~10개로 입력해 주세요.");
+    expect(
+      validateSimulationScenarioDraft({
+        ...draft,
+        question: { ...draft.question, options: [{ content: "A".repeat(256) }, { content: "B" }] },
+      }),
+    ).toBe("선택지는 255자 이하로 입력해 주세요.");
+    expect(
+      validateSimulationScenarioDraft({
+        ...draft,
+        question: { ...draft.question, content: "질".repeat(1001) },
+      }),
+    ).toBe("질문은 1,000자 이하로 입력해 주세요.");
   });
 
   it("응답 페이지 계약을 읽고 알 수 없는 필드는 거부한다", () => {
