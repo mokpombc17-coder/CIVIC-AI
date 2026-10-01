@@ -1529,7 +1529,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("34%");
     expect(html).toContain('data-home-hero-topic="heavy-rain-response"');
     expect(html).toContain("집중호우로 인한 도심 침수,");
-    expect(html).toContain("무엇부터 보강할까요?");
+    expect(html).toContain("어디에 먼저 투자할까요?");
     expect(html).toContain("하수관로 용량 확대");
     expect(html).toContain("빗물저류시설 확충");
     expect(html).toContain("하천·저지대 정비");
