@@ -91,7 +91,9 @@ describe("browser support status route handler", () => {
     expect(guideStyles).toContain("gap: 7px");
     expect(guideStyles).toContain("letter-spacing: -0.6px");
     expect(guideStyles).toContain(".retry-link");
-    expect(guideStyles).toMatch(/\.support-baseline strong\s*\{[^}]*color: #59616b;/);
+    expect(guideStyles).toMatch(
+      /\.support-baseline strong\s*\{[^}]*color: #121417;[^}]*font-size: 14px;/,
+    );
     expect(guideStyles).toContain(
       '.browser-support-card[data-support-status="supported"] .recheck',
     );
