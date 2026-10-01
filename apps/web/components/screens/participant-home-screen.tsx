@@ -31,6 +31,7 @@ export function ParticipantHomeScreen({
             className="civic-home-hero-topic"
             data-home-hero-topic={topic.id}
             data-home-hero-topic-active={index === 0 ? "true" : "false"}
+            aria-hidden={index !== 0}
             hidden={index !== 0}
           >
             <OpinionGatheringHero debugReplay items={topic.items} question={topic.question} />

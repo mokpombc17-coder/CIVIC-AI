@@ -2,12 +2,14 @@ import { describe, expect, it } from "vitest";
 import {
   homeHeroAnimationClassName,
   homeHeroTopicRotationMs,
+  homeHeroTopicTransitionMs,
   replayHomeHeroAnimation,
 } from "./home-hero-animation";
 
 describe("home hero animation replay", () => {
-  it("keeps each opinion topic visible for ten seconds", () => {
-    expect(homeHeroTopicRotationMs).toBe(10_000);
+  it("keeps each opinion topic visible for thirty seconds and crossfades briefly", () => {
+    expect(homeHeroTopicRotationMs).toBe(30_000);
+    expect(homeHeroTopicTransitionMs).toBe(240);
   });
 
   it("restarts the CSS animation after forcing the removed class to render", () => {

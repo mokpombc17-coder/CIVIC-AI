@@ -224,6 +224,23 @@
   padding: 12px 22px 0;
 }
 
+.civic-home-hero-topics {
+  display: grid;
+}
+
+.civic-home-hero-topic {
+  grid-area: 1 / 1;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 240ms ease-out;
+}
+
+.civic-home-hero-topic[data-home-hero-topic-active="true"] {
+  z-index: 1;
+  opacity: 1;
+  pointer-events: auto;
+}
+
 .civic-home-hero-topic[hidden] {
   display: none;
 }
@@ -388,6 +405,10 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .civic-home-hero-topic {
+    transition: none;
+  }
+
   .civic-header-user-chevron {
     transition: none;
   }

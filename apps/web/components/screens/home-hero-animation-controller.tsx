@@ -13,6 +13,7 @@ import {
   homeHeroAnimationStartMark,
   homeHeroTopicRotationMs,
   homeHeroTopicSelector,
+  homeHeroTopicTransitionMs,
   homeHeroTopicsRootSelector,
   replayHomeHeroAnimation,
 } from "@/lib/home-hero-animation";
@@ -31,6 +32,8 @@ export function HomeHeroAnimationController() {
     let secondFrameHandle = 0;
     let completionFallbackHandle = 0;
     let topicRotationHandle = 0;
+    let topicTransitionFrameHandle = 0;
+    let topicTransitionCleanupHandle = 0;
     const animationTarget = hero.querySelector<HTMLElement>(homeHeroAnimationCompletionSelector);
     const topicRoot = document.querySelector<HTMLElement>(homeHeroTopicsRootSelector);
     const topicPanels = topicRoot
@@ -93,31 +96,48 @@ export function HomeHeroAnimationController() {
       if (!active || topicPanels.length < 2) return;
 
       const nextTopicIndex = (activeTopicIndex + 1) % topicPanels.length;
-      topicPanels.forEach((topic, index) => {
-        const isActive = index === nextTopicIndex;
-        topic.hidden = !isActive;
-        topic.dataset.homeHeroTopicActive = isActive ? "true" : "false";
-      });
+      const currentTopic = topicPanels[activeTopicIndex];
+      const nextTopic = topicPanels[nextTopicIndex];
+      if (!currentTopic || !nextTopic) return;
 
-      const nextHero = topicPanels[nextTopicIndex]?.querySelector<HTMLElement>(
-        homeHeroAnimationRootSelector,
-      );
-      if (nextHero) {
-        const useFallback = Array.from(
-          topicRoot?.querySelectorAll<HTMLElement>(homeHeroAnimationRootSelector) ?? [],
-        ).some((candidate) => candidate.dataset.homeHeroAnimationFallback === "true");
+      nextTopic.hidden = false;
+      nextTopic.dataset.homeHeroTopicActive = "false";
+      nextTopic.setAttribute("aria-hidden", "true");
+      nextTopic.inert = true;
+      void nextTopic.offsetWidth;
 
-        if (useFallback) {
-          nextHero.classList.remove(homeHeroAnimationClassName);
-          nextHero.dataset.homeHeroAnimationFallback = "true";
-        } else {
-          delete nextHero.dataset.homeHeroAnimationFallback;
-          replayHomeHeroAnimation(nextHero);
+      topicTransitionFrameHandle = window.requestAnimationFrame(() => {
+        if (!active) return;
+
+        currentTopic.dataset.homeHeroTopicActive = "false";
+        currentTopic.setAttribute("aria-hidden", "true");
+        currentTopic.inert = true;
+        nextTopic.dataset.homeHeroTopicActive = "true";
+        nextTopic.setAttribute("aria-hidden", "false");
+        nextTopic.inert = false;
+
+        const nextHero = nextTopic.querySelector<HTMLElement>(homeHeroAnimationRootSelector);
+        if (nextHero) {
+          const useFallback = Array.from(
+            topicRoot?.querySelectorAll<HTMLElement>(homeHeroAnimationRootSelector) ?? [],
+          ).some((candidate) => candidate.dataset.homeHeroAnimationFallback === "true");
+
+          if (useFallback) {
+            nextHero.classList.remove(homeHeroAnimationClassName);
+            nextHero.dataset.homeHeroAnimationFallback = "true";
+          } else {
+            delete nextHero.dataset.homeHeroAnimationFallback;
+            replayHomeHeroAnimation(nextHero);
+          }
         }
-      }
 
-      activeTopicIndex = nextTopicIndex;
-      topicRotationHandle = window.setTimeout(rotateTopic, homeHeroTopicRotationMs);
+        activeTopicIndex = nextTopicIndex;
+        topicTransitionCleanupHandle = window.setTimeout(() => {
+          if (!active) return;
+          currentTopic.hidden = true;
+        }, homeHeroTopicTransitionMs);
+        topicRotationHandle = window.setTimeout(rotateTopic, homeHeroTopicRotationMs);
+      });
     };
 
     const queueAnimationStart = () => {
@@ -149,6 +169,8 @@ export function HomeHeroAnimationController() {
       window.cancelAnimationFrame(secondFrameHandle);
       window.clearTimeout(completionFallbackHandle);
       window.clearTimeout(topicRotationHandle);
+      window.cancelAnimationFrame(topicTransitionFrameHandle);
+      window.clearTimeout(topicTransitionCleanupHandle);
       animationTarget?.removeEventListener("animationend", handleAnimationEnd);
       replayTargets.forEach((replayTarget) => {
         replayTarget.removeEventListener("click", replayAnimation);

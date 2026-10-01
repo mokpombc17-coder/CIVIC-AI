@@ -243,6 +243,7 @@ export function OpinionGatheringHero({
           : labelLeft,
         top: `${(y / 200) * 100}%`,
         width: shouldWrapLabel ? `${WRAPPED_LABEL_WIDTH}px` : undefined,
+        paddingRight: shouldWrapLabel && side === "right" ? "3px" : undefined,
         whiteSpace: shouldWrapLabel ? "normal" : undefined,
         wordBreak: shouldWrapLabel ? "keep-all" : undefined,
         transform: `translate(${side === "left" ? "-100%" : "0"}, -50%)`,
