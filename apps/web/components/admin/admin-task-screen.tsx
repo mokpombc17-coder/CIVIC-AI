@@ -1057,7 +1057,7 @@ export function TaskPreparationPanel({
       </header>
       <p className="civic-preparation-description">{presentation.description}</p>
       {delayed ? (
-        <p className="civic-preparation-description" role="status">
+        <p className="civic-preparation-description civic-preparation-delay">
           생성 시간이 평소보다 오래 걸리고 있습니다. 계속 진행되지 않으면 운영 담당자에게 확인을
           요청해 주세요.
         </p>
