@@ -194,6 +194,7 @@ AdminLayout [Server Route Layout, wireflow.css + admin-console.css 소유] → A
     │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도/재생성·활성 run 폴링]
     ├── AdminVoteSimulationScreen [/admin/simulations/vote 정적 라우트, SIMULATION_ADMIN]
     │   └── VoteSimulationWorkspace [실제 투표(좌)·AI 시뮬레이션(우) 비교, 회차 선택, 진행 중 실행 폴링, SimulationSetup(onStarted)로 화면 안에서 바로 실행]
+    │       └── VoteSimulationDetails [회차별 key로 다시 마운트, AI 집단별 응답(useSimulationResultComparisons)·응답 표(useSimulationResponses)를 결과 분석 화면과 같은 표현 부품으로 표시]
     ├── AdminSimulationScreen [SONA 집계 시뮬레이션]
     │   ├── SimulationSectionTabs [시뮬레이션 목록·공용 지갑·가격 정책·사용량·근거 이관]
     │   ├── SimulationLists [투표 기반 시뮬레이션 목록(모든 행이 투표 기반 전용 화면으로 이동)과 직접 작성한 시뮬레이션 목록을 좌우 2열로 표시, 좁은 화면은 세로]

@@ -4,8 +4,17 @@ import {
   activeSimulation,
   AdminVoteSimulationScreen,
 } from "@/components/admin/vote-simulation-workspace";
+import {
+  VoteSimulationOptionTable,
+  VoteSimulationSummary,
+} from "@/components/admin/vote-simulation-analysis";
 import { screenRegistry } from "@/lib/screens/registry";
-import type { SimulationView } from "@/lib/admin/simulation-contracts";
+import type {
+  SimulationResult,
+  SimulationView,
+  VoteSimulationComparisonRow,
+} from "@/lib/admin/simulation-contracts";
+import type { TaskResults } from "@/lib/admin/task-results";
 
 vi.mock("next/navigation", () => ({ useRouter: () => ({ push: vi.fn() }) }));
 
@@ -60,5 +69,42 @@ describe("vote simulation workspace", () => {
     if (!screen) throw new Error("Missing simulation screen");
     const html = renderToStaticMarkup(<AdminVoteSimulationScreen screen={screen} taskId={null} />);
     expect(html).toContain("시뮬레이션할 투표를 선택해 주세요.");
+  });
+
+  it("비교 요약과 선택지별 실제·AI 비율 및 차이를 함께 보여준다", () => {
+    const rows: VoteSimulationComparisonRow[] = [
+      {
+        optionId: "O1",
+        content: "찬성",
+        voteCount: 7,
+        voteRate: 70,
+        simulationCount: 62,
+        simulationRate: 62,
+        differencePoints: -8,
+      },
+      {
+        optionId: "O2",
+        content: "반대",
+        voteCount: 3,
+        voteRate: 30,
+        simulationCount: 38,
+        simulationRate: 38,
+        differencePoints: 8,
+      },
+    ];
+    const result = { denominators: { total: 100, filtered: 100 } } as unknown as SimulationResult;
+    const vote = { responseCount: 10 } as unknown as TaskResults;
+    const html = renderToStaticMarkup(
+      <>
+        <VoteSimulationSummary result={result} rows={rows} vote={vote} />
+        <VoteSimulationOptionTable rows={rows} />
+      </>,
+    );
+    expect(html).toContain("일치");
+    expect(html).not.toContain("불일치");
+    expect(html).toContain("8.0%p");
+    expect(html).toContain("10 : 100");
+    expect(html).toContain("선택지별 비교");
+    expect(html).toContain("−8.0%p");
   });
 });

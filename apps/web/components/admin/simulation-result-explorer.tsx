@@ -41,7 +41,7 @@ export type SimulationResponsesView = Readonly<{
   page: SimulationResponsePage | null;
 }>;
 
-type DonutDatum = Readonly<{
+export type DonutDatum = Readonly<{
   color: string;
   count: number;
   id: string;
@@ -62,15 +62,22 @@ const RESULT_COLORS = [
   "#9b6b43",
 ] as const;
 
+// 미응답 neutral: same value as the global --wf-line token family.
+export const UNANSWERED_COLOR = "#cfd3d7";
+
 const DIMENSIONS: ReadonlyArray<Readonly<{ id: SimulationResultDimension; label: string }>> = [
   { id: "all", label: "전체" },
   { id: "gender", label: "성별" },
   { id: "ageGroup", label: "연령" },
 ];
 
+export function resultColor(index: number): string {
+  return RESULT_COLORS[index % RESULT_COLORS.length] ?? RESULT_COLORS[0];
+}
+
 export function buildDonutData(result: SimulationResult): readonly DonutDatum[] {
   const values: DonutDatum[] = result.optionResults.map((option, index) => ({
-    color: RESULT_COLORS[index % RESULT_COLORS.length] ?? RESULT_COLORS[0],
+    color: resultColor(index),
     count: option.count,
     id: option.optionId,
     label: option.content,
@@ -78,8 +85,7 @@ export function buildDonutData(result: SimulationResult): readonly DonutDatum[] 
   }));
   if (result.unansweredCount > 0) {
     values.push({
-      // 미응답 neutral: same value as the global --wf-line token family.
-      color: "#cfd3d7",
+      color: UNANSWERED_COLOR,
       count: result.unansweredCount,
       id: "unanswered",
       label: "미응답",
@@ -155,9 +161,6 @@ export function SimulationResultExplorer({
   const donutData = buildDonutData(result);
   const dimensionLabel =
     dimension === "gender" ? "성별" : dimension === "ageGroup" ? "연령" : "전체";
-  const comparisonHeading =
-    dimension === "gender" ? "성별 응답을 한눈에 비교" : "연령대별 응답을 한눈에 비교";
-  const insight = buildComparisonInsight(comparisons);
 
   return (
     <section aria-busy={loading} className={styles.explorer}>
@@ -184,19 +187,7 @@ export function SimulationResultExplorer({
           <p>전체 분포는 그대로 두고, 선택한 기준의 모든 집단을 같은 축에서 나란히 보여드립니다.</p>
         </div>
         <div className={styles.compareControls}>
-          <div aria-label="응답 비교 기준" className={styles.segmented} role="group">
-            {DIMENSIONS.map((item) => (
-              <button
-                aria-pressed={dimension === item.id}
-                className={dimension === item.id ? styles.activeSegment : undefined}
-                key={item.id}
-                onClick={() => onDimensionChange(item.id)}
-                type="button"
-              >
-                {item.label}
-              </button>
-            ))}
-          </div>
+          <SimulationDimensionSwitch dimension={dimension} onChange={onDimensionChange} />
           <p aria-live="polite" className={styles.compareStatus}>
             <strong>{dimensionLabel}</strong>
             {dimension === "all"
@@ -240,56 +231,13 @@ export function SimulationResultExplorer({
       </section>
 
       {dimension !== "all" ? (
-        <section aria-busy={comparisonLoading} className={styles.comparisonSection}>
-          <header className={styles.comparisonHeader}>
-            <div>
-              <h3>{comparisonHeading}</h3>
-            </div>
-            <p>막대 길이는 각 집단 안에서 해당 응답을 선택한 비율입니다.</p>
-          </header>
-
-          {insight && insight.difference > 0 ? (
-            <div className={styles.insight}>
-              <span aria-hidden="true">↗</span>
-              <div>
-                <strong>집단 간 가장 큰 차이</strong>
-                <p>
-                  <b>{insight.highestGroup}</b>의 ‘{insight.optionLabel}’ 응답이{" "}
-                  <b>{insight.lowestGroup}</b>보다 {insight.difference.toFixed(1)}%p 높습니다.
-                </p>
-              </div>
-            </div>
-          ) : null}
-
-          {comparisons.length > 0 ? (
-            <div
-              aria-label={`${dimensionLabel} 기준 집단별 응답 비교`}
-              className={styles.comparisonGrid}
-            >
-              {comparisons.map((comparison) => (
-                <ComparisonCard
-                  comparison={comparison}
-                  key={comparison.label}
-                  total={result.denominators.filtered}
-                />
-              ))}
-            </div>
-          ) : comparisonLoading ? (
-            <div className={styles.comparisonLoading} role="status">
-              모든 집단의 응답 분포를 모으고 있습니다.
-            </div>
-          ) : (
-            <div className={styles.emptyComparison}>
-              <strong>비교할 집단 결과가 없습니다.</strong>
-              <p>{comparisonMessage || "이 시뮬레이션에 기록된 집단 정보를 확인해 주세요."}</p>
-            </div>
-          )}
-          {comparisonMessage && comparisons.length > 0 ? (
-            <p className={styles.comparisonMessage} role="status">
-              {comparisonMessage}
-            </p>
-          ) : null}
-        </section>
+        <SimulationGroupComparisons
+          comparisons={comparisons}
+          dimension={dimension}
+          loading={comparisonLoading}
+          message={comparisonMessage}
+          total={result.denominators.filtered}
+        />
       ) : null}
 
       <SimulationResponseTable responses={responses} result={result} />
@@ -297,7 +245,103 @@ export function SimulationResultExplorer({
   );
 }
 
-function SimulationResponseTable({
+// 집단 비교·응답 표는 .explorer에 정의한 차트 토큰을 쓰므로 다른 화면에서도 이 범위 안에 둔다.
+export function SimulationExplorerScope({ children }: Readonly<{ children: ReactNode }>) {
+  return <div className={styles.explorer}>{children}</div>;
+}
+
+export function SimulationDimensionSwitch({
+  dimension,
+  onChange,
+}: Readonly<{
+  dimension: SimulationResultDimension;
+  onChange: (dimension: SimulationResultDimension) => void;
+}>) {
+  return (
+    <div aria-label="응답 비교 기준" className={styles.segmented} role="group">
+      {DIMENSIONS.map((item) => (
+        <button
+          aria-pressed={dimension === item.id}
+          className={dimension === item.id ? styles.activeSegment : undefined}
+          key={item.id}
+          onClick={() => onChange(item.id)}
+          type="button"
+        >
+          {item.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function SimulationGroupComparisons({
+  comparisons,
+  dimension,
+  loading,
+  message,
+  total,
+}: Readonly<{
+  comparisons: readonly SimulationResultComparison[];
+  dimension: Exclude<SimulationResultDimension, "all">;
+  loading: boolean;
+  message: string;
+  total: number;
+}>) {
+  const dimensionLabel = dimension === "gender" ? "성별" : "연령";
+  const comparisonHeading =
+    dimension === "gender" ? "성별 응답을 한눈에 비교" : "연령대별 응답을 한눈에 비교";
+  const insight = buildComparisonInsight(comparisons);
+  return (
+    <section aria-busy={loading} className={styles.comparisonSection}>
+      <header className={styles.comparisonHeader}>
+        <div>
+          <h3>{comparisonHeading}</h3>
+        </div>
+        <p>막대 길이는 각 집단 안에서 해당 응답을 선택한 비율입니다.</p>
+      </header>
+
+      {insight && insight.difference > 0 ? (
+        <div className={styles.insight}>
+          <span aria-hidden="true">↗</span>
+          <div>
+            <strong>집단 간 가장 큰 차이</strong>
+            <p>
+              <b>{insight.highestGroup}</b>의 ‘{insight.optionLabel}’ 응답이{" "}
+              <b>{insight.lowestGroup}</b>보다 {insight.difference.toFixed(1)}%p 높습니다.
+            </p>
+          </div>
+        </div>
+      ) : null}
+
+      {comparisons.length > 0 ? (
+        <div
+          aria-label={`${dimensionLabel} 기준 집단별 응답 비교`}
+          className={styles.comparisonGrid}
+        >
+          {comparisons.map((comparison) => (
+            <ComparisonCard comparison={comparison} key={comparison.label} total={total} />
+          ))}
+        </div>
+      ) : loading ? (
+        <div className={styles.comparisonLoading} role="status">
+          모든 집단의 응답 분포를 모으고 있습니다.
+        </div>
+      ) : (
+        <div className={styles.emptyComparison}>
+          <strong>비교할 집단 결과가 없습니다.</strong>
+          <p>{message || "이 시뮬레이션에 기록된 집단 정보를 확인해 주세요."}</p>
+        </div>
+      )}
+      {message && comparisons.length > 0 ? (
+        <p className={styles.comparisonMessage} role="status">
+          {message}
+        </p>
+      ) : null}
+    </section>
+  );
+}
+
+export function SimulationResponseTable({
   responses,
   result,
 }: Readonly<{ responses: SimulationResponsesView; result: SimulationResult }>) {
@@ -486,7 +530,10 @@ function ComparisonCard({
   );
 }
 
-function DonutChart({ data, total }: Readonly<{ data: readonly DonutDatum[]; total: number }>) {
+export function DonutChart({
+  data,
+  total,
+}: Readonly<{ data: readonly DonutDatum[]; total: number }>) {
   const radius = 47;
   const circumference = 2 * Math.PI * radius;
   const segments = data.map((item, index) => {
