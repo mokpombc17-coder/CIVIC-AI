@@ -3,10 +3,10 @@ import { randomUUID } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 import { classifyBrowserSupport } from "./lib/browser-support";
 
-const UNSUPPORTED_BROWSER_PATH = "/unsupported-browser.html";
+const BROWSER_SUPPORT_PATH = "/supported-browsers";
 const BROWSER_SUPPORT_BYPASS_PATHS = new Set([
-  UNSUPPORTED_BROWSER_PATH,
-  "/unsupported-browser.css",
+  BROWSER_SUPPORT_PATH,
+  "/supported-browsers.css",
   "/sw.js",
   "/manifest.webmanifest",
   "/favicon.ico",
@@ -50,6 +50,8 @@ export function isBrowserSupportBypassPath(pathname: string): boolean {
     pathname.startsWith("/api/") ||
     pathname === "/_next" ||
     pathname.startsWith("/_next/") ||
+    pathname === BROWSER_SUPPORT_PATH ||
+    pathname.startsWith(`${BROWSER_SUPPORT_PATH}/`) ||
     BROWSER_SUPPORT_BYPASS_PATHS.has(pathname) ||
     STATIC_ASSET_PATH_PATTERN.test(pathname)
   );
@@ -68,9 +70,9 @@ export function isDocumentNavigation(request: NextRequest): boolean {
   return request.headers.get("accept")?.includes("text/html") ?? false;
 }
 
-function createUnsupportedBrowserResponse(request: NextRequest): NextResponse {
+function createBrowserSupportRedirect(request: NextRequest): NextResponse {
   const url = request.nextUrl.clone();
-  url.pathname = UNSUPPORTED_BROWSER_PATH;
+  url.pathname = BROWSER_SUPPORT_PATH;
   url.search = "";
 
   const response = NextResponse.redirect(url, 307);
@@ -83,9 +85,9 @@ export function proxy(request: NextRequest) {
   if (
     !isBrowserSupportBypassPath(request.nextUrl.pathname) &&
     isDocumentNavigation(request) &&
-    classifyBrowserSupport(request.headers.get("user-agent") ?? "") === "unsupported"
+    classifyBrowserSupport(request.headers.get("user-agent") ?? "").support === "unsupported"
   ) {
-    return createUnsupportedBrowserResponse(request);
+    return createBrowserSupportRedirect(request);
   }
 
   const nonce = Buffer.from(randomUUID()).toString("base64");
@@ -103,7 +105,7 @@ export const config = {
   matcher: [
     {
       source:
-        "/((?!api|_next|favicon\\.ico|sitemap\\.xml|robots\\.txt|sw\\.js|manifest\\.webmanifest|unsupported-browser\\.(?:html|css)|.*\\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$).*)",
+        "/((?!api|_next|favicon\\.ico|sitemap\\.xml|robots\\.txt|sw\\.js|manifest\\.webmanifest|supported-browsers(?:/|$)|.*\\.(?:avif|bmp|css|csv|gif|html|ico|jpe?g|js|json|map|mjs|mp3|mp4|ogg|otf|pdf|png|svg|txt|webmanifest|webm|webp|woff2?|xml)$).*)",
       missing: [
         { type: "header", key: "next-router-prefetch" },
         { type: "header", key: "purpose", value: "prefetch" },

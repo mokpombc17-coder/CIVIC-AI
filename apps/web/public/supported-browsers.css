@@ -164,7 +164,6 @@ body {
 .browser-support-card {
   display: grid;
   width: 100%;
-  min-height: 307px;
   gap: 12px;
   border: 1px solid #ccd1d6;
   border-radius: 8px;
@@ -196,41 +195,96 @@ body {
   word-break: keep-all;
 }
 
-.update-guide {
+.current-environment {
   display: grid;
-  gap: 12px;
-  color: #121417;
+  gap: 4px;
+  border-radius: 6px;
+  padding: 12px;
+  background: #f5f7fb;
 }
 
-.update-guide p {
+.current-environment h2,
+.current-environment p {
   margin: 0;
-  font-size: 14px;
-  line-height: 21px;
 }
 
-.update-guide strong {
-  display: block;
-  margin-bottom: 6px;
-  color: #121417;
-  font-size: 15px;
-  font-weight: 700;
-  line-height: 22.5px;
+.current-environment h2 {
+  color: #59616b;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
 }
 
-.reentry-description {
-  margin: 0;
+.current-environment-name {
   color: #121417;
-  font-size: 14px;
+  font-size: 17px;
   font-weight: 700;
-  line-height: 21px;
+  line-height: 25.5px;
+}
+
+.current-environment-reason {
+  color: #59616b;
+  font-size: 13px;
+  line-height: 19.5px;
   word-break: keep-all;
 }
 
 .support-baseline {
-  margin: 0;
+  display: grid;
+  gap: 3px;
   color: #59616b;
   font-size: 12px;
   line-height: 18px;
+}
+
+.support-baseline strong {
+  margin-bottom: 3px;
+  color: #121417;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 21px;
+}
+
+.recheck {
+  display: grid;
+  gap: 8px;
+}
+
+.recheck p {
+  margin: 0;
+  color: #121417;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 21px;
+}
+
+.browser-support-card[data-support-status="supported"] .recheck {
+  margin-top: 8px;
+}
+
+.browser-support-card[data-support-status="supported"] .recheck p {
+  color: #59616b;
+  font-weight: 400;
+}
+
+.retry-link {
+  display: flex;
+  min-height: 44px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #236cf1;
+  border-radius: 6px;
+  background: #236cf1;
+  color: #ffffff;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 22.5px;
+  text-decoration: none;
+}
+
+.retry-link:focus {
+  outline: 2px solid #0a4fd1;
+  outline-offset: 2px;
 }
 
 @media (max-width: 480px) {
