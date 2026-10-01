@@ -84,5 +84,9 @@ describe("browser support status route handler", () => {
     expect(guideStyles).toContain("gap: 7px");
     expect(guideStyles).toContain("letter-spacing: -0.6px");
     expect(guideStyles).toContain(".retry-link");
+    expect(guideStyles).toContain(
+      '.browser-support-card[data-support-status="supported"] .recheck',
+    );
+    expect(guideStyles).toContain("margin-top: 8px");
   });
 });

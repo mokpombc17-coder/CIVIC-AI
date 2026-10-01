@@ -279,6 +279,15 @@ body {
   line-height: 21px;
 }
 
+.browser-support-card[data-support-status="supported"] .recheck {
+  margin-top: 8px;
+}
+
+.browser-support-card[data-support-status="supported"] .recheck p {
+  color: #59616b;
+  font-weight: 500;
+}
+
 .retry-link {
   display: flex;
   min-height: 44px;
