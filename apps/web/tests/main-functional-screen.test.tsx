@@ -1517,6 +1517,16 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain('data-wireflow-layout="participant-home"');
     expect(html).toContain('data-home-hero-animate="true"');
+    expect(html.match(/data-home-hero-topic=/gu)).toHaveLength(2);
+    expect(html).toContain('data-home-hero-topic="transfer-fare"');
+    expect(html).toContain('data-home-hero-topic="public-parking"');
+    expect(html).toContain("동네 공영주차장,");
+    expect(html).toContain("주민·장기 주차 우선");
+    expect(html).toContain("방문객·단기 주차 우선");
+    expect(html).toContain("선착순 이용");
+    expect(html).toContain("39%");
+    expect(html).toContain("27%");
+    expect(html).toContain("34%");
     expect(html).toContain('data-home-hero-replay=""');
     expect(html).toMatch(/<circle[^>]*data-home-hero-replay=""[^>]*>/);
     expect(html).not.toMatch(/<svg[^>]*data-home-hero-replay/);

@@ -224,6 +224,10 @@
   padding: 12px 22px 0;
 }
 
+.civic-home-hero-topic[hidden] {
+  display: none;
+}
+
 .civic-opinion-hero-question {
   margin: 0;
   white-space: pre-line;
@@ -273,6 +277,8 @@
 
 .civic-hero-label {
   position: absolute;
+  box-sizing: border-box;
+  max-width: 112px;
   border-radius: 4px;
   background: #e5edff;
   color: #163b80;

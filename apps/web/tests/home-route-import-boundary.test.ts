@@ -90,6 +90,9 @@ describe("home route import boundary", () => {
     expect(animationController).toContain("window.setTimeout(forceFallback");
     expect(animationController).toContain("homeHeroAnimationStartMark");
     expect(animationController).toContain('initialState === "pending"');
+    expect(animationController).toContain("homeHeroTopicRotationMs");
+    expect(animationController).toContain("window.setTimeout(rotateTopic");
+    expect(animationController).toContain("replayHomeHeroAnimation(nextHero)");
     expect(homeScreen).not.toMatch(
       /account-functional-screen|admin-functional-screen|auth-functional-screen|@tanstack\/react-query/u,
     );
@@ -165,6 +168,7 @@ describe("home route import boundary", () => {
     expect(homeStyles).toContain(".civic-opinion-hero-question");
     expect(homeStyles).toContain(".civic-opinion-hero-chart");
     expect(homeStyles).toContain(".civic-opinion-hero-labels");
+    expect(homeStyles).toContain(".civic-home-hero-topic[hidden]");
     expect(homeStyles).toContain('data-home-hero-animation-fallback="true"');
     expect(homeStyles).toContain("var(--civic-hero-dash-length)");
     expect(homeStyles).toContain(".civic-header-user-trigger");

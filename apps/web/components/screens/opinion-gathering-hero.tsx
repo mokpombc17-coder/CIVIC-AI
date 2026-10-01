@@ -1,6 +1,6 @@
 import { useId, type CSSProperties } from "react";
 
-type OpinionItem = {
+export type OpinionItem = {
   /** 도넛에서 차지할 상대값입니다. 합계가 100이 아니어도 자동 정규화됩니다. */
   ratio: number;
   /** 도넛 주변에 표시할 이유 또는 관점 문구입니다. */
@@ -9,6 +9,8 @@ type OpinionItem = {
   color?: string;
   /** 도넛 안의 비율 글자색입니다. */
   ratioTextColor?: string;
+  /** 기본 라벨 방향을 유지하면서 원하는 연결선 접점 각도를 지정합니다. */
+  calloutAngle?: number;
 };
 
 type OpinionGatheringHeroProps = {
@@ -18,7 +20,7 @@ type OpinionGatheringHeroProps = {
   debugReplay?: boolean;
   /** 히어로 상단 질문 */
   question?: string;
-  /** 라벨 순서: 왼쪽 위(주민), 오른쪽 중간(지역), 왼쪽 아래(운영) */
+  /** 라벨 순서: 왼쪽 위, 오른쪽 중간, 왼쪽 아래 */
   items?: readonly [OpinionItem, OpinionItem, OpinionItem];
   /** @deprecated 호환용으로만 유지하며 무시됩니다. separatorWidth를 사용하세요. */
   segmentGapDegrees?: number;
@@ -65,6 +67,7 @@ const DEFAULT_INNER_RADIUS = 30.6;
 const LABEL_LINE_GAP = 0;
 const CALLOUT_HORIZONTAL_LENGTH = 20;
 const CALLOUT_DIAGONAL_STEP = 10;
+const CALLOUT_SEGMENT_INSET_DEGREES = 8;
 const CALLOUT_LAYOUT = [
   { side: "left", verticalDirection: -1, attachmentAngle: -132 },
   { side: "right", verticalDirection: -1, attachmentAngle: -4 },
@@ -86,6 +89,26 @@ function pointOnCircle(centerX: number, centerY: number, radius: number, angleDe
     x: centerX + radius * Math.cos(angleRadians),
     y: centerY + radius * Math.sin(angleRadians),
   };
+}
+
+export function resolveCalloutAttachmentAngle(
+  preferredAngle: number,
+  segmentStartAngle: number,
+  segmentEndAngle: number,
+) {
+  const segmentSize = Math.max(0, segmentEndAngle - segmentStartAngle);
+  const segmentMiddleAngle = segmentStartAngle + segmentSize / 2;
+  const finitePreferredAngle = Number.isFinite(preferredAngle)
+    ? preferredAngle
+    : segmentMiddleAngle;
+  const alignedPreferredAngle =
+    finitePreferredAngle + Math.round((segmentMiddleAngle - finitePreferredAngle) / 360) * 360;
+  const inset = Math.min(CALLOUT_SEGMENT_INSET_DEGREES, segmentSize / 2);
+
+  return Math.min(
+    segmentEndAngle - inset,
+    Math.max(segmentStartAngle + inset, alignedPreferredAngle),
+  );
 }
 
 /** 바깥 원호와 안쪽 원호로 닫힌 실제 도넛 조각을 만듭니다. */
@@ -156,6 +179,8 @@ export function OpinionGatheringHero({
 
     return {
       itemIndex: index,
+      startAngle,
+      endAngle,
       separatorStart: pointOnCircle(DONUT_CENTER_X, DONUT_CENTER_Y, innerRadius, startAngle),
       separatorEnd: pointOnCircle(DONUT_CENTER_X, DONUT_CENTER_Y, outerRadius, startAngle),
       color: getColor(index, items[index]?.color),
@@ -166,12 +191,27 @@ export function OpinionGatheringHero({
     };
   });
   const visibleSegments = segments.filter(({ ratio }) => ratio > 0);
-  const callouts = CALLOUT_LAYOUT.map(({ side, verticalDirection, attachmentAngle }) => {
+  const callouts = CALLOUT_LAYOUT.map(({ side, verticalDirection, attachmentAngle }, index) => {
+    const segment = segments.find(({ itemIndex }) => itemIndex === index)!;
+    const label = items[index]?.label ?? "";
+    const shouldWrapLabel = label.length >= 10;
+    const useWideRightLabel = side === "right" && label.length >= 10;
+    const horizontalLength = shouldWrapLabel ? 0 : CALLOUT_HORIZONTAL_LENGTH;
+    const resolvedAttachmentAngle = resolveCalloutAttachmentAngle(
+      items[index]?.calloutAngle ?? attachmentAngle,
+      segment.startAngle,
+      segment.endAngle,
+    );
     const direction = side === "left" ? -1 : 1;
-    const contact = pointOnCircle(DONUT_CENTER_X, DONUT_CENTER_Y, outerRadius, attachmentAngle);
+    const contact = pointOnCircle(
+      DONUT_CENTER_X,
+      DONUT_CENTER_Y,
+      outerRadius,
+      resolvedAttachmentAngle,
+    );
     const elbowX = contact.x + direction * CALLOUT_DIAGONAL_STEP;
     const y = contact.y + verticalDirection * CALLOUT_DIAGONAL_STEP;
-    const lineStartX = elbowX + direction * CALLOUT_HORIZONTAL_LENGTH;
+    const lineStartX = elbowX + direction * horizontalLength;
     const labelEdgeX = lineStartX + direction * LABEL_LINE_GAP;
     const pathLength =
       Math.hypot(elbowX - contact.x, y - contact.y) + Math.abs(lineStartX - elbowX);
@@ -181,6 +221,9 @@ export function OpinionGatheringHero({
       labelStyle: {
         left: `${(labelEdgeX / 360) * 100}%`,
         top: `${(y / 200) * 100}%`,
+        width: useWideRightLabel ? "100px" : undefined,
+        whiteSpace: shouldWrapLabel ? "normal" : undefined,
+        wordBreak: shouldWrapLabel ? "keep-all" : undefined,
         transform: `translate(${side === "left" ? "-100%" : "0"}, -50%)`,
       } satisfies CSSProperties,
     };

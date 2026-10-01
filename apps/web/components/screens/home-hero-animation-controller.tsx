@@ -11,6 +11,9 @@ import {
   homeHeroAnimationReplaySelector,
   homeHeroAnimationRootSelector,
   homeHeroAnimationStartMark,
+  homeHeroTopicRotationMs,
+  homeHeroTopicSelector,
+  homeHeroTopicsRootSelector,
   replayHomeHeroAnimation,
 } from "@/lib/home-hero-animation";
 
@@ -27,8 +30,19 @@ export function HomeHeroAnimationController() {
     let firstFrameHandle = 0;
     let secondFrameHandle = 0;
     let completionFallbackHandle = 0;
+    let topicRotationHandle = 0;
     const animationTarget = hero.querySelector<HTMLElement>(homeHeroAnimationCompletionSelector);
-    const replayTarget = hero.querySelector<SVGElement>(homeHeroAnimationReplaySelector);
+    const topicRoot = document.querySelector<HTMLElement>(homeHeroTopicsRootSelector);
+    const topicPanels = topicRoot
+      ? Array.from(topicRoot.querySelectorAll<HTMLElement>(homeHeroTopicSelector))
+      : [];
+    const replayTargets = topicRoot
+      ? Array.from(topicRoot.querySelectorAll<SVGElement>(homeHeroAnimationReplaySelector))
+      : Array.from(hero.querySelectorAll<SVGElement>(homeHeroAnimationReplaySelector));
+    let activeTopicIndex = Math.max(
+      0,
+      topicPanels.findIndex((topic) => !topic.hidden),
+    );
 
     const completeAnimation = () => {
       if (!active || completed) return;
@@ -67,9 +81,43 @@ export function HomeHeroAnimationController() {
       completionFallbackHandle = window.setTimeout(forceFallback, homeHeroAnimationFallbackMs);
     };
 
-    const replayAnimation = () => {
-      if (!active || hero.dataset.homeHeroAnimationState === "pending") return;
-      replayHomeHeroAnimation(hero);
+    const replayAnimation = (event: Event) => {
+      const targetHero = (event.currentTarget as Element).closest<HTMLElement>(
+        homeHeroAnimationRootSelector,
+      );
+      if (!active || !targetHero || targetHero.dataset.homeHeroAnimationState === "pending") return;
+      replayHomeHeroAnimation(targetHero);
+    };
+
+    const rotateTopic = () => {
+      if (!active || topicPanels.length < 2) return;
+
+      const nextTopicIndex = (activeTopicIndex + 1) % topicPanels.length;
+      topicPanels.forEach((topic, index) => {
+        const isActive = index === nextTopicIndex;
+        topic.hidden = !isActive;
+        topic.dataset.homeHeroTopicActive = isActive ? "true" : "false";
+      });
+
+      const nextHero = topicPanels[nextTopicIndex]?.querySelector<HTMLElement>(
+        homeHeroAnimationRootSelector,
+      );
+      if (nextHero) {
+        const useFallback = Array.from(
+          topicRoot?.querySelectorAll<HTMLElement>(homeHeroAnimationRootSelector) ?? [],
+        ).some((candidate) => candidate.dataset.homeHeroAnimationFallback === "true");
+
+        if (useFallback) {
+          nextHero.classList.remove(homeHeroAnimationClassName);
+          nextHero.dataset.homeHeroAnimationFallback = "true";
+        } else {
+          delete nextHero.dataset.homeHeroAnimationFallback;
+          replayHomeHeroAnimation(nextHero);
+        }
+      }
+
+      activeTopicIndex = nextTopicIndex;
+      topicRotationHandle = window.setTimeout(rotateTopic, homeHeroTopicRotationMs);
     };
 
     const queueAnimationStart = () => {
@@ -78,7 +126,9 @@ export function HomeHeroAnimationController() {
       });
     };
 
-    replayTarget?.addEventListener("click", replayAnimation);
+    replayTargets.forEach((replayTarget) => {
+      replayTarget.addEventListener("click", replayAnimation);
+    });
 
     const initialState = hero.dataset.homeHeroAnimationState;
     const bootstrapOwnsInitialAnimation =
@@ -89,13 +139,20 @@ export function HomeHeroAnimationController() {
       queueAnimationStart();
     }
 
+    if (topicPanels.length > 1) {
+      topicRotationHandle = window.setTimeout(rotateTopic, homeHeroTopicRotationMs);
+    }
+
     return () => {
       active = false;
       window.cancelAnimationFrame(firstFrameHandle);
       window.cancelAnimationFrame(secondFrameHandle);
       window.clearTimeout(completionFallbackHandle);
+      window.clearTimeout(topicRotationHandle);
       animationTarget?.removeEventListener("animationend", handleAnimationEnd);
-      replayTarget?.removeEventListener("click", replayAnimation);
+      replayTargets.forEach((replayTarget) => {
+        replayTarget.removeEventListener("click", replayAnimation);
+      });
       if (ownsInitialAnimation && !completed) {
         hero.classList.remove(homeHeroAnimationClassName);
         delete hero.dataset.homeHeroAnimationState;
