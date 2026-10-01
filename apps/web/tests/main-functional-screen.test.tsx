@@ -1068,6 +1068,21 @@ describe("25 functional Main/Auth screens", () => {
     expect(secondsUntil(null, Date.now())).toBe(0);
   });
 
+  it("비밀번호 재설정 요청은 가입되지 않은 이메일을 안내한다", () => {
+    expect(
+      authErrorMessage(
+        new ApiRequestError(404, { code: "PASSWORD_RESET_ACCOUNT_NOT_FOUND" }, "Not found"),
+        "PASSWORD_RESET_REQUEST",
+      ),
+    ).toBe("가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해 주세요.");
+    expect(
+      passwordResetStepAfterError(
+        "PASSWORD_RESET_REQUEST",
+        new ApiRequestError(404, { code: "PASSWORD_RESET_ACCOUNT_NOT_FOUND" }, "Not found"),
+      ),
+    ).toBeNull();
+  });
+
   it("비밀번호 재설정 오류 코드를 원인별 문구로 변환한다", () => {
     const now = Date.now();
     expect(

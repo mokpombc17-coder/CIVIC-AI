@@ -124,6 +124,13 @@ test.beforeAll(async () => {
     }
     if (url.pathname === "/api/v1/auth/password-reset/request") {
       lastPasswordResetRequest = body;
+      if (body.email === "unknown@example.com") {
+        return json(
+          response,
+          { status: 404, code: "PASSWORD_RESET_ACCOUNT_NOT_FOUND", detail: "No account" },
+          404,
+        );
+      }
       passwordResetVerified = false;
       return json(
         response,
@@ -398,6 +405,19 @@ test("로그인 화면에서 연 비밀번호 재설정은 이메일을 바꿀 �
   await page.goBack();
   await expect(page).toHaveURL(/\/login$/u);
   await expect(page.getByRole("button", { name: "로그인", exact: true })).toBeVisible();
+});
+
+test("가입되지 않은 이메일로 비밀번호 재설정을 요청하면 이메일 단계에서 안내한다", async ({
+  page,
+}) => {
+  await page.goto("/password-reset");
+  await page.getByLabel("이메일").fill("unknown@example.com");
+  await page.getByRole("button", { name: "인증번호 받기" }).click();
+  await expect(
+    page.getByText("가입되지 않은 이메일입니다. 이메일 주소를 다시 확인해 주세요."),
+  ).toBeVisible();
+  await expect(page.getByRole("heading", { name: "이메일 입력" })).toBeVisible();
+  await expect(page.getByLabel("이메일")).toHaveValue("unknown@example.com");
 });
 
 test("비밀번호 재설정 코드 재발송은 서버가 알려준 시각까지 잠기고 같은 흐름으로 다시 보낸다", async ({
