@@ -6,6 +6,12 @@ describe("Main/Auth proxy policy", () => {
     expect(matchMainAuthRoute("POST", "/api/v1/auth/login")).toEqual({
       requiresCsrf: false,
     });
+    expect(matchMainAuthRoute("POST", "/api/v1/auth/password-reset/verify")).toEqual({
+      requiresCsrf: false,
+    });
+    expect(matchMainAuthRoute("POST", "/api/v1/auth/password-reset/resend")).toEqual({
+      requiresCsrf: false,
+    });
     expect(matchMainAuthRoute("PATCH", "/api/v1/account/profile")).toEqual({
       requiresCsrf: true,
     });

@@ -67,6 +67,9 @@ import {
   passwordResetCardTitle,
   passwordResetCodeFromSearch,
   PasswordResetFields,
+  passwordResetStepAfterError,
+  readPasswordResetResponse,
+  secondsUntil,
   safeReturnTarget,
   readSignupAcceptanceControls,
   SignupDuplicateEmailNotice,
@@ -987,22 +990,147 @@ describe("25 functional Main/Auth screens", () => {
     ).toBe("올바른 이메일 주소를 입력해 주세요.");
     expect(
       authErrorMessage(
-        new ApiRequestError(410, { code: "PASSWORD_RESET_EXPIRED" }, "Reset expired"),
-        "PASSWORD_RESET_COMPLETE",
+        new ApiRequestError(401, {}, "Authentication code is invalid"),
+        "PASSWORD_RESET_CODE",
       ),
-    ).toBe("재설정 요청이 만료되었습니다. 비밀번호 찾기부터 다시 진행해 주세요.");
+    ).toBe("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
+    expect(
+      authErrorMessage(new ApiRequestError(429, {}, "Too many requests"), "PASSWORD_RESET_CODE"),
+    ).toBe("인증 시도 횟수를 초과했습니다. 잠시 후 다시 시도해 주세요.");
     expect(
       authErrorMessage(
-        new ApiRequestError(400, { code: "INVALID_RESET_CODE" }, "Invalid code"),
+        new ApiRequestError(401, { code: "PASSWORD_POLICY" }, "Weak password"),
         "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_REUSED" }, "Password reused"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("기존 비밀번호와 다른 비밀번호를 사용해 주세요. 인증번호를 다시 받아 진행해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, {}, "Authentication code is invalid"),
+        "PASSWORD_RESET_COMPLETE",
+      ),
+    ).toBe("인증 유효 시간이 지났습니다. 인증번호를 다시 받아 주세요.");
+  });
+
+  it("비밀번호 재설정 실패 후 요청 소진 여부에 따라 이메일 또는 인증번호 단계로 되돌린다", () => {
+    const unauthorized = (code?: string) =>
+      new ApiRequestError(401, code ? { code } : {}, "Authentication failed");
+    expect(passwordResetStepAfterError("PASSWORD_RESET_COMPLETE", unauthorized())).toBe("CODE");
+    expect(
+      passwordResetStepAfterError(
+        "PASSWORD_RESET_COMPLETE",
+        unauthorized("PASSWORD_RESET_NOT_VERIFIED"),
+      ),
+    ).toBe("CODE");
+    expect(
+      passwordResetStepAfterError("PASSWORD_RESET_COMPLETE", unauthorized("PASSWORD_REUSED")),
+    ).toBe("EMAIL");
+    expect(
+      passwordResetStepAfterError("PASSWORD_RESET_COMPLETE", unauthorized("PASSWORD_POLICY")),
+    ).toBeNull();
+    expect(
+      passwordResetStepAfterError("PASSWORD_RESET_RESEND", unauthorized("PASSWORD_RESET_EXPIRED")),
+    ).toBe("EMAIL");
+    expect(
+      passwordResetStepAfterError("PASSWORD_RESET_CODE", unauthorized("PASSWORD_RESET_EXPIRED")),
+    ).toBeNull();
+    expect(
+      passwordResetStepAfterError(
+        "PASSWORD_RESET_RESEND",
+        new ApiRequestError(429, { code: "PASSWORD_RESET_RESEND_COOLDOWN" }, "Too many"),
+      ),
+    ).toBeNull();
+    expect(passwordResetStepAfterError("PASSWORD_RESET_COMPLETE", new Error("network"))).toBeNull();
+  });
+
+  it("비밀번호 재설정 응답의 가린 이메일과 일정만 읽는다", () => {
+    expect(
+      readPasswordResetResponse({
+        masked_email: "ci***@example.com",
+        expires_at: "2026-10-01T03:10:00Z",
+        resend_available_at: "2026-10-01T03:01:00Z",
+      }),
+    ).toEqual({
+      maskedEmail: "ci***@example.com",
+      schedule: {
+        expiresAt: "2026-10-01T03:10:00Z",
+        resendAvailableAt: "2026-10-01T03:01:00Z",
+      },
+    });
+    expect(readPasswordResetResponse(null)).toEqual({ maskedEmail: null, schedule: null });
+    expect(secondsUntil("2026-10-01T03:01:00Z", Date.parse("2026-10-01T03:00:30.500Z"))).toBe(30);
+    expect(secondsUntil("2026-10-01T03:01:00Z", Date.parse("2026-10-01T03:02:00Z"))).toBe(0);
+    expect(secondsUntil(null, Date.now())).toBe(0);
+  });
+
+  it("비밀번호 재설정 오류 코드를 원인별 문구로 변환한다", () => {
+    const now = Date.now();
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_RESET_ATTEMPTS_EXCEEDED" }, "Exceeded"),
+        "PASSWORD_RESET_CODE",
+      ),
+    ).toBe("인증번호를 5회 잘못 입력했습니다. 인증번호를 다시 받아 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_RESET_EXPIRED" }, "Expired"),
+        "PASSWORD_RESET_CODE",
+      ),
+    ).toBe("인증번호가 만료되었습니다. 인증번호를 다시 받아 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_RESET_CODE_MISMATCH" }, "Mismatch"),
+        "PASSWORD_RESET_CODE",
       ),
     ).toBe("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
     expect(
       authErrorMessage(
-        new ApiRequestError(422, { code: "PASSWORD_POLICY_VIOLATION" }, "Weak password"),
+        new ApiRequestError(401, { code: "PASSWORD_RESET_NOT_VERIFIED" }, "Not verified"),
         "PASSWORD_RESET_COMPLETE",
       ),
-    ).toBe("비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
+    ).toBe("인증번호 확인이 필요합니다. 인증번호를 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(401, { code: "PASSWORD_RESET_EXPIRED" }, "Expired"),
+        "PASSWORD_RESET_RESEND",
+      ),
+    ).toBe("재설정 요청이 만료되었습니다. 이메일을 다시 입력해 주세요.");
+    expect(
+      authErrorMessage(
+        new ApiRequestError(
+          429,
+          {
+            code: "PASSWORD_RESET_RESEND_COOLDOWN",
+            retry_at: new Date(now + 42_000).toISOString(),
+          },
+          "Too many",
+        ),
+        "PASSWORD_RESET_RESEND",
+      ),
+    ).toMatch(/^(41|42)초 후에 다시 받을 수 있습니다\.$/u);
+    expect(
+      authErrorMessage(
+        new ApiRequestError(
+          429,
+          {
+            code: "PASSWORD_RESET_RESEND_LIMIT",
+            retry_at: new Date(now + 30 * 60_000).toISOString(),
+          },
+          "Too many",
+        ),
+        "PASSWORD_RESET_REQUEST",
+      ),
+    ).toBe("인증번호 요청 횟수를 초과했습니다. 30분 후에 다시 시도해 주세요.");
+  });
+
+  it("로그인 화면에서 연 비밀번호 재설정은 뒤로·앞으로 이동에서 단계가 복원된다", () => {
+    expect(authStepAfterPopState({ civicAuthStep: "AUTH-007" }, "AUTH-001")).toBe("AUTH-007");
+    expect(authStepAfterPopState({}, "AUTH-001")).toBe("AUTH-001");
   });
 
   it("이메일 중복 안내는 활성 계정을 로그인으로, 비활성 계정을 재활성화로 보낸다", () => {
