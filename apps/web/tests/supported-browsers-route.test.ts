@@ -45,7 +45,8 @@ describe("browser support status route handler", () => {
     expect(html).toContain("지원되는 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 16.4');
     expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
-    expect(html).toContain('<a class="retry-link" href="/home">이동하기</a>');
+    expect(html).not.toContain("CIVIC.AI를 계속 이용하시겠어요?");
+    expect(html).toContain('<a class="retry-link" href="/home">홈으로 이동</a>');
     expect(html).not.toContain('class="update-guide"');
   });
 
@@ -61,6 +62,12 @@ describe("browser support status route handler", () => {
     expect(html).toContain("서비스 이용을 제한하지 않습니다.");
     expect(html).toContain('<a class="retry-link" href="/home">이동하기</a>');
     expect(html).not.toContain('class="update-guide"');
+  });
+
+  it("shows the current environment before the supported version", async () => {
+    const html = await GET(createRequest(IOS_16_4_SAFARI)).text();
+
+    expect(html.indexOf("현재 접속 환경")).toBeLessThan(html.indexOf("지원 버전"));
   });
 
   it("does not interpolate the raw user-agent into the document", async () => {
@@ -84,6 +91,7 @@ describe("browser support status route handler", () => {
     expect(guideStyles).toContain("gap: 7px");
     expect(guideStyles).toContain("letter-spacing: -0.6px");
     expect(guideStyles).toContain(".retry-link");
+    expect(guideStyles).toMatch(/\.support-baseline strong\s*\{[^}]*color: #59616b;/);
     expect(guideStyles).toContain(
       '.browser-support-card[data-support-status="supported"] .recheck',
     );

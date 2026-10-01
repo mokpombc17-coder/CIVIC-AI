@@ -31,8 +31,8 @@ const STATUS_CONTENT = {
     title: "지원되는 환경입니다",
     description: "현재 기기 소프트웨어 또는 브라우저가 CIVIC.AI 지원 기준을 충족합니다.",
     statusMessage: "현재 환경은 지원 기준을 충족합니다.",
-    prompt: "CIVIC.AI를 계속 이용하시겠어요?",
-    actionLabel: "이동하기",
+    prompt: null,
+    actionLabel: "홈으로 이동",
     actionHref: "/home",
   },
   unknown: {
@@ -111,6 +111,7 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
   const environmentLabel = escapeHtml(getEnvironmentLabel(result));
   const statusMessage = escapeHtml(getStatusMessage(result));
   const updateGuide = renderUpdateGuide(result);
+  const prompt = content.prompt ? `<p>${escapeHtml(content.prompt)}</p>` : "";
 
   return `<!doctype html>
 <html lang="ko">
@@ -160,7 +161,7 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
 ${updateGuide}
 
                 <div class="recheck">
-                  <p>${escapeHtml(content.prompt)}</p>
+                  ${prompt}
                   <a class="retry-link" href="${content.actionHref}">${escapeHtml(
                     content.actionLabel,
                   )}</a>
