@@ -30,7 +30,7 @@ const STATUS_CONTENT = {
   supported: {
     title: "이용할 수 있는 환경입니다",
     description: "현재 기기 소프트웨어 또는 브라우저가 CIVIC.AI 지원 기준을 충족합니다.",
-    statusMessage: "현재 환경은 지원 기준을 충족합니다.",
+    statusMessage: null,
     prompt: null,
     actionLabel: "홈으로 이동",
     actionHref: "/home",
@@ -45,7 +45,7 @@ const STATUS_CONTENT = {
     actionHref: "/home",
   },
   unsupported: {
-    title: "기기 소프트웨어 또는 브라우저를 업데이트해 주세요",
+    title: "업데이트가 필요한 환경입니다",
     description:
       "현재 환경에서는 일부 화면이나 기능이 정상적으로 표시되거나 동작하지 않을 수 있습니다. 원활한 이용을 위해 최신 버전으로 업데이트해 주세요.",
     prompt: "업데이트를 마치셨나요?",
@@ -73,7 +73,7 @@ function getEnvironmentLabel(result: BrowserSupportResult): string {
   return [environment.name, environment.version].filter(Boolean).join(" ");
 }
 
-function getStatusMessage(result: BrowserSupportResult): string {
+function getStatusMessage(result: BrowserSupportResult): string | null {
   if (result.support === "supported") {
     return STATUS_CONTENT.supported.statusMessage;
   }
@@ -109,7 +109,10 @@ function renderUpdateGuide(result: BrowserSupportResult): string {
 export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
   const content = STATUS_CONTENT[result.support];
   const environmentLabel = escapeHtml(getEnvironmentLabel(result));
-  const statusMessage = escapeHtml(getStatusMessage(result));
+  const statusMessage = getStatusMessage(result);
+  const statusMessageMarkup = statusMessage
+    ? `<p class="current-environment-reason">${escapeHtml(statusMessage)}</p>`
+    : "";
   const updateGuide = renderUpdateGuide(result);
   const prompt = content.prompt ? `<p>${escapeHtml(content.prompt)}</p>` : "";
 
@@ -150,11 +153,11 @@ export function renderBrowserSupportHtml(result: BrowserSupportResult): string {
                 <section class="current-environment" aria-labelledby="current-environment-title">
                   <h2 id="current-environment-title">현재 접속 환경</h2>
                   <p class="current-environment-name">${environmentLabel}</p>
-                  <p class="current-environment-reason">${statusMessage}</p>
+                  ${statusMessageMarkup}
                 </section>
 
                 <div class="support-baseline">
-                  <strong>최소 지원 기준</strong>
+                  <strong>지원 기준</strong>
                   <span>iPhone·iPad — iOS·iPadOS 16.4 이상</span>
                   <span>Safari — 16.4 이상</span>
                   <span>Chrome·Edge·Firefox — 111 이상</span>

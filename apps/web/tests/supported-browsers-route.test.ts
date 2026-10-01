@@ -30,7 +30,7 @@ describe("browser support status route handler", () => {
     expect(response.headers.get("x-robots-tag")).toBe("noindex, nofollow");
     expect(response.headers.get("content-security-policy")).toContain("script-src 'none'");
     expect(html).toContain('data-support-status="unsupported"');
-    expect(html).toContain("기기 소프트웨어 또는 브라우저를 업데이트해 주세요");
+    expect(html).toContain("업데이트가 필요한 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 13.7');
     expect(html).toContain("현재 iOS 버전이 지원 기준보다 낮습니다.");
     expect(html).toContain("업데이트를 마치셨나요?");
@@ -48,7 +48,7 @@ describe("browser support status route handler", () => {
     expect(html).toContain('data-support-status="supported"');
     expect(html).toContain("이용할 수 있는 환경입니다");
     expect(html).toContain('class="current-environment-name">iOS 16.4');
-    expect(html).toContain("현재 환경은 지원 기준을 충족합니다.");
+    expect(html).not.toContain("현재 환경은 지원 기준을 충족합니다.");
     expect(html).not.toContain("CIVIC.AI를 계속 이용하시겠어요?");
     expect(html).toContain('<a class="retry-link" href="/home">홈으로 이동</a>');
     expect(html).not.toContain('class="update-guide"');
@@ -68,10 +68,10 @@ describe("browser support status route handler", () => {
     expect(html).not.toContain('class="update-guide"');
   });
 
-  it("shows the current environment before the minimum support baseline", async () => {
+  it("shows the current environment before the support baseline", async () => {
     const html = await GET(createRequest(IOS_16_4_SAFARI)).text();
 
-    expect(html.indexOf("현재 접속 환경")).toBeLessThan(html.indexOf("최소 지원 기준"));
+    expect(html.indexOf("현재 접속 환경")).toBeLessThan(html.indexOf("<strong>지원 기준</strong>"));
     expect(html).toContain("iPhone·iPad — iOS·iPadOS 16.4 이상");
     expect(html).toContain("Safari — 16.4 이상");
     expect(html).toContain("Chrome·Edge·Firefox — 111 이상");
