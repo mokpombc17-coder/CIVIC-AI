@@ -1336,3 +1336,225 @@
   background: #eef2ff;
   color: #3730a3;
 }
+
+/* ---- 투표 결과 · AI 시뮬레이션 병렬 비교 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-compare {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-run {
+  min-width: 240px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-summary div {
+  padding: 12px 14px;
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-summary dt {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-summary dd {
+  margin: 4px 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-table-wrap {
+  overflow-x: auto;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-table th,
+[data-wireflow-shell="admin"] .civic-vote-compare-table td {
+  padding: 12px 10px;
+  border-bottom: 1px solid var(--wf-line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-table thead th {
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-table tbody th {
+  width: 26%;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar {
+  display: grid;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar strong {
+  color: var(--wf-ink);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress::-webkit-progress-bar {
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-webkit-progress-value {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-moz-progress-bar {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"]
+  .civic-vote-compare-bar.is-simulation
+  progress::-webkit-progress-value {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-simulation progress::-moz-progress-bar {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-diff {
+  width: 1%;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-note {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty p {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* ---- 독립 시뮬레이션 목록·작성 ---- */
+
+[data-wireflow-shell="admin"] .civic-simulation-create-action {
+  flex: none;
+  min-height: 48px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-note {
+  margin: 0 0 12px;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-scenario-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-target-kind {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog {
+  display: grid;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  [data-wireflow-shell="admin"] .civic-vote-compare-summary {
+    grid-template-columns: 1fr;
+  }
+}

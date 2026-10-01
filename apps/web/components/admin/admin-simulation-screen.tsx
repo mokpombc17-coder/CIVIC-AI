@@ -6,15 +6,18 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
-import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
-  ConsoleBadge,
   ConsoleMetricStrip,
-  ConsoleSearchControl,
   ConsoleTabs,
   type ConsoleTabItem,
 } from "@/components/admin/console/console-ui";
 import { formatKrw } from "@/lib/admin/format";
+import {
+  loadSimulationTarget,
+  SimulationScenarioEditor,
+  SimulationScenarioList,
+  type SimulationTarget,
+} from "@/components/admin/simulation-scenario-panels";
 import {
   loadWalletMetricState,
   readSimulationSection,
@@ -25,16 +28,14 @@ import {
   type WalletMetricState,
 } from "@/components/admin/simulation-billing-panels";
 import {
+  SIMULATION_RESPONSE_PAGE_SIZE,
   SimulationResultExplorer,
+  type SimulationResponseFilters,
+  type SimulationResponsesView,
   type SimulationResultComparison,
   type SimulationResultDimension,
 } from "@/components/admin/simulation-result-explorer";
-import {
-  formatAdminProblem,
-  readAdminProblem,
-  readTaskDetail,
-  type TaskDetail,
-} from "@/lib/admin/domain-contracts";
+import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
 import {
   readSimulationPreview,
   readWalletSummary,
@@ -46,17 +47,13 @@ import {
   readSimulationCapacity,
   readSimulationOptions,
   readSimulationResult,
-  readSimulationResultDetail,
-  readSimulationTaskSummaries,
+  readSimulationResponsePage,
   readSimulationView,
-  simulationTargetHref,
-  simulationTargetPresentation,
   type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
-  type SimulationResultDetail,
+  type SimulationResponsePage,
   type SimulationState,
-  type SimulationTaskSummary,
   type SimulationView,
 } from "@/lib/admin/simulation-contracts";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
@@ -128,7 +125,7 @@ function SimulationHub({ initialSection }: Readonly<{ initialSection: Simulation
     <>
       <ConsoleMetricStrip ariaLabel="공용 지갑 요약" metrics={walletMetricItems(walletState)} />
       <SimulationSectionTabs active={section} onSelect={switchSection} />
-      {section === "run" ? <SimulationTargets /> : null}
+      {section === "run" ? <SimulationScenarioList /> : null}
       <SimulationBillingSection
         onWalletChange={(wallet) => setWalletState({ status: "ready", wallet })}
         section={section}
@@ -240,121 +237,12 @@ function SimulationRunWorkspace({
 
 export type SimulationStateTone = "neutral" | "active" | "danger" | "success";
 
-export type SimulationTargetRow = Readonly<{
-  taskId: string;
-  title: string;
-  stateLabel: string;
-  stateTone: SimulationStateTone;
-  updatedLabel: string;
-  href: string;
-}>;
-
-export const SIMULATION_TARGET_GRID_COLUMNS: ReadonlyArray<ConsoleColumn<SimulationTargetRow>> = [
-  { field: "title", headerName: "투표 제목", flex: 2, minWidth: 200 },
-  {
-    field: "stateLabel",
-    headerName: "시뮬레이션 진행 상태",
-    minWidth: 150,
-    cellRenderer: (params: Readonly<{ data?: SimulationTargetRow }>) =>
-      params.data ? (
-        <span className="civic-simulation-state-cell">
-          <ConsoleBadge tone={params.data.stateTone}>{params.data.stateLabel}</ConsoleBadge>
-        </span>
-      ) : null,
-  },
-  { field: "updatedLabel", headerName: "최근 변경", minWidth: 150 },
-];
-
-export function simulationTargetRow(task: SimulationTaskSummary): SimulationTargetRow {
-  const state = task.latestSimulation?.state ?? null;
-  const presentation = simulationTargetPresentation(state);
-  return {
-    taskId: task.taskId,
-    title: task.title,
-    stateLabel: presentation.label,
-    stateTone: simulationStateTone(state),
-    updatedLabel: formatDate(simulationTargetUpdatedAt(task)),
-    href: simulationTargetHref(task.taskId, task.latestSimulation),
-  };
-}
-
-function SimulationTargets() {
-  const router = useRouter();
-  const [items, setItems] = useState<readonly SimulationTaskSummary[]>([]);
-  const [search, setSearch] = useState("");
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(true);
-
-  const load = useCallback(async () => {
-    setLoading(true);
-    try {
-      const response = await authenticatedFetch("/api/v1/admin/simulation-tasks", {
-        cache: "no-store",
-      });
-      if (!response.ok) {
-        setMessage(formatAdminProblem(await readAdminProblem(response)));
-        return;
-      }
-      const tasks = readSimulationTaskSummaries(await response.json());
-      if (!tasks) return setMessage("서버의 투표 목록 응답 형식을 확인해야 합니다.");
-      setItems(tasks);
-      setMessage("");
-    } catch {
-      setMessage("네트워크 오류로 투표 목록을 불러오지 못했습니다.");
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => void load(), 0);
-    return () => window.clearTimeout(timer);
-  }, [load]);
-
-  const filtered = useMemo(() => {
-    const normalized = search.trim().toLocaleLowerCase("ko-KR");
-    return normalized
-      ? items.filter((item) => item.title.toLocaleLowerCase("ko-KR").includes(normalized))
-      : items;
-  }, [items, search]);
-
-  return (
-    <>
-      <form
-        className="civic-domain-toolbar civic-simulation-toolbar console-toolbar"
-        onSubmit={(event) => {
-          event.preventDefault();
-          void load();
-        }}
-        role="search"
-      >
-        <ConsoleSearchControl
-          ariaLabel="시뮬레이션할 투표 검색"
-          onChange={setSearch}
-          placeholder="투표 제목을 검색해 주세요."
-          value={search}
-        />
-      </form>
-      <ConsoleDataGrid
-        ariaLabel="시뮬레이션 투표 목록"
-        columnDefs={SIMULATION_TARGET_GRID_COLUMNS}
-        emptyText={loading ? "투표를 불러오는 중입니다." : "조건에 맞는 투표가 없습니다."}
-        getRowId={(row) => row.taskId}
-        height={480}
-        onRowClicked={(row) => router.push(row.href as Route)}
-        rowData={filtered.map(simulationTargetRow)}
-      />
-      {message ? <StatusMessage>{message}</StatusMessage> : null}
-    </>
-  );
-}
-
 function SimulationSetup({
   defaultPanelOpen = false,
   query,
   taskId,
 }: Readonly<{ defaultPanelOpen?: boolean; query: AdminQuery; taskId: string | null }>) {
-  const [task, setTask] = useState<TaskDetail | null>(null);
+  const [target, setTarget] = useState<SimulationTarget | null>(null);
   const [options, setOptions] = useState<SimulationOptions | null>(null);
   const [personaCount, setPersonaCount] = useState(SIMULATION_PERSONA_COUNT_MIN);
   const [filters, setFilters] = useState<Record<string, readonly string[]>>({});
@@ -372,20 +260,15 @@ function SimulationSetup({
     if (!taskId) return;
     const timer = window.setTimeout(() => {
       void Promise.all([
-        authenticatedFetch(`/api/v1/admin/simulation-tasks/${encodeURIComponent(taskId)}`, {
-          cache: "no-store",
-        }),
+        loadSimulationTarget(taskId),
         authenticatedFetch("/api/v1/admin/simulation-options", { cache: "no-store" }),
       ])
-        .then(async ([taskResponse, optionsResponse]) => {
-          if (!taskResponse.ok)
-            throw new Error(formatAdminProblem(await readAdminProblem(taskResponse)));
+        .then(async ([nextTarget, optionsResponse]) => {
           if (!optionsResponse.ok)
             throw new Error(formatAdminProblem(await readAdminProblem(optionsResponse)));
-          const nextTask = readTaskDetail(await taskResponse.json());
           const nextOptions = readSimulationOptions(await optionsResponse.json());
-          if (!nextTask || !nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
-          setTask(nextTask);
+          if (!nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
+          setTarget(nextTarget);
           setOptions(nextOptions);
           const nextLimits = simulationPersonaCountLimits(nextOptions);
           setPersonaCount(
@@ -404,7 +287,7 @@ function SimulationSetup({
     return () => window.clearTimeout(timer);
   }, [requestedPersonaCount, taskId]);
 
-  if (!taskId) return <MissingContext>먼저 시뮬레이션할 투표를 선택해 주세요.</MissingContext>;
+  if (!taskId) return <SimulationScenarioEditor />;
 
   const groups = options
     ? ([
@@ -414,7 +297,7 @@ function SimulationSetup({
       ] as const)
     : [];
 
-  const canSubmit = Boolean(task && options && runInput);
+  const canSubmit = Boolean(target && options && runInput);
   const canStart = Boolean(
     previewState.preview &&
     previewState.wallet &&
@@ -438,7 +321,7 @@ function SimulationSetup({
         void start(runInput, previewState.preview.policyFingerprint);
       }}
     >
-      <TaskSnapshotCard task={task} />
+      <TaskSnapshotCard target={target} />
       <section className="civic-domain-form-section">
         <header>
           <h2>기본 실행 설정</h2>
@@ -745,7 +628,7 @@ function SimulationRetrySection({
       </header>
       <p>
         {recoveryMessage ??
-          "실행 요청은 자동으로 반복하지 않습니다. 실행 환경을 확인한 뒤 같은 투표에서 새 실행을 요청하세요."}
+          "실행 요청은 자동으로 반복하지 않습니다. 실행 환경을 확인한 뒤 같은 대상으로 새 실행을 요청하세요."}
       </p>
       {view.state === "REVIEW_REQUIRED" ? (
         <dl className="civic-domain-impact-list">
@@ -775,7 +658,7 @@ function SimulationRetrySection({
             className="civic-secondary-action"
             href={`/admin/simulations/setup?taskId=${encodeURIComponent(view.taskId)}` as Route}
           >
-            같은 투표로 새 설정
+            같은 대상으로 새 설정
           </Link>
         ) : null}
       </div>
@@ -806,28 +689,17 @@ function SimulationResults({
   simulationId,
 }: Readonly<{ initialSlot?: number | null; simulationId: string | null }>) {
   const [dimension, setDimension] = useState<SimulationResultDimension>("gender");
-  const [requestedSlot, setRequestedSlot] = useState<number | null>(initialSlot);
   const { loading, message, result } = useSimulationResult(simulationId);
   const {
     comparisons,
     loading: comparisonLoading,
     message: comparisonMessage,
   } = useSimulationResultComparisons(simulationId, result, dimension);
-  const requestedIndex = result && requestedSlot ? result.resultSlots.indexOf(requestedSlot) : -1;
-  const resultIndex = result && result.resultSlots.length > 0 ? Math.max(requestedIndex, 0) : -1;
-  const resultSlot = resultIndex >= 0 ? (result?.resultSlots[resultIndex] ?? null) : null;
-  const {
-    detail,
-    loading: detailLoading,
-    message: detailMessage,
-  } = useSimulationResultDetail(simulationId, resultSlot);
-
-  const changeDimension = (nextDimension: SimulationResultDimension) => {
-    setDimension(nextDimension);
-  };
+  const responses = useSimulationResponses(simulationId, initialSlot);
 
   if (!simulationId)
     return <MissingContext>확인할 시뮬레이션 결과를 선택해 주세요.</MissingContext>;
+  const voteLinked = result ? result.task.status !== SCENARIO_TASK_STATUS : false;
   return (
     <section className="civic-domain-result">
       {result ? (
@@ -835,21 +707,21 @@ function SimulationResults({
           comparisonLoading={comparisonLoading}
           comparisonMessage={comparisonMessage}
           comparisons={comparisons}
-          detail={detail}
-          detailMessage={detailMessage}
           dimension={dimension}
-          loading={loading || detailLoading}
-          onDimensionChange={changeDimension}
-          onNextResult={() => {
-            const nextSlot = result.resultSlots[resultIndex + 1];
-            if (nextSlot) setRequestedSlot(nextSlot);
-          }}
-          onPreviousResult={() => {
-            const previousSlot = result.resultSlots[resultIndex - 1];
-            if (previousSlot) setRequestedSlot(previousSlot);
-          }}
+          headerAction={
+            voteLinked ? (
+              <Link
+                className="wf-button wf-button-secondary"
+                href={`/admin/tasks/results?taskId=${encodeURIComponent(result.task.id)}` as Route}
+              >
+                투표 결과와 비교
+              </Link>
+            ) : null
+          }
+          loading={loading}
+          onDimensionChange={setDimension}
+          responses={responses}
           result={result}
-          resultIndex={resultIndex}
           simulationId={simulationId}
         />
       ) : loading ? (
@@ -858,6 +730,82 @@ function SimulationResults({
       {message ? <StatusMessage>{message}</StatusMessage> : null}
     </section>
   );
+}
+
+// 독립 시뮬레이션 스냅샷은 Simulation 서비스가 이 상태값으로 표시한다.
+const SCENARIO_TASK_STATUS = "SIMULATION_ONLY";
+
+function useSimulationResponses(
+  simulationId: string | null,
+  initialSlot: number | null,
+): SimulationResponsesView {
+  const [filters, setFilters] = useState<SimulationResponseFilters>({
+    ageGroup: null,
+    gender: null,
+    optionId: null,
+  });
+  const [offset, setOffset] = useState(() =>
+    initialSlot
+      ? Math.floor((initialSlot - 1) / SIMULATION_RESPONSE_PAGE_SIZE) *
+        SIMULATION_RESPONSE_PAGE_SIZE
+      : 0,
+  );
+  const signature = simulationId ? JSON.stringify({ simulationId, offset, ...filters }) : null;
+  const [state, setState] = useState<{
+    message: string;
+    page: SimulationResponsePage | null;
+    signature: string;
+  } | null>(null);
+
+  useEffect(() => {
+    if (!simulationId || !signature) return;
+    let disposed = false;
+    const timer = window.setTimeout(() => {
+      const search = new URLSearchParams({
+        offset: String(offset),
+        limit: String(SIMULATION_RESPONSE_PAGE_SIZE),
+      });
+      if (filters.optionId) search.set("optionId", filters.optionId);
+      if (filters.gender) search.set("gender", filters.gender);
+      if (filters.ageGroup) search.set("ageGroup", filters.ageGroup);
+      void authenticatedFetch(
+        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/responses?${search.toString()}`,
+        { cache: "no-store" },
+      )
+        .then(async (response) => {
+          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          const page = readSimulationResponsePage(await response.json());
+          if (!page) throw new Error("서버의 응답 목록 형식을 확인해야 합니다.");
+          if (!disposed) setState({ message: "", page, signature });
+        })
+        .catch((error: unknown) => {
+          if (!disposed)
+            setState((current) => ({
+              message: error instanceof Error ? error.message : "응답 목록을 불러오지 못했습니다.",
+              page: current?.page ?? null,
+              signature,
+            }));
+        });
+    }, 0);
+    return () => {
+      disposed = true;
+      window.clearTimeout(timer);
+    };
+  }, [filters, offset, signature, simulationId]);
+
+  return {
+    filters,
+    highlightSlot: initialSlot,
+    loading: Boolean(signature && state?.signature !== signature),
+    message: state?.message ?? "",
+    offset,
+    onFiltersChange: (next) => {
+      setFilters(next);
+      setOffset(0);
+    },
+    onOffsetChange: setOffset,
+    page: state?.page ?? null,
+  };
 }
 
 function useStartSimulation(taskId: string | null) {
@@ -1191,60 +1139,19 @@ function useSimulationResultComparisons(
   };
 }
 
-function useSimulationResultDetail(simulationId: string | null, resultSlot: number | null) {
-  const signature = simulationId && resultSlot ? `${simulationId}:${resultSlot}` : null;
-  const [result, setResult] = useState<{
-    detail: SimulationResultDetail;
-    signature: string;
-  } | null>(null);
-  const [message, setMessage] = useState("");
-  const [loading, setLoading] = useState(false);
-  useEffect(() => {
-    if (!simulationId || !resultSlot || !signature) return;
-    let disposed = false;
-    const timer = window.setTimeout(() => {
-      setLoading(true);
-      setMessage("");
-      void authenticatedFetch(
-        `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/${resultSlot}`,
-        { cache: "no-store" },
-      )
-        .then(async (response) => {
-          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
-          const next = readSimulationResultDetail(await response.json());
-          if (!next) throw new Error("서버의 익명 페르소나 응답 형식을 확인해야 합니다.");
-          if (!disposed) setResult({ detail: next, signature });
-        })
-        .catch((error: unknown) => {
-          if (!disposed)
-            setMessage(
-              error instanceof Error ? error.message : "익명 페르소나 응답을 불러오지 못했습니다.",
-            );
-        })
-        .finally(() => {
-          if (!disposed) setLoading(false);
-        });
-    }, 0);
-    return () => {
-      disposed = true;
-      window.clearTimeout(timer);
-    };
-  }, [resultSlot, signature, simulationId]);
-  return {
-    detail: result?.signature === signature ? result.detail : null,
-    loading: Boolean(signature && (loading || result?.signature !== signature)),
-    message,
-  };
-}
-
-function TaskSnapshotCard({ task }: Readonly<{ task: TaskDetail | null }>) {
+function TaskSnapshotCard({ target }: Readonly<{ target: SimulationTarget | null }>) {
   return (
     <section className="civic-domain-description">
-      <h2>{task?.task.title ?? "투표 정보 불러오는 중"}</h2>
-      <p>{task?.task.question?.content ?? "투표 질문을 확인하고 있습니다."}</p>
-      {task?.task.question ? (
+      {target ? (
+        <span className="civic-simulation-target-kind">
+          {target.kind === "vote" ? "투표 기반 시뮬레이션 · 결과를 투표와 비교" : "독립 시뮬레이션"}
+        </span>
+      ) : null}
+      <h2>{target?.title ?? "시뮬레이션 대상 불러오는 중"}</h2>
+      <p>{target?.question || "질문을 확인하고 있습니다."}</p>
+      {target?.options.length ? (
         <ol className="civic-task-options-readonly">
-          {task.task.question.options.map((option) => (
+          {target.options.map((option) => (
             <li key={option.id}>{option.content}</li>
           ))}
         </ol>
@@ -1296,7 +1203,7 @@ function MissingContext({ children }: Readonly<{ children: string }>) {
     <div className="civic-domain-empty">
       <p>{children}</p>
       <Link className="civic-primary-action" href="/admin/simulations">
-        투표 선택으로 돌아가기
+        시뮬레이션 목록으로 돌아가기
       </Link>
     </div>
   );
@@ -1421,11 +1328,6 @@ function capacityBlockMessage(capacity: SimulationCapacity): string {
     return `페르소나 수를 ${Math.min(SIMULATION_PERSONA_COUNT_MAX, capacity.maxPersonaCount).toLocaleString("ko-KR")}명 이하로 입력해 주세요.`;
   }
   return `현재 조건에서 사용할 수 있는 페르소나는 ${capacity.availablePersonaCount.toLocaleString("ko-KR")}명입니다. 성별·연령대·거주 지역·정치 성향 조건이나 요청 수를 조정해 주세요.`;
-}
-
-function simulationTargetUpdatedAt(task: SimulationTaskSummary): string {
-  const latest = task.latestSimulation;
-  return latest?.completedAt ?? latest?.startedAt ?? latest?.createdAt ?? task.updatedAt;
 }
 
 export function simulationStateTone(state: SimulationState | null): SimulationStateTone {

@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
 import { OpinionMapReviewPanel } from "@/components/admin/opinion-map-review-panel";
+import { VoteSimulationComparison } from "@/components/admin/vote-simulation-comparison";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
   ConsoleEmpty,
@@ -815,6 +816,14 @@ function TaskOverviewTab({
                 조기 종료
               </button>
             ) : null}
+            {task.question ? (
+              <Link
+                className="wf-button wf-button-secondary"
+                href={`/admin/simulations/setup?taskId=${encodeURIComponent(task.id)}` as Route}
+              >
+                이 투표로 시뮬레이션
+              </Link>
+            ) : null}
             {canViewTaskResults(task) ? (
               <button
                 className="wf-button wf-button-secondary civic-task-results-action"
@@ -1164,6 +1173,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
             다시 시도
           </button>
         ) : null}
+        <VoteSimulationComparison taskId={taskId} vote={null} />
         <OpinionMapReviewPanel taskId={taskId} />
       </>
     );
@@ -1223,6 +1233,7 @@ function TaskResultsTab({ taskId }: Readonly<{ taskId: string }>) {
         </div>
         {message ? <StatusMessage>{message}</StatusMessage> : null}
       </section>
+      <VoteSimulationComparison taskId={taskId} vote={result} />
       <OpinionMapReviewPanel taskId={taskId} />
     </>
   );

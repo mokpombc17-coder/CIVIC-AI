@@ -7,6 +7,7 @@ const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE = "civic_ai_access_token";
 const taskId = "7e85d865-4616-4cf5-967c-7d23c27dbf4c";
 const simulationId = "0fa0d1cc-182f-4270-b9aa-66195b3ed8f4";
+const scenarioId = "5c2b8a3e-7d41-4f6a-9b0e-3a1f2c4d5e6f";
 const policyCategoryId = "00000000-0000-0000-0000-000000000001";
 const activeRoomId = "4a52affd-77e8-4bee-86c1-8b74c2ea45ae";
 
@@ -25,6 +26,7 @@ let closeRoomBody = "";
 let createdTaskIdempotencyKey: string | null = null;
 let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
 let simulationResultQueries: string[] = [];
+let simulationResponseQueries: string[] = [];
 let progressSubmissionCount = 3;
 let progressRequests = 0;
 let preparationStatus: "PROCESSING" | "READY" | "FAILED" | null = null;
@@ -170,6 +172,16 @@ test.beforeAll(async () => {
         },
       ]);
     }
+    if (url.pathname === "/api/v1/admin/simulation-scenarios" && request.method === "GET") {
+      return json(response, [scenarioFixture()]);
+    }
+    if (
+      url.pathname === `/api/v1/admin/simulations/${simulationId}/results/responses` &&
+      request.method === "GET"
+    ) {
+      simulationResponseQueries.push(url.search);
+      return json(response, simulationResponsePageFixture(url.searchParams.get("gender")));
+    }
     if (url.pathname === `/api/v1/admin/simulations/${simulationId}` && request.method === "GET") {
       return json(response, simulationFixture(latestSimulationState ?? "RUNNING"));
     }
@@ -273,6 +285,7 @@ test.beforeEach(() => {
   createdTaskIdempotencyKey = null;
   latestSimulationState = null;
   simulationResultQueries = [];
+  simulationResponseQueries = [];
   progressSubmissionCount = 3;
   progressRequests = 0;
   preparationStatus = null;
@@ -720,7 +733,7 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
   await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
 });
 
-test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 화면으로 연결한다", async ({
+test("시뮬레이션 목록은 독립 시뮬레이션의 최신 실행 상태에 맞는 화면으로 연결한다", async ({
   context,
   page,
 }) => {
@@ -730,35 +743,34 @@ test("시뮬레이션 목록은 최신 실행 상태에 맞는 진행·결과 �
 
   latestSimulationState = null;
   await page.goto("/admin/simulations");
-  let row = page.getByRole("row", { name: /교통 정책 투표/ });
+  await expect(page.getByText("투표에서 실행한 시뮬레이션은 해당 투표의 결과 탭")).toBeVisible();
+  await expect(page.getByRole("row", { name: /교통 정책 투표/ })).toHaveCount(0);
+  let row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   const stateBadgeWidths: number[] = [];
-  await expect(row).toContainText("준비됨");
+  await expect(row).toContainText("미실행");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
-  await expect(row).toContainText("설정하기");
   await row.click();
-  await expect(page).toHaveURL(`/admin/simulations/setup?taskId=${taskId}`);
+  await expect(page).toHaveURL(`/admin/simulations/setup?taskId=${scenarioId}`);
 
   latestSimulationState = "RUNNING";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 투표/ });
+  row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   await expect(row).toContainText("진행 중");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
-  await expect(row).toContainText("진행 보기");
   await row.click();
   await expect(page).toHaveURL(`/admin/simulations/status?simulationId=${simulationId}`);
 
   latestSimulationState = "COMPLETED";
   await page.goto("/admin/simulations");
-  row = page.getByRole("row", { name: /교통 정책 투표/ });
+  row = page.getByRole("row", { name: /교통 정책 시뮬레이션/ });
   await expect(row).toContainText("완료");
   stateBadgeWidths.push(
     (await row.locator(".civic-simulation-state-cell").boundingBox())?.width ?? 0,
   );
-  await expect(row).toContainText("결과 보기");
   await row.click();
   await expect(page).toHaveURL(`/admin/simulations/results?simulationId=${simulationId}`);
   expect(stateBadgeWidths).toEqual([76, 76, 76]);
@@ -777,12 +789,12 @@ test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적
   await page.getByRole("link", { name: "시뮬레이션", exact: true }).click();
   await expect(page).toHaveURL("/admin/simulations");
 
-  const grid = page.getByRole("region", { name: "시뮬레이션 투표 목록" });
+  const grid = page.getByRole("region", { name: "시뮬레이션 목록" });
   const rootWrapper = grid.locator(".ag-root-wrapper");
   const headerRow = grid.locator(".ag-header-row");
   await expect(rootWrapper).toBeVisible();
   await expect(headerRow).toBeVisible();
-  await expect(grid.getByRole("row", { name: /교통 정책 투표/u })).toBeVisible();
+  await expect(grid.getByRole("row", { name: /교통 정책 시뮬레이션/u })).toBeVisible();
   await expect(rootWrapper).toHaveCSS("display", "flex");
   await expect(headerRow).toHaveCSS("display", "flex");
 
@@ -850,8 +862,13 @@ test("시뮬레이션 결과는 모든 성별 집단·도넛 분포·응답 이�
   await expect(ageComparison.getByRole("heading", { name: "40대" })).toBeVisible();
   await expect(ageComparison.getByRole("heading", { name: "50대" })).toBeVisible();
 
-  await page.getByRole("button", { name: /다음 결과/u }).click();
   await expect(page.getByText("보행 환경 개선이 모든 주민에게 도움이 됩니다.")).toBeVisible();
+  await expect(page.getByRole("button", { name: /다음 결과/u })).toHaveCount(0);
+  await page.getByRole("group", { name: "응답 목록 필터" }).getByLabel("성별").selectOption("남성");
+  await expect.poll(() => simulationResponseQueries).toContain(
+    "?offset=0&limit=20&gender=%EB%82%A8%EC%84%B1",
+  );
+  await expect(page.getByText("골목길 안전을 먼저 개선해야 합니다.")).toHaveCount(0);
   await page.setViewportSize({ width: 640, height: 900 });
   await expect(ageComparison.getByRole("heading", { name: "30대" })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(
@@ -1198,6 +1215,45 @@ function simulationResultDetailFixture(resultSlot: number) {
     notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
     resultSlot,
     ...detail,
+  };
+}
+
+function scenarioFixture() {
+  return {
+    scenarioId,
+    title: "교통 정책 시뮬레이션",
+    description: null,
+    question: {
+      id: "2d6f1b9a-3c4e-4a5b-8c7d-9e0f1a2b3c4d",
+      content: "가장 먼저 개선할 교통 정책은 무엇인가요?",
+      description: null,
+      options: [
+        { id: "4928e1be-b4ef-45c6-bf83-17641cf4183d", displayOrder: 1, content: "생활안전 강화" },
+        { id: "879ba3de-0b84-412b-b51f-e879e9d8f6e2", displayOrder: 2, content: "돌봄·복지 확대" },
+      ],
+    },
+    sourceTaskId: null,
+    createdAt: "2026-08-29T02:00:00Z",
+    updatedAt: "2026-08-29T02:00:00Z",
+    latestSimulation: latestSimulationState ? simulationFixture(latestSimulationState) : null,
+  };
+}
+
+function simulationResponsePageFixture(gender: string | null) {
+  const items = [1, 2, 3]
+    .map((resultSlot) => {
+      const { schemaVersion: _schemaVersion, notice: _notice, ...item } =
+        simulationResultDetailFixture(resultSlot);
+      return item;
+    })
+    .filter((item) => !gender || item.demographics.gender === gender);
+  return {
+    schemaVersion: "CIVIC_TASK_SIMULATION_RESPONSE_PAGE_V1",
+    notice: "이 결과는 생성형 AI를 사용해 생성한 가상 패널 시뮬레이션 결과입니다.",
+    total: items.length,
+    offset: 0,
+    limit: 20,
+    items,
   };
 }
 

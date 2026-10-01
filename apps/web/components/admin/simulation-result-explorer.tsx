@@ -1,6 +1,11 @@
 "use client";
 
-import type { SimulationResult, SimulationResultDetail } from "@/lib/admin/simulation-contracts";
+import type { ReactNode } from "react";
+import {
+  UNANSWERED_OPTION_FILTER,
+  type SimulationResponsePage,
+  type SimulationResult,
+} from "@/lib/admin/simulation-contracts";
 import styles from "./simulation-result-explorer.module.css";
 
 export type SimulationResultDimension = "all" | "gender" | "ageGroup";
@@ -15,6 +20,25 @@ export type SimulationResultComparisonInsight = Readonly<{
   highestGroup: string;
   lowestGroup: string;
   optionLabel: string;
+}>;
+
+export type SimulationResponseFilters = Readonly<{
+  ageGroup: string | null;
+  gender: string | null;
+  optionId: string | null;
+}>;
+
+export const SIMULATION_RESPONSE_PAGE_SIZE = 20;
+
+export type SimulationResponsesView = Readonly<{
+  filters: SimulationResponseFilters;
+  highlightSlot: number | null;
+  loading: boolean;
+  message: string;
+  offset: number;
+  onFiltersChange: (filters: SimulationResponseFilters) => void;
+  onOffsetChange: (offset: number) => void;
+  page: SimulationResponsePage | null;
 }>;
 
 type DonutDatum = Readonly<{
@@ -110,36 +134,25 @@ export function SimulationResultExplorer({
   comparisons,
   comparisonLoading,
   comparisonMessage,
-  detail,
-  detailMessage,
+  headerAction,
   loading,
   onDimensionChange,
-  onNextResult,
-  onPreviousResult,
+  responses,
   result,
-  resultIndex,
   simulationId,
 }: Readonly<{
-  detail: SimulationResultDetail | null;
-  detailMessage: string;
   dimension: SimulationResultDimension;
   comparisons: readonly SimulationResultComparison[];
   comparisonLoading: boolean;
   comparisonMessage: string;
+  headerAction?: ReactNode;
   loading: boolean;
   onDimensionChange: (dimension: SimulationResultDimension) => void;
-  onNextResult: () => void;
-  onPreviousResult: () => void;
+  responses: SimulationResponsesView;
   result: SimulationResult;
-  resultIndex: number;
   simulationId: string;
 }>) {
   const donutData = buildDonutData(result);
-  const resultCount = result.resultSlots.length;
-  const currentPosition = resultIndex >= 0 ? resultIndex + 1 : 0;
-  const selectedOption = result.task.question.options.find(
-    (option) => option.id === detail?.selectedOptionId,
-  );
   const dimensionLabel =
     dimension === "gender" ? "성별" : dimension === "ageGroup" ? "연령" : "전체";
   const comparisonHeading =
@@ -153,13 +166,16 @@ export function SimulationResultExplorer({
           <h2>{result.task.title}</h2>
           <p>{result.task.question.content}</p>
         </div>
-        <a
-          className={styles.download}
-          href={`/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/export`}
-        >
-          <DownloadIcon />
-          XLSX 내려받기
-        </a>
+        <div className={styles.heroActions}>
+          {headerAction}
+          <a
+            className={styles.download}
+            href={`/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results/export`}
+          >
+            <DownloadIcon />
+            XLSX 내려받기
+          </a>
+        </div>
       </header>
 
       <section className={styles.compareStation}>
@@ -276,64 +292,153 @@ export function SimulationResultExplorer({
         </section>
       ) : null}
 
-      <section className={styles.responseExplorer}>
-        <header className={styles.responseHeader}>
-          <div>
-            <h3>응답자가 이렇게 답한 이유</h3>
-          </div>
-          <nav aria-label="결과 탐색" className={styles.resultNavigation}>
-            <button disabled={loading || resultIndex <= 0} onClick={onPreviousResult} type="button">
-              <ChevronIcon direction="left" />
-              이전 결과
-            </button>
-            <strong>
-              {currentPosition.toLocaleString("ko-KR")} / {resultCount.toLocaleString("ko-KR")}
-            </strong>
-            <button
-              disabled={loading || resultIndex < 0 || resultIndex >= resultCount - 1}
-              onClick={onNextResult}
-              type="button"
-            >
-              다음 결과
-              <ChevronIcon direction="right" />
-            </button>
-          </nav>
-        </header>
+      <SimulationResponseTable responses={responses} result={result} />
+    </section>
+  );
+}
 
-        {detail ? (
-          <article className={styles.responseCard}>
-            <div className={styles.respondentIdentity}>
-              <span className={styles.avatar}>{String(detail.resultSlot).padStart(2, "0")}</span>
-              <div>
-                <h4>{detail.resultSlot}번 익명 페르소나</h4>
-                <div className={styles.demographics}>
-                  <span>{detail.demographics.gender ?? "성별 미상"}</span>
-                  <span>{detail.demographics.ageGroup ?? "연령 미상"}</span>
-                </div>
-              </div>
-            </div>
-            <div className={styles.answerReason}>
-              <div>
-                <span>선택한 응답</span>
-                <strong>{selectedOption?.content ?? "미응답"}</strong>
-              </div>
-              <blockquote>
-                {detail.reason?.trim() || "이 응답에는 별도의 이유가 기록되지 않았습니다."}
-              </blockquote>
-            </div>
-          </article>
-        ) : resultCount === 0 ? (
-          <div className={styles.emptyReason}>
-            <strong>확인할 응답 이유가 없습니다.</strong>
-            <p>이 시뮬레이션에 기록된 유효 응답 수를 확인해 주세요.</p>
-          </div>
-        ) : (
-          <div className={styles.emptyReason}>
-            <strong>응답 이유를 불러오는 중입니다.</strong>
-            <p>{detailMessage || "선택한 익명 패널의 응답을 확인하고 있습니다."}</p>
-          </div>
-        )}
-      </section>
+function SimulationResponseTable({
+  responses,
+  result,
+}: Readonly<{ responses: SimulationResponsesView; result: SimulationResult }>) {
+  const { filters, page, offset } = responses;
+  const options = result.task.question.options;
+  const optionLabel = (optionId: string | null) =>
+    options.find((option) => option.id === optionId)?.content ?? "미응답";
+  const total = page?.total ?? 0;
+  const pageSize = page?.limit ?? SIMULATION_RESPONSE_PAGE_SIZE;
+  const currentPage = total === 0 ? 0 : Math.floor(offset / pageSize) + 1;
+  const pageCount = Math.ceil(total / pageSize);
+  const change = (patch: Partial<SimulationResponseFilters>) =>
+    responses.onFiltersChange({ ...filters, ...patch });
+
+  return (
+    <section aria-busy={responses.loading} className={styles.responseExplorer}>
+      <header className={styles.responseHeader}>
+        <div>
+          <h3>응답자가 이렇게 답한 이유</h3>
+          <p>
+            {page
+              ? `${total.toLocaleString("ko-KR")}명 중 ${
+                  total === 0 ? 0 : (offset + 1).toLocaleString("ko-KR")
+                }–${Math.min(offset + pageSize, total).toLocaleString("ko-KR")}번째`
+              : "응답 목록을 불러오고 있습니다."}
+          </p>
+        </div>
+        <div aria-label="응답 목록 필터" className={styles.responseFilters} role="group">
+          <label>
+            <span>선택 응답</span>
+            <select
+              onChange={(event) => change({ optionId: event.currentTarget.value || null })}
+              value={filters.optionId ?? ""}
+            >
+              <option value="">전체</option>
+              {options.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.content}
+                </option>
+              ))}
+              <option value={UNANSWERED_OPTION_FILTER}>미응답</option>
+            </select>
+          </label>
+          <label>
+            <span>성별</span>
+            <select
+              onChange={(event) => change({ gender: event.currentTarget.value || null })}
+              value={filters.gender ?? ""}
+            >
+              <option value="">전체</option>
+              {result.availableFilters.genders.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label>
+            <span>연령</span>
+            <select
+              onChange={(event) => change({ ageGroup: event.currentTarget.value || null })}
+              value={filters.ageGroup ?? ""}
+            >
+              <option value="">전체</option>
+              {result.availableFilters.ageGroups.map((value) => (
+                <option key={value} value={value}>
+                  {value}
+                </option>
+              ))}
+            </select>
+          </label>
+        </div>
+      </header>
+
+      {page && page.items.length > 0 ? (
+        <div className={styles.responseTableWrap}>
+          <table className={styles.responseTable}>
+            <thead>
+              <tr>
+                <th scope="col">번호</th>
+                <th scope="col">성별</th>
+                <th scope="col">연령</th>
+                <th scope="col">선택 응답</th>
+                <th scope="col">응답 이유</th>
+              </tr>
+            </thead>
+            <tbody>
+              {page.items.map((item) => (
+                <tr
+                  aria-current={item.resultSlot === responses.highlightSlot ? "true" : undefined}
+                  key={item.resultSlot}
+                >
+                  <td>{item.resultSlot}</td>
+                  <td>{item.demographics.gender ?? "미상"}</td>
+                  <td>{item.demographics.ageGroup ?? "미상"}</td>
+                  <td>
+                    <strong>{optionLabel(item.selectedOptionId)}</strong>
+                  </td>
+                  <td>{item.reason?.trim() || "기록된 이유가 없습니다."}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      ) : (
+        <div className={styles.emptyReason}>
+          <strong>
+            {page ? "조건에 맞는 응답이 없습니다." : "응답 목록을 불러오는 중입니다."}
+          </strong>
+          {responses.message ? <p>{responses.message}</p> : null}
+        </div>
+      )}
+      {page && responses.message ? (
+        <p className={styles.comparisonMessage} role="status">
+          {responses.message}
+        </p>
+      ) : null}
+
+      {pageCount > 1 ? (
+        <nav aria-label="응답 목록 페이지" className={styles.resultNavigation}>
+          <button
+            disabled={responses.loading || offset <= 0}
+            onClick={() => responses.onOffsetChange(Math.max(offset - pageSize, 0))}
+            type="button"
+          >
+            <ChevronIcon direction="left" />
+            이전
+          </button>
+          <strong>
+            {currentPage.toLocaleString("ko-KR")} / {pageCount.toLocaleString("ko-KR")} 페이지
+          </strong>
+          <button
+            disabled={responses.loading || offset + pageSize >= total}
+            onClick={() => responses.onOffsetChange(offset + pageSize)}
+            type="button"
+          >
+            다음
+            <ChevronIcon direction="right" />
+          </button>
+        </nav>
+      ) : null}
     </section>
   );
 }

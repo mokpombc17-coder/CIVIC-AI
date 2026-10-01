@@ -182,18 +182,21 @@ AdminLayout [Server Route Layout, wireflow.css + admin-console.css 소유] → A
     ├── AdminRoomCategoryScreen [Chat 카테고리 및 ACTIVE·LISTED 방 관리]
     │   ├── ListedRoomTable [참여자 방 목록 API 검색·페이지네이션]
     │   └── RoomCategorySelector [선택 방의 카테고리 교체]
-    ├── AdminTaskScreen [Vote 과업 관리]
+    ├── AdminTaskScreen [Vote 투표 관리]
     │   ├── TaskList [목록·검색·상태 필터]
     │   ├── TaskCreationDrawer [기본 정보→질문→선택지 단계형 초안 생성]
     │   ├── TaskDetailDrawer [우측 상세·상태 변경, 운영 이력 미노출]
     │   └── TaskResultsTab [결과 탭: OPEN 현황 집계·수동 새로고침, 종료 시 확정 결과·다운로드]
+    │       ├── VoteSimulationComparison [이 투표로 실행한 완료 시뮬레이션 회차 선택·선택지별 실제/AI 비율·차이 병렬 비교]
     │       └── OpinionMapReviewPanel [생성 상태·선택지별 sameChoice/otherChoices 조회·수동 생성/재시도/재생성·활성 run 폴링]
-    ├── AdminSimulationScreen [SONA 과업 집계 시뮬레이션]
-    │   ├── SimulationSectionTabs [실행·공용 지갑·가격 정책·사용량·근거 이관]
-    │   ├── Vote 과업 선택·실행 전 비용/시간 견적·설정
+    ├── AdminSimulationScreen [SONA 집계 시뮬레이션]
+    │   ├── SimulationSectionTabs [시뮬레이션 목록·공용 지갑·가격 정책·사용량·근거 이관]
+    │   ├── SimulationScenarioList [독립 시뮬레이션 목록; 투표 기반 실행은 투표 결과 탭에서 비교]
+    │   ├── SimulationScenarioEditor [질문·선택지 작성, VoteImportDialog로 투표 내용 복사]
+    │   ├── 대상(독립 시뮬레이션 또는 투표) 실행 전 비용/시간 견적·설정
     │   ├── 활성 데이터 번들 기반 패널 필터
     │   ├── 실행 상태·취소·수동 재설정
-    │   ├── 집계 결과·익명 패널 응답 상세
+    │   ├── 집계 결과·필터/페이지 단위 익명 패널 응답 표
     │   └── SimulationBillingSection
     │       ├── 공용 지갑 조회·쿠폰 발급/사용
     │       ├── 환율·공급자 단가·모델 가격 초안/활성화
