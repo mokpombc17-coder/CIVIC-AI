@@ -2,6 +2,7 @@ package ai.civic.mainauth.config;
 
 import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.AuthorizationException;
+import ai.civic.mainauth.auth.ChallengeSendLimitException;
 import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.RateLimitExceededException;
 import ai.civic.mainauth.auth.RefreshTokenConflictException;
@@ -16,6 +17,10 @@ import ai.civic.mainauth.feature.FeatureGateDisabledException;
 import ai.civic.mainauth.notification.NotificationDeliveryException;
 import ai.civic.mainauth.privacy.PrivacyOperationNotFoundException;
 import java.net.URI;
+import java.time.Duration;
+import java.time.Instant;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.ResponseEntity;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -39,7 +44,9 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(AuthenticationException.class)
     ProblemDetail unauthorized(AuthenticationException exception) {
-        return problem(HttpStatus.UNAUTHORIZED, "Authentication failed", exception.getMessage());
+        var problem = problem(HttpStatus.UNAUTHORIZED, "Authentication failed", exception.getMessage());
+        if (exception.code() != null) problem.setProperty("code", exception.code());
+        return problem;
     }
 
     @ExceptionHandler(AuthorizationException.class)
@@ -110,6 +117,17 @@ public class ApiExceptionHandler {
     @ExceptionHandler(RateLimitExceededException.class)
     ProblemDetail rateLimited(RateLimitExceededException exception) {
         return problem(HttpStatus.TOO_MANY_REQUESTS, "Request rate limited", exception.getMessage());
+    }
+
+    @ExceptionHandler(ChallengeSendLimitException.class)
+    ResponseEntity<ProblemDetail> challengeSendLimited(ChallengeSendLimitException exception) {
+        var problem = problem(HttpStatus.TOO_MANY_REQUESTS, "Request rate limited", exception.getMessage());
+        problem.setProperty("code", exception.code());
+        problem.setProperty("retry_at", exception.retryAt().toString());
+        var retryAfter = Math.max(1, Duration.between(Instant.now(), exception.retryAt()).toSeconds());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .header(HttpHeaders.RETRY_AFTER, Long.toString(retryAfter))
+                .body(problem);
     }
 
     @ExceptionHandler(SecurityException.class)

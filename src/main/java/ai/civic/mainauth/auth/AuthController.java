@@ -1,6 +1,8 @@
 package ai.civic.mainauth.auth;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import jakarta.servlet.http.HttpServletRequest;
+import java.time.Instant;
 import java.util.Map;
 import java.util.UUID;
 import org.springframework.http.CacheControl;
@@ -148,12 +150,41 @@ public class AuthController {
     }
 
     @PostMapping("/password-reset/request")
-    ResponseEntity<Void> requestPasswordReset(@RequestBody EmailBody body, HttpServletRequest request) {
+    ResponseEntity<PasswordResetBody> requestPasswordReset(
+            @RequestBody EmailBody body, HttpServletRequest request) {
         requireUnauthenticatedMutation(request);
         rateLimit(request, body.email());
-        var flow = authentication.requestPasswordReset(body.email());
+        var started = authentication.startPasswordReset(body.email());
         return ResponseEntity.accepted()
-                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString()).build();
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(started.flowId().toString()).toString())
+                .body(PasswordResetBody.from(started.maskedEmail(), started.schedule()));
+    }
+
+    @PostMapping("/password-reset/resend")
+    ResponseEntity<PasswordResetBody> resendPasswordReset(
+            @CookieValue(AuthCookieFactory.AUTH_FLOW_COOKIE) String flow,
+            HttpServletRequest request) {
+        requireUnauthenticatedMutation(request);
+        rateLimit(request, flow);
+        var schedule = authentication.resendPasswordReset(UUID.fromString(flow));
+        return ResponseEntity.accepted()
+                .cacheControl(CacheControl.noStore())
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow).toString())
+                .body(PasswordResetBody.from(null, schedule));
+    }
+
+    @PostMapping("/password-reset/verify")
+    ResponseEntity<Void> verifyPasswordReset(
+            @CookieValue(AuthCookieFactory.AUTH_FLOW_COOKIE) String flow,
+            @RequestBody CodeBody body,
+            HttpServletRequest request) {
+        requireUnauthenticatedMutation(request);
+        rateLimit(request, flow);
+        authentication.verifyPasswordReset(UUID.fromString(flow), body.code());
+        return ResponseEntity.noContent()
+                .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow).toString())
+                .build();
     }
 
     @PostMapping("/password-reset/complete")
@@ -163,7 +194,11 @@ public class AuthController {
             HttpServletRequest request) {
         requireUnauthenticatedMutation(request);
         rateLimit(request, flow);
-        authentication.completePasswordReset(UUID.fromString(flow), body.code(), body.newPassword());
+        if (body.code() == null) {
+            authentication.completePasswordReset(UUID.fromString(flow), body.newPassword());
+        } else {
+            authentication.completePasswordReset(UUID.fromString(flow), body.code(), body.newPassword());
+        }
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString())
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAccessToken().toString())
@@ -253,6 +288,13 @@ public class AuthController {
     record ReactivationBody(String email, String password) {}
     record CodeBody(String code) {}
     record ResetBody(String code, String newPassword) {}
+    @JsonInclude(JsonInclude.Include.NON_NULL)
+    record PasswordResetBody(String maskedEmail, Instant expiresAt, Instant resendAvailableAt) {
+        static PasswordResetBody from(
+                String maskedEmail, AuthenticationFlowService.PasswordResetSchedule schedule) {
+            return new PasswordResetBody(maskedEmail, schedule.expiresAt(), schedule.resendAvailableAt());
+        }
+    }
     record MeBody(
             UUID userId,
             String role,

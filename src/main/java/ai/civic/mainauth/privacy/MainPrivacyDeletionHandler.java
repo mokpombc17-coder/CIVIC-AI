@@ -94,6 +94,9 @@ public class MainPrivacyDeletionHandler {
                 """,
                 credentialHashing.opaqueCompletionIdentity(originalEmail, "PASSWORD_RESET"),
                 credentialHashing.opaqueCompletionIdentity(originalEmail, "REACTIVATION"));
+        jdbc.update("""
+                delete from auth_challenge_send_limits where identity_hash = ?
+                """, credentialHashing.opaqueCompletionIdentity(originalEmail, "PASSWORD_RESET"));
         var changed = jdbc.update("""
                 update users set email = ?, normalized_email = ?, state = 'DELETED',
                     account_state_version = account_state_version + 1,

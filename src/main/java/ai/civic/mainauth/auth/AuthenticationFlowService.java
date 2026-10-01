@@ -26,6 +26,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 public class AuthenticationFlowService {
     private static final String PUBLIC_FAILURE = "Email or password is invalid";
     private static final String CODE_FAILURE = "Authentication code is invalid";
+    private static final String PASSWORD_RESET = "PASSWORD_RESET";
+    private static final String RESET_CODE_MISMATCH = "PASSWORD_RESET_CODE_MISMATCH";
+    private static final String RESET_ATTEMPTS_EXCEEDED = "PASSWORD_RESET_ATTEMPTS_EXCEEDED";
+    private static final String RESET_EXPIRED = "PASSWORD_RESET_EXPIRED";
+    private static final String RESET_NOT_VERIFIED = "PASSWORD_RESET_NOT_VERIFIED";
+    private static final String RESEND_COOLDOWN = "PASSWORD_RESET_RESEND_COOLDOWN";
+    private static final String RESEND_LIMIT = "PASSWORD_RESET_RESEND_LIMIT";
+    private static final int MAX_CODE_ATTEMPTS = 5;
+    private static final Duration CHALLENGE_TTL = Duration.ofMinutes(10);
+    private static final Duration SEND_INTERVAL = Duration.ofSeconds(60);
+    private static final Duration SEND_WINDOW = Duration.ofHours(1);
+    private static final int SENDS_PER_WINDOW = 5;
     private final JdbcTemplate jdbc;
     private final AuthenticationIdentityLock identityLocks;
     private final SessionRevocationService sessions;
@@ -189,26 +201,113 @@ public class AuthenticationFlowService {
     }
 
     @Transactional(noRollbackFor = NotificationDeliveryException.class)
-    public UUID requestPasswordReset(String email) {
-        return requestAccountChallenge(email, "ACTIVE", "PASSWORD_RESET", false);
+    public PasswordResetStart startPasswordReset(String email) {
+        var normalized = normalize(email);
+        if (normalized.isBlank()) throw new IllegalArgumentException("Email is required");
+        identityLocks.lock(normalized);
+        var sentAt = recordChallengeSend(
+                credentialHashing.opaqueCompletionIdentity(normalized, PASSWORD_RESET), PASSWORD_RESET);
+        var flow = requestPasswordReset(normalized);
+        return new PasswordResetStart(flow, maskEmail(normalized), scheduleFrom(sentAt));
     }
 
+    @Transactional(noRollbackFor = NotificationDeliveryException.class)
+    public UUID requestPasswordReset(String email) {
+        return requestAccountChallenge(email, "ACTIVE", PASSWORD_RESET, false);
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public PasswordResetSchedule resendPasswordReset(UUID flowId) {
+        var flow = lockResetFlow(flowId);
+        if (flow.consumed()) throw resetFailure(flow, RESET_EXPIRED);
+        var identityHash = flow.real()
+                ? credentialHashing.opaqueCompletionIdentity(normalize(flow.targetIdentity()), PASSWORD_RESET)
+                : flow.identityHash();
+        var sentAt = recordChallengeSend(identityHash, PASSWORD_RESET);
+        var schedule = scheduleFrom(sentAt);
+        var code = verificationCode();
+        if (flow.real()) {
+            retirePendingChallengeNotifications(flow.challengeId(), PASSWORD_RESET);
+            jdbc.update("""
+                    update auth_challenges set code_hash = ?, attempt_count = 0, verified_at = null,
+                        last_sent_at = ?, expires_at = ? where id = ?
+                    """, codeProtector.verifier(code), Timestamp.from(sentAt),
+                    Timestamp.from(schedule.expiresAt()), flow.challengeId());
+            enqueueChallengeMail(PASSWORD_RESET, flow.targetIdentity(), flow.challengeId(), code, false);
+        } else {
+            // Pay for the same hashing and payload work as a real resend before renewing the flow.
+            try {
+                jdbc.update("""
+                        insert into notification_outbox(event_type, recipient, payload)
+                        select ?, 'opaque', ?::jsonb where false
+                        """, PASSWORD_RESET, challengePayload(PASSWORD_RESET, UUID.randomUUID(), code));
+            } catch (Exception exception) {
+                throw new IllegalStateException("Could not perform opaque authentication work", exception);
+            }
+            codeProtector.verifier(code);
+            jdbc.update("""
+                    update opaque_auth_flows set attempt_count = 0, expires_at = ? where flow_hash = ?
+                    """, Timestamp.from(schedule.expiresAt()), flow.flowHash());
+        }
+        return schedule;
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public void verifyPasswordReset(UUID flowId, String code) {
+        var flow = lockResetFlow(flowId);
+        if (flow.consumed() || flow.expiresAt().isBefore(clock.instant())) {
+            throw resetFailure(flow, RESET_EXPIRED);
+        }
+        if (flow.attemptCount() >= MAX_CODE_ATTEMPTS) throw resetFailure(flow, RESET_ATTEMPTS_EXCEEDED);
+        // Opaque flows have no code but still pay for the comparison.
+        var expected = flow.codeHash() == null ? new byte[32] : flow.codeHash();
+        if (!codeProtector.matches(code, expected) || !flow.real()) {
+            throw resetFailure(flow, flow.attemptCount() + 1 >= MAX_CODE_ATTEMPTS
+                    ? RESET_ATTEMPTS_EXCEEDED : RESET_CODE_MISMATCH);
+        }
+        // Renew the window only once so repeated verification cannot keep a code alive indefinitely.
+        if (flow.verifiedAt() != null) return;
+        jdbc.update("""
+                update auth_challenges set verified_at = now(), expires_at = ? where id = ?
+                """, Timestamp.from(clock.instant().plus(CHALLENGE_TTL)), flow.challengeId());
+    }
+
+    @Transactional(noRollbackFor = AuthenticationException.class)
+    public void completePasswordReset(UUID flowId, String newPassword) {
+        requireValidPassword(newPassword);
+        var flow = lockResetFlow(flowId);
+        if (flow.consumed() || flow.expiresAt().isBefore(clock.instant())) {
+            throw resetFailure(flow, RESET_EXPIRED);
+        }
+        if (flow.verifiedAt() == null) throw resetFailure(flow, RESET_NOT_VERIFIED);
+        jdbc.update("update auth_challenges set consumed_at = now() where id = ?", flow.challengeId());
+        resetPassword(flow.userId(), newPassword);
+    }
+
+    // Accepts the code at completion for clients released before the verify step existed.
     @Transactional(noRollbackFor = AuthenticationException.class)
     public void completePasswordReset(UUID flowId, String code, String newPassword) {
         requireValidPassword(newPassword);
         lockChallengeUser(flowId, "PASSWORD_RESET");
-        var verified = consumeChallenge(flowId, "PASSWORD_RESET", code);
+        resetPassword(consumeChallenge(flowId, "PASSWORD_RESET", code).userId(), newPassword);
+    }
+
+    private void resetPassword(UUID userId, String newPassword) {
         var encoded = jdbc.queryForObject(
                 "select password_hash from credentials where user_id = ? for update",
-                String.class, verified.userId());
-        if (safeMatches(newPassword, encoded)) throw new AuthenticationException(PUBLIC_FAILURE);
+                String.class, userId);
+        // The challenge is already consumed so a verified flow cannot probe the stored password.
+        if (safeMatches(newPassword, encoded)) {
+            throw new AuthenticationException(
+                    "New password must differ from the current password", "PASSWORD_REUSED");
+        }
         jdbc.update("""
                 update credentials set password_hash = ?, must_change_password = false,
                     password_changed_at = now() where user_id = ?
-                """, passwords.encode(newPassword), verified.userId());
-        consumePendingLoginChallenges(verified.userId());
-        consumePendingPasswordResetChallenges(verified.userId());
-        sessions.revokeAll(verified.userId(), "PASSWORD_RESET");
+                """, passwords.encode(newPassword), userId);
+        consumePendingLoginChallenges(userId);
+        consumePendingPasswordResetChallenges(userId);
+        sessions.revokeAll(userId, "PASSWORD_RESET");
     }
 
     private void consumePendingLoginChallenges(UUID userId) {
@@ -313,7 +412,7 @@ public class AuthenticationFlowService {
         var code = verificationCode();
         retirePendingChallengeNotifications(challenge.id(), purpose);
         jdbc.update("""
-                update auth_challenges set code_hash = ?, attempt_count = 0,
+                update auth_challenges set code_hash = ?, attempt_count = 0, verified_at = null,
                     resend_count = ?, last_sent_at = ?, resend_window_started_at = ?,
                     expires_at = ? where id = ?
                 """, codeProtector.verifier(code), count + 1, Timestamp.from(now),
@@ -341,10 +440,16 @@ public class AuthenticationFlowService {
             var challengeId = UUID.randomUUID();
             var code = verificationCode();
             var now = clock.instant();
+            var identityHash = credentialHashing.opaqueCompletionIdentity(targetIdentity, purpose);
             jdbc.update("""
                     update auth_challenges set consumed_at = now()
                     where user_id = ? and purpose = ? and consumed_at is null
                     """, userId, purpose);
+            // A new request supersedes earlier opaque flows exactly as it supersedes real challenges.
+            jdbc.update("""
+                    update opaque_auth_flows set consumed_at = now()
+                    where identity_hash = ? and purpose = ? and consumed_at is null
+                    """, identityHash, purpose);
             jdbc.update("""
                     insert into auth_challenges(
                         id, flow_hash, user_id, purpose, target_identity, code_hash,
@@ -361,8 +466,7 @@ public class AuthenticationFlowService {
                     insert into opaque_auth_flows(
                         flow_hash, identity_hash, purpose, expires_at
                     ) values (?, ?, ?, ?)
-                    """, sha256(flow.toString()),
-                    credentialHashing.opaqueCompletionIdentity(targetIdentity, purpose),
+                    """, sha256(flow.toString()), identityHash,
                     purpose, Timestamp.from(now.plus(Duration.ofMinutes(10))));
             return flow;
         } catch (Exception exception) {
@@ -431,25 +535,124 @@ public class AuthenticationFlowService {
     }
 
     private VerifiedChallenge consumeChallenge(UUID flowId, String purpose, String code) {
-        var rows = jdbc.query("""
-                select id, user_id, code_hash, attempt_count, expires_at, consumed_at
-                from auth_challenges where flow_hash = ? and purpose = ? for update
-                """, (rs, rowNum) -> new ChallengeVerification(
-                rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
-                rs.getBytes("code_hash"), rs.getInt("attempt_count"),
-                rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null),
-                sha256(flowId.toString()), purpose);
-        if (rows.size() != 1) throw new AuthenticationException(CODE_FAILURE);
-        var challenge = rows.getFirst();
+        var challenge = matchingChallenge(flowId, purpose, code);
+        jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.id());
+        return new VerifiedChallenge(challenge.userId());
+    }
+
+    private ChallengeVerification matchingChallenge(UUID flowId, String purpose, String code) {
+        var challenge = lockFlowChallenge(flowId, purpose);
         if (challenge.consumed() || challenge.expiresAt().isBefore(clock.instant())
                 || challenge.attemptCount() >= 5
                 || !codeProtector.matches(code, challenge.codeHash())) {
-            jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?",
-                    challenge.id());
-            throw new AuthenticationException(CODE_FAILURE);
+            throw failedChallengeAttempt(challenge.id());
         }
-        jdbc.update("update auth_challenges set consumed_at = now() where id = ?", challenge.id());
-        return new VerifiedChallenge(challenge.userId());
+        return challenge;
+    }
+
+    // Real and opaque reset flows share one state shape so every failure looks the same either way.
+    private ResetFlow lockResetFlow(UUID flowId) {
+        var flowHash = sha256(flowId.toString());
+        var users = jdbc.query("""
+                select user_id from auth_challenges where flow_hash = ? and purpose = ?
+                """, (rs, rowNum) -> rs.getObject("user_id", UUID.class), flowHash, PASSWORD_RESET);
+        if (users.size() == 1) {
+            lockUser(users.getFirst());
+            var challenge = lockFlowChallenge(flowId, PASSWORD_RESET);
+            return new ResetFlow(challenge.id(), flowHash, challenge.userId(), challenge.targetIdentity(),
+                    null, challenge.codeHash(), challenge.attemptCount(), challenge.expiresAt(),
+                    challenge.consumed(), challenge.verifiedAt());
+        }
+        var opaque = jdbc.query("""
+                select identity_hash, attempt_count, expires_at, consumed_at from opaque_auth_flows
+                where flow_hash = ? and purpose = ? for update
+                """, (rs, rowNum) -> new ResetFlow(null, flowHash, null, null,
+                rs.getBytes("identity_hash"), null, rs.getInt("attempt_count"),
+                rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null, null),
+                flowHash, PASSWORD_RESET);
+        if (opaque.size() == 1) return opaque.getFirst();
+        recordOpaqueCompletionAttempt(
+                credentialHashing.hmac("opaque-completion-forged\0" + PASSWORD_RESET + "\0" + flowId),
+                PASSWORD_RESET);
+        throw new AuthenticationException(CODE_FAILURE, RESET_EXPIRED);
+    }
+
+    private AuthenticationException resetFailure(ResetFlow flow, String code) {
+        if (flow.real()) {
+            jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?",
+                    flow.challengeId());
+        } else {
+            jdbc.update("update opaque_auth_flows set attempt_count = attempt_count + 1 where flow_hash = ?",
+                    flow.flowHash());
+        }
+        return new AuthenticationException(CODE_FAILURE, code);
+    }
+
+    // Counts sends per identity whether or not an account exists, so throttling reveals nothing.
+    private Instant recordChallengeSend(byte[] identityHash, String purpose) {
+        var now = clock.instant();
+        jdbc.update("delete from auth_challenge_send_limits where last_sent_at < ?",
+                Timestamp.from(now.minus(Duration.ofDays(1))));
+        var rows = jdbc.query("""
+                select last_sent_at, window_started_at, send_count from auth_challenge_send_limits
+                where identity_hash = ? and purpose = ? for update
+                """, (rs, rowNum) -> new SendLimit(
+                rs.getTimestamp("last_sent_at").toInstant(),
+                rs.getTimestamp("window_started_at").toInstant(), rs.getInt("send_count")),
+                identityHash, purpose);
+        if (rows.isEmpty()) {
+            jdbc.update("""
+                    insert into auth_challenge_send_limits(
+                        identity_hash, purpose, last_sent_at, window_started_at, send_count
+                    ) values (?, ?, ?, ?, 1)
+                    """, identityHash, purpose, Timestamp.from(now), Timestamp.from(now));
+            return now;
+        }
+        var limit = rows.getFirst();
+        var nextSendAt = limit.lastSentAt().plus(SEND_INTERVAL);
+        if (nextSendAt.isAfter(now)) throw new ChallengeSendLimitException(RESEND_COOLDOWN, nextSendAt);
+        var windowEndsAt = limit.windowStartedAt().plus(SEND_WINDOW);
+        var windowActive = windowEndsAt.isAfter(now);
+        var count = windowActive ? limit.sendCount() : 0;
+        if (count >= SENDS_PER_WINDOW) throw new ChallengeSendLimitException(RESEND_LIMIT, windowEndsAt);
+        jdbc.update("""
+                update auth_challenge_send_limits set last_sent_at = ?, window_started_at = ?,
+                    send_count = ? where identity_hash = ? and purpose = ?
+                """, Timestamp.from(now), Timestamp.from(windowActive ? limit.windowStartedAt() : now),
+                count + 1, identityHash, purpose);
+        return now;
+    }
+
+    private static PasswordResetSchedule scheduleFrom(Instant sentAt) {
+        return new PasswordResetSchedule(sentAt.plus(CHALLENGE_TTL), sentAt.plus(SEND_INTERVAL));
+    }
+
+    static String maskEmail(String normalizedEmail) {
+        var at = normalizedEmail.lastIndexOf('@');
+        if (at <= 0 || at == normalizedEmail.length() - 1) return "***";
+        return normalizedEmail.substring(0, Math.min(2, at)) + "***" + normalizedEmail.substring(at);
+    }
+
+    private ChallengeVerification lockFlowChallenge(UUID flowId, String purpose) {
+        var rows = jdbc.query("""
+                select id, user_id, target_identity, code_hash, attempt_count, expires_at,
+                       consumed_at, verified_at
+                from auth_challenges where flow_hash = ? and purpose = ? for update
+                """, (rs, rowNum) -> new ChallengeVerification(
+                rs.getObject("id", UUID.class), rs.getObject("user_id", UUID.class),
+                rs.getString("target_identity"),
+                rs.getBytes("code_hash"), rs.getInt("attempt_count"),
+                rs.getTimestamp("expires_at").toInstant(), rs.getTimestamp("consumed_at") != null,
+                rs.getTimestamp("verified_at") == null ? null : rs.getTimestamp("verified_at").toInstant()),
+                sha256(flowId.toString()), purpose);
+        if (rows.size() != 1) throw new AuthenticationException(CODE_FAILURE);
+        return rows.getFirst();
+    }
+
+    private AuthenticationException failedChallengeAttempt(UUID challengeId) {
+        jdbc.update("update auth_challenges set attempt_count = attempt_count + 1 where id = ?",
+                challengeId);
+        return new AuthenticationException(CODE_FAILURE);
     }
 
     private UUID lockChallengeUser(UUID flowId, String purpose) {
@@ -607,7 +810,8 @@ public class AuthenticationFlowService {
     private static void requireValidPassword(String password) {
         if (password == null || !password.matches(
                 "^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\\-=])[A-Za-z0-9!@#$%^&*()_+\\-=]{8,1024}$")) {
-            throw new AuthenticationException("New password does not satisfy the password policy");
+            throw new AuthenticationException(
+                    "New password does not satisfy the password policy", "PASSWORD_POLICY");
         }
     }
 
@@ -686,8 +890,37 @@ public class AuthenticationFlowService {
             boolean consumed) {}
 
     private record ChallengeVerification(
-            UUID id, UUID userId, byte[] codeHash, int attemptCount, Instant expiresAt, boolean consumed) {}
+            UUID id,
+            UUID userId,
+            String targetIdentity,
+            byte[] codeHash,
+            int attemptCount,
+            Instant expiresAt,
+            boolean consumed,
+            Instant verifiedAt) {}
 
     private record VerifiedChallenge(UUID userId) {}
+
+    private record ResetFlow(
+            UUID challengeId,
+            byte[] flowHash,
+            UUID userId,
+            String targetIdentity,
+            byte[] identityHash,
+            byte[] codeHash,
+            int attemptCount,
+            Instant expiresAt,
+            boolean consumed,
+            Instant verifiedAt) {
+        boolean real() {
+            return challengeId != null;
+        }
+    }
+
+    private record SendLimit(Instant lastSentAt, Instant windowStartedAt, int sendCount) {}
+
+    public record PasswordResetSchedule(Instant expiresAt, Instant resendAvailableAt) {}
+
+    public record PasswordResetStart(UUID flowId, String maskedEmail, PasswordResetSchedule schedule) {}
     private record ReactivationAccount(UUID id, String passwordHash, String normalizedEmail) {}
 }

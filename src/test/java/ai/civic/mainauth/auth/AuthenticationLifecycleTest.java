@@ -6,6 +6,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.cookie;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -29,6 +30,7 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.security.crypto.argon2.Argon2PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import org.springframework.test.web.servlet.ResultActions;
 import ai.civic.mainauth.notification.SmtpNotificationService;
 import ai.civic.mainauth.notification.VerificationCodeProtector;
 import static org.mockito.ArgumentMatchers.eq;
@@ -63,6 +65,9 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         jdbc.update("delete from pwa_refresh_sessions");
         jdbc.update("delete from refresh_tokens");
         jdbc.update("delete from login_throttles");
+        jdbc.update("delete from pre_session_rate_limits");
+        jdbc.update("delete from auth_challenge_send_limits");
+        jdbc.update("delete from opaque_auth_flows");
         jdbc.update("delete from notification_outbox");
         jdbc.update("delete from auth_challenges");
         jdbc.update("delete from account_state_outbox where user_id in (select id from users where origin = 'SIGNUP')");
@@ -1071,6 +1076,361 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
 
     private String challengeCode() {
         return org.mockito.ArgumentMatchers.argThat(value -> value != null && value.matches("\\d{6}"));
+    }
+
+    @Test
+    void passwordResetCannotCompleteBeforeTheCodeIsVerified() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        assertThatThrownBy(() -> auth.completePasswordReset(reset, "Changed123!"))
+                .isInstanceOf(AuthenticationException.class);
+
+        assertThat(storedPasswordMatches("Valid123!")).isTrue();
+        assertThat(jdbc.queryForObject("""
+                select attempt_count from auth_challenges where flow_hash = ?
+                """, Integer.class, sha256(reset.toString()))).isOne();
+
+        auth.verifyPasswordReset(reset, "654321");
+        auth.completePasswordReset(reset, "Changed123!");
+
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+    }
+
+    @Test
+    void wrongPasswordResetCodeLeavesTheFlowUnverified() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        assertThatThrownBy(() -> auth.verifyPasswordReset(reset, "000000"))
+                .isInstanceOf(AuthenticationException.class);
+
+        assertThat(jdbc.queryForObject("""
+                select verified_at is null and consumed_at is null and attempt_count = 1
+                from auth_challenges where flow_hash = ?
+                """, Boolean.class, sha256(reset.toString()))).isTrue();
+        assertThatThrownBy(() -> auth.completePasswordReset(reset, "Changed123!"))
+                .isInstanceOf(AuthenticationException.class);
+        assertThat(storedPasswordMatches("Valid123!")).isTrue();
+    }
+
+    @Test
+    void passwordResetVerificationStopsAfterFiveWrongCodes() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+        for (var attempt = 0; attempt < 5; attempt++) {
+            assertThatThrownBy(() -> auth.verifyPasswordReset(reset, "000000"))
+                    .isInstanceOf(AuthenticationException.class);
+        }
+
+        assertThatThrownBy(() -> auth.verifyPasswordReset(reset, "654321"))
+                .isInstanceOf(AuthenticationException.class);
+        assertThat(jdbc.queryForObject("""
+                select verified_at is null from auth_challenges where flow_hash = ?
+                """, Boolean.class, sha256(reset.toString()))).isTrue();
+    }
+
+    @Test
+    void verifiedPasswordResetIsSingleUse() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+        auth.verifyPasswordReset(reset, "654321");
+        auth.completePasswordReset(reset, "Changed123!");
+
+        assertThatThrownBy(() -> auth.completePasswordReset(reset, "Another123!"))
+                .isInstanceOf(AuthenticationException.class);
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+    }
+
+    @Test
+    void newPasswordResetRequestInvalidatesAnEarlierVerifiedFlow() throws Exception {
+        var first = requestPasswordResetWithCode("654321");
+        auth.verifyPasswordReset(first, "654321");
+
+        auth.requestPasswordReset("person@example.com");
+
+        assertThatThrownBy(() -> auth.completePasswordReset(first, "Changed123!"))
+                .isInstanceOf(AuthenticationException.class);
+        assertThat(storedPasswordMatches("Valid123!")).isTrue();
+    }
+
+    @Test
+    void passwordResetVerificationRenewsTheCompletionWindow() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+        jdbc.update("""
+                update auth_challenges set expires_at = now() + interval '1 minute' where flow_hash = ?
+                """, sha256(reset.toString()));
+
+        auth.verifyPasswordReset(reset, "654321");
+
+        assertThat(jdbc.queryForObject("""
+                select expires_at > now() + interval '9 minutes' from auth_challenges where flow_hash = ?
+                """, Boolean.class, sha256(reset.toString()))).isTrue();
+    }
+
+    @Test
+    void repeatedPasswordResetVerificationDoesNotExtendTheCodeAgain() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+        auth.verifyPasswordReset(reset, "654321");
+        jdbc.update("""
+                update auth_challenges set expires_at = now() + interval '1 minute' where flow_hash = ?
+                """, sha256(reset.toString()));
+
+        auth.verifyPasswordReset(reset, "654321");
+
+        assertThat(jdbc.queryForObject("""
+                select expires_at < now() + interval '2 minutes' from auth_challenges where flow_hash = ?
+                """, Boolean.class, sha256(reset.toString()))).isTrue();
+    }
+
+    @Test
+    void passwordResetEndpointsRequireVerificationBeforeCompletion() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        passwordResetRequest("complete", reset, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isUnauthorized());
+        passwordResetRequest("verify", reset, "{\"code\":\"000000\"}")
+                .andExpect(status().isUnauthorized());
+        passwordResetRequest("verify", reset, "{\"code\":\"654321\"}")
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 600));
+        passwordResetRequest("complete", reset, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 0));
+
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+    }
+
+    @Test
+    void passwordResetCompletionStillAcceptsTheCodeFromEarlierClients() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        passwordResetRequest("complete", reset, "{\"code\":\"654321\",\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isNoContent());
+
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+    }
+
+    @Test
+    void unknownAndRealPasswordResetFlowsFailVerificationIdentically() throws Exception {
+        var real = requestPasswordResetWithCode("654321");
+        var unknown = auth.requestPasswordReset("unknown@example.com");
+
+        var realVerify = passwordResetRequest("verify", real, "{\"code\":\"000000\"}")
+                .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+        var unknownVerify = passwordResetRequest("verify", unknown, "{\"code\":\"000000\"}")
+                .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+        var realComplete = passwordResetRequest("complete", real, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+        var unknownComplete = passwordResetRequest("complete", unknown, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isUnauthorized()).andReturn().getResponse().getContentAsString();
+
+        assertThat(unknownVerify).isEqualTo(realVerify);
+        assertThat(unknownComplete).isEqualTo(realComplete);
+    }
+
+    @Test
+    void passwordResetFailuresCarryMachineReadableCodes() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        passwordResetRequest("complete", reset, "{\"new_password\":\"short\"}")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("PASSWORD_POLICY"));
+        passwordResetRequest("verify", reset, "{\"code\":\"654321\"}")
+                .andExpect(status().isNoContent());
+        passwordResetRequest("complete", reset, "{\"new_password\":\"Valid123!\"}")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("PASSWORD_REUSED"));
+        passwordResetRequest("complete", reset, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_EXPIRED"));
+
+        assertThat(storedPasswordMatches("Valid123!")).isTrue();
+    }
+
+    @Test
+    void passwordResetRequestReturnsTheScheduleWithoutRevealingTheAccount() throws Exception {
+        var known = startPasswordResetOverHttp("Person@Example.com")
+                .andExpect(status().isAccepted())
+                .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 600))
+                .andExpect(jsonPath("$.masked_email").value("pe***@example.com"))
+                .andExpect(jsonPath("$.expires_at").isString())
+                .andExpect(jsonPath("$.resend_available_at").isString())
+                .andReturn().getResponse().getContentAsString();
+        var unknown = startPasswordResetOverHttp("nobody@example.com")
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.masked_email").value("no***@example.com"))
+                .andReturn().getResponse().getContentAsString();
+
+        assertThat(fieldNames(known)).isEqualTo(fieldNames(unknown));
+    }
+
+    @Test
+    void passwordResetRequestsShareOneCooldownWhetherOrNotTheAccountExists() throws Exception {
+        for (var email : new String[] {"person@example.com", "nobody@example.com"}) {
+            startPasswordResetOverHttp(email).andExpect(status().isAccepted());
+            startPasswordResetOverHttp(email)
+                    .andExpect(status().isTooManyRequests())
+                    .andExpect(jsonPath("$.code").value("PASSWORD_RESET_RESEND_COOLDOWN"))
+                    .andExpect(jsonPath("$.retry_at").isString())
+                    .andExpect(header().exists("Retry-After"));
+        }
+    }
+
+    @Test
+    void passwordResetSendsAreCappedPerHour() throws Exception {
+        auth.startPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenge_send_limits
+                set send_count = 5, last_sent_at = now() - interval '2 minutes'
+                """);
+
+        assertThatThrownBy(() -> auth.startPasswordReset("person@example.com"))
+                .isInstanceOfSatisfying(ChallengeSendLimitException.class,
+                        limit -> assertThat(limit.code()).isEqualTo("PASSWORD_RESET_RESEND_LIMIT"));
+    }
+
+    @Test
+    void passwordResetResendKeepsTheFlowAndReplacesTheCode() throws Exception {
+        var reset = auth.startPasswordReset("person@example.com").flowId();
+        setResetCode(reset, "654321");
+        for (var attempt = 0; attempt < 4; attempt++) {
+            assertThatThrownBy(() -> auth.verifyPasswordReset(reset, "000000"))
+                    .isInstanceOf(AuthenticationException.class);
+        }
+        allowImmediateResend();
+
+        auth.resendPasswordReset(reset);
+
+        assertThat(jdbc.queryForObject("""
+                select attempt_count = 0 and verified_at is null and consumed_at is null
+                from auth_challenges where flow_hash = ?
+                """, Boolean.class, sha256(reset.toString()))).isTrue();
+        assertThatThrownBy(() -> auth.verifyPasswordReset(reset, "654321"))
+                .isInstanceOf(AuthenticationException.class);
+        setResetCode(reset, "123123");
+        auth.verifyPasswordReset(reset, "123123");
+        auth.completePasswordReset(reset, "Changed123!");
+        assertThat(storedPasswordMatches("Changed123!")).isTrue();
+    }
+
+    @Test
+    void passwordResetResendQueuesMailWithoutSynchronousSmtp() throws Exception {
+        var reset = auth.startPasswordReset("person@example.com").flowId();
+        allowImmediateResend();
+        clearInvocations(smtp);
+
+        auth.resendPasswordReset(reset);
+
+        verify(smtp, never()).sendChallenge(eq("person@example.com"), org.mockito.ArgumentMatchers.anyString(),
+                eq("PASSWORD_RESET"));
+        assertThat(jdbc.queryForObject("""
+                select count(*) from notification_outbox
+                where event_type = 'PASSWORD_RESET' and delivered_at is null
+                """, Integer.class)).isOne();
+    }
+
+    @Test
+    void passwordResetFailuresDistinguishMismatchExhaustionAndExpiry() throws Exception {
+        var reset = requestPasswordResetWithCode("654321");
+
+        passwordResetRequest("complete", reset, "{\"new_password\":\"Changed123!\"}")
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_NOT_VERIFIED"));
+        for (var attempt = 0; attempt < 3; attempt++) {
+            passwordResetRequest("verify", reset, "{\"code\":\"000000\"}")
+                    .andExpect(jsonPath("$.code").value("PASSWORD_RESET_CODE_MISMATCH"));
+        }
+        passwordResetRequest("verify", reset, "{\"code\":\"000000\"}")
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ATTEMPTS_EXCEEDED"));
+        passwordResetRequest("verify", reset, "{\"code\":\"654321\"}")
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_ATTEMPTS_EXCEEDED"));
+
+        jdbc.update("update auth_challenges set expires_at = now() - interval '1 second' where flow_hash = ?",
+                sha256(reset.toString()));
+        passwordResetRequest("verify", reset, "{\"code\":\"654321\"}")
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_EXPIRED"));
+        passwordResetRequest("verify", UUID.randomUUID(), "{\"code\":\"654321\"}")
+                .andExpect(jsonPath("$.code").value("PASSWORD_RESET_EXPIRED"));
+    }
+
+    @Test
+    void unknownAndRealPasswordResetFlowsAnswerEveryStepIdentically() throws Exception {
+        var real = auth.startPasswordReset("person@example.com").flowId();
+        var unknown = auth.startPasswordReset("nobody@example.com").flowId();
+        var steps = new String[][] {
+                {"complete", "{\"new_password\":\"Changed123!\"}"},
+                {"verify", "{\"code\":\"000000\"}"},
+                {"verify", "{\"code\":\"000000\"}"},
+                {"verify", "{\"code\":\"000000\"}"},
+                {"verify", "{\"code\":\"000000\"}"},
+                {"verify", "{\"code\":\"000000\"}"},
+        };
+        for (var step : steps) {
+            assertThat(responseOf(step[0], unknown, step[1])).isEqualTo(responseOf(step[0], real, step[1]));
+        }
+
+        allowImmediateResend();
+        assertThat(passwordResetRequest("resend", unknown, "{}").andReturn().getResponse().getStatus())
+                .isEqualTo(passwordResetRequest("resend", real, "{}").andReturn().getResponse().getStatus());
+        assertThat(responseOf("verify", unknown, "{\"code\":\"000000\"}"))
+                .isEqualTo(responseOf("verify", real, "{\"code\":\"000000\"}"));
+
+        allowImmediateResend();
+        auth.startPasswordReset("person@example.com");
+        auth.startPasswordReset("nobody@example.com");
+        assertThat(responseOf("verify", unknown, "{\"code\":\"000000\"}"))
+                .isEqualTo(responseOf("verify", real, "{\"code\":\"000000\"}"))
+                .contains("PASSWORD_RESET_EXPIRED");
+    }
+
+    private ResultActions startPasswordResetOverHttp(String email) throws Exception {
+        return mvc.perform(post("/api/v1/auth/password-reset/request")
+                .header("Origin", "https://localhost")
+                .header("Sec-Fetch-Site", "same-origin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"" + email + "\"}"));
+    }
+
+    private String responseOf(String step, UUID flow, String body) throws Exception {
+        var response = passwordResetRequest(step, flow, body).andReturn().getResponse();
+        return response.getStatus() + " " + response.getContentAsString();
+    }
+
+    private java.util.Set<String> fieldNames(String json) throws Exception {
+        var names = new java.util.TreeSet<String>();
+        new com.fasterxml.jackson.databind.ObjectMapper().readTree(json).fieldNames().forEachRemaining(names::add);
+        return names;
+    }
+
+    private void setResetCode(UUID flow, String code) throws Exception {
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, codeProtector.verifier(code), sha256(flow.toString()));
+    }
+
+    private void allowImmediateResend() {
+        jdbc.update("update auth_challenge_send_limits set last_sent_at = now() - interval '2 minutes'");
+    }
+
+    private UUID requestPasswordResetWithCode(String code) throws Exception {
+        var reset = auth.requestPasswordReset("person@example.com");
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where flow_hash = ? and purpose = 'PASSWORD_RESET'
+                """, codeProtector.verifier(code), sha256(reset.toString()));
+        return reset;
+    }
+
+    private ResultActions passwordResetRequest(String step, UUID flow, String body) throws Exception {
+        return mvc.perform(post("/api/v1/auth/password-reset/" + step)
+                .cookie(new Cookie(AuthCookieFactory.AUTH_FLOW_COOKIE, flow.toString()))
+                .header("Origin", "https://localhost")
+                .header("Sec-Fetch-Site", "same-origin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body));
+    }
+
+    private boolean storedPasswordMatches(String password) {
+        var encoded = jdbc.queryForObject(
+                "select password_hash from credentials where user_id = ?", String.class, userId);
+        return Argon2PasswordEncoder.defaultsForSpringSecurity_v5_8().matches(password, encoded);
     }
 
     private boolean attemptPasswordChange(
