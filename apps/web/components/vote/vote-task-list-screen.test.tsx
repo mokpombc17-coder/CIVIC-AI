@@ -132,6 +132,16 @@ describe("VoteTaskListScreen", () => {
     expect(html).not.toContain("진행 중인 투표가 없습니다.");
   });
 
+  it("검색어가 없는 검색 결과 탭은 API를 호출하지 않고 빈 상태를 표시한다", () => {
+    const html = renderToStaticMarkup(<VoteTaskListScreen initialView="search" />);
+
+    expect(useTaskSearchQueryMock).toHaveBeenCalledWith("", 20, false);
+    expect(useOpenTasksQueryMock).toHaveBeenCalledWith(false);
+    expect(html).toContain('aria-selected="true"');
+    expect(html).toContain("검색 결과가 없습니다.");
+    expect(html).not.toContain('data-vote-task-list-loading="true"');
+  });
+
   it("검색어를 유지한 목록 view에서도 검색 결과 탭을 계속 표시한다", () => {
     useOpenTasksQueryMock.mockReturnValue(
       createQueryState({

@@ -35,7 +35,8 @@ export function getVoteTaskSearchHref(tab: VoteTaskListTab, query: string): `/vo
   const normalizedQuery = parseVoteTaskSearchQuery(query);
   const params = new URLSearchParams();
   if (tab === "completed") params.set("tab", "completed");
-  params.set("query", normalizedQuery);
+  if (normalizedQuery) params.set("query", normalizedQuery);
+  params.set("view", "search");
   return `/vote?${params}`;
 }
 
@@ -43,8 +44,8 @@ export function parseVoteTaskListView(
   value: string | readonly string[] | undefined,
   query: string,
 ): VoteTaskListView {
-  if (!query) return "list";
-
   const requestedView = Array.isArray(value) ? value[0] : value;
-  return requestedView === "list" ? "list" : "search";
+  if (requestedView === "search") return "search";
+  if (requestedView === "list") return "list";
+  return query ? "search" : "list";
 }

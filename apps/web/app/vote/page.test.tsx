@@ -51,4 +51,12 @@ describe("VotePage", () => {
 
     expect(renderToStaticMarkup(page)).toContain('data-initial-view="list"');
   });
+
+  it("검색어가 없어도 명시적인 검색 결과 view를 복원한다", async () => {
+    const page = await VotePage({
+      searchParams: Promise.resolve({ view: "search" }),
+    });
+
+    expect(renderToStaticMarkup(page)).toContain('data-initial-view="search"');
+  });
 });

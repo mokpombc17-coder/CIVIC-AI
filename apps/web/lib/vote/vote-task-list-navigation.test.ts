@@ -31,11 +31,12 @@ describe("vote task list navigation", () => {
     expect(parseVoteTaskSearchQuery(["교통", "주차"])).toBe("교통");
     expect(parseVoteTaskSearchQuery("가".repeat(201))).toBe("");
     expect(getVoteTaskSearchHref("active", "주민센터")).toBe(
-      "/vote?query=%EC%A3%BC%EB%AF%BC%EC%84%BC%ED%84%B0",
+      "/vote?query=%EC%A3%BC%EB%AF%BC%EC%84%BC%ED%84%B0&view=search",
     );
     expect(getVoteTaskSearchHref("completed", "대중 교통")).toBe(
-      "/vote?tab=completed&query=%EB%8C%80%EC%A4%91+%EA%B5%90%ED%86%B5",
+      "/vote?tab=completed&query=%EB%8C%80%EC%A4%91+%EA%B5%90%ED%86%B5&view=search",
     );
+    expect(getVoteTaskSearchHref("active", "")).toBe("/vote?view=search");
   });
 
   it("검색어가 있으면 검색 결과를 기본 view로 사용하고 목록 view를 명시적으로 복원한다", () => {
@@ -43,6 +44,7 @@ describe("vote task list navigation", () => {
     expect(parseVoteTaskListView("search", "주민센터")).toBe("search");
     expect(parseVoteTaskListView("list", "주민센터")).toBe("list");
     expect(parseVoteTaskListView("unknown", "주민센터")).toBe("search");
-    expect(parseVoteTaskListView("search", "")).toBe("list");
+    expect(parseVoteTaskListView("search", "")).toBe("search");
+    expect(parseVoteTaskListView(undefined, "")).toBe("list");
   });
 });

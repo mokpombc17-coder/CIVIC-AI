@@ -54,7 +54,7 @@ export function VoteTaskListScreen({
   const query = initialQuery.trim();
   const hasSearchQuery = query.length > 0;
   const view = initialView ?? (hasSearchQuery ? "search" : "list");
-  const showingSearchResults = hasSearchQuery && view === "search";
+  const showingSearchResults = view === "search";
   const failureAnalytics = useFeatureFailureAnalytics(
     "vote",
     showingSearchResults ? "task-list:search" : `task-list:${tab}`,
@@ -112,7 +112,12 @@ export function VoteTaskListScreen({
     event.preventDefault();
     const nextQuery = searchInput.trim();
     if (nextQuery.length === 0) {
-      if (hasSearchQuery) router.replace(getVoteTaskListHref(tab), { scroll: false });
+      if (hasSearchQuery) {
+        router.replace(
+          showingSearchResults ? getVoteTaskSearchHref(tab, "") : getVoteTaskListHref(tab),
+          { scroll: false },
+        );
+      }
       return;
     }
     if (nextQuery === query && showingSearchResults) {
@@ -125,7 +130,10 @@ export function VoteTaskListScreen({
   function changeSearchInput(value: string) {
     setSearchInput(value);
     if (hasSearchQuery && value.trim().length === 0) {
-      router.replace(getVoteTaskListHref(tab), { scroll: false });
+      router.replace(
+        showingSearchResults ? getVoteTaskSearchHref(tab, "") : getVoteTaskListHref(tab),
+        { scroll: false },
+      );
     }
   }
 
@@ -139,8 +147,8 @@ export function VoteTaskListScreen({
 
   const showingActiveLoading = tab === "active" && openTasksQuery.isPending;
   const showingActiveError = tab === "active" && openTasksQuery.isError;
-  const showingSearchLoading = showingSearchResults && searchTasksQuery.isPending;
-  const showingSearchError = showingSearchResults && searchTasksQuery.isError;
+  const showingSearchLoading = showingSearchResults && hasSearchQuery && searchTasksQuery.isPending;
+  const showingSearchError = showingSearchResults && hasSearchQuery && searchTasksQuery.isError;
   const showingCompletedLoading =
     !showingSearchResults &&
     voteCompletedApiAvailable &&
@@ -273,17 +281,15 @@ export function VoteTaskListScreen({
             >
               완료
             </button>
-            {hasSearchQuery ? (
-              <button
-                aria-selected={showingSearchResults}
-                className={styles.filterPill}
-                onClick={selectSearchResults}
-                role="tab"
-                type="button"
-              >
-                검색 결과
-              </button>
-            ) : null}
+            <button
+              aria-selected={showingSearchResults}
+              className={styles.filterPill}
+              onClick={selectSearchResults}
+              role="tab"
+              type="button"
+            >
+              검색 결과
+            </button>
           </div>
         </form>
 
