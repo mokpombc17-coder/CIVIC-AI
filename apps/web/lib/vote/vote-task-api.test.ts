@@ -6,6 +6,12 @@ const TASK_ID = "0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7";
 const SUBMISSION_ID = "0dac284a-bf3f-46c0-89b6-f4a318b488be";
 
 describe("VoteTaskApi", () => {
+  it("진행 중 목록의 204 No Content를 빈 목록으로 변환한다", async () => {
+    const request: VoteFetch = async <TResponse>() => undefined as TResponse;
+
+    await expect(createVoteTaskApi(request).getOpenTasks()).resolves.toEqual([]);
+  });
+
   it("Task 제출에 caller의 UUID key와 검증된 body를 사용한다", async () => {
     const calls: Array<{ path: string; init?: RequestInit }> = [];
     const request: VoteFetch = async <TResponse>(path: string, init?: RequestInit) => {

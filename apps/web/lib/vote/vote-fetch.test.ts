@@ -41,4 +41,12 @@ describe("voteFetch", () => {
     expect(error).toBeInstanceOf(VoteApiError);
     expect(error).toMatchObject({ status: 404, code: "TASK_NOT_FOUND", retryable: false });
   });
+
+  it("204 No Content 응답을 본문 없음으로 처리한다", async () => {
+    const voteFetch = createVoteFetch({
+      request: async () => new Response(null, { status: 204 }),
+    });
+
+    await expect(voteFetch("/me/tasks")).resolves.toBeUndefined();
+  });
 });

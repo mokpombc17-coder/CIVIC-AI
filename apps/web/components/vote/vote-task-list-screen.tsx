@@ -86,6 +86,11 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
     setQuery(searchInput);
   }
 
+  function changeSearchInput(value: string) {
+    setSearchInput(value);
+    if (value.trim().length === 0) setQuery("");
+  }
+
   const showingActiveLoading = tab === "active" && openTasksQuery.isPending;
   const showingActiveError = tab === "active" && openTasksQuery.isError;
   const showingCompletedLoading =
@@ -153,7 +158,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
             <input
               className={styles.searchInput}
               id="vote-task-search"
-              onChange={(event) => setSearchInput(event.target.value)}
+              onChange={(event) => changeSearchInput(event.target.value)}
               placeholder="주제를 검색해 보세요"
               type="search"
               value={searchInput}
@@ -213,7 +218,10 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
               ))}
             </ul>
             {tasks.length === 0 ? (
-              source.length === 0 && tab === "completed" && voteCompletedApiAvailable ? (
+              normalizedQuery.length === 0 &&
+              source.length === 0 &&
+              tab === "completed" &&
+              voteCompletedApiAvailable ? (
                 <div className={styles.completedEmptyState}>
                   <span aria-hidden="true" className={styles.completedEmptyStateVisual}>
                     <svg className={styles.completedEmptyStateIcon} fill="none" viewBox="0 0 20 20">
@@ -237,11 +245,11 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  {source.length === 0
-                    ? tab === "active"
+                  {normalizedQuery.length > 0
+                    ? "검색 결과가 없습니다."
+                    : tab === "active"
                       ? "진행 중인 투표가 없습니다."
-                      : "완료한 투표 목록은 아직 준비 중입니다."
-                    : "검색 결과가 없습니다."}
+                      : "완료한 투표 목록은 아직 준비 중입니다."}
                 </p>
               )
             ) : null}

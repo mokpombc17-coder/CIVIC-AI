@@ -37,7 +37,8 @@ export type VoteTaskApi = Readonly<{
 export function createVoteTaskApi(request: VoteFetch = voteFetch): VoteTaskApi {
   return {
     async getOpenTasks(signal) {
-      return openTaskListSchema.parse(await request("/me/tasks", signal ? { signal } : {}));
+      const response = await request("/me/tasks", signal ? { signal } : {});
+      return openTaskListSchema.parse(response ?? []);
     },
     async getOpenTask(taskId, signal) {
       return userTaskDetailSchema.parse(
