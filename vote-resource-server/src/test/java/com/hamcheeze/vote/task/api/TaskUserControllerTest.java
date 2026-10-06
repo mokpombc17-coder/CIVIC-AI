@@ -9,6 +9,8 @@ import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
+import com.hamcheeze.vote.task.application.query.TaskSearchCursorException;
+import com.hamcheeze.vote.task.application.query.TaskSearchQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskOpinionMap;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
@@ -28,6 +30,7 @@ import com.hamcheeze.vote.task.domain.prediction.TaskPredictionRuntimeStatus;
 import com.hamcheeze.vote.task.domain.prediction.TaskPredictionStatus;
 import com.hamcheeze.vote.task.domain.submission.TaskReasonSource;
 import com.hamcheeze.vote.task.domain.task.TaskClosureType;
+import com.hamcheeze.vote.task.domain.task.TaskStatus;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
@@ -73,6 +76,8 @@ class TaskUserControllerTest {
             mock(ParticipatedTaskQueryService.class);
     private final CompletedTaskQueryService completedTasks =
             mock(CompletedTaskQueryService.class);
+    private final TaskSearchQueryService taskSearch =
+            mock(TaskSearchQueryService.class);
     private final MyTaskResultQueryService taskResults =
             mock(MyTaskResultQueryService.class);
     private final TaskPredictionService predictions =
@@ -93,12 +98,100 @@ class TaskUserControllerTest {
         mockMvc = MockMvcBuilders.standaloneSetup(
                         new TaskUserController(
                                 userIds, tasks, participatedTasks,
-                                completedTasks, taskResults, predictions,
+                                completedTasks, taskSearch, taskResults, predictions,
                                 predictionQueries),
                         new TaskSubmissionController(
                                 userIds, submissions, submissionQueries))
                 .setControllerAdvice(new TaskApiExceptionHandler())
                 .build();
+    }
+
+    @Test
+    void searchReturnsUnifiedPrivateNoStorePage() throws Exception {
+        TaskSearchQueryService.TaskSearchSummary open =
+                new TaskSearchQueryService.TaskSearchSummary(
+                        taskId(), "진행 중 투표", null, TaskStatus.OPEN,
+                        NOW.minusSeconds(3600), NOW.plusSeconds(3600),
+                        null, null, null, false);
+        TaskSearchQueryService.TaskSearchSummary closed =
+                new TaskSearchQueryService.TaskSearchSummary(
+                        new TaskId(new UUID(31, 2)), "완료 투표", "완료 설명",
+                        TaskStatus.CLOSED, NOW.minusSeconds(7200),
+                        NOW.minusSeconds(3600), NOW.minusSeconds(1800),
+                        TaskClosureType.DEADLINE_REACHED,
+                        new TaskSearchQueryService.MySubmission(
+                                submissionId(), NOW.minusSeconds(5400)),
+                        true);
+        when(taskSearch.findByUser(
+                userId(), "교통", "current-cursor", 2))
+                .thenReturn(new TaskSearchQueryService.TaskSearchPage(
+                        List.of(open, closed), "next-cursor"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/search")
+                        .principal(authentication)
+                        .queryParam("query", "교통")
+                        .queryParam("cursor", "current-cursor")
+                        .queryParam("size", "2"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "private, no-store"))
+                .andExpect(jsonPath("$.items.length()").value(2))
+                .andExpect(jsonPath("$.items[0].taskStatus")
+                        .value("OPEN"))
+                .andExpect(jsonPath("$.items[0].description")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].mySubmission")
+                        .doesNotExist())
+                .andExpect(jsonPath("$.items[0].resultAvailable")
+                        .value(false))
+                .andExpect(jsonPath("$.items[1].taskStatus")
+                        .value("CLOSED"))
+                .andExpect(jsonPath("$.items[1].closureType")
+                        .value("DEADLINE_REACHED"))
+                .andExpect(jsonPath("$.items[1].mySubmission.submissionId")
+                        .value(submissionId().value().toString()))
+                .andExpect(jsonPath("$.items[1].resultAvailable")
+                        .value(true))
+                .andExpect(jsonPath("$.nextCursor")
+                        .value("next-cursor"));
+
+        verify(taskSearch).findByUser(
+                userId(), "교통", "current-cursor", 2);
+    }
+
+    @Test
+    void searchReturnsEmptyOkPageAndMapsCursorFailure() throws Exception {
+        when(taskSearch.findByUser(userId(), "없음", null, 20))
+                .thenReturn(new TaskSearchQueryService.TaskSearchPage(
+                        List.of(), null));
+
+        mockMvc.perform(get("/api/v1/me/tasks/search")
+                        .principal(authentication)
+                        .queryParam("query", "없음"))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        HttpHeaders.CACHE_CONTROL, "private, no-store"))
+                .andExpect(jsonPath("$.items").isEmpty())
+                .andExpect(jsonPath("$.nextCursor").isEmpty());
+
+        when(taskSearch.findByUser(userId(), "검색", "invalid", 20))
+                .thenThrow(new TaskSearchCursorException(
+                        "task search cursor is invalid"));
+
+        mockMvc.perform(get("/api/v1/me/tasks/search")
+                        .principal(authentication)
+                        .queryParam("query", "검색")
+                        .queryParam("cursor", "invalid"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_CURSOR"));
+    }
+
+    @Test
+    void searchRequiresQuery() throws Exception {
+        mockMvc.perform(get("/api/v1/me/tasks/search")
+                        .principal(authentication))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value("INVALID_REQUEST"));
     }
 
     @Test

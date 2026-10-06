@@ -6,6 +6,7 @@ import com.hamcheeze.vote.task.application.prediction.TaskPredictionService;
 import com.hamcheeze.vote.task.application.query.CompletedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
+import com.hamcheeze.vote.task.application.query.TaskSearchQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.application.result.MyTaskResultQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
@@ -32,6 +33,7 @@ final class TaskUserController {
     private final UserTaskQueryService tasks;
     private final ParticipatedTaskQueryService participatedTasks;
     private final CompletedTaskQueryService completedTasks;
+    private final TaskSearchQueryService taskSearch;
     private final MyTaskResultQueryService taskResults;
     private final TaskPredictionService predictions;
     private final TaskPredictionQueryService predictionQueries;
@@ -41,6 +43,7 @@ final class TaskUserController {
             UserTaskQueryService tasks,
             ParticipatedTaskQueryService participatedTasks,
             CompletedTaskQueryService completedTasks,
+            TaskSearchQueryService taskSearch,
             MyTaskResultQueryService taskResults,
             TaskPredictionService predictions,
             TaskPredictionQueryService predictionQueries
@@ -49,6 +52,7 @@ final class TaskUserController {
         this.tasks = tasks;
         this.participatedTasks = participatedTasks;
         this.completedTasks = completedTasks;
+        this.taskSearch = taskSearch;
         this.taskResults = taskResults;
         this.predictions = predictions;
         this.predictionQueries = predictionQueries;
@@ -61,6 +65,22 @@ final class TaskUserController {
         return tasks.findOpenTasks(user(authentication)).stream()
                 .map(TaskApiModels.UserTaskSummaryResponse::from)
                 .toList();
+    }
+
+    @GetMapping("/search")
+    ResponseEntity<TaskApiModels.TaskSearchPageResponse> search(
+            Authentication authentication,
+            @RequestParam String query,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(defaultValue = "20") int size
+    ) {
+        TaskApiModels.TaskSearchPageResponse response =
+                TaskApiModels.TaskSearchPageResponse.from(
+                        taskSearch.findByUser(
+                                user(authentication), query, cursor, size));
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CACHE_CONTROL, "private, no-store")
+                .body(response);
     }
 
     @GetMapping("/participated")

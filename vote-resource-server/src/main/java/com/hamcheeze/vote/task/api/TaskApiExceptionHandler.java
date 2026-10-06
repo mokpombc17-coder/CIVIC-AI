@@ -2,6 +2,7 @@ package com.hamcheeze.vote.task.api;
 
 import com.hamcheeze.vote.security.VoteRequestTraceId;
 import com.hamcheeze.vote.task.application.idempotency.TaskIdempotencyException;
+import com.hamcheeze.vote.task.application.query.TaskSearchCursorException;
 import com.hamcheeze.vote.task.application.result.TaskResultViewIntegrityException;
 import com.hamcheeze.vote.task.domain.common.TaskDomainException;
 import com.hamcheeze.vote.task.domain.common.TaskValidationException;
@@ -14,6 +15,7 @@ import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingRequestHeaderException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
@@ -103,6 +105,7 @@ final class TaskApiExceptionHandler {
 
     @ExceptionHandler({
             MissingRequestHeaderException.class,
+            MissingServletRequestParameterException.class,
             HandlerMethodValidationException.class,
             MethodArgumentTypeMismatchException.class,
             HttpMessageNotReadableException.class,
@@ -114,6 +117,16 @@ final class TaskApiExceptionHandler {
     ) {
         return response(HttpStatus.BAD_REQUEST, "INVALID_REQUEST",
                 "The request is invalid.", request, false, List.of());
+    }
+
+    @ExceptionHandler(TaskSearchCursorException.class)
+    ResponseEntity<ProblemDetail> invalidCursor(
+            TaskSearchCursorException exception,
+            HttpServletRequest request
+    ) {
+        return response(HttpStatus.BAD_REQUEST, "INVALID_CURSOR",
+                "The cursor is invalid for this search.",
+                request, false, List.of());
     }
 
     static ResponseEntity<ProblemDetail> response(

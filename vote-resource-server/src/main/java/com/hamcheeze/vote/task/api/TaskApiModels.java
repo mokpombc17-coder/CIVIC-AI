@@ -11,6 +11,7 @@ import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
 import com.hamcheeze.vote.task.application.query.TaskPredictionQueryService;
+import com.hamcheeze.vote.task.application.query.TaskSearchQueryService;
 import com.hamcheeze.vote.task.application.query.TaskProgressResponsesQueryService;
 import com.hamcheeze.vote.task.application.query.TaskProgressSummaryQueryService;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
@@ -490,6 +491,61 @@ final class TaskApiModels {
             return new UserTaskDetailResponse(
                     TaskResponse.from(detail.task()), detail.closesAt(),
                     SubmissionStateResponse.from(detail.submission()));
+        }
+    }
+
+    record TaskSearchPageResponse(
+            List<TaskSearchSummaryResponse> items,
+            String nextCursor
+    ) {
+        static TaskSearchPageResponse from(
+                TaskSearchQueryService.TaskSearchPage page
+        ) {
+            return new TaskSearchPageResponse(
+                    page.items().stream()
+                            .map(TaskSearchSummaryResponse::from)
+                            .toList(),
+                    page.nextCursor());
+        }
+    }
+
+    record TaskSearchSummaryResponse(
+            UUID taskId,
+            String title,
+            String description,
+            TaskStatus taskStatus,
+            Instant openedAt,
+            Instant closesAt,
+            Instant closedAt,
+            TaskClosureType closureType,
+            TaskSearchSubmissionResponse mySubmission,
+            boolean resultAvailable
+    ) {
+        static TaskSearchSummaryResponse from(
+                TaskSearchQueryService.TaskSearchSummary summary
+        ) {
+            return new TaskSearchSummaryResponse(
+                    summary.taskId().value(), summary.title(),
+                    summary.description(), summary.taskStatus(),
+                    summary.openedAt(), summary.closesAt(),
+                    summary.closedAt(), summary.closureType(),
+                    TaskSearchSubmissionResponse.from(
+                            summary.mySubmission()),
+                    summary.resultAvailable());
+        }
+    }
+
+    record TaskSearchSubmissionResponse(
+            UUID submissionId,
+            Instant submittedAt
+    ) {
+        static TaskSearchSubmissionResponse from(
+                TaskSearchQueryService.MySubmission submission
+        ) {
+            return submission == null ? null
+                    : new TaskSearchSubmissionResponse(
+                            submission.submissionId().value(),
+                            submission.submittedAt());
         }
     }
 

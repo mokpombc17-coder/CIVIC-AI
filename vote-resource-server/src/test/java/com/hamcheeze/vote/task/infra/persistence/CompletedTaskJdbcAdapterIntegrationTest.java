@@ -3,11 +3,13 @@ package com.hamcheeze.vote.task.infra.persistence;
 import com.hamcheeze.vote.TestcontainersConfiguration;
 import com.hamcheeze.vote.task.application.port.out.CompletedTaskReader;
 import com.hamcheeze.vote.task.application.port.out.ParticipatedTaskReader;
+import com.hamcheeze.vote.task.application.port.out.TaskSearchReader;
 import com.hamcheeze.vote.task.application.query.CompletedTaskCursor;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskCursor;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskLifecycleStatus;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskQueryService;
 import com.hamcheeze.vote.task.application.query.ParticipatedTaskResultStatus;
+import com.hamcheeze.vote.task.application.query.TaskSearchCursor;
 import com.hamcheeze.vote.task.application.query.UserTaskQueryService;
 import com.hamcheeze.vote.task.domain.common.TaskId;
 import com.hamcheeze.vote.task.domain.common.TaskUserId;
@@ -54,6 +56,9 @@ class CompletedTaskJdbcAdapterIntegrationTest {
     private ParticipatedTaskReader participatedTasks;
 
     @Autowired
+    private TaskSearchReader taskSearch;
+
+    @Autowired
     private UserTaskQueryService openTaskQueries;
 
     @Autowired
@@ -61,6 +66,85 @@ class CompletedTaskJdbcAdapterIntegrationTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
+
+    @Test
+    void taskSearchCombinesAllOpenWithOnlyUsersFinalizedClosedTasks() {
+        Instant base = Instant.parse("2026-08-27T12:00:00Z");
+        TaskUserId userId = new TaskUserId("task-search-reader-user");
+        PersonaFixture persona = insertSucceededPersona(
+                userId.value(), base.minus(1, ChronoUnit.DAYS));
+
+        UUID openSoon = UUID.fromString(
+                "09000000-0000-0000-0000-000000000001");
+        insertTask(
+                openSoon, "교통 정책 진행 중", null, "OPEN", null,
+                base.minus(2, ChronoUnit.HOURS),
+                base.plus(1, ChronoUnit.HOURS), null);
+
+        UUID openLater = UUID.fromString(
+                "09000000-0000-0000-0000-000000000002");
+        insertTask(
+                openLater, "진행 중 투표", "교통 정책 설명", "OPEN", null,
+                base.minus(1, ChronoUnit.HOURS),
+                base.plus(2, ChronoUnit.HOURS), null);
+        UUID openSubmission = insertSubmission(
+                userId.value(), persona, openLater,
+                base.minus(30, ChronoUnit.MINUTES));
+
+        UUID finalizedClosed = UUID.fromString(
+                "09000000-0000-0000-0000-000000000003");
+        insertClosedTask(
+                finalizedClosed, "교통 정책 완료", null,
+                TaskClosureType.DEADLINE_REACHED,
+                base.minus(1, ChronoUnit.HOURS), true);
+        UUID closedSubmission = insertSubmission(
+                userId.value(), persona, finalizedClosed,
+                base.minus(2, ChronoUnit.HOURS));
+
+        UUID awaitingResult = UUID.fromString(
+                "09000000-0000-0000-0000-000000000004");
+        insertClosedTask(
+                awaitingResult, "교통 정책 집계 중", null,
+                TaskClosureType.EARLY_CLOSED,
+                base.minus(2, ChronoUnit.HOURS), false);
+        insertSubmission(
+                userId.value(), persona, awaitingResult,
+                base.minus(3, ChronoUnit.HOURS));
+
+        UUID expiredOpen = UUID.fromString(
+                "09000000-0000-0000-0000-000000000005");
+        insertTask(
+                expiredOpen, "교통 정책 마감 대기", null, "OPEN", null,
+                base.minus(2, ChronoUnit.HOURS),
+                base.minus(1, ChronoUnit.MINUTES), null);
+
+        List<TaskSearchReader.TaskSearchRow> first = taskSearch.findByUser(
+                userId, "교통 정책", Optional.empty(), base, 2);
+        TaskSearchReader.TaskSearchRow lastOpen = first.getLast();
+        List<TaskSearchReader.TaskSearchRow> second = taskSearch.findByUser(
+                userId,
+                "교통 정책",
+                Optional.of(new TaskSearchCursor(
+                        "a".repeat(64), "b".repeat(64),
+                        lastOpen.taskStatus(), lastOpen.sortAt(),
+                        lastOpen.taskId())),
+                base,
+                2);
+
+        assertThat(first).extracting(row -> row.taskId().value())
+                .containsExactly(openSoon, openLater);
+        assertThat(first.getFirst().submissionId()).isNull();
+        assertThat(first.getLast().submissionId().value())
+                .isEqualTo(openSubmission);
+        assertThat(first).allMatch(row -> !row.resultAvailable());
+        assertThat(second).singleElement().satisfies(row -> {
+            assertThat(row.taskId().value()).isEqualTo(finalizedClosed);
+            assertThat(row.taskStatus()).isEqualTo(TaskStatus.CLOSED);
+            assertThat(row.submissionId().value())
+                    .isEqualTo(closedSubmission);
+            assertThat(row.resultAvailable()).isTrue();
+        });
+    }
 
     @Test
     void returnsOnlyFinalizedCompletedTasksSubmittedByTheUser() {
