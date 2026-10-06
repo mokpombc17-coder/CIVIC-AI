@@ -492,10 +492,15 @@ canonical 값 기준 변경 여부에 따라 저장 action을 활성화한다.
 view를 사용한다. `VoteTaskScreen`의 최초 상세 Query 대기도 같은 1/4 구조와 4개 선택지 placeholder를 재사용한다.
 Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경계를 소유한다. 각 Vote screen container는 자체
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
-`VotePage`는 `tab` search param을 검증해 진행 중·완료 초기값을 정규화한다. `VoteTaskListScreen`은 검색
-실행과 진행 중·완료 필터 및 URL 동기화를 소유하며, 진행 중 목록 Vote Query를 API 기반 카드 view model로
-변환한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를 표시하며,
-개발 환경에서만 publishing 디자인 샘플 카드를 실제 데이터와 구분해 제공한다.
+`VotePage`는 `tab`, `query`, `view` search param을 검증해 진행 중·완료 탭, 검색어와 목록·검색 결과
+view 초기값을 정규화한다.
+`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터 및 URL 동기화를 소유한다. 검색어가 없을 때는 선택한
+탭의 목록 Query를 카드 view model로 변환하고, 검색어가 있으면 두 탭의 Query를 비활성화한 뒤 통합 검색
+Infinite Query를 사용해 서버 정렬 순서대로 진행 중·완료 결과와 cursor pagination을 표시한다. 검색 중에는
+별도의 검색 결과 탭을 노출한다. 검색어가 남아 있는 동안 진행 중·완료 목록으로 전환해도 검색 결과 탭과
+검색어를 보존하며, 검색 결과 탭을 다시 선택하면 cache된 통합 결과로 복귀한다. 검색창을 비웠을 때만 검색
+상태를 제거한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고 준비 중 상태를
+표시하며, 개발 환경에서만 publishing 디자인 샘플 카드를 실제 데이터와 구분해 제공한다.
 
 `VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
 local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
@@ -528,7 +533,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         ├── [route segment loading] VoteLoading [Client] [Route] [pathname-aware] (apps/web/app/vote/loading.tsx)
                         │   ├── [list path] VoteTaskListScreen [Client] [Container] [cache-aware fallback]
                         │   └── [task path] VoteTaskScreenLoading [Server-compatible] [View]
-                        ├── route /vote: VotePage [Server] [Route] [tab searchParams] (apps/web/app/vote/page.tsx)
+                        ├── route /vote: VotePage [Server] [Route] [tab/query/view searchParams] (apps/web/app/vote/page.tsx)
                         │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
                         │       └── PlatformShell [Client graph] [View]
                         ├── route /vote/[taskId]: VoteTaskPage [Server] [Route] (apps/web/app/vote/[taskId]/page.tsx)
@@ -645,7 +650,7 @@ flowchart TD
     VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
     VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]
     VoteChildrenSlot["vote children slot<br/>nested page를 제공"]
-    VotePage["VotePage [Server] [Route] [tab searchParams]<br/>apps/web/app/vote/page.tsx"]
+    VotePage["VotePage [Server] [Route] [tab/query/view searchParams]<br/>apps/web/app/vote/page.tsx"]
     VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
     VoteTaskPage["VoteTaskPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/page.tsx"]
     VoteTaskScreen["VoteTaskScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-screen.tsx"]

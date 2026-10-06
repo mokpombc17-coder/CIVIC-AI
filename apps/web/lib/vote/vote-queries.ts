@@ -10,6 +10,7 @@ import {
 import { useEffect, useRef } from "react";
 import { createVoteCompletedApi, getVoteCompletedApiMode } from "./vote-completed-api";
 import { createVoteTaskApiAdapter } from "./vote-task-mock-api";
+import { voteTaskSearchApi } from "./vote-task-search-api";
 import type {
   SubmitTaskRequest,
   TaskPredictionView,
@@ -26,6 +27,8 @@ export const voteQueryKeys = {
   all: ["vote"] as const,
   tasks: () => [...voteQueryKeys.all, "tasks"] as const,
   openTasks: () => [...voteQueryKeys.tasks(), "open"] as const,
+  taskSearches: () => [...voteQueryKeys.tasks(), "search"] as const,
+  taskSearch: (query: string) => [...voteQueryKeys.taskSearches(), query] as const,
   details: () => [...voteQueryKeys.tasks(), "detail"] as const,
   detail: (taskId: string) => [...voteQueryKeys.details(), taskId] as const,
   predictions: () => [...voteQueryKeys.tasks(), "prediction"] as const,
@@ -39,10 +42,26 @@ export const voteQueryKeys = {
   result: (taskId: string) => [...voteQueryKeys.results(), taskId] as const,
 };
 
-export function useOpenTasksQuery() {
+export function useOpenTasksQuery(enabled = true) {
   return useQuery({
     queryKey: voteQueryKeys.openTasks(),
     queryFn: ({ signal }) => voteTaskApi.getOpenTasks(signal),
+    enabled,
+  });
+}
+
+export function useTaskSearchQuery(query: string, size = 20, enabled = true) {
+  return useInfiniteQuery({
+    queryKey: voteQueryKeys.taskSearch(query),
+    queryFn: ({ pageParam, signal }) =>
+      voteTaskSearchApi.searchTasks(
+        { query, ...(pageParam ? { cursor: pageParam } : {}), size },
+        signal,
+      ),
+    initialPageParam: null as string | null,
+    getNextPageParam: (lastPage) => lastPage.nextCursor,
+    enabled: enabled && query.length > 0,
+    refetchOnWindowFocus: true,
   });
 }
 
@@ -175,6 +194,7 @@ async function refreshTaskAfterSubmission(
 ): Promise<void> {
   await Promise.all([
     queryClient.invalidateQueries({ queryKey: voteQueryKeys.openTasks() }),
+    queryClient.invalidateQueries({ queryKey: voteQueryKeys.taskSearches() }),
     queryClient.invalidateQueries({ queryKey: voteQueryKeys.detail(taskId) }),
     queryClient.invalidateQueries({ queryKey: voteQueryKeys.prediction(taskId) }),
     queryClient.invalidateQueries({ queryKey: voteQueryKeys.submissionByTask(taskId) }),

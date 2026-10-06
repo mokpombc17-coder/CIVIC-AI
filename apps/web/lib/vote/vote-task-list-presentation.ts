@@ -1,5 +1,6 @@
 import type { CompletedTaskSummary } from "./vote-completed-contracts";
 import type { UserTaskSummary } from "./vote-task-contracts";
+import type { SearchTaskItem } from "./vote-task-search-contracts";
 import { formatVoteDateTime } from "./vote-format";
 
 export type VoteTaskListItemPresentation = Readonly<{
@@ -7,8 +8,8 @@ export type VoteTaskListItemPresentation = Readonly<{
   statusLabel: "진행 중" | "참여 완료" | "완료";
   title: string;
   supportingText: string;
-  actionLabel: "참여하기" | "응답 보기" | "결과보기";
-  actionHref: `/vote/${string}`;
+  actionLabel: "참여하기" | "응답 보기" | "결과보기" | "결과 준비 중";
+  actionHref: `/vote/${string}` | null;
   sourceLabel?: "디자인 샘플";
 }>;
 
@@ -52,6 +53,28 @@ export function presentCompletedTask(task: CompletedTaskSummary): VoteTaskListIt
     supportingText: `${formatVoteDateTime(task.closedAt)} 마감`,
     actionLabel: "결과보기",
     actionHref: `/vote/${task.taskId}/result`,
+  };
+}
+
+export function presentSearchTask(task: SearchTaskItem): VoteTaskListItemPresentation {
+  if (task.taskStatus === "OPEN") {
+    return {
+      taskId: task.taskId,
+      statusLabel: task.mySubmission ? "참여 완료" : "진행 중",
+      title: task.title,
+      supportingText: `${formatVoteDateTime(task.closesAt)} 마감`,
+      actionLabel: task.mySubmission ? "응답 보기" : "참여하기",
+      actionHref: `/vote/${task.taskId}`,
+    };
+  }
+
+  return {
+    taskId: task.taskId,
+    statusLabel: "완료",
+    title: task.title,
+    supportingText: `${formatVoteDateTime(task.closedAt)} 마감`,
+    actionLabel: task.resultAvailable ? "결과보기" : "결과 준비 중",
+    actionHref: task.resultAvailable ? `/vote/${task.taskId}/result` : null,
   };
 }
 

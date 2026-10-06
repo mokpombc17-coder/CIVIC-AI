@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   presentOpenTask,
+  presentSearchTask,
   sortCompletedTasksByLatest,
   sortOpenTasksByLatest,
 } from "./vote-task-list-presentation";
@@ -95,5 +96,41 @@ describe("Vote task list presentation", () => {
       "최신 완료 투표",
       "이전 완료 투표",
     ]);
+  });
+
+  it("통합 검색 결과를 상태와 제출 여부에 맞는 action으로 변환한다", () => {
+    expect(
+      presentSearchTask({
+        taskId: TASK_ID,
+        title: "진행 중 투표",
+        description: null,
+        taskStatus: "OPEN",
+        openedAt: "2026-10-01T00:00:00Z",
+        closesAt: "2026-10-15T00:00:00Z",
+        closedAt: null,
+        closureType: null,
+        mySubmission: { submissionId: SUBMISSION_ID, submittedAt: "2026-10-02T00:00:00Z" },
+        resultAvailable: false,
+      }),
+    ).toMatchObject({ statusLabel: "참여 완료", actionLabel: "응답 보기" });
+
+    expect(
+      presentSearchTask({
+        taskId: TASK_ID,
+        title: "완료 투표",
+        description: null,
+        taskStatus: "CLOSED",
+        openedAt: "2026-09-01T00:00:00Z",
+        closesAt: "2026-09-15T00:00:00Z",
+        closedAt: "2026-09-15T00:00:00Z",
+        closureType: "DEADLINE_REACHED",
+        mySubmission: { submissionId: SUBMISSION_ID, submittedAt: "2026-09-05T00:00:00Z" },
+        resultAvailable: false,
+      }),
+    ).toMatchObject({
+      statusLabel: "완료",
+      actionLabel: "결과 준비 중",
+      actionHref: null,
+    });
   });
 });

@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -14,30 +15,57 @@ import {
   flattenCompletedTaskPages,
   useCompletedTasksQuery,
   useOpenTasksQuery,
+  useTaskSearchQuery,
   voteCompletedApiAvailable,
+  voteQueryKeys,
 } from "@/lib/vote/vote-queries";
 import {
   presentCompletedTask,
   presentOpenTask,
+  presentSearchTask,
   sortCompletedTasksByLatest,
   sortOpenTasksByLatest,
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
-import { getVoteTaskListHref, type VoteTaskListTab } from "@/lib/vote/vote-task-list-navigation";
+import {
+  getVoteTaskListHref,
+  getVoteTaskSearchHref,
+  type VoteTaskListTab,
+  type VoteTaskListView,
+} from "@/lib/vote/vote-task-list-navigation";
 import styles from "./vote.module.css";
 import { VoteTaskListLoadingCards } from "./vote-task-list-loading";
 
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
 const VOTE_LOGIN_HREF = "/login?returnTo=%2Fvote";
 
-export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: VoteTaskListTab }) {
+export function VoteTaskListScreen({
+  initialQuery = "",
+  initialTab = "active",
+  initialView,
+}: {
+  initialQuery?: string;
+  initialTab?: VoteTaskListTab;
+  initialView?: VoteTaskListView;
+}) {
   const router = useRouter();
+  const queryClient = useQueryClient();
   const tab = initialTab;
-  const failureAnalytics = useFeatureFailureAnalytics("vote", `task-list:${tab}`);
-  const [searchInput, setSearchInput] = useState("");
-  const [query, setQuery] = useState("");
-  const openTasksQuery = useOpenTasksQuery();
-  const completedTasksQuery = useCompletedTasksQuery(20, tab === "completed");
+  const query = initialQuery.trim();
+  const hasSearchQuery = query.length > 0;
+  const view = initialView ?? (hasSearchQuery ? "search" : "list");
+  const showingSearchResults = hasSearchQuery && view === "search";
+  const failureAnalytics = useFeatureFailureAnalytics(
+    "vote",
+    showingSearchResults ? "task-list:search" : `task-list:${tab}`,
+  );
+  const [searchInput, setSearchInput] = useState(query);
+  const openTasksQuery = useOpenTasksQuery(!showingSearchResults && tab === "active");
+  const completedTasksQuery = useCompletedTasksQuery(
+    20,
+    !showingSearchResults && tab === "completed",
+  );
+  const searchTasksQuery = useTaskSearchQuery(query, 20, hasSearchQuery);
   const activeTasks = useMemo(
     () => sortOpenTasksByLatest(openTasksQuery.data ?? []).map(presentOpenTask),
     [openTasksQuery.data],
@@ -61,53 +89,99 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
     ],
     [actualCompletedTasks],
   );
-  const source: readonly VoteTaskListItemPresentation[] =
-    tab === "active" ? activeTasks : completedTasks;
-  const normalizedQuery = query.trim().toLocaleLowerCase("ko-KR");
-  const tasks = useMemo(
+  const searchTasks = useMemo(
     () =>
-      source.filter(
-        (task) =>
-          normalizedQuery.length === 0 ||
-          task.title.toLocaleLowerCase("ko-KR").includes(normalizedQuery) ||
-          task.supportingText.toLocaleLowerCase("ko-KR").includes(normalizedQuery),
+      flattenCompletedTaskPages(searchTasksQuery.data?.pages).map((task) =>
+        presentSearchTask(task),
       ),
-    [normalizedQuery, source],
+    [searchTasksQuery.data?.pages],
   );
+  const tasks: readonly VoteTaskListItemPresentation[] = showingSearchResults
+    ? searchTasks
+    : tab === "active"
+      ? activeTasks
+      : completedTasks;
 
   function selectTab(nextTab: VoteTaskListTab) {
-    if (nextTab === tab) return;
+    if (!showingSearchResults && nextTab === tab) return;
 
-    router.replace(getVoteTaskListHref(nextTab), { scroll: false });
+    router.replace(getVoteTaskListHref(nextTab, query), { scroll: false });
   }
 
   function submitSearch(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setQuery(searchInput);
+    const nextQuery = searchInput.trim();
+    if (nextQuery.length === 0) {
+      if (hasSearchQuery) router.replace(getVoteTaskListHref(tab), { scroll: false });
+      return;
+    }
+    if (nextQuery === query && showingSearchResults) {
+      void searchTasksQuery.refetch();
+      return;
+    }
+    router.replace(getVoteTaskSearchHref(tab, nextQuery), { scroll: false });
   }
 
   function changeSearchInput(value: string) {
     setSearchInput(value);
-    if (value.trim().length === 0) setQuery("");
+    if (hasSearchQuery && value.trim().length === 0) {
+      router.replace(getVoteTaskListHref(tab), { scroll: false });
+    }
+  }
+
+  function selectSearchResults() {
+    if (showingSearchResults) {
+      void searchTasksQuery.refetch();
+      return;
+    }
+    router.replace(getVoteTaskSearchHref(tab, query), { scroll: false });
   }
 
   const showingActiveLoading = tab === "active" && openTasksQuery.isPending;
   const showingActiveError = tab === "active" && openTasksQuery.isError;
+  const showingSearchLoading = showingSearchResults && searchTasksQuery.isPending;
+  const showingSearchError = showingSearchResults && searchTasksQuery.isError;
   const showingCompletedLoading =
-    voteCompletedApiAvailable && tab === "completed" && completedTasksQuery.isPending;
+    !showingSearchResults &&
+    voteCompletedApiAvailable &&
+    tab === "completed" &&
+    completedTasksQuery.isPending;
   const showingCompletedError =
-    voteCompletedApiAvailable && tab === "completed" && completedTasksQuery.isError;
-  const showingBlockingLoading =
-    showingActiveLoading || (showingCompletedLoading && completedTasks.length === 0);
-  const showingBlockingError =
-    showingActiveError || (showingCompletedError && completedTasks.length === 0);
-  const visibleListError = tab === "active" ? openTasksQuery.isError : showingCompletedError;
-  const visibleListErrorValue = tab === "active" ? openTasksQuery.error : completedTasksQuery.error;
-  const visibleListFailureCount =
-    tab === "active" ? openTasksQuery.failureCount : completedTasksQuery.failureCount;
-  const visibleListSuccess =
-    tab === "active" ? openTasksQuery.isSuccess : completedTasksQuery.isSuccess;
-  const listSurface = tab === "active" ? "active_task_list" : "completed_task_list";
+    !showingSearchResults &&
+    voteCompletedApiAvailable &&
+    tab === "completed" &&
+    completedTasksQuery.isError;
+  const showingBlockingLoading = showingSearchResults
+    ? showingSearchLoading
+    : showingActiveLoading || (showingCompletedLoading && completedTasks.length === 0);
+  const showingBlockingError = showingSearchResults
+    ? showingSearchError && searchTasks.length === 0
+    : showingActiveError || (showingCompletedError && completedTasks.length === 0);
+  const visibleListError = showingSearchResults
+    ? searchTasksQuery.isError
+    : tab === "active"
+      ? openTasksQuery.isError
+      : showingCompletedError;
+  const visibleListErrorValue = showingSearchResults
+    ? searchTasksQuery.error
+    : tab === "active"
+      ? openTasksQuery.error
+      : completedTasksQuery.error;
+  const visibleListFailureCount = showingSearchResults
+    ? searchTasksQuery.failureCount
+    : tab === "active"
+      ? openTasksQuery.failureCount
+      : completedTasksQuery.failureCount;
+  const visibleListSuccess = showingSearchResults
+    ? searchTasksQuery.isSuccess
+    : tab === "active"
+      ? openTasksQuery.isSuccess
+      : completedTasksQuery.isSuccess;
+  const listSurface = showingSearchResults
+    ? "search_task_list"
+    : tab === "active"
+      ? "active_task_list"
+      : "completed_task_list";
 
   useEffect(() => {
     if (visibleListError) {
@@ -132,7 +206,19 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
 
   function retryVisibleTaskList() {
     failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
-    void (tab === "active" ? openTasksQuery.refetch() : completedTasksQuery.refetch());
+    if (
+      showingSearchResults &&
+      searchTasksQuery.error instanceof VoteApiError &&
+      searchTasksQuery.error.code === "INVALID_CURSOR"
+    ) {
+      void queryClient.resetQueries({ queryKey: voteQueryKeys.taskSearch(query), exact: true });
+      return;
+    }
+    void (showingSearchResults
+      ? searchTasksQuery.refetch()
+      : tab === "active"
+        ? openTasksQuery.refetch()
+        : completedTasksQuery.refetch());
   }
 
   return (
@@ -158,6 +244,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
             <input
               className={styles.searchInput}
               id="vote-task-search"
+              maxLength={200}
               onChange={(event) => changeSearchInput(event.target.value)}
               placeholder="주제를 검색해 보세요"
               type="search"
@@ -169,7 +256,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
           </div>
           <div aria-label="투표 상태" className={styles.filterPills} role="tablist">
             <button
-              aria-selected={tab === "active"}
+              aria-selected={!showingSearchResults && tab === "active"}
               className={styles.filterPill}
               onClick={() => selectTab("active")}
               role="tab"
@@ -178,7 +265,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
               진행 중
             </button>
             <button
-              aria-selected={tab === "completed"}
+              aria-selected={!showingSearchResults && tab === "completed"}
               className={styles.filterPill}
               onClick={() => selectTab("completed")}
               role="tab"
@@ -186,26 +273,41 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
             >
               완료
             </button>
+            {hasSearchQuery ? (
+              <button
+                aria-selected={showingSearchResults}
+                className={styles.filterPill}
+                onClick={selectSearchResults}
+                role="tab"
+                type="button"
+              >
+                검색 결과
+              </button>
+            ) : null}
           </div>
         </form>
 
         {showingBlockingLoading ? (
           <VoteTaskListLoadingCards
             message={
-              tab === "active"
-                ? "진행 중인 투표를 불러오는 중입니다."
-                : "완료한 투표를 불러오는 중입니다."
+              showingSearchResults
+                ? "투표 검색 결과를 불러오는 중입니다."
+                : tab === "active"
+                  ? "진행 중인 투표를 불러오는 중입니다."
+                  : "완료한 투표를 불러오는 중입니다."
             }
           />
         ) : null}
         {showingBlockingError ? (
           <VoteListFeedback
             className={styles.listFeedback!}
-            error={tab === "active" ? openTasksQuery.error : completedTasksQuery.error}
+            error={visibleListErrorValue}
             message={
-              tab === "active"
-                ? getOpenTaskErrorMessage(openTasksQuery.error)
-                : getCompletedTaskErrorMessage(completedTasksQuery.error)
+              showingSearchResults
+                ? getSearchTaskErrorMessage(searchTasksQuery.error)
+                : tab === "active"
+                  ? getOpenTaskErrorMessage(openTasksQuery.error)
+                  : getCompletedTaskErrorMessage(completedTasksQuery.error)
             }
             onRetry={retryVisibleTaskList}
           />
@@ -218,8 +320,8 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
               ))}
             </ul>
             {tasks.length === 0 ? (
-              normalizedQuery.length === 0 &&
-              source.length === 0 &&
+              !showingSearchResults &&
+              completedTasks.length === 0 &&
               tab === "completed" &&
               voteCompletedApiAvailable ? (
                 <div className={styles.completedEmptyState}>
@@ -245,7 +347,7 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 </div>
               ) : (
                 <p className={styles.emptyState}>
-                  {normalizedQuery.length > 0
+                  {showingSearchResults
                     ? "검색 결과가 없습니다."
                     : tab === "active"
                       ? "진행 중인 투표가 없습니다."
@@ -253,7 +355,10 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 </p>
               )
             ) : null}
-            {tab === "completed" && !voteCompletedApiAvailable && completedTasks.length > 0 ? (
+            {!showingSearchResults &&
+            tab === "completed" &&
+            !voteCompletedApiAvailable &&
+            completedTasks.length > 0 ? (
               <p className={styles.listInlineStatus}>
                 실제 완료한 투표 목록은 아직 준비 중이며, 아래에는 디자인 샘플만 표시됩니다.
               </p>
@@ -269,7 +374,22 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
                 onRetry={retryVisibleTaskList}
               />
             ) : null}
-            {tab === "completed" ? (
+            {showingSearchError && searchTasks.length > 0 ? (
+              <VoteListFeedback
+                className={styles.listInlineFeedback!}
+                error={searchTasksQuery.error}
+                message={getSearchTaskErrorMessage(searchTasksQuery.error)}
+                onRetry={retryVisibleTaskList}
+              />
+            ) : null}
+            {showingSearchResults ? (
+              <PlatformLoadMoreButton
+                hasNextPage={searchTasksQuery.hasNextPage}
+                isFetching={searchTasksQuery.isFetchingNextPage}
+                label="더 보기"
+                onClick={() => void searchTasksQuery.fetchNextPage()}
+              />
+            ) : tab === "completed" ? (
               <PlatformLoadMoreButton
                 hasNextPage={completedTasksQuery.hasNextPage}
                 isFetching={completedTasksQuery.isFetchingNextPage}
@@ -286,14 +406,16 @@ export function VoteTaskListScreen({ initialTab = "active" }: { initialTab?: Vot
 
 function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
   return (
-    <li className={styles.taskCard}>
-      <Link
-        aria-label={`${task.title} ${task.actionLabel}`}
-        className={`${styles.taskCardLink} select-none [-webkit-touch-callout:none]`}
-        draggable={false}
-        href={task.actionHref}
-        onContextMenu={preventMobileLinkContextMenu}
-      />
+    <li aria-disabled={task.actionHref ? undefined : true} className={styles.taskCard}>
+      {task.actionHref ? (
+        <Link
+          aria-label={`${task.title} ${task.actionLabel}`}
+          className={`${styles.taskCardLink} select-none [-webkit-touch-callout:none]`}
+          draggable={false}
+          href={task.actionHref}
+          onContextMenu={preventMobileLinkContextMenu}
+        />
+      ) : null}
       <div className={styles.taskCardSurface}>
         <div className={styles.taskCardCopy}>
           <div className={styles.taskBadges}>
@@ -305,7 +427,11 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
           <h2 className={styles.taskTitle}>{task.title}</h2>
           <p className={styles.taskSupporting}>{task.supportingText}</p>
         </div>
-        <span aria-hidden="true" className={styles.taskAction}>
+        <span
+          aria-hidden="true"
+          className={styles.taskAction}
+          data-disabled={task.actionHref ? undefined : true}
+        >
           {task.actionLabel}
         </span>
       </div>
@@ -362,4 +488,15 @@ function getCompletedTaskErrorMessage(error: unknown): string {
     if (error.status === 403) return "완료한 과업을 조회할 권한이 없습니다.";
   }
   return "완료한 과업을 불러오지 못했습니다.";
+}
+
+function getSearchTaskErrorMessage(error: unknown): string {
+  if (error instanceof VoteApiError) {
+    if (error.status === 401) return "로그인 후 투표를 검색할 수 있습니다.";
+    if (error.code === "INVALID_CURSOR") {
+      return "검색 결과가 변경되었습니다. 처음부터 다시 불러와 주세요.";
+    }
+    if (error.code === "INVALID_REQUEST") return "검색어를 다시 확인해 주세요.";
+  }
+  return "투표 검색 결과를 불러오지 못했습니다.";
 }

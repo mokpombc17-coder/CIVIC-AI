@@ -326,6 +326,12 @@
   text-decoration: none;
 }
 
+.taskAction[data-disabled="true"] {
+  border-color: var(--vote-border);
+  background: #f5f6f7;
+  color: var(--vote-muted);
+}
+
 .emptyState {
   margin: 48px 0;
   color: var(--vote-muted);
