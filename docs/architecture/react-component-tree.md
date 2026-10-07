@@ -395,7 +395,8 @@ Room별 최초 진입에서 session view가 아직 `pending`이면 `ChatRoomScre
 snapshot과 두 sequence 경계가 모두 준비된 뒤에만 실시간 event merge를 열고, 동기화 결과를 session
 view로 변환한다. Membership topology event는 수신 시점의 마지막 확정 message sequence를 표시
 anchor로 기록하되 Message History, 읽음 수와 검색 cache에는 합치지 않는다. Receipt 오류는 기존
-coordinator 경계에서 core message realtime과 분리한다.
+coordinator 경계에서 core message realtime과 분리한다. `useChatRealtimeQueryCoordinator`는 coordinator
+callback을 순수 상태 reducer event로 변환해 복구·동기화·Receipt 상태 전이를 한 경계에서 관리한다.
 `useChatRoomContentExperience`는 Screen이 공유한 Room detail query와 participant profile을 받아 realtime
 snapshot을 읽음 진입 경험과 메시지 경험에 연결한다. Room detail의 현재 membership identity는 일시적인
 realtime session 전환 중에도 메시지 소유권 표현에 유지하고, mutation 가능 여부만 활성 session으로

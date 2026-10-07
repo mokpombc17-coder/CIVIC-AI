@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useReducer, useRef } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import {
   ChatRealtimeQueryCoordinator,
@@ -8,6 +8,11 @@ import {
 } from "@/lib/chat/realtime/chat-realtime-query-coordinator";
 import { ChatRealtimeSnapshotRefreshPolicy } from "@/lib/chat/realtime/chat-realtime-snapshot-refresh-policy";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
+import {
+  initialChatRealtimeQueryCoordinatorState,
+  reduceChatRealtimeQueryCoordinatorState,
+  type ChatRealtimeQueryCoordinatorStateEvent,
+} from "./chat-realtime-query-coordinator-state";
 import { useChatRealtimeTransport } from "./chat-realtime-provider";
 
 type UseChatRealtimeQueryCoordinatorParams = Readonly<{
@@ -41,12 +46,10 @@ export function useChatRealtimeQueryCoordinator({
   const transport = useChatRealtimeTransport();
   const snapshotRefreshPolicyRef = useRef(new ChatRealtimeSnapshotRefreshPolicy());
   const coordinatorRef = useRef<ChatRealtimeQueryCoordinator | null>(null);
-  const [error, setError] = useState<Error | null>(null);
-  const [isRecovering, setIsRecovering] = useState(false);
-  const [isSynchronized, setIsSynchronized] = useState(false);
-  const [lastApplied, setLastApplied] = useState<ApplyChatRealtimeDeliveryResult | null>(null);
-  const [readReceiptError, setReadReceiptError] = useState<Error | null>(null);
-  const [readReceiptStatus, setReadReceiptStatus] = useState<ChatRoomReadReceiptSyncStatus>("idle");
+  const [state, dispatch] = useReducer(
+    reduceChatRealtimeQueryCoordinatorState,
+    initialChatRealtimeQueryCoordinatorState,
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -60,19 +63,15 @@ export function useChatRealtimeQueryCoordinator({
       roomId,
       generation,
     );
-    const scheduleStateUpdate = (update: () => void) => {
+    const scheduleStateUpdate = (event: ChatRealtimeQueryCoordinatorStateEvent) => {
       queueMicrotask(() => {
         if (active) {
-          update();
+          dispatch(event);
         }
       });
     };
     const reportError = (cause: unknown) => {
-      scheduleStateUpdate(() => {
-        setError(toCoordinatorError(cause));
-        setIsRecovering(false);
-        setIsSynchronized(false);
-      });
+      scheduleStateUpdate({ cause, type: "coordinatorFailed" });
     };
     const coordinator = new ChatRealtimeQueryCoordinator(queryClient, transport, {
       roomId,
@@ -82,66 +81,36 @@ export function useChatRealtimeQueryCoordinator({
       refreshLoadedPagesBeforeSnapshot,
       watermarkSequence,
       onApplied(result) {
-        scheduleStateUpdate(() => {
-          setError(null);
-          setIsRecovering(false);
-          setIsSynchronized(true);
-          setLastApplied(result);
-        });
+        scheduleStateUpdate({ result, type: "deliveryApplied" });
       },
       onError: reportError,
       onRecoveryStarted() {
-        scheduleStateUpdate(() => {
-          setError(null);
-          setIsRecovering(true);
-          setIsSynchronized(false);
-        });
+        scheduleStateUpdate({ type: "recoveryStarted" });
       },
       onSnapshotRefreshStarted() {
-        scheduleStateUpdate(() => {
-          setError(null);
-          setIsRecovering(true);
-          setIsSynchronized(false);
-        });
+        scheduleStateUpdate({ type: "recoveryStarted" });
       },
       onRecovered() {
-        scheduleStateUpdate(() => {
-          setError(null);
-          setIsRecovering(false);
-        });
+        scheduleStateUpdate({ type: "recoveryCompleted" });
       },
       onSynchronized() {
-        scheduleStateUpdate(() => {
-          setError(null);
-          setIsRecovering(false);
-          setIsSynchronized(true);
-        });
+        scheduleStateUpdate({ type: "synchronized" });
       },
       readReceipt: {
         onError(cause) {
-          scheduleStateUpdate(() => {
-            setReadReceiptError(toCoordinatorError(cause));
-          });
+          scheduleStateUpdate({ cause, type: "readReceiptFailed" });
         },
         onStateChange(snapshot) {
-          scheduleStateUpdate(() => {
-            setReadReceiptError(
-              snapshot.error === null ? null : toCoordinatorError(snapshot.error),
-            );
-            setReadReceiptStatus(snapshot.status);
+          scheduleStateUpdate({
+            error: snapshot.error,
+            status: snapshot.status,
+            type: "readReceiptStateChanged",
           });
         },
       },
     });
     coordinatorRef.current = coordinator;
-    scheduleStateUpdate(() => {
-      setError(null);
-      setIsRecovering(false);
-      setIsSynchronized(false);
-      setLastApplied(null);
-      setReadReceiptError(null);
-      setReadReceiptStatus("idle");
-    });
+    scheduleStateUpdate({ type: "coordinatorStarted" });
     coordinator.start();
 
     try {
@@ -176,24 +145,17 @@ export function useChatRealtimeQueryCoordinator({
       return;
     }
 
-    setError(null);
-    setReadReceiptError(null);
+    dispatch({ type: "retryRequested" });
     coordinator.retryPendingDelivery();
   }, []);
 
   return {
-    error,
-    isRecovering,
-    isSynchronized,
-    lastApplied,
-    readReceiptError: enabled ? readReceiptError : null,
-    readReceiptStatus: enabled ? readReceiptStatus : "idle",
+    error: state.error,
+    isRecovering: state.isRecovering,
+    isSynchronized: state.isSynchronized,
+    lastApplied: state.lastApplied,
+    readReceiptError: enabled ? state.readReceiptError : null,
+    readReceiptStatus: enabled ? state.readReceiptStatus : "idle",
     retry,
   };
-}
-
-function toCoordinatorError(cause: unknown): Error {
-  return cause instanceof Error
-    ? cause
-    : new Error("실시간 채팅 cache 병합 중 알 수 없는 오류가 발생했습니다.");
 }
