@@ -512,7 +512,8 @@ Infinite Query를 사용해 서버 정렬 순서대로 진행 중·완료 결과
 Query, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출 mutation, query invalidation과
 analytics 같은 부수효과를 소유한다. `vote-task-flow.ts`의 순수 reducer는 local draft, 단계 전이와
 복구 가능한 제출 상태를 관리하고, `vote-submission-recovery.ts`는 제출 오류를 side effect 없는 복구
-정책으로 분류한다. 사용자 UUID가 설정된 방문에 대해서는 단계별 최초 노출, Prediction 참여 가능 상태의
+정책으로 분류한다. `vote-task-participation-presentation.ts`는 Prediction 준비 상태와 제출 오류를 사용자
+안내 문구로 변환한다. 사용자 UUID가 설정된 방문에 대해서는 단계별 최초 노출, Prediction 참여 가능 상태의
 최초 노출과 실제 제출 시도를 GA custom event로 기록한다.
 Vote 목록·참여·제출 응답·결과 screen의 사용자 노출 조회 실패와 Prediction 최종 실패, 제출 실패는
 공통 failure analytics로 기록하고, 같은 방문에서 재조회·Prediction 준비·멱등 제출이 성공한 경우에만
