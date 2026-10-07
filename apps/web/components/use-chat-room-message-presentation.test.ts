@@ -5,6 +5,7 @@ import type {
   RoomParticipationListItem,
 } from "@/lib/chat/chat-room-contracts";
 import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbox";
+import type { ChatRoomSystemActivity } from "@/lib/chat/realtime/chat-room-system-activity";
 import { createChatRoomMessagePresentation } from "./use-chat-room-message-presentation";
 
 describe("chat room message presentation", () => {
@@ -124,6 +125,37 @@ describe("chat room message presentation", () => {
 
     expect(presentation.messageItems[0]?.senderLabel).toBe("member");
   });
+
+  it("현재 참여가 시작되기 전의 시스템 안내는 viewport에서 제외한다", () => {
+    const presentation = createChatRoomMessagePresentation({
+      confirmedMessages: [],
+      messageVisibleAfterSequence: 0,
+      mutationStates: new Map(),
+      outgoingMessages: [],
+      participantProfiles: [SELF_PARTICIPANT],
+      participationHistory: [
+        {
+          ...PARTICIPATION,
+          displayName: "참여자 1",
+          membershipId: "membership-01",
+          participationId: "participation-self",
+          joinedAt: "2026-10-07T10:00:00Z",
+        },
+      ],
+      readBoundaryAfterSequence: null,
+      receiptState: undefined,
+      receiptSyncStatus: "ready",
+      roomId: "room-01",
+      selfMembershipId: "membership-01",
+      systemActivities: [SYSTEM_ACTIVITY_BEFORE_SELF, SYSTEM_ACTIVITY_AFTER_SELF],
+    });
+
+    expect(
+      presentation.viewportItems.flatMap((item) =>
+        item.kind === "system-activity" ? [item.renderKey] : [],
+      ),
+    ).toEqual(["system-activity-participation:participation-after:entered"]);
+  });
 });
 
 const MESSAGE = {
@@ -191,3 +223,25 @@ const SELF_PARTICIPANT = {
   membershipId: "membership-01",
   role: "OWNER",
 } satisfies RoomMembershipListItem;
+
+const SYSTEM_ACTIVITY_BEFORE_SELF = {
+  afterMessageSequence: 0,
+  emittedAt: "2026-10-07T09:59:00Z",
+  eventKey: "participation:participation-before:entered",
+  kind: "joined",
+  membershipId: "membership-before",
+  participationId: "participation-before",
+  receivedOrder: 1,
+  userLabel: "before",
+} satisfies ChatRoomSystemActivity;
+
+const SYSTEM_ACTIVITY_AFTER_SELF = {
+  afterMessageSequence: 0,
+  emittedAt: "2026-10-07T10:01:00Z",
+  eventKey: "participation:participation-after:entered",
+  kind: "joined",
+  membershipId: "membership-after",
+  participationId: "participation-after",
+  receivedOrder: 2,
+  userLabel: "after",
+} satisfies ChatRoomSystemActivity;

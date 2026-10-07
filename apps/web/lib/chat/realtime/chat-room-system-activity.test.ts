@@ -6,6 +6,7 @@ import {
   createChatRoomEventKey,
   createChatRoomSystemActivityMessage,
   createParticipationSystemActivities,
+  filterChatRoomSystemActivitiesForCurrentParticipation,
   mergeChatRoomSystemActivities,
 } from "./chat-room-system-activity";
 
@@ -175,6 +176,29 @@ describe("chat room system activity", () => {
     expect(activities[0]).toMatchObject({ userLabel: "member-02" });
     expect(activities[1]).toMatchObject({ userLabel: "member-02" });
     expect(activities[2]).toMatchObject({ userLabel: "membership-03" });
+  });
+
+  it("현재 참여가 시작된 뒤 발생한 입장과 퇴장 안내만 표시한다", () => {
+    const activities = [
+      createParticipantActivity("participation-before", "joined", "2026-10-07T09:59:00Z", 1),
+      createParticipantActivity("participation-before", "left", "2026-10-07T10:01:00Z", 2),
+      createParticipantActivity("participation-after", "joined", "2026-10-07T10:02:00Z", 3),
+    ];
+    const selfParticipation = {
+      ...createParticipation("participation-self", "membership-self", 31),
+      joinedAt: "2026-10-07T10:00:00Z",
+    };
+
+    expect(
+      filterChatRoomSystemActivitiesForCurrentParticipation(
+        activities,
+        [selfParticipation],
+        "membership-self",
+      ).map(({ eventKey }) => eventKey),
+    ).toEqual([
+      "participation:participation-before:ended",
+      "participation:participation-after:entered",
+    ]);
   });
 
   it("ROOM_CLOSED participation이 여러 개여도 방 종료 안내를 한 번만 복원한다", () => {

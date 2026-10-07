@@ -26,6 +26,7 @@ import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbo
 import {
   combineChatRoomSystemActivities,
   createParticipationSystemActivities,
+  filterChatRoomSystemActivitiesForCurrentParticipation,
   type ChatRoomSystemActivity,
 } from "@/lib/chat/realtime/chat-room-system-activity";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
@@ -134,10 +135,15 @@ export function createChatRoomMessagePresentation({
     selfMembershipId,
     participantDisplayNames,
   );
+  const visibleSystemActivities = filterChatRoomSystemActivitiesForCurrentParticipation(
+    combineChatRoomSystemActivities(restoredActivities, systemActivities),
+    participationHistory,
+    selfMembershipId,
+  );
   const timelineRows = createChatMessageTimelineRows(timeline, {
     readBoundaryAfterSequence,
     systemActivityStartAfterSequence: messageVisibleAfterSequence,
-    systemActivities: combineChatRoomSystemActivities(restoredActivities, systemActivities),
+    systemActivities: visibleSystemActivities,
   });
   const viewportItems = createChatMessageViewportItemViewModels(
     timelineRows,

@@ -258,6 +258,37 @@ export function combineChatRoomSystemActivities(
   );
 }
 
+export function filterChatRoomSystemActivitiesForCurrentParticipation(
+  activities: readonly ChatRoomSystemActivity[],
+  participations: readonly RoomParticipationListItem[],
+  selfMembershipId: string | null,
+): readonly ChatRoomSystemActivity[] {
+  if (selfMembershipId === null) {
+    return activities;
+  }
+
+  const currentParticipation = participations
+    .filter(
+      (participation) =>
+        participation.membershipId === selfMembershipId && participation.status === "ACTIVE",
+    )
+    .reduce<RoomParticipationListItem | null>((latest, participation) => {
+      if (latest === null || Date.parse(participation.joinedAt) > Date.parse(latest.joinedAt)) {
+        return participation;
+      }
+
+      return latest;
+    }, null);
+
+  if (currentParticipation === null) {
+    return activities;
+  }
+
+  const joinedAt = Date.parse(currentParticipation.joinedAt);
+
+  return Object.freeze(activities.filter((activity) => Date.parse(activity.emittedAt) >= joinedAt));
+}
+
 export function createChatRoomSystemActivityMessage(
   activity: ChatRoomSystemActivity,
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
