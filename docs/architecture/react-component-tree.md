@@ -165,6 +165,9 @@ idempotency key와 발급된 receipt를 Survey 제출 재시도 동안 유지한
 payload 변환을 담당한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,
 현재 설문 계약에 맞춘 안전한 복원과 저장소 장애 시 graceful degradation을 담당한다.
+`useSurveyDraftSession`은 이 저장소 계약을 `SurveyForm`의 수명에 연결해 최초 복원, 200ms 지연 저장과
+제출 성공 시 정리를 소유한다. `SurveySubmissionCoordinator`는 동의 receipt와 설문 제출 idempotency key를
+재시도 사이에 보존하고, `SurveyForm`은 mutation port와 사용자 노출 오류·analytics 처리만 조립한다.
 `survey-presentation.ts`는 `questionKey`별 Figma 전용 제목·안내 문구와 Matrix 화면 layout을 소유하고
 API `prompt`를 화면 문구의 fallback으로 사용하지 않는다. Matrix 선택지 중 Figma 표기가 다른 값은
 `survey-option-label-overrides.json`에서 `questionKey`와 API label 조합으로 화면 label만 교체하며,

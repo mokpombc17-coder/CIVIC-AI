@@ -10,17 +10,11 @@ import {
 import { ConsentApiError } from "@/lib/consent/consent-api";
 import { useAcceptSensitiveSurveyConsentMutation } from "@/lib/consent/consent-queries";
 import {
-  attachConsentReceipt,
-  prepareConsentAcceptance,
-  type PendingConsentAcceptance,
-} from "@/lib/consent/consent-submission";
-import {
   getFeatureFailureDetails,
   type FeatureFailureAnalyticsSession,
 } from "@/lib/analytics/feature-failure-analytics";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
-  buildSubmitSurveyRequest,
   createSurveyAnswerState,
   surveyAnswerErrorKey,
   validateSurvey,
@@ -30,19 +24,9 @@ import {
   type SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
 import { useCurrentSurveyQuery, useSubmitSurveyMutation } from "@/lib/survey/survey-queries";
-import {
-  prepareSurveySubmission,
-  type PendingSurveySubmission,
-} from "@/lib/survey/survey-submission";
 import { canReturnAfterSurveySubmission } from "@/lib/survey/survey-completion";
-import {
-  loadSurveyDraft,
-  removeSurveyDraft,
-  resolveSurveyDraftOwnerKey,
-  saveSurveyDraft,
-  type SurveyDraftScope,
-} from "@/lib/survey/survey-draft-storage";
-import type { SurveyEntryType } from "@/lib/survey/survey-participation-analytics";
+import { removeSurveyDraft, resolveSurveyDraftOwnerKey } from "@/lib/survey/survey-draft-storage";
+import { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { getServiceEligibilityQueryOptions } from "@/lib/vote/service-eligibility";
 import {
@@ -55,6 +39,7 @@ import {
 } from "./survey-flow";
 import { SurveyLoadingStatus } from "./survey-loading";
 import { SurveySectionFields } from "./survey-question-fields";
+import { useSurveyDraftSession } from "./use-survey-draft-session";
 import { useFeatureFailureAnalytics } from "../use-feature-failure-analytics";
 import { useSurveyParticipationAnalytics } from "./use-survey-participation-analytics";
 import styles from "./survey.module.css";
@@ -240,16 +225,10 @@ function SurveyForm({
   const [requiredConsentClickedAt, setRequiredConsentClickedAt] = useState<string | null>(null);
   const [submissionError, setSubmissionError] = useState<string | null>(null);
   const [validationScrollRequest, setValidationScrollRequest] = useState(0);
-  const [draftReady, setDraftReady] = useState(false);
-  const [draftScope, setDraftScope] = useState<SurveyDraftScope | null>(null);
-  const [entryType, setEntryType] = useState<SurveyEntryType | null>(null);
+  const [submissionCoordinator] = useState(() => new SurveySubmissionCoordinator());
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
   const headerProgressVisibleRef = useRef(false);
-  const pendingConsentAcceptance = useRef<PendingConsentAcceptance | null>(null);
-  const pendingSubmission = useRef<PendingSurveySubmission | null>(null);
-  const draftSaveTimeoutRef = useRef<number | null>(null);
-  const initialSections = useRef(sections);
   const acceptConsentMutation = useAcceptSensitiveSurveyConsentMutation();
   const submitMutation = useSubmitSurveyMutation();
   const isSubmitting = acceptConsentMutation.isPending || submitMutation.isPending;
@@ -258,6 +237,15 @@ function SurveyForm({
   const currentStepId = isConfirmationStep
     ? "confirmation"
     : (currentSection?.sectionKey ?? `step-${currentStep}`);
+  const { clearDraft, draftReady, entryType } = useSurveyDraftSession({
+    answers,
+    contentVersionId,
+    currentStep,
+    roundId,
+    sections,
+    setAnswers,
+    setCurrentStep,
+  });
   const { trackStepExited, trackSubmissionAttempted } = useSurveyParticipationAnalytics({
     currentStep,
     entryType,
@@ -271,45 +259,6 @@ function SurveyForm({
     trackStepExited("previous");
     setCurrentStep((step) => Math.max(step - 1, 1));
   }, [trackStepExited]);
-
-  useEffect(() => {
-    let active = true;
-    void resolveSurveyDraftOwnerKey().then((ownerKey) => {
-      if (!active) return;
-      if (ownerKey) {
-        const scope = { contentVersionId, ownerKey, roundId };
-        const draft = loadSurveyDraft(sessionStorage, scope, initialSections.current);
-        if (draft) {
-          setAnswers(draft.answers);
-          setCurrentStep(draft.currentStep);
-          setEntryType("resumed");
-        } else {
-          setEntryType("new");
-        }
-        setDraftScope(scope);
-      } else {
-        setEntryType("new");
-      }
-      setDraftReady(true);
-    });
-
-    return () => {
-      active = false;
-    };
-  }, [contentVersionId, roundId]);
-
-  useEffect(() => {
-    if (!draftReady || !draftScope) return;
-    const timeout = window.setTimeout(() => {
-      draftSaveTimeoutRef.current = null;
-      saveSurveyDraft(sessionStorage, draftScope, { answers, currentStep });
-    }, 200);
-    draftSaveTimeoutRef.current = timeout;
-    return () => {
-      window.clearTimeout(timeout);
-      if (draftSaveTimeoutRef.current === timeout) draftSaveTimeoutRef.current = null;
-    };
-  }, [answers, currentStep, draftReady, draftScope]);
 
   useEffect(() => {
     if (validationScrollRequest === 0) return;
@@ -419,41 +368,20 @@ function SurveyForm({
     trackSubmissionAttempted();
 
     try {
-      let pendingConsent = prepareConsentAcceptance(
-        SENSITIVE_INFORMATION_CONSENT,
-        roundId,
-        requiredConsentClickedAt,
-        pendingConsentAcceptance.current,
-      );
-      pendingConsentAcceptance.current = pendingConsent;
-      let receipt = pendingConsent.receipt;
-
-      if (!receipt) {
-        receipt = await acceptConsentMutation.mutateAsync({
-          command: pendingConsent.payload,
-          idempotencyKey: pendingConsent.idempotencyKey,
-        });
-        pendingConsent = attachConsentReceipt(pendingConsent, receipt);
-        pendingConsentAcceptance.current = pendingConsent;
-      }
-
-      const payload = buildSubmitSurveyRequest(
-        roundId,
-        receipt.consentReceiptId,
-        sections,
+      const result = await submissionCoordinator.submit({
         answers,
-      );
-      const prepared = prepareSurveySubmission(payload, pendingSubmission.current);
-      pendingSubmission.current = prepared;
-      const result = await submitMutation.mutateAsync({
-        command: prepared.payload,
-        idempotencyKey: prepared.idempotencyKey,
+        clientClickedAt: requiredConsentClickedAt,
+        document: SENSITIVE_INFORMATION_CONSENT,
+        ports: {
+          acceptConsent: (command, idempotencyKey) =>
+            acceptConsentMutation.mutateAsync({ command, idempotencyKey }),
+          submitSurvey: (command, idempotencyKey) =>
+            submitMutation.mutateAsync({ command, idempotencyKey }),
+        },
+        roundId,
+        sections,
       });
-      if (draftSaveTimeoutRef.current !== null) {
-        window.clearTimeout(draftSaveTimeoutRef.current);
-        draftSaveTimeoutRef.current = null;
-      }
-      if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
+      clearDraft();
       failureAnalytics.trackRecovered("submission");
       trackStepExited("submit");
       onSubmitted(result);
@@ -469,10 +397,7 @@ function SurveyForm({
           surface: "participation",
         });
         setSubmissionError(consentError.message);
-        if (consentError.newAttempt) {
-          pendingConsentAcceptance.current = null;
-          pendingSubmission.current = null;
-        }
+        if (consentError.newAttempt) submissionCoordinator.reset();
         return;
       }
       const apiErrors = getSurveySubmissionErrors(error);
@@ -497,10 +422,7 @@ function SurveyForm({
       }
       setSubmissionError(apiErrors.message);
       if (apiErrors.refresh) onRefresh();
-      if (apiErrors.newAttempt) {
-        pendingConsentAcceptance.current = null;
-        pendingSubmission.current = null;
-      }
+      if (apiErrors.newAttempt) submissionCoordinator.reset();
     }
   }
 
@@ -519,8 +441,7 @@ function SurveyForm({
 
   function updateRequiredConsent(checked: boolean) {
     setRequiredConsentClickedAt(checked ? new Date().toISOString() : null);
-    pendingConsentAcceptance.current = null;
-    pendingSubmission.current = null;
+    submissionCoordinator.reset();
     setSubmissionError(null);
   }
 
