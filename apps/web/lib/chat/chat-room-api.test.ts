@@ -701,6 +701,7 @@ const PARTICIPATION_LIST_ITEM = {
   enteredAfterMessageSequence: 10,
   endedAfterMessageSequence: 25,
   displayName: "참여자 2",
+  userLabel: "user02",
   imageUrl: null,
   profileVersion: 1,
   joinedAt: "2026-10-07T07:00:00Z",

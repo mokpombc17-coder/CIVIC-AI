@@ -292,6 +292,7 @@ export const roomParticipationListItemSchema = z
     enteredAfterMessageSequence: nonnegativeSequenceSchema,
     endedAfterMessageSequence: nonnegativeSequenceSchema.nullable(),
     displayName: membershipDisplayNameSchema,
+    userLabel: z.string().min(1),
     imageUrl: z.string().nullable(),
     profileVersion: z.number().int().positive(),
     joinedAt: instantSchema,

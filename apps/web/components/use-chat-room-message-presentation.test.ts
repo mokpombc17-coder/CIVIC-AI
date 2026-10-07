@@ -109,7 +109,7 @@ describe("chat room message presentation", () => {
     });
   });
 
-  it("현재 Membership의 사용자 이름을 participation 표시명보다 우선한다", () => {
+  it("participation 당시 userLabel을 현재 Membership 이름보다 우선한다", () => {
     const presentation = createChatRoomMessagePresentation({
       confirmedMessages: [MESSAGE],
       mutationStates: new Map(),
@@ -123,7 +123,7 @@ describe("chat room message presentation", () => {
       selfMembershipId: "membership-01",
     });
 
-    expect(presentation.messageItems[0]?.senderLabel).toBe("member");
+    expect(presentation.messageItems[0]?.senderLabel).toBe("past-member");
   });
 
   it("현재 참여가 시작되기 전의 시스템 안내는 viewport에서 제외한다", () => {
@@ -201,7 +201,7 @@ const PARTICIPANT = {
 } satisfies RoomMembershipListItem;
 
 const PARTICIPATION = {
-  displayName: "과거 참여자 이름",
+  displayName: "참여자 2",
   endedAfterMessageSequence: null,
   endedAt: null,
   endReason: null,
@@ -213,6 +213,7 @@ const PARTICIPATION = {
   participationId: "participation-02",
   profileVersion: 1,
   status: "ACTIVE",
+  userLabel: "past-member",
   version: 1,
 } satisfies RoomParticipationListItem;
 

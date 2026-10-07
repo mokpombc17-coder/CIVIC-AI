@@ -133,7 +133,6 @@ export function createChatRoomMessagePresentation({
     roomId,
     participationHistory,
     selfMembershipId,
-    participantDisplayNames,
   );
   const visibleSystemActivities = filterChatRoomSystemActivitiesForCurrentParticipation(
     combineChatRoomSystemActivities(restoredActivities, systemActivities),

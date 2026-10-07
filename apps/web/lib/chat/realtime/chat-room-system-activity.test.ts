@@ -163,7 +163,6 @@ describe("chat room system activity", () => {
         },
       ],
       null,
-      new Map([["membership-02", "member-02"]]),
     );
 
     expect(activities.map(({ kind }) => kind)).toEqual([
@@ -175,7 +174,7 @@ describe("chat room system activity", () => {
     ]);
     expect(activities[0]).toMatchObject({ userLabel: "member-02" });
     expect(activities[1]).toMatchObject({ userLabel: "member-02" });
-    expect(activities[2]).toMatchObject({ userLabel: "membership-03" });
+    expect(activities[2]).toMatchObject({ userLabel: "member-03" });
   });
 
   it("현재 참여가 시작된 뒤 발생한 입장과 퇴장 안내만 표시한다", () => {
@@ -385,6 +384,7 @@ function createParticipation(
     participationId,
     profileVersion: 1,
     status: "ACTIVE",
+    userLabel: membershipId.replace("membership", "member"),
     version: 1,
   };
 }

@@ -24,9 +24,6 @@ export function createRoomParticipationDisplayNames(
   participations: readonly RoomParticipationListItem[],
 ): ReadonlyMap<string, string> {
   return new Map(
-    participations.map((participation) => [
-      participation.participationId,
-      participation.displayName,
-    ]),
+    participations.map((participation) => [participation.participationId, participation.userLabel]),
   );
 }

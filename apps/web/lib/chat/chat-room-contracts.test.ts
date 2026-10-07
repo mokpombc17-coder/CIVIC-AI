@@ -574,6 +574,11 @@ describe("chat room REST contracts", () => {
         items: [createRoomParticipationListItem({ endedAt: "2026-10-07T07:10:00Z" })],
       }).success,
     ).toBe(false);
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [createRoomParticipationListItem({ userLabel: undefined })],
+      }).success,
+    ).toBe(false);
   });
 
   it("NORMAL 종료에는 sequence를 요구하고 LEGACY 종료의 누락은 허용한다", () => {
@@ -1267,6 +1272,7 @@ function createRoomParticipationListItem(patch: Record<string, unknown> = {}) {
     enteredAfterMessageSequence: 10,
     endedAfterMessageSequence: null,
     displayName: "참여자 2",
+    userLabel: "user02",
     imageUrl: null,
     profileVersion: 1,
     joinedAt: "2026-10-07T07:00:00Z",
