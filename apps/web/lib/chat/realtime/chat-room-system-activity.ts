@@ -145,16 +145,22 @@ export function combineChatRoomSystemActivities(
   restoredActivities: readonly ChatRoomSystemActivity[],
   realtimeActivities: readonly ChatRoomSystemActivity[],
 ): readonly ChatRoomSystemActivity[] {
-  const activitiesByPlacement = new Map<string, ChatRoomSystemActivity>();
-
-  for (const activity of [...restoredActivities, ...realtimeActivities]) {
-    activitiesByPlacement.set(createActivityPlacementKey(activity), activity);
-  }
+  const realtimePlacementKeys = new Set(realtimeActivities.map(createActivityPlacementKey));
+  const realtimeActivitiesByEventKey = new Map(
+    realtimeActivities.map((activity) => [activity.eventKey, activity]),
+  );
+  const activities = [
+    ...restoredActivities.filter(
+      (activity) => !realtimePlacementKeys.has(createActivityPlacementKey(activity)),
+    ),
+    ...realtimeActivitiesByEventKey.values(),
+  ];
 
   return Object.freeze(
-    [...activitiesByPlacement.values()].sort(
+    activities.sort(
       (left, right) =>
         left.afterMessageSequence - right.afterMessageSequence ||
+        Date.parse(left.emittedAt) - Date.parse(right.emittedAt) ||
         left.receivedOrder - right.receivedOrder ||
         left.eventKey.localeCompare(right.eventKey),
     ),

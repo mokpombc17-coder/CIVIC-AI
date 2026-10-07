@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { createChatMessageTimeline, createChatMessageTimelineRows } from "./chat-message-timeline";
 import type { ChatMessage } from "./chat-room-contracts";
 import type { ChatOutgoingMessage } from "./realtime/chat-message-outbox";
+import { combineChatRoomSystemActivities } from "./realtime/chat-room-system-activity";
 
 const CLIENT_MESSAGE_ID = "550e8400-e29b-41d4-a716-446655440000";
 
@@ -279,6 +280,48 @@ describe("createChatMessageTimelineRows", () => {
     });
 
     expect(rows.map(({ kind }) => kind)).toEqual(["date-separator", "system-activity"]);
+  });
+
+  it("같은 위치의 과거 입장과 오늘 입장을 시간순으로 표시해 오늘 구분선을 중복하지 않는다", () => {
+    const timeline = createChatMessageTimeline(
+      [{ ...createConfirmed("today", "2026-10-07T09:08:00Z"), roomSequence: 32 }],
+      [],
+    );
+    const systemActivities = combineChatRoomSystemActivities(
+      [
+        {
+          afterMessageSequence: 31,
+          emittedAt: "2026-10-07T09:07:05.227Z",
+          eventKey: "membership-entry:new:31",
+          kind: "joined",
+          membershipId: "membership-new",
+          receivedOrder: 0,
+          userLabel: "새 참여자",
+        },
+        {
+          afterMessageSequence: 31,
+          emittedAt: "2026-09-22T04:53:09.466Z",
+          eventKey: "membership-entry:old:31",
+          kind: "joined",
+          membershipId: "membership-old",
+          receivedOrder: 1,
+          userLabel: "기존 참여자",
+        },
+      ],
+      [],
+    );
+    const rows = createChatMessageTimelineRows(timeline, {
+      systemActivities,
+      systemActivityStartAfterSequence: 31,
+    });
+
+    expect(rows.flatMap((row) => (row.kind === "date-separator" ? [row.date.key] : []))).toEqual([
+      "2026-09-22",
+      "2026-10-07",
+    ]);
+    expect(
+      rows.flatMap((row) => (row.kind === "system-activity" ? [row.activity.membershipId] : [])),
+    ).toEqual(["membership-old", "membership-new"]);
   });
 });
 

@@ -96,6 +96,62 @@ describe("chat room system activity", () => {
     expect(combineChatRoomSystemActivities(restored, realtime)).toEqual(realtime);
   });
 
+  it("같은 메시지 위치의 복원 활동은 API 배열 순서와 무관하게 발생 시각순으로 정렬한다", () => {
+    const restored = createMembershipEntrySystemActivities(
+      [
+        {
+          ...createMembership("membership-new", 31),
+          joinedAt: "2026-10-07T09:07:05.227Z",
+        },
+        {
+          ...createMembership("membership-old", 31),
+          joinedAt: "2026-09-22T04:53:09.466Z",
+        },
+      ],
+      null,
+    );
+
+    expect(
+      combineChatRoomSystemActivities(restored, []).map((activity) => activity.membershipId),
+    ).toEqual(["membership-old", "membership-new"]);
+  });
+
+  it("같은 참여자가 메시지 사이에 반복해서 입장하고 퇴장한 활동을 모두 유지한다", () => {
+    const realtime = [
+      {
+        afterMessageSequence: 31,
+        emittedAt: "2026-10-07T09:07:01Z",
+        eventKey: "event-join-1",
+        kind: "joined" as const,
+        membershipId: "membership-02",
+        receivedOrder: 1,
+        userLabel: "철수",
+      },
+      {
+        afterMessageSequence: 31,
+        emittedAt: "2026-10-07T09:07:02Z",
+        eventKey: "event-left-1",
+        kind: "left" as const,
+        membershipId: "membership-02",
+        receivedOrder: 2,
+        userLabel: "철수",
+      },
+      {
+        afterMessageSequence: 31,
+        emittedAt: "2026-10-07T09:07:03Z",
+        eventKey: "event-join-2",
+        kind: "joined" as const,
+        membershipId: "membership-02",
+        receivedOrder: 3,
+        userLabel: "철수",
+      },
+    ];
+
+    expect(
+      combineChatRoomSystemActivities([], realtime).map((activity) => activity.eventKey),
+    ).toEqual(["event-join-1", "event-left-1", "event-join-2"]);
+  });
+
   it("userLabel이 없으면 참여자 이름, 이후 일반 문구 순으로 fallback한다", () => {
     const activity = {
       afterMessageSequence: 3,
