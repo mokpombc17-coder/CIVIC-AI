@@ -66,7 +66,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 │                   │   └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
 │                   │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
 │                   │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-│                   │           ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
+│                   │           ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
 │                   │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
 │                   │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
 │                   ├── ParticipantHome [Server-compatible] [View] (apps/web/components/participant-home.tsx)
@@ -76,7 +76,8 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 
 `PlatformPageShell`은 일반 화면의 기본 header, `scroll="self"` content와 pathname 기반 하단
 내비게이션을 조립한다. `PlatformNavigationClient`는 실제 하단 내비게이션과
-`ParticipantSwipeNavigationController`를 함께 조립한다. Controller는 `/chat`·`/vote`와 각 하위
+`ParticipantSwipeNavigationController`를 함께 조립한다. Controller는 pathname과 React effect 수명을
+`attachParticipantSwipeNavigation` browser runtime에 연결한다. Runtime은 `/chat`·`/vote`와 각 하위
 route에서만 content surface의 좌우 pointer gesture를 관찰하고, 성공한 gesture를 인접한 실제 하단
 내비게이션 link click으로 위임한다. header와 하단 내비게이션은 transform 대상에서 제외하며 세로
 gesture는 content의 기존 scroll에 맡긴다. Platform overlay 또는 `inert` 상태가 열려 있으면 새 gesture를
@@ -252,7 +253,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
                         │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
                         │   │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-                        │   │       │                   ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
+                         │   │       │                   ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │       │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │       │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                         │   │       ├── route /chat/creation-requests: LegacyRoomCreationRequestsPage [Server] [Redirect → /chat] (apps/web/app/chat/creation-requests/page.tsx)
@@ -269,7 +270,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                         │   │               │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
                         │   │               │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
                         │   │               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
-                        │   │               │           ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
+                         │   │               │           ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                         │   │               ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
@@ -573,7 +574,7 @@ NotFound [Server] [Route] [conditional: unmatched route 또는 notFound()]
     └── PlatformShell [Server-compatible] [View] [scroll: self]
         ├── PlatformHeader [Server-compatible] [View]
         └── PlatformNavigationClient [Client] [View]
-            ├── ParticipantSwipeNavigationController [Client] [Runtime] [active: /chat/**, /vote/**]
+            ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**]
             └── PlatformNavigation [Server-compatible] [View]
 ```
 
@@ -624,7 +625,7 @@ flowchart TD
     ChatRoomPlatformShell["PlatformShell [Server-compatible] [View] [scroll: child]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
     PlatformHeader["PlatformHeader [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-header.tsx"]
     PlatformNavigationClient["PlatformNavigationClient [Client] [View]<br/>apps/web/components/platform-navigation-client.tsx"]
-    ParticipantSwipeNavigationController["ParticipantSwipeNavigationController [Client] [Runtime]<br/>apps/web/components/participant-swipe-navigation-controller.tsx"]
+    ParticipantSwipeNavigationController["ParticipantSwipeNavigationController [Client] [Adapter]<br/>apps/web/components/participant-swipe-navigation-controller.tsx"]
     PlatformNavigation["PlatformNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
     PlatformBottomNavigation["PlatformBottomNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
     ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
