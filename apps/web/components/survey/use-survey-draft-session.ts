@@ -1,13 +1,6 @@
 "use client";
 
-import {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  type Dispatch,
-  type SetStateAction,
-} from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SurveySection } from "@/lib/survey/survey-contracts";
 import type { SurveyAnswerState } from "@/lib/survey/survey-answer-state";
 import {
@@ -25,18 +18,16 @@ export function useSurveyDraftSession({
   answers,
   contentVersionId,
   currentStep,
+  onDraftRestored,
   roundId,
   sections,
-  setAnswers,
-  setCurrentStep,
 }: {
   answers: SurveyAnswerState;
   contentVersionId: string;
   currentStep: number;
+  onDraftRestored: (draft: Readonly<{ answers: SurveyAnswerState; currentStep: number }>) => void;
   roundId: string;
   sections: readonly SurveySection[];
-  setAnswers: Dispatch<SetStateAction<SurveyAnswerState>>;
-  setCurrentStep: Dispatch<SetStateAction<number>>;
 }) {
   const [draftReady, setDraftReady] = useState(false);
   const [draftScope, setDraftScope] = useState<SurveyDraftScope | null>(null);
@@ -52,8 +43,7 @@ export function useSurveyDraftSession({
         const scope = { contentVersionId, ownerKey, roundId };
         const draft = loadSurveyDraft(sessionStorage, scope, initialSections.current);
         if (draft) {
-          setAnswers(draft.answers);
-          setCurrentStep(draft.currentStep);
+          onDraftRestored({ answers: draft.answers, currentStep: draft.currentStep });
           setEntryType("resumed");
         } else {
           setEntryType("new");
@@ -68,7 +58,7 @@ export function useSurveyDraftSession({
     return () => {
       active = false;
     };
-  }, [contentVersionId, roundId, setAnswers, setCurrentStep]);
+  }, [contentVersionId, onDraftRestored, roundId]);
 
   useEffect(() => {
     if (!draftReady || !draftScope) return;

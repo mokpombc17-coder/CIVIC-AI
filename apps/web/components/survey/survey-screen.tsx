@@ -1,7 +1,15 @@
 "use client";
 
 import { useQuery } from "@tanstack/react-query";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type UIEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useReducer,
+  useRef,
+  useState,
+  type ReactNode,
+  type UIEvent,
+} from "react";
 import {
   PlatformHeader,
   PlatformShell,
@@ -15,12 +23,9 @@ import {
 } from "@/lib/analytics/feature-failure-analytics";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
-  createSurveyAnswerState,
   validateSurvey,
   validateSurveySection,
   type SurveyAnswerDraft,
-  type SurveyAnswerState,
-  type SurveyValidationErrors,
 } from "@/lib/survey/survey-answer-state";
 import { useCurrentSurveyQuery, useSubmitSurveyMutation } from "@/lib/survey/survey-queries";
 import { canReturnAfterSurveySubmission } from "@/lib/survey/survey-completion";
@@ -42,6 +47,7 @@ import {
   shouldShowSurveyHeaderProgress,
 } from "./survey-flow";
 import { SurveyLoadingStatus } from "./survey-loading";
+import { createInitialSurveyFormState, reduceSurveyFormState } from "./survey-form-state";
 import { SurveySectionFields } from "./survey-question-fields";
 import { useSurveyDraftSession } from "./use-survey-draft-session";
 import { useFeatureFailureAnalytics } from "../use-feature-failure-analytics";
@@ -198,7 +204,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
   );
 }
 
-function SurveyForm({
+export function SurveyForm({
   cancelHref,
   contentVersionId,
   failureAnalytics,
@@ -220,15 +226,20 @@ function SurveyForm({
   sections: readonly SurveySection[];
 }) {
   const totalSteps = sections.length + 1;
-  const [currentStep, setCurrentStep] = useState(1);
-  const isConfirmationStep = currentStep === totalSteps;
-  const [answers, setAnswers] = useState<SurveyAnswerState>(() =>
-    createSurveyAnswerState(sections),
+  const [formState, dispatchForm] = useReducer(
+    reduceSurveyFormState,
+    sections,
+    createInitialSurveyFormState,
   );
-  const [errors, setErrors] = useState<SurveyValidationErrors>({});
-  const [requiredConsentClickedAt, setRequiredConsentClickedAt] = useState<string | null>(null);
-  const [submissionError, setSubmissionError] = useState<string | null>(null);
-  const [validationScrollRequest, setValidationScrollRequest] = useState(0);
+  const {
+    answers,
+    currentStep,
+    errors,
+    requiredConsentClickedAt,
+    submissionError,
+    validationScrollRequest,
+  } = formState;
+  const isConfirmationStep = currentStep === totalSteps;
   const [submissionCoordinator] = useState(() => new SurveySubmissionCoordinator());
   const flowViewportRef = useRef<HTMLDivElement>(null);
   const progressRef = useRef<HTMLElement>(null);
@@ -241,14 +252,19 @@ function SurveyForm({
   const currentStepId = isConfirmationStep
     ? "confirmation"
     : (currentSection?.sectionKey ?? `step-${currentStep}`);
+  const restoreDraft = useCallback(
+    (draft: Readonly<{ answers: typeof answers; currentStep: number }>) => {
+      dispatchForm({ type: "draftRestored", ...draft });
+    },
+    [],
+  );
   const { clearDraft, draftReady, entryType } = useSurveyDraftSession({
     answers,
     contentVersionId,
     currentStep,
+    onDraftRestored: restoreDraft,
     roundId,
     sections,
-    setAnswers,
-    setCurrentStep,
   });
   const { trackStepExited, trackSubmissionAttempted } = useSurveyParticipationAnalytics({
     currentStep,
@@ -261,7 +277,7 @@ function SurveyForm({
   });
   const goToPreviousStep = useCallback(() => {
     trackStepExited("previous");
-    setCurrentStep((step) => Math.max(step - 1, 1));
+    dispatchForm({ type: "previousStepRequested" });
   }, [trackStepExited]);
 
   useEffect(() => {
@@ -334,40 +350,33 @@ function SurveyForm({
   }
 
   function updateAnswer(questionId: string, answer: SurveyAnswerDraft) {
-    setAnswers((current) => ({ ...current, [questionId]: answer }));
-    setSubmissionError(null);
-    setErrors((current) =>
-      Object.fromEntries(
-        Object.entries(current).filter(
-          ([key]) => key !== questionId && !key.startsWith(`${questionId}:`),
-        ),
-      ),
-    );
+    dispatchForm({ type: "answerChanged", answer, questionId });
   }
 
   function goToNextStep() {
     if (!currentSection) return;
     const sectionErrors = validateSurveySection(currentSection, answers);
     if (Object.keys(sectionErrors).length > 0) {
-      setErrors((current) => ({ ...current, ...sectionErrors }));
-      setValidationScrollRequest((request) => request + 1);
+      dispatchForm({ type: "sectionValidationFailed", errors: sectionErrors });
       return;
     }
     trackStepExited("next");
-    setCurrentStep((step) => Math.min(step + 1, totalSteps));
+    dispatchForm({ type: "nextStepRequested", totalSteps });
   }
 
   async function submitSurvey() {
     if (!requiredConsentClickedAt || isSubmitting) return;
     const validationErrors = validateSurvey(sections, answers);
     if (Object.keys(validationErrors).length > 0) {
-      setErrors(validationErrors);
-      setCurrentStep(findFirstInvalidSurveySectionIndex(sections, validationErrors) + 1);
-      setValidationScrollRequest((request) => request + 1);
+      dispatchForm({
+        type: "surveyValidationFailed",
+        currentStep: findFirstInvalidSurveySectionIndex(sections, validationErrors) + 1,
+        errors: validationErrors,
+      });
       return;
     }
 
-    setSubmissionError(null);
+    dispatchForm({ type: "submissionStarted" });
     failureAnalytics.trackRecoveryAttempt("submission", "user_retry");
     trackSubmissionAttempted();
 
@@ -400,7 +409,7 @@ function SurveyForm({
           step: currentStep,
           surface: "participation",
         });
-        setSubmissionError(consentError.message);
+        dispatchForm({ type: "submissionFailed", message: consentError.message });
         if (consentError.newAttempt) submissionCoordinator.reset();
         return;
       }
@@ -420,11 +429,15 @@ function SurveyForm({
         });
       }
       if (Object.keys(apiErrors.fieldErrors).length > 0) {
-        setErrors(apiErrors.fieldErrors);
-        setCurrentStep(findFirstInvalidSurveySectionIndex(sections, apiErrors.fieldErrors) + 1);
-        setValidationScrollRequest((request) => request + 1);
+        dispatchForm({
+          type: "submissionFailedWithFieldErrors",
+          currentStep: findFirstInvalidSurveySectionIndex(sections, apiErrors.fieldErrors) + 1,
+          errors: apiErrors.fieldErrors,
+          message: apiErrors.message,
+        });
+      } else {
+        dispatchForm({ type: "submissionFailed", message: apiErrors.message });
       }
-      setSubmissionError(apiErrors.message);
       if (apiErrors.refresh) onRefresh();
       if (apiErrors.newAttempt) submissionCoordinator.reset();
     }
@@ -444,9 +457,11 @@ function SurveyForm({
   );
 
   function updateRequiredConsent(checked: boolean) {
-    setRequiredConsentClickedAt(checked ? new Date().toISOString() : null);
+    dispatchForm({
+      type: "requiredConsentChanged",
+      clickedAt: checked ? new Date().toISOString() : null,
+    });
     submissionCoordinator.reset();
-    setSubmissionError(null);
   }
 
   return (
