@@ -11,6 +11,7 @@ public record ChatMessagePayload(
         String roomId,
         long roomSequence,
         String senderMembershipId,
+        String senderParticipationId,
         String clientMessageId,
         String content,
         MessageState state,
@@ -25,6 +26,12 @@ public record ChatMessagePayload(
         requireText(messageId, "messageId");
         requireText(roomId, "roomId");
         requireText(senderMembershipId, "senderMembershipId");
+        if (senderParticipationId == null
+                || senderParticipationId.isBlank()) {
+            senderParticipationId =
+                    com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                            senderMembershipId);
+        }
         requireText(clientMessageId, "clientMessageId");
         Objects.requireNonNull(state, "state");
         Objects.requireNonNull(createdAt, "createdAt");
@@ -74,6 +81,7 @@ public record ChatMessagePayload(
             String clientMessageId,
             String content,
             MessageState state,
+            boolean countable,
             long messageVersion,
             Instant createdAt,
             Instant updatedAt,
@@ -84,6 +92,36 @@ public record ChatMessagePayload(
                 roomId,
                 roomSequence,
                 senderMembershipId,
+                null,
+                clientMessageId,
+                content,
+                state,
+                countable,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
+    }
+
+    public ChatMessagePayload(
+            String messageId,
+            String roomId,
+            long roomSequence,
+            String senderMembershipId,
+            String clientMessageId,
+            String content,
+            MessageState state,
+            long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
+    ) {
+        this(
+                messageId,
+                roomId,
+                roomSequence,
+                senderMembershipId,
+                null,
                 clientMessageId,
                 content,
                 state,
@@ -108,6 +146,7 @@ public record ChatMessagePayload(
                 roomId,
                 roomSequence,
                 senderMembershipId,
+                null,
                 clientMessageId,
                 content,
                 MessageState.ACTIVE,
@@ -125,6 +164,7 @@ public record ChatMessagePayload(
                 message.roomId(),
                 message.roomSequence(),
                 message.senderMembershipId(),
+                message.senderParticipationId(),
                 message.clientMessageId(),
                 message.content(),
                 message.state(),

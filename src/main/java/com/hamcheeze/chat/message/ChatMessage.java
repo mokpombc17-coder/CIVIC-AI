@@ -9,6 +9,7 @@ public record ChatMessage(
         long roomSequence,
         String senderUserId,
         String senderMembershipId,
+        String senderParticipationId,
         String clientMessageId,
         String content,
         MessageState state,
@@ -27,6 +28,11 @@ public record ChatMessage(
                 || senderMembershipId.isBlank()) {
             throw new IllegalArgumentException(
                     "senderMembershipId must not be blank");
+        }
+        if (senderParticipationId == null
+                || senderParticipationId.isBlank()) {
+            throw new IllegalArgumentException(
+                    "senderParticipationId must not be blank");
         }
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(state, "state");
@@ -75,6 +81,67 @@ public record ChatMessage(
             long roomSequence,
             String senderUserId,
             String senderMembershipId,
+            String senderParticipationId,
+            String clientMessageId,
+            String content,
+            Instant createdAt
+    ) {
+        this(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                senderMembershipId,
+                senderParticipationId,
+                clientMessageId,
+                content,
+                MessageState.ACTIVE,
+                true,
+                1,
+                createdAt,
+                createdAt,
+                null);
+    }
+
+    public ChatMessage(
+            String messageId,
+            String roomId,
+            long roomSequence,
+            String senderUserId,
+            String senderMembershipId,
+            String clientMessageId,
+            String content,
+            MessageState state,
+            boolean countable,
+            long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
+    ) {
+        this(
+                messageId,
+                roomId,
+                roomSequence,
+                senderUserId,
+                senderMembershipId,
+                com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                        senderMembershipId),
+                clientMessageId,
+                content,
+                state,
+                countable,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
+    }
+
+    public ChatMessage(
+            String messageId,
+            String roomId,
+            long roomSequence,
+            String senderUserId,
+            String senderMembershipId,
             String clientMessageId,
             String content,
             MessageState state,
@@ -89,6 +156,8 @@ public record ChatMessage(
                 roomSequence,
                 senderUserId,
                 senderMembershipId,
+                com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                        senderMembershipId),
                 clientMessageId,
                 content,
                 state,
@@ -115,6 +184,8 @@ public record ChatMessage(
                 roomSequence,
                 senderUserId,
                 senderMembershipId,
+                com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                        senderMembershipId),
                 clientMessageId,
                 content,
                 MessageState.ACTIVE,

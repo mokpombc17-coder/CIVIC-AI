@@ -16,6 +16,7 @@ public record ChatMessageAuditEvent(
         long roomSequence,
         long messageVersion,
         String senderMembershipId,
+        String senderParticipationId,
         String senderUserId,
         String actorUserId,
         ChatMessageAuditActorType actorType,
@@ -32,6 +33,12 @@ public record ChatMessageAuditEvent(
         requireNonBlank(roomId, "roomId");
         requireNonBlank(messageId, "messageId");
         requireNonBlank(senderMembershipId, "senderMembershipId");
+        if (senderParticipationId == null
+                || senderParticipationId.isBlank()) {
+            senderParticipationId =
+                    com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                            senderMembershipId);
+        }
         requireNonBlank(senderUserId, "senderUserId");
         requireNonBlank(actorUserId, "actorUserId");
         Objects.requireNonNull(eventType, "eventType");
@@ -56,6 +63,42 @@ public record ChatMessageAuditEvent(
                     "Room participant audit actor must match message sender");
         }
         validateTransition(eventType, before, after, occurredAt);
+    }
+
+    public ChatMessageAuditEvent(
+            String auditEventId,
+            int schemaVersion,
+            String roomId,
+            long roomChangeSequence,
+            ChatMessageAuditEventType eventType,
+            String messageId,
+            long roomSequence,
+            long messageVersion,
+            String senderMembershipId,
+            String senderUserId,
+            String actorUserId,
+            ChatMessageAuditActorType actorType,
+            Instant occurredAt,
+            ChatMessageAuditSnapshot before,
+            ChatMessageAuditSnapshot after
+    ) {
+        this(
+                auditEventId,
+                schemaVersion,
+                roomId,
+                roomChangeSequence,
+                eventType,
+                messageId,
+                roomSequence,
+                messageVersion,
+                senderMembershipId,
+                null,
+                senderUserId,
+                actorUserId,
+                actorType,
+                occurredAt,
+                before,
+                after);
     }
 
     public static ChatMessageAuditEvent created(
@@ -143,6 +186,7 @@ public record ChatMessageAuditEvent(
                 message.roomSequence(),
                 message.messageVersion(),
                 message.senderMembershipId(),
+                message.senderParticipationId(),
                 message.senderUserId(),
                 actorUserId,
                 actorType,
@@ -213,6 +257,8 @@ public record ChatMessageAuditEvent(
                 || before.roomSequence() != after.roomSequence()
                 || !before.senderMembershipId().equals(
                         after.senderMembershipId())
+                || !before.senderParticipationId().equals(
+                        after.senderParticipationId())
                 || !before.senderUserId().equals(after.senderUserId())) {
             throw new IllegalArgumentException(
                     "Audit transition changed immutable message identity");

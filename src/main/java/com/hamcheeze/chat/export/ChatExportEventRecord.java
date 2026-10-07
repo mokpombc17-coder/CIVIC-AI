@@ -18,6 +18,7 @@ public record ChatExportEventRecord(
         long roomSequence,
         long messageVersion,
         String senderMembershipId,
+        String senderParticipationId,
         String senderUserId,
         String actorUserId,
         ChatMessageAuditActorType actorType,
@@ -28,7 +29,7 @@ public record ChatExportEventRecord(
 
     public static ChatExportEventRecord from(ChatMessageAuditEvent event) {
         return new ChatExportEventRecord(
-                1,
+                2,
                 event.auditEventId(),
                 event.schemaVersion(),
                 event.roomId(),
@@ -38,6 +39,7 @@ public record ChatExportEventRecord(
                 event.roomSequence(),
                 event.messageVersion(),
                 event.senderMembershipId(),
+                event.senderParticipationId(),
                 event.senderUserId(),
                 event.actorUserId(),
                 event.actorType(),

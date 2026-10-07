@@ -9,10 +9,13 @@ import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.OwnershipTransferTransition;
+import com.hamcheeze.chat.room.ParticipationEndReason;
 import com.hamcheeze.chat.room.Room;
 import com.hamcheeze.chat.room.RoomDomainErrorCode;
 import com.hamcheeze.chat.room.RoomDomainException;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
+import com.hamcheeze.chat.room.RoomParticipation;
+import com.hamcheeze.chat.room.RoomParticipationIds;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomSettingsUpdateOutcome;
 import com.hamcheeze.chat.room.RoomSettingsUpdateTransition;
@@ -37,6 +40,7 @@ import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionExcep
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.application.transaction.RoomOptimisticConflictException;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 
@@ -50,6 +54,8 @@ public final class RoomCommandService {
 
     private final RoomStore roomStore;
     private final MembershipStore membershipStore;
+    private final RoomParticipationStore participationStore;
+    private final boolean participationEnabled;
     private final RoomMessageBoundaryPort messageBoundaryPort;
     private final IdempotentRoomCommandExecutor executor;
     private final RoomCommandFingerprintFactory fingerprintFactory;
@@ -66,6 +72,8 @@ public final class RoomCommandService {
     public RoomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            RoomParticipationProperties participationProperties,
             RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
@@ -82,6 +90,10 @@ public final class RoomCommandService {
         this.membershipStore = Objects.requireNonNull(
                 membershipStore,
                 "membershipStore");
+        this.participationStore = participationStore;
+        this.participationEnabled = Objects.requireNonNull(
+                participationProperties,
+                "participationProperties").enabled();
         this.messageBoundaryPort = Objects.requireNonNull(
                 messageBoundaryPort,
                 "messageBoundaryPort");
@@ -109,6 +121,39 @@ public final class RoomCommandService {
         this.postCommitCoordinator = Objects.requireNonNull(
                 postCommitCoordinator,
                 "postCommitCoordinator");
+    }
+
+    public RoomCommandService(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            RoomMessageBoundaryPort messageBoundaryPort,
+            IdempotentRoomCommandExecutor executor,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCommandIdGenerator idGenerator,
+            ApprovedRoomCreator approvedRoomCreator,
+            Clock clock,
+            RoomCommandProperties properties,
+            RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
+            RoomCommandPostCommitCoordinator postCommitCoordinator
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                null,
+                new RoomParticipationProperties(),
+                messageBoundaryPort,
+                executor,
+                fingerprintFactory,
+                idGenerator,
+                approvedRoomCreator,
+                clock,
+                properties,
+                membershipProperties,
+                membershipQuotaGuard,
+                membershipQuotaMetrics,
+                postCommitCoordinator);
     }
 
     public RoomCommandExecution createRoom(
@@ -374,17 +419,27 @@ public final class RoomCommandService {
                         candidateMembershipId,
                         command.requesterUserId(),
                         transitionTime,
-                        messageVisibleAfterSequence);
+                        messageVisibleAfterSequence,
+                        participationEnabled);
         if (transition.outcome()
                 == JoinRoomTransition.Outcome.JOINED) {
             replaceRoom(transition.room(), room.version());
             membershipStore.insert(transition.membership());
+            insertNormalParticipation(
+                    candidateMembershipId,
+                    transition.membership());
         } else if (transition.outcome()
                 == JoinRoomTransition.Outcome.REJOINED) {
+            materializeLegacyEndedParticipation(existing);
             replaceRoom(transition.room(), room.version());
             replaceMembership(
                     transition.membership(),
                     existing.version());
+            insertNormalParticipation(
+                    candidateMembershipId,
+                    transition.membership());
+        } else {
+            materializeLegacyActiveParticipation(existing);
         }
         return RoomCommandResult.membership(
                 command.commandType(),
@@ -452,10 +507,21 @@ public final class RoomCommandService {
                         transitionTime);
         if (transition.outcome()
                 == LeaveRoomTransition.Outcome.LEFT) {
+            Long endedAfterMessageSequence = participationEnabled
+                    ? messageBoundaryPort.captureCurrentSequence(
+                            room.roomId())
+                    : null;
             replaceRoom(transition.room(), room.version());
             replaceMembership(
                     transition.membership(),
                     membership.version());
+            if (endedAfterMessageSequence != null) {
+                endParticipation(
+                        membership,
+                        transitionTime,
+                        endedAfterMessageSequence,
+                        ParticipationEndReason.LEFT);
+            }
         }
         return RoomCommandResult.membership(
                 command.commandType(),
@@ -549,10 +615,23 @@ public final class RoomCommandService {
                         transitionTime);
         if (transition.outcome()
                 == BanMemberTransition.Outcome.BANNED) {
+            Long endedAfterMessageSequence =
+                    participationEnabled
+                            && target.status() == MembershipStatus.ACTIVE
+                            ? messageBoundaryPort.captureCurrentSequence(
+                                    room.roomId())
+                            : null;
             replaceRoom(transition.room(), room.version());
             replaceMembership(
                     transition.membership(),
                     target.version());
+            if (endedAfterMessageSequence != null) {
+                endParticipation(
+                        target,
+                        transitionTime,
+                        endedAfterMessageSequence,
+                        ParticipationEndReason.BANNED);
+            }
         }
         return RoomCommandResult.targetMembership(
                 command.commandType(),
@@ -633,10 +712,21 @@ public final class RoomCommandService {
                         transitionTime);
         if (transition.outcome()
                 == CloseRoomTransition.Outcome.CLOSED) {
+            Long endedAfterMessageSequence = participationEnabled
+                    ? messageBoundaryPort.captureCurrentSequence(
+                            room.roomId())
+                    : null;
             replaceRoom(transition.room(), room.version());
             replaceMembership(
                     transition.ownerMembership(),
                     owner.version());
+            if (endedAfterMessageSequence != null) {
+                endParticipation(
+                        owner,
+                        transitionTime,
+                        endedAfterMessageSequence,
+                        ParticipationEndReason.ROOM_CLOSED);
+            }
         }
         return RoomCommandResult.closed(
                 RoomCommandResultCode.valueOf(
@@ -674,6 +764,10 @@ public final class RoomCommandService {
                                 transitionTime);
         if (transition.outcome()
                 == AdministrativeCloseRoomTransition.Outcome.CLOSED) {
+            Long endedAfterMessageSequence = participationEnabled
+                    ? messageBoundaryPort.captureCurrentSequence(
+                            room.roomId())
+                    : null;
             replaceRoom(transition.room(), room.version());
             for (int index = 0;
                     index < transition.closedMemberships().size();
@@ -681,6 +775,13 @@ public final class RoomCommandService {
                 replaceMembership(
                         transition.closedMemberships().get(index),
                         activeMemberships.get(index).version());
+                if (endedAfterMessageSequence != null) {
+                    endParticipation(
+                            activeMemberships.get(index),
+                            transitionTime,
+                            endedAfterMessageSequence,
+                            ParticipationEndReason.ROOM_CLOSED);
+                }
             }
         }
         return RoomCommandResult.closed(
@@ -826,6 +927,78 @@ public final class RoomCommandService {
             throw new RoomOptimisticConflictException(
                     "Membership version changed: "
                             + membership.membershipId());
+        }
+    }
+
+    private void insertNormalParticipation(
+            String candidateMembershipId,
+            Membership membership
+    ) {
+        if (!participationEnabled || participationStore == null) {
+            return;
+        }
+        participationStore.insert(RoomParticipation.normal(
+                RoomParticipationIds.normal(candidateMembershipId),
+                membership));
+    }
+
+    private void materializeLegacyActiveParticipation(
+            Membership membership
+    ) {
+        if (!participationEnabled || participationStore == null
+                || participationStore.findActiveByMembershipId(
+                        membership.membershipId()).isPresent()) {
+            return;
+        }
+        participationStore.insert(
+                RoomParticipation.legacyActive(membership));
+    }
+
+    private void materializeLegacyEndedParticipation(
+            Membership membership
+    ) {
+        if (!participationEnabled || participationStore == null) {
+            return;
+        }
+        if (!participationStore.existsByMembershipId(
+                membership.membershipId())) {
+            participationStore.insert(
+                    RoomParticipation.legacyEnded(membership));
+        }
+    }
+
+    private void endParticipation(
+            Membership membership,
+            Instant endedAt,
+            long endedAfterMessageSequence,
+            ParticipationEndReason reason
+    ) {
+        if (!participationEnabled || participationStore == null) {
+            return;
+        }
+        RoomParticipation active = participationStore
+                .findActiveByMembershipId(membership.membershipId())
+                .orElse(null);
+        if (active == null) {
+            RoomParticipation ended = RoomParticipation
+                    .legacyActive(membership)
+                    .end(
+                            endedAt,
+                            endedAfterMessageSequence,
+                            reason);
+            participationStore.insert(ended);
+            return;
+        }
+        RoomParticipation ended = active.end(
+                endedAt,
+                endedAfterMessageSequence,
+                reason);
+        if (!participationStore.replaceIfVersionMatches(
+                ended,
+                active.version())) {
+            throw new RoomOptimisticConflictException(
+                    "Participation version changed: "
+                            + active.participationId());
         }
     }
 

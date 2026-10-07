@@ -25,6 +25,7 @@ public record ClaimedChatMessageOutboxEvent(
             String roomId,
             Long roomSequence,
             String senderMembershipId,
+            String senderParticipationId,
             String clientMessageId,
             String content,
             MessageState state,
@@ -34,6 +35,35 @@ public record ClaimedChatMessageOutboxEvent(
             Instant updatedAt,
             Instant deletedAt
     ) {
+        public Payload(
+                String messageId,
+                String roomId,
+                Long roomSequence,
+                String senderMembershipId,
+                String clientMessageId,
+                String content,
+                MessageState state,
+                Boolean countable,
+                Long messageVersion,
+                Instant createdAt,
+                Instant updatedAt,
+                Instant deletedAt
+        ) {
+            this(
+                    messageId,
+                    roomId,
+                    roomSequence,
+                    senderMembershipId,
+                    null,
+                    clientMessageId,
+                    content,
+                    state,
+                    countable,
+                    messageVersion,
+                    createdAt,
+                    updatedAt,
+                    deletedAt);
+        }
     }
 
     public ChatMessageEventEnvelope decodeEnvelope() {
@@ -72,6 +102,7 @@ public record ClaimedChatMessageOutboxEvent(
                 payload.roomId(),
                 payload.roomSequence(),
                 payload.senderMembershipId(),
+                payload.senderParticipationId(),
                 payload.clientMessageId(),
                 payload.content(),
                 payload.state(),

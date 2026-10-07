@@ -50,8 +50,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-@SpringBootTest(properties =
-        "chat.room.creation.mode=DIRECT")
+@SpringBootTest(properties = "chat.room.creation.mode=DIRECT")
 @AutoConfigureMockMvc
 @ActiveProfiles("local")
 class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
@@ -1446,6 +1445,77 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 jwt.subject("user-2"))))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value("ACCESS_DENIED"));
+    }
+
+    @Test
+    void participationHistorySeparatesRejoinedAnonymousIdentities()
+            throws Exception {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+        String membershipId = commandService.joinRoom(
+                        new JoinRoomCommand(
+                                "user-2",
+                                requestId(),
+                                roomId))
+                .result()
+                .membershipId();
+        commandService.leaveRoom(new LeaveRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        commandService.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/participations",
+                                roomId)
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("owner-1"))))
+                .andExpect(status().isOk())
+                .andExpect(header().string(
+                        "Cache-Control",
+                        org.hamcrest.Matchers.containsString(
+                                "no-store")))
+                .andExpect(header().string(
+                        "Cache-Control",
+                        org.hamcrest.Matchers.containsString(
+                                "private")))
+                .andExpect(jsonPath("$.items.length()").value(3))
+                .andExpect(jsonPath(
+                                "$.items[?(@.membershipId == '%s')]"
+                                        + ".status",
+                                membershipId)
+                        .value(containsInAnyOrder(
+                                "ENDED",
+                                "ACTIVE")))
+                .andExpect(jsonPath(
+                                "$.items[?(@.membershipId == '%s')]"
+                                        + ".displayName",
+                                membershipId)
+                        .value(containsInAnyOrder(
+                                "참여자 2",
+                                "참여자 3")));
+    }
+
+    @Test
+    void participationHistorySynthesizesLegacyMemberships()
+            throws Exception {
+        seedActiveRoom("legacy-room", "legacy-owner");
+
+        mockMvc.perform(get(
+                                "/api/v1/rooms/{roomId}/participations",
+                                "legacy-room")
+                        .with(jwt().jwt(jwt ->
+                                jwt.subject("legacy-owner"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.items.length()").value(1))
+                .andExpect(jsonPath("$.items[0].origin")
+                        .value("LEGACY"))
+                .andExpect(jsonPath("$.items[0].status")
+                        .value("ACTIVE"))
+                .andExpect(jsonPath("$.items[0].participationId")
+                        .value("legacy_membership-legacy-room-legacy-owner"));
     }
 
     private String createRoom(

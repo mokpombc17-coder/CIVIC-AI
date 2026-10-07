@@ -11,6 +11,7 @@ import com.hamcheeze.chat.room.creation.mongo.MongoRoomCreationRequestDocument;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomParticipationDocument;
 import com.hamcheeze.chat.room.mongo.MongoUserActiveRoomQuotaLockDocument;
 import com.hamcheeze.chat.room.inbox.mongo.MongoRoomReadStateDocument;
 import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummaryDocument;
@@ -59,6 +60,9 @@ public abstract class MongoRuntimeIntegrationTest {
         mongoOperations.remove(
                 new Query(),
                 MongoMembershipDocument.COLLECTION_NAME);
+        mongoOperations.remove(
+                new Query(),
+                MongoRoomParticipationDocument.COLLECTION_NAME);
         mongoOperations.remove(
                 new Query(),
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME);

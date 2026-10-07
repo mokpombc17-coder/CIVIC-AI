@@ -4,6 +4,7 @@ import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomParticipationIds;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.event.RoomClosedEventPayload;
@@ -19,6 +20,7 @@ import com.hamcheeze.chat.room.event.RoomOwnershipTransferredEventPayload;
 import com.hamcheeze.chat.room.event.RoomSettingsUpdatedEventPayload;
 import com.hamcheeze.chat.room.label.RoomMemberUserLabelResolver;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 
 import java.time.Instant;
@@ -26,26 +28,60 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.function.BiFunction;
+import java.util.function.Function;
 
 public final class RoomCommandEventMapper {
 
     private final BiFunction<String, String, String> userLabels;
+    private final Function<String, String> participationIds;
+
+    public RoomCommandEventMapper(
+            MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            UserLabelDirectory userLabelDirectory
+    ) {
+        this(
+                resolver(
+                        membershipStore,
+                        new RoomMemberUserLabelResolver(
+                                userLabelDirectory)),
+                membershipId -> participationStore
+                        .findLatestByMembershipId(membershipId)
+                        .map(participation ->
+                                participation.participationId())
+                        .orElseGet(() ->
+                                RoomParticipationIds.legacy(
+                                        membershipId)));
+    }
 
     public RoomCommandEventMapper(
             MembershipStore membershipStore,
             UserLabelDirectory userLabelDirectory
     ) {
-        this(resolver(
-                membershipStore,
-                new RoomMemberUserLabelResolver(userLabelDirectory)));
+        this(
+                resolver(
+                        membershipStore,
+                        new RoomMemberUserLabelResolver(
+                                userLabelDirectory)),
+                RoomParticipationIds::legacy);
     }
 
     RoomCommandEventMapper(
             BiFunction<String, String, String> userLabels
     ) {
+        this(userLabels, RoomParticipationIds::legacy);
+    }
+
+    private RoomCommandEventMapper(
+            BiFunction<String, String, String> userLabels,
+            Function<String, String> participationIds
+    ) {
         this.userLabels = Objects.requireNonNull(
                 userLabels,
                 "userLabels");
+        this.participationIds = Objects.requireNonNull(
+                participationIds,
+                "participationIds");
     }
 
     static RoomCommandEventMapper disabled() {
@@ -130,6 +166,8 @@ public final class RoomCommandEventMapper {
                     RoomStatus.ACTIVE,
                     new RoomMemberState(
                             result.ownerMembershipId(),
+                            participationId(
+                                    result.ownerMembershipId()),
                             MembershipRole.OWNER,
                             MembershipStatus.ACTIVE,
                             result.ownerMembershipVersion()));
@@ -160,11 +198,15 @@ public final class RoomCommandEventMapper {
                             RoomStatus.ACTIVE,
                             new RoomMemberState(
                                     result.previousOwnerMembershipId(),
+                                    participationId(
+                                            result.previousOwnerMembershipId()),
                                     MembershipRole.MEMBER,
                                     MembershipStatus.ACTIVE,
                                     result.previousOwnerMembershipVersion()),
                             new RoomMemberState(
                                     result.newOwnerMembershipId(),
+                                    participationId(
+                                            result.newOwnerMembershipId()),
                                     MembershipRole.OWNER,
                                     MembershipStatus.ACTIVE,
                                     result.newOwnerMembershipVersion()));
@@ -174,6 +216,8 @@ public final class RoomCommandEventMapper {
                     RoomStatus.CLOSED,
                     new RoomMemberState(
                             result.ownerMembershipId(),
+                            participationId(
+                                    result.ownerMembershipId()),
                             MembershipRole.OWNER,
                             MembershipStatus.LEFT,
                             result.ownerMembershipVersion()));
@@ -205,10 +249,15 @@ public final class RoomCommandEventMapper {
                 RoomStatus.ACTIVE,
                 new RoomMemberChangedState(
                         membershipId,
+                        participationId(membershipId),
                         userLabels.apply(result.roomId(), membershipId),
                         MembershipRole.MEMBER,
                         membershipStatus,
                         membershipVersion));
+    }
+
+    private String participationId(String membershipId) {
+        return participationIds.apply(membershipId);
     }
 
     private static BiFunction<String, String, String> resolver(

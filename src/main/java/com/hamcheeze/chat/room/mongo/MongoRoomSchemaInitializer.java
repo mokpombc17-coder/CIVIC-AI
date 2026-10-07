@@ -29,6 +29,10 @@ public final class MongoRoomSchemaInitializer {
             "ix_chat_room_category_cursor";
     public static final String MEMBERSHIP_OWNER_INDEX_NAME =
             "uk_chat_membership_room_owner";
+    public static final String PARTICIPATION_ACTIVE_MEMBERSHIP_INDEX_NAME =
+            "uk_chat_participation_active_membership";
+    public static final String PARTICIPATION_ROOM_HISTORY_INDEX_NAME =
+            "ix_chat_participation_room_history";
     public static final String RECEIPT_REQUEST_INDEX_NAME =
             "uk_chat_room_command_receipt_requester_request";
     public static final String RECEIPT_TTL_INDEX_NAME =
@@ -47,6 +51,8 @@ public final class MongoRoomSchemaInitializer {
     public void initialize() {
         ensureCollection(MongoRoomDocument.COLLECTION_NAME);
         ensureCollection(MongoMembershipDocument.COLLECTION_NAME);
+        ensureCollection(
+                MongoRoomParticipationDocument.COLLECTION_NAME);
         ensureCollection(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME);
         ensureCollection(
@@ -111,6 +117,28 @@ public final class MongoRoomSchemaInitializer {
                                 new Document(
                                         "role",
                                         "OWNER"))));
+
+        mongoOperations
+                .indexOps(
+                        MongoRoomParticipationDocument.COLLECTION_NAME)
+                .createIndex(new Index()
+                        .on("membershipId", Sort.Direction.ASC)
+                        .named(
+                                PARTICIPATION_ACTIVE_MEMBERSHIP_INDEX_NAME)
+                        .unique()
+                        .partial(PartialIndexFilter.of(
+                                new Document(
+                                        "status",
+                                        "ACTIVE"))));
+        mongoOperations
+                .indexOps(
+                        MongoRoomParticipationDocument.COLLECTION_NAME)
+                .createIndex(new Index()
+                        .on("roomId", Sort.Direction.ASC)
+                        .on("joinedAt", Sort.Direction.ASC)
+                        .on("_id", Sort.Direction.ASC)
+                        .named(
+                                PARTICIPATION_ROOM_HISTORY_INDEX_NAME));
 
         mongoOperations
                 .indexOps(

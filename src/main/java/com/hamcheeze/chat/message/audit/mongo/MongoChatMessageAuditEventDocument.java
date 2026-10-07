@@ -21,6 +21,7 @@ public record MongoChatMessageAuditEventDocument(
         long roomSequence,
         long messageVersion,
         String senderMembershipId,
+        String senderParticipationId,
         String senderUserId,
         String actorUserId,
         ChatMessageAuditActorType actorType,
@@ -43,12 +44,49 @@ public record MongoChatMessageAuditEventDocument(
                 roomSequence,
                 messageVersion,
                 senderMembershipId,
+                senderParticipationId,
                 senderUserId,
                 actorUserId,
                 actorType,
                 occurredAt,
                 before == null ? null : before.toDomain(),
                 after == null ? null : after.toDomain());
+    }
+
+    public MongoChatMessageAuditEventDocument(
+            String auditEventId,
+            int schemaVersion,
+            String roomId,
+            long roomChangeSequence,
+            ChatMessageAuditEventType eventType,
+            String messageId,
+            long roomSequence,
+            long messageVersion,
+            String senderMembershipId,
+            String senderUserId,
+            String actorUserId,
+            ChatMessageAuditActorType actorType,
+            Instant occurredAt,
+            MongoChatMessageAuditSnapshotDocument before,
+            MongoChatMessageAuditSnapshotDocument after
+    ) {
+        this(
+                auditEventId,
+                schemaVersion,
+                roomId,
+                roomChangeSequence,
+                eventType,
+                messageId,
+                roomSequence,
+                messageVersion,
+                senderMembershipId,
+                null,
+                senderUserId,
+                actorUserId,
+                actorType,
+                occurredAt,
+                before,
+                after);
     }
 
     static MongoChatMessageAuditEventDocument fromDomain(
@@ -64,6 +102,7 @@ public record MongoChatMessageAuditEventDocument(
                 event.roomSequence(),
                 event.messageVersion(),
                 event.senderMembershipId(),
+                event.senderParticipationId(),
                 event.senderUserId(),
                 event.actorUserId(),
                 event.actorType(),
@@ -85,6 +124,7 @@ public record MongoChatMessageAuditEventDocument(
                 roomSequence,
                 messageVersion,
                 senderMembershipId,
+                senderParticipationId,
                 senderUserId,
                 actorUserId,
                 actorType,

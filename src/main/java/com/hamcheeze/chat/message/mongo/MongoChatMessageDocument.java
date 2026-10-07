@@ -19,6 +19,7 @@ public record MongoChatMessageDocument(
         long roomSequence,
         String senderUserId,
         String senderMembershipId,
+        String senderParticipationId,
         String clientMessageId,
         String content,
         String retainedContent,
@@ -42,6 +43,12 @@ public record MongoChatMessageDocument(
         Objects.requireNonNull(
                 senderMembershipId,
                 "senderMembershipId");
+        if (senderParticipationId == null
+                || senderParticipationId.isBlank()) {
+            senderParticipationId =
+                    com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                            senderMembershipId);
+        }
         Objects.requireNonNull(clientMessageId, "clientMessageId");
         Objects.requireNonNull(createdAt, "createdAt");
         if (roomSequence < 1) {
@@ -64,6 +71,7 @@ public record MongoChatMessageDocument(
                 roomSequence,
                 senderUserId,
                 senderMembershipId,
+                senderParticipationId,
                 clientMessageId,
                 content,
                 state,
@@ -93,6 +101,44 @@ public record MongoChatMessageDocument(
             String senderMembershipId,
             String clientMessageId,
             String content,
+            String retainedContent,
+            String creationContentFingerprint,
+            MessageState state,
+            Boolean countable,
+            Long messageVersion,
+            Instant createdAt,
+            Instant updatedAt,
+            Instant deletedAt
+    ) {
+        this(
+                messageId,
+                schemaVersion,
+                roomId,
+                roomSequence,
+                senderUserId,
+                senderMembershipId,
+                null,
+                clientMessageId,
+                content,
+                retainedContent,
+                creationContentFingerprint,
+                state,
+                countable,
+                messageVersion,
+                createdAt,
+                updatedAt,
+                deletedAt);
+    }
+
+    public MongoChatMessageDocument(
+            String messageId,
+            int schemaVersion,
+            String roomId,
+            long roomSequence,
+            String senderUserId,
+            String senderMembershipId,
+            String clientMessageId,
+            String content,
             Instant createdAt
     ) {
         this(
@@ -102,6 +148,7 @@ public record MongoChatMessageDocument(
                 roomSequence,
                 senderUserId,
                 senderMembershipId,
+                null,
                 clientMessageId,
                 content,
                 null,
@@ -129,6 +176,7 @@ public record MongoChatMessageDocument(
                 roomSequence,
                 senderUserId,
                 senderMembershipId,
+                senderParticipationId,
                 clientMessageId,
                 content,
                 state,
@@ -158,6 +206,7 @@ public record MongoChatMessageDocument(
                 message.roomSequence(),
                 message.senderUserId(),
                 message.senderMembershipId(),
+                message.senderParticipationId(),
                 message.clientMessageId(),
                 message.content(),
                 null,
@@ -191,6 +240,7 @@ public record MongoChatMessageDocument(
                 message.roomSequence(),
                 message.senderUserId(),
                 message.senderMembershipId(),
+                message.senderParticipationId(),
                 message.clientMessageId(),
                 message.content(),
                 retainedContent,

@@ -4,6 +4,8 @@ import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.application.RoomMessageSendAuthorization;
 import com.hamcheeze.chat.metrics.BestEffortMetricRecorder;
+import com.hamcheeze.chat.room.RoomParticipationIds;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -24,14 +26,17 @@ public final class MembershipRoomAuthorizationService
             "room.authorization.decisions";
 
     private final RoomAccessReader accessReader;
+    private final RoomParticipationStore participationStore;
     private final Map<Operation, Map<RoomAuthorizationDecision, Counter>>
             counters = new EnumMap<>(Operation.class);
 
     public MembershipRoomAuthorizationService(
             RoomAccessReader accessReader,
+            RoomParticipationStore participationStore,
             MeterRegistry meterRegistry
     ) {
         this.accessReader = accessReader;
+        this.participationStore = participationStore;
         for (Operation operation : Operation.values()) {
             Map<RoomAuthorizationDecision, Counter> decisions =
                     new EnumMap<>(RoomAuthorizationDecision.class);
@@ -47,6 +52,13 @@ public final class MembershipRoomAuthorizationService
             }
             counters.put(operation, decisions);
         }
+    }
+
+    public MembershipRoomAuthorizationService(
+            RoomAccessReader accessReader,
+            MeterRegistry meterRegistry
+    ) {
+        this(accessReader, null, meterRegistry);
     }
 
     @Override
@@ -71,8 +83,17 @@ public final class MembershipRoomAuthorizationService
                     outcome.decision());
         }
         RoomAccessSnapshot snapshot = outcome.snapshot();
+        String participationId = participationStore == null
+                ? RoomParticipationIds.legacy(snapshot.membershipId())
+                : participationStore.findActiveByMembershipId(
+                                snapshot.membershipId())
+                        .map(participation ->
+                                participation.participationId())
+                        .orElseGet(() -> RoomParticipationIds.legacy(
+                                snapshot.membershipId()));
         return RoomMessageSendAuthorization.allowed(
                 snapshot.membershipId(),
+                participationId,
                 snapshot.membershipVersion(),
                 snapshot.messageVisibleAfterSequence());
     }

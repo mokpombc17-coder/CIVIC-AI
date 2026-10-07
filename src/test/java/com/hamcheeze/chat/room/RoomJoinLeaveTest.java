@@ -85,7 +85,7 @@ class RoomJoinLeaveTest {
     }
 
     @Test
-    void rejoinsLeftMemberAndResetsMembershipTimes() {
+    void rejoinsLeftMemberWithANewAnonymousIdentity() {
         Room room = activeRoom(1, 2, JoinPolicy.OPEN, 8);
         Membership left = leftMember("user-2", 5);
 
@@ -102,7 +102,7 @@ class RoomJoinLeaveTest {
                 .isEqualTo(JoinRoomTransition.Outcome.REJOINED);
         assertThat(result.membershipCreated()).isFalse();
         assertThat(result.room().activeMemberCount()).isEqualTo(2);
-        assertThat(result.room().nextParticipantNumber()).isEqualTo(8);
+        assertThat(result.room().nextParticipantNumber()).isEqualTo(9);
         assertThat(result.room().version()).isEqualTo(3);
         assertThat(result.membership().status())
                 .isEqualTo(MembershipStatus.ACTIVE);
@@ -112,15 +112,15 @@ class RoomJoinLeaveTest {
         assertThat(result.membership().bannedAt()).isNull();
         assertThat(result.membership().messageVisibleAfterSequence())
                 .isEqualTo(200);
-        assertThat(result.membership().version()).isEqualTo(6);
-        assertThat(result.membership().profile())
-                .isSameAs(left.profile());
         assertThat(result.membership().profile().participantNumber())
-                .isEqualTo(2);
+                .isEqualTo(8);
+        assertThat(result.membership().profile())
+                .isNotEqualTo(left.profile());
+        assertThat(result.membership().version()).isEqualTo(6);
     }
 
     @Test
-    void assignsMonotonicNumbersOnlyToNewMemberships() {
+    void assignsMonotonicNumbersToNewParticipations() {
         Room room = activeRoom(1, 0, JoinPolicy.OPEN, 2);
 
         JoinRoomTransition second =

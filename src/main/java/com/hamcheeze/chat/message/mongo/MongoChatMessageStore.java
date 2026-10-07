@@ -407,6 +407,7 @@ public final class MongoChatMessageStore implements ChatMessageStore {
                         roomSequence,
                         newMessage.senderUserId(),
                         newMessage.senderMembershipId(),
+                        newMessage.senderParticipationId(),
                         newMessage.clientMessageId(),
                         newMessage.content(),
                         null,

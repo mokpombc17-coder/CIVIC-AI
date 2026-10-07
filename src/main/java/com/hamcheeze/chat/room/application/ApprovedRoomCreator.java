@@ -2,8 +2,11 @@ package com.hamcheeze.chat.room.application;
 
 import com.hamcheeze.chat.room.RoomCreationResult;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
+import com.hamcheeze.chat.room.RoomParticipation;
+import com.hamcheeze.chat.room.RoomParticipationIds;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
@@ -13,6 +16,8 @@ public final class ApprovedRoomCreator {
 
     private final RoomStore roomStore;
     private final MembershipStore membershipStore;
+    private final RoomParticipationStore participationStore;
+    private final boolean participationEnabled;
     private final RoomMembershipProperties membershipProperties;
     private final ActiveRoomMembershipQuotaGuard membershipQuotaGuard;
     private final ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics;
@@ -20,6 +25,8 @@ public final class ApprovedRoomCreator {
     public ApprovedRoomCreator(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            RoomParticipationProperties participationProperties,
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
             ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics
@@ -30,6 +37,10 @@ public final class ApprovedRoomCreator {
         this.membershipStore = Objects.requireNonNull(
                 membershipStore,
                 "membershipStore");
+        this.participationStore = participationStore;
+        this.participationEnabled = Objects.requireNonNull(
+                participationProperties,
+                "participationProperties").enabled();
         this.membershipProperties = Objects.requireNonNull(
                 membershipProperties,
                 "membershipProperties");
@@ -39,6 +50,23 @@ public final class ApprovedRoomCreator {
         this.membershipQuotaMetrics = Objects.requireNonNull(
                 membershipQuotaMetrics,
                 "membershipQuotaMetrics");
+    }
+
+    public ApprovedRoomCreator(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                null,
+                new RoomParticipationProperties(),
+                membershipProperties,
+                membershipQuotaGuard,
+                membershipQuotaMetrics);
     }
 
     public ApprovedRoomCreationResult create(
@@ -65,6 +93,12 @@ public final class ApprovedRoomCreator {
                         creation.createdAt());
         roomStore.insert(result.room());
         membershipStore.insert(result.ownerMembership());
+        if (participationEnabled && participationStore != null) {
+            participationStore.insert(RoomParticipation.normal(
+                    RoomParticipationIds.normal(
+                            result.ownerMembership().membershipId()),
+                    result.ownerMembership()));
+        }
         return ApprovedRoomCreationResult.created(result);
     }
 

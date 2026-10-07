@@ -220,6 +220,27 @@ public final class Room {
                     RoomDomainErrorCode
                             .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
         }
+        if (nextParticipantNumber == Long.MAX_VALUE) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode
+                            .PARTICIPANT_NUMBER_INVARIANT_VIOLATION);
+        }
+        return copy(
+                ownerMembershipId,
+                ownerUserId,
+                status,
+                activeMemberCount + 1,
+                nextParticipantNumber + 1,
+                closedAt,
+                RoomDomainValidation.nextVersion(version));
+    }
+
+    Room memberRejoinedWithoutNewIdentity() {
+        if (activeMemberCount == Integer.MAX_VALUE) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode
+                            .ACTIVE_MEMBER_COUNT_INVARIANT_VIOLATION);
+        }
         return copy(
                 ownerMembershipId,
                 ownerUserId,

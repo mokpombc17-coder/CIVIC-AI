@@ -9,7 +9,9 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipRole;
 import com.hamcheeze.chat.room.MembershipStatus;
+import com.hamcheeze.chat.room.ParticipationStatus;
 import com.hamcheeze.chat.room.Room;
+import com.hamcheeze.chat.room.RoomParticipation;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
@@ -32,8 +34,10 @@ import com.hamcheeze.chat.room.inbox.RoomReadStateStore;
 import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
+import com.hamcheeze.chat.room.mongo.MongoRoomParticipationDocument;
 import com.hamcheeze.chat.room.mongo.MongoUserActiveRoomQuotaLockDocument;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
 import org.junit.jupiter.api.Test;
@@ -94,6 +98,9 @@ class RoomCommandServiceIntegrationTest
     @Autowired
     private RoomReadPositionResolver readPositionResolver;
 
+    @Autowired
+    private RoomParticipationStore participationStore;
+
     @MockitoSpyBean
     private MembershipStore membershipStore;
 
@@ -121,9 +128,62 @@ class RoomCommandServiceIntegrationTest
         assertThat(count(MongoMembershipDocument.COLLECTION_NAME))
                 .isEqualTo(1);
         assertThat(count(
+                MongoRoomParticipationDocument.COLLECTION_NAME))
+                .isEqualTo(1);
+        assertThat(count(
                 MongoRoomCommandReceiptDocument.COLLECTION_NAME))
                 .isEqualTo(1);
         assertRoomInvariants(first.result().roomId());
+    }
+
+    @Test
+    void rejoinCreatesANewParticipationAndKeepsTheEndedHistory() {
+        String roomId = createRoom("owner-1", JoinPolicy.OPEN);
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        Membership firstMembership = membership(roomId, "user-2");
+        RoomParticipation first = participationStore
+                .findActiveByMembershipId(
+                        firstMembership.membershipId())
+                .orElseThrow();
+
+        service.leaveRoom(new LeaveRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+        service.joinRoom(new JoinRoomCommand(
+                "user-2",
+                requestId(),
+                roomId));
+
+        Membership rejoinedMembership = membership(roomId, "user-2");
+        RoomParticipation second = participationStore
+                .findActiveByMembershipId(
+                        rejoinedMembership.membershipId())
+                .orElseThrow();
+        List<RoomParticipation> history = participationStore
+                .findByRoomId(roomId)
+                .stream()
+                .filter(participation -> participation.membershipId()
+                        .equals(firstMembership.membershipId()))
+                .toList();
+
+        assertThat(rejoinedMembership.membershipId())
+                .isEqualTo(firstMembership.membershipId());
+        assertThat(second.participationId())
+                .isNotEqualTo(first.participationId());
+        assertThat(second.profile().participantNumber())
+                .isGreaterThan(first.profile().participantNumber());
+        assertThat(history).hasSize(2);
+        assertThat(history)
+                .extracting(RoomParticipation::status)
+                .containsExactly(
+                        ParticipationStatus.ENDED,
+                        ParticipationStatus.ACTIVE);
+        assertThat(history.getFirst().endedAfterMessageSequence())
+                .isEqualTo(0);
     }
 
     @Test
@@ -607,12 +667,12 @@ class RoomCommandServiceIntegrationTest
         assertThat(afterReplay).isEqualTo(beforeReplay);
         assertThat(roomAfterReplay).isEqualTo(roomBeforeReplay);
         assertThat(revisionAfterReplay)
-                .isEqualTo(revisionAfterAlreadyActive);
+                .isEqualTo(revisionAfterAlreadyActive + 1);
         assertThat(rejoined.result().code())
                 .isEqualTo(RoomCommandResultCode.REJOINED);
         assertThat(membership(roomId, "user-2")
                 .messageVisibleAfterSequence()).isEqualTo(6);
-        assertThat(boundaryRevision(roomId)).isEqualTo(2);
+        assertThat(boundaryRevision(roomId)).isEqualTo(3);
         assertRoomInvariants(roomId);
     }
 

@@ -104,6 +104,7 @@ public final class InMemoryChatMessageStore
                     roomSequence,
                     newMessage.senderUserId(),
                     newMessage.senderMembershipId(),
+                    newMessage.senderParticipationId(),
                     newMessage.clientMessageId(),
                     newMessage.content(),
                     clock.instant());

@@ -42,6 +42,7 @@ import java.util.List;
         RoomCommandController.class,
         RoomCategoryController.class,
         RoomCreationRequestController.class,
+        RoomParticipationQueryController.class,
         RoomQueryController.class,
         ChatMessageQueryController.class
 })

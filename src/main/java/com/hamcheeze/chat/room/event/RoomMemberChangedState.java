@@ -7,6 +7,7 @@ import java.util.Objects;
 
 public record RoomMemberChangedState(
         String membershipId,
+        String participationId,
         String userLabel,
         MembershipRole role,
         MembershipStatus status,
@@ -17,6 +18,9 @@ public record RoomMemberChangedState(
         membershipId = RoomEventValidation.requireText(
                 membershipId,
                 "membershipId");
+        participationId = RoomEventValidation.requireText(
+                participationId,
+                "participationId");
         userLabel = RoomEventValidation.requireText(
                 userLabel,
                 "userLabel");
@@ -25,5 +29,22 @@ public record RoomMemberChangedState(
         membershipVersion = RoomEventValidation.requireVersion(
                 membershipVersion,
                 "membershipVersion");
+    }
+
+    public RoomMemberChangedState(
+            String membershipId,
+            String userLabel,
+            MembershipRole role,
+            MembershipStatus status,
+            long membershipVersion
+    ) {
+        this(
+                membershipId,
+                com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                        membershipId),
+                userLabel,
+                role,
+                status,
+                membershipVersion);
     }
 }

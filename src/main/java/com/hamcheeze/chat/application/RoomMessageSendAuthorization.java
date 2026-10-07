@@ -5,6 +5,7 @@ import java.util.Objects;
 public record RoomMessageSendAuthorization(
         RoomAuthorizationDecision decision,
         String membershipId,
+        String participationId,
         Long membershipVersion,
         Long messageVisibleAfterSequence
 ) {
@@ -13,11 +14,13 @@ public record RoomMessageSendAuthorization(
         Objects.requireNonNull(decision, "decision");
         if (decision == RoomAuthorizationDecision.ALLOWED) {
             requireText(membershipId, "membershipId");
+            requireText(participationId, "participationId");
             requireNonNegative(membershipVersion, "membershipVersion");
             requireNonNegative(
                     messageVisibleAfterSequence,
                     "messageVisibleAfterSequence");
         } else if (membershipId != null
+                || participationId != null
                 || membershipVersion != null
                 || messageVisibleAfterSequence != null) {
             throw new IllegalArgumentException(
@@ -27,12 +30,27 @@ public record RoomMessageSendAuthorization(
 
     public static RoomMessageSendAuthorization allowed(
             String membershipId,
+            String participationId,
             long membershipVersion,
             long messageVisibleAfterSequence
     ) {
         return new RoomMessageSendAuthorization(
                 RoomAuthorizationDecision.ALLOWED,
                 membershipId,
+                participationId,
+                membershipVersion,
+                messageVisibleAfterSequence);
+    }
+
+    public static RoomMessageSendAuthorization allowed(
+            String membershipId,
+            long membershipVersion,
+            long messageVisibleAfterSequence
+    ) {
+        return allowed(
+                membershipId,
+                com.hamcheeze.chat.room.RoomParticipationIds.legacy(
+                        membershipId),
                 membershipVersion,
                 messageVisibleAfterSequence);
     }
@@ -46,6 +64,7 @@ public record RoomMessageSendAuthorization(
         }
         return new RoomMessageSendAuthorization(
                 decision,
+                null,
                 null,
                 null,
                 null);

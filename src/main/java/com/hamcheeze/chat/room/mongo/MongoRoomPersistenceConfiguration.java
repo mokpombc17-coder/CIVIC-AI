@@ -5,6 +5,7 @@ import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.category.mongo.MongoRoomCategoryMigration;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.room.authorization.RoomAuthorizationProperties;
@@ -41,6 +42,14 @@ public class MongoRoomPersistenceConfiguration {
             MongoRoomSchemaInitializer schemaInitializer
     ) {
         return new MongoMembershipStore(mongoOperations);
+    }
+
+    @Bean
+    RoomParticipationStore roomParticipationStore(
+            MongoOperations mongoOperations,
+            MongoRoomSchemaInitializer schemaInitializer
+    ) {
+        return new MongoRoomParticipationStore(mongoOperations);
     }
 
     @Bean

@@ -87,6 +87,25 @@ public final class RoomMembershipTransitions {
             Instant transitionTime,
             long messageVisibleAfterSequence
     ) {
+        return joinRoom(
+                room,
+                existingMembership,
+                membershipId,
+                userId,
+                transitionTime,
+                messageVisibleAfterSequence,
+                true);
+    }
+
+    public static JoinRoomTransition joinRoom(
+            Room room,
+            Membership existingMembership,
+            String membershipId,
+            String userId,
+            Instant transitionTime,
+            long messageVisibleAfterSequence,
+            boolean createNewParticipationIdentity
+    ) {
         JoinRoomTransition.Outcome outcome = determineJoinOutcome(
                 room,
                 existingMembership,
@@ -116,12 +135,19 @@ public final class RoomMembershipTransitions {
                     membership,
                     true);
         }
-        Membership membership = existingMembership.reactivateAt(
-                joinedAt,
-                messageVisibleAfterSequence);
+        Membership membership = createNewParticipationIdentity
+                ? existingMembership.reactivateAt(
+                        joinedAt,
+                        messageVisibleAfterSequence,
+                        room.nextParticipantNumber())
+                : existingMembership.reactivateAt(
+                        joinedAt,
+                        messageVisibleAfterSequence);
         return new JoinRoomTransition(
                 outcome,
-                room.memberRejoined(),
+                createNewParticipationIdentity
+                        ? room.memberRejoined()
+                        : room.memberRejoinedWithoutNewIdentity(),
                 membership,
                 false);
     }

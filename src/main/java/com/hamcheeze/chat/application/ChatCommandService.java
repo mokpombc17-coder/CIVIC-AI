@@ -121,6 +121,7 @@ public final class ChatCommandService {
                         new AdmittedChatCommand(
                                 userId,
                                 authorization.membershipId(),
+                                authorization.participationId(),
                                 connectionId,
                                 roomId,
                                 clientMessageId,

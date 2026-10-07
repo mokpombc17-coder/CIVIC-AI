@@ -141,6 +141,30 @@ public final class Membership {
 
     Membership reactivateAt(
             Instant transitionTime,
+            long messageVisibleAfterSequence,
+            long participantNumber
+    ) {
+        if (status != MembershipStatus.LEFT) {
+            throw new RoomDomainException(
+                    RoomDomainErrorCode.INVALID_DOMAIN_STATE);
+        }
+        Instant joined =
+                RoomDomainValidation.requireTransitionTime(transitionTime);
+        RoomDomainValidation.requireNotBefore(joined, leftAt);
+        return copy(
+                role,
+                MembershipStatus.ACTIVE,
+                MembershipProfile.createAnonymous(
+                        participantNumber,
+                        joined),
+                joined,
+                null,
+                null,
+                messageVisibleAfterSequence);
+    }
+
+    Membership reactivateAt(
+            Instant transitionTime,
             long messageVisibleAfterSequence
     ) {
         if (status != MembershipStatus.LEFT) {
@@ -259,6 +283,29 @@ public final class Membership {
                 nextRole,
                 nextStatus,
                 profile,
+                nextJoinedAt,
+                nextLeftAt,
+                nextBannedAt,
+                nextMessageVisibleAfterSequence,
+                RoomDomainValidation.nextVersion(version));
+    }
+
+    private Membership copy(
+            MembershipRole nextRole,
+            MembershipStatus nextStatus,
+            MembershipProfile nextProfile,
+            Instant nextJoinedAt,
+            Instant nextLeftAt,
+            Instant nextBannedAt,
+            long nextMessageVisibleAfterSequence
+    ) {
+        return new Membership(
+                membershipId,
+                roomId,
+                userId,
+                nextRole,
+                nextStatus,
+                nextProfile,
                 nextJoinedAt,
                 nextLeftAt,
                 nextBannedAt,

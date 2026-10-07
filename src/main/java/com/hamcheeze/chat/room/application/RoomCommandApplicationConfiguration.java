@@ -21,6 +21,7 @@ import com.hamcheeze.chat.room.creation.persistence.RoomCreationRequestStore;
 import com.hamcheeze.chat.room.delivery.SimpleBrokerRoomEventDeliveryAdapter;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandExceptionClassifier;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
+import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandReceiptStore;
 import com.hamcheeze.chat.room.persistence.RoomStore;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
@@ -41,6 +42,7 @@ import java.time.Clock;
 @EnableConfigurationProperties({
         RoomCommandProperties.class,
         RoomMembershipProperties.class,
+        RoomParticipationProperties.class,
         RoomCreationProperties.class
 })
 public class RoomCommandApplicationConfiguration {
@@ -107,6 +109,8 @@ public class RoomCommandApplicationConfiguration {
     ApprovedRoomCreator approvedRoomCreator(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            RoomParticipationProperties participationProperties,
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
             ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics
@@ -114,6 +118,8 @@ public class RoomCommandApplicationConfiguration {
         return new ApprovedRoomCreator(
                 roomStore,
                 membershipStore,
+                participationStore,
+                participationProperties,
                 membershipProperties,
                 membershipQuotaGuard,
                 membershipQuotaMetrics);
@@ -123,6 +129,8 @@ public class RoomCommandApplicationConfiguration {
     RoomCommandService roomCommandService(
             RoomStore roomStore,
             MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            RoomParticipationProperties participationProperties,
             RoomMessageBoundaryPort messageBoundaryPort,
             IdempotentRoomCommandExecutor executor,
             RoomCommandFingerprintFactory fingerprintFactory,
@@ -137,6 +145,8 @@ public class RoomCommandApplicationConfiguration {
         return new RoomCommandService(
                 roomStore,
                 membershipStore,
+                participationStore,
+                participationProperties,
                 messageBoundaryPort,
                 executor,
                 fingerprintFactory,
@@ -210,10 +220,12 @@ public class RoomCommandApplicationConfiguration {
     @Bean
     RoomCommandEventMapper roomCommandEventMapper(
             MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
             UserLabelDirectory userLabels
     ) {
         return new RoomCommandEventMapper(
                 membershipStore,
+                participationStore,
                 userLabels);
     }
 
