@@ -3,9 +3,13 @@
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeatureFailureAnalyticsSession } from "@/lib/analytics/feature-failure-analytics";
+import { ConsentApiError } from "@/lib/consent/consent-api";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import type { SurveyAnswerState } from "@/lib/survey/survey-answer-state";
+import type { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
 import { SurveyForm } from "./survey-screen";
+
+type SurveySubmissionInput = Parameters<SurveySubmissionCoordinator["submit"]>[0];
 
 const submissionHarness = vi.hoisted(() => ({
   acceptConsent: vi.fn(),
@@ -266,6 +270,56 @@ describe("SurveyForm", () => {
     expect(submissionHarness.clearDraft).toHaveBeenCalledOnce();
     expect(submissionHarness.trackSubmissionAttempted).toHaveBeenCalledOnce();
     expect(submissionHarness.trackStepExited).toHaveBeenCalledWith("submit");
+  });
+
+  it("동의 저장 오류를 제출 오류와 analytics로 연결하고 새 시도를 준비한다", async () => {
+    const consentError = new ConsentApiError(
+      409,
+      "CONSENT_DOCUMENT_CHANGED",
+      "consent document changed",
+    );
+    submissionHarness.acceptConsent.mockRejectedValue(consentError);
+    submissionHarness.coordinatorSubmit.mockImplementation(async (input: SurveySubmissionInput) => {
+      await input.ports.acceptConsent(
+        {
+          clientClickedAt: "2026-10-07T00:00:00.000Z",
+          documentCode: "SENSITIVE_INFORMATION_CONSENT",
+          documentVersion: "2026-09-04",
+          roundId: "survey-round-01",
+        },
+        "44444444-4444-4444-8444-444444444444",
+      );
+      return SUBMISSION_RESULT;
+    });
+    renderSurveyForm();
+    completeSurveyAnswers();
+    fireEvent.click(screen.getByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "제출하기" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("동의 정보가 변경되어 제출할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+      ).toBeTruthy();
+    });
+    expect(submissionHarness.acceptConsent).toHaveBeenCalledOnce();
+    expect(submissionHarness.submitSurvey).not.toHaveBeenCalled();
+    expect(submissionHarness.onSubmitted).not.toHaveBeenCalled();
+    expect(submissionHarness.clearDraft).not.toHaveBeenCalled();
+    expect(submissionHarness.coordinatorReset).toHaveBeenCalledTimes(2);
+    expect(submissionHarness.trackFailure).toHaveBeenCalledWith(
+      expect.objectContaining({
+        errorCode: "CONSENT_DOCUMENT_CHANGED",
+        errorSource: "api",
+        failureStage: "consent",
+        httpStatus: 409,
+        incidentKey: "submission",
+        operation: "submission",
+        step: 3,
+        surface: "participation",
+      }),
+    );
+    expect(submissionHarness.trackRecovered).not.toHaveBeenCalled();
   });
 
   it("서버 field 오류를 첫 invalid section으로 이동시키고 제출 오류와 새 시도를 표시한다", async () => {
