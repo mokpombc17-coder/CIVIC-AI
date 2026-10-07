@@ -208,7 +208,7 @@ describe("getChatRoomSessionView", () => {
       kind: "connection-replaced",
       title: "현재 채팅을 사용할 수 없습니다.",
       description:
-        "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 다시 시작하면 다른 쪽 채팅은 중단됩니다.",
+        "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 계속하면 다른 쪽 채팅은 중단됩니다.",
       canDraft: false,
       canReactivate: false,
       canReconnect: false,

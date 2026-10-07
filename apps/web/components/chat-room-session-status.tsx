@@ -91,7 +91,7 @@ export function ChatRoomSessionNotice({
           onClick={onReload}
           type="button"
         >
-          여기서 다시 시작하기
+          여기서 계속하기
         </button>
       ) : view.canReactivate ? (
         <button
@@ -99,7 +99,7 @@ export function ChatRoomSessionNotice({
           onClick={onReactivate}
           type="button"
         >
-          이 토론방에서 계속하기
+          여기서 계속하기
         </button>
       ) : view.canReconnect ? (
         <button

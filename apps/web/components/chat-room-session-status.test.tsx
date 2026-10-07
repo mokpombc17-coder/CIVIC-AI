@@ -17,7 +17,7 @@ describe("ChatRoomSessionNotice", () => {
     expect(html).toContain('data-chat-session-notice="replaced"');
     expect(html).toContain("다른 토론방에서 채팅 중이에요.");
     expect(html).toContain("이 토론방의 채팅은 잠시 대기 중이에요.");
-    expect(html).toContain("이 토론방에서 계속하기");
+    expect(html).toContain("여기서 계속하기");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain("bg-red-50");
   });
@@ -82,9 +82,9 @@ describe("ChatRoomSessionNotice", () => {
     expect(html).toContain('data-chat-session-notice="connection-replaced"');
     expect(html).toContain("현재 채팅을 사용할 수 없습니다.");
     expect(html).toContain(
-      "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 다시 시작하면 다른 쪽 채팅은 중단됩니다.",
+      "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 계속하면 다른 쪽 채팅은 중단됩니다.",
     );
-    expect(html).toContain(">여기서 다시 시작하기</button>");
+    expect(html).toContain(">여기서 계속하기</button>");
     expect(html).toContain("mb-3");
     expect(html).toContain("bg-[#fff7e8]");
   });
@@ -119,7 +119,7 @@ const CONNECTION_REPLACED_VIEW = {
   canReactivate: false,
   canReconnect: false,
   description:
-    "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 다시 시작하면 다른 쪽 채팅은 중단됩니다.",
+    "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 계속하면 다른 쪽 채팅은 중단됩니다.",
   indicatorLabel: "다른 곳에서 사용 중",
   indicatorTone: "pending",
   kind: "connection-replaced",

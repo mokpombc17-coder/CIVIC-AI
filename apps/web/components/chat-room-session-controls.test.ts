@@ -15,4 +15,11 @@ describe("chat room composer presentation", () => {
       placeholder: "메시지를 입력해 주세요.",
     });
   });
+
+  it("다른 토론방 사용 중에는 통일된 계속하기 버튼을 안내한다", () => {
+    expect(getChatRoomComposerPresentation({ canDraft: false, kind: "replaced" })).toEqual({
+      disabledMessage: null,
+      placeholder: "여기서 계속하기를 선택하면 입력할 수 있습니다.",
+    });
+  });
 });
