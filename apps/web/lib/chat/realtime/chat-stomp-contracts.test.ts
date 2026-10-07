@@ -278,6 +278,7 @@ describe("chat realtime payload contracts", () => {
         roomSequence: 1,
         countable: true,
         senderMembershipId: "membership-01",
+        senderParticipationId: "participation-fixture",
         clientMessageId: CLIENT_MESSAGE_ID,
         content: "안녕하세요.",
         createdAt: "2026-07-29T04:40:00Z",
@@ -331,6 +332,7 @@ describe("chat realtime payload contracts", () => {
       roomSequence: 1,
       countable: true,
       senderMembershipId: "membership-01",
+      senderParticipationId: "participation-fixture",
       clientMessageId: CLIENT_MESSAGE_ID,
       content: "안녕하세요.",
       createdAt: "2026-07-29T04:40:00Z",
@@ -856,6 +858,7 @@ function createMutationResult(
 function createMemberState(membershipId: string, role: "OWNER" | "MEMBER") {
   return {
     membershipId,
+    participationId: "participation-fixture",
     role,
     status: "ACTIVE",
     membershipVersion: 1,

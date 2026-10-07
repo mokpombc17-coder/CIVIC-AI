@@ -307,9 +307,10 @@ describe("ChatRealtimeQueryCoordinator", () => {
     expect(systemActivityJournal?.activities).toEqual([
       expect.objectContaining({
         afterMessageSequence: 5,
-        eventKey: "event-1",
+        eventKey: "participation:participation-fixture:entered",
         kind: "joined",
         membershipId: "membership-01",
+        participationId: "participation-fixture",
       }),
     ]);
     expect(transport.acknowledgedDeliveries).toEqual(["delivery-1"]);
@@ -1002,6 +1003,7 @@ function createBufferedRoomEvent(
         roomStatus: "ACTIVE",
         member: {
           membershipId: "membership-01",
+          participationId: "participation-fixture",
           role: "MEMBER",
           status: "ACTIVE",
           membershipVersion: 1,
@@ -1018,6 +1020,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     roomSequence,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
     content: `message ${roomSequence}`,
     createdAt: "2026-07-30T00:00:00Z",

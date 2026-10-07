@@ -123,6 +123,7 @@ function createMessage(sequence: number, content: string, messageVersion = 1): C
     roomId: "room-01",
     roomSequence: sequence,
     senderMembershipId: "membership-02",
+    senderParticipationId: "participation-fixture",
     clientMessageId: `00000000-0000-4000-8000-${String(sequence).padStart(12, "0")}`,
     content,
     state: "ACTIVE",

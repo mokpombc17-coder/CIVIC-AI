@@ -57,6 +57,7 @@ const MESSAGE = {
   roomId: "room-01",
   roomSequence: 2,
   senderMembershipId: "membership-02",
+  senderParticipationId: "participation-fixture",
   state: "ACTIVE",
   updatedAt: "2026-08-10T03:00:00Z",
 } satisfies ChatMessage;

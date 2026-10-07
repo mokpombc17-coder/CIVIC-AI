@@ -217,6 +217,7 @@ function createMessage(roomSequence: number): ChatMessage {
     roomSequence,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: `00000000-0000-4000-8000-${roomSequence.toString().padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-30T00:00:00Z",

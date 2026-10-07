@@ -47,6 +47,11 @@ export type ChatRoomReadReceiptStateQueryParams = Readonly<{
   generation: number;
 }>;
 
+export type ChatRoomParticipationQueryParams = Readonly<{
+  enabled: boolean;
+  generation: number;
+}>;
+
 export type ChatRoomMessageSearchQueryParams = Readonly<{
   enabled: boolean;
   generation: number;
@@ -93,6 +98,11 @@ export const chatRoomQueryKeys = {
     [...chatRoomQueryKeys.all, "membership-list", roomId] as const,
   membershipList: (roomId: string, status: MembershipStatus, limit: number) =>
     [...chatRoomQueryKeys.membershipLists(roomId), { status, limit }] as const,
+  participations: () => [...chatRoomQueryKeys.all, "participation"] as const,
+  participationsForRoom: (roomId: string) =>
+    [...chatRoomQueryKeys.participations(), roomId] as const,
+  participation: (roomId: string, generation: number) =>
+    [...chatRoomQueryKeys.participationsForRoom(roomId), { generation }] as const,
   messageHistories: () => [...chatRoomQueryKeys.all, "message-history"] as const,
   messageHistoriesForRoom: (roomId: string) =>
     [...chatRoomQueryKeys.messageHistories(), roomId] as const,

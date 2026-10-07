@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-contracts";
+import type {
+  ChatMessage,
+  RoomMembershipListItem,
+  RoomParticipationListItem,
+} from "@/lib/chat/chat-room-contracts";
 import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbox";
 import { createChatRoomMessagePresentation } from "./use-chat-room-message-presentation";
 
@@ -32,6 +36,7 @@ describe("chat room message presentation", () => {
         selfMembershipId: "membership-01",
       },
       receiptSyncStatus: "ready",
+      roomId: "room-01",
       selfMembershipId: "membership-01",
     });
 
@@ -73,6 +78,7 @@ describe("chat room message presentation", () => {
         selfMembershipId: "membership-stale",
       },
       receiptSyncStatus: "ready",
+      roomId: "room-01",
       selfMembershipId: "membership-01",
     });
 
@@ -92,6 +98,7 @@ describe("chat room message presentation", () => {
       readBoundaryAfterSequence: null,
       receiptState: undefined,
       receiptSyncStatus: "ready",
+      roomId: "room-01",
       selfMembershipId: "membership-01",
     });
 
@@ -99,6 +106,23 @@ describe("chat room message presentation", () => {
       canMutate: false,
       isMine: true,
     });
+  });
+
+  it("메시지의 participation 당시 프로필을 현재 Membership 프로필보다 우선한다", () => {
+    const presentation = createChatRoomMessagePresentation({
+      confirmedMessages: [MESSAGE],
+      mutationStates: new Map(),
+      outgoingMessages: [],
+      participantProfiles: [PARTICIPANT],
+      participationHistory: [PARTICIPATION],
+      readBoundaryAfterSequence: null,
+      receiptState: undefined,
+      receiptSyncStatus: "ready",
+      roomId: "room-01",
+      selfMembershipId: "membership-01",
+    });
+
+    expect(presentation.messageItems[0]?.senderLabel).toBe("과거 참여자 이름");
   });
 });
 
@@ -113,6 +137,7 @@ const MESSAGE = {
   roomId: "room-01",
   roomSequence: 2,
   senderMembershipId: "membership-02",
+  senderParticipationId: "participation-02",
   state: "ACTIVE",
   updatedAt: "2026-08-10T03:00:00Z",
 } satisfies ChatMessage;
@@ -142,6 +167,22 @@ const PARTICIPANT = {
   status: "ACTIVE",
   version: 1,
 } satisfies RoomMembershipListItem;
+
+const PARTICIPATION = {
+  displayName: "과거 참여자 이름",
+  endedAfterMessageSequence: null,
+  endedAt: null,
+  endReason: null,
+  enteredAfterMessageSequence: 0,
+  imageUrl: null,
+  joinedAt: "2026-08-10T03:00:00Z",
+  membershipId: "membership-02",
+  origin: "NORMAL",
+  participationId: "participation-02",
+  profileVersion: 1,
+  status: "ACTIVE",
+  version: 1,
+} satisfies RoomParticipationListItem;
 
 const SELF_PARTICIPANT = {
   ...PARTICIPANT,

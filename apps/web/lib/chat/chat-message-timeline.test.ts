@@ -227,6 +227,7 @@ describe("createChatMessageTimelineRows", () => {
           eventKey: "event-join",
           kind: "joined",
           membershipId: "membership-02",
+          participationId: "participation-02",
           receivedOrder: 1,
           userLabel: "철수",
         },
@@ -254,6 +255,7 @@ describe("createChatMessageTimelineRows", () => {
           eventKey: "event-old",
           kind: "left",
           membershipId: "membership-02",
+          participationId: "participation-02",
           receivedOrder: 1,
           userLabel: "철수",
         },
@@ -273,6 +275,7 @@ describe("createChatMessageTimelineRows", () => {
           eventKey: "event-first",
           kind: "joined",
           membershipId: "membership-02",
+          participationId: "participation-02",
           receivedOrder: 1,
           userLabel: "철수",
         },
@@ -295,6 +298,7 @@ describe("createChatMessageTimelineRows", () => {
           eventKey: "membership-entry:new:31",
           kind: "joined",
           membershipId: "membership-new",
+          participationId: "participation-new",
           receivedOrder: 0,
           userLabel: "새 참여자",
         },
@@ -304,6 +308,7 @@ describe("createChatMessageTimelineRows", () => {
           eventKey: "membership-entry:old:31",
           kind: "joined",
           membershipId: "membership-old",
+          participationId: "participation-old",
           receivedOrder: 1,
           userLabel: "기존 참여자",
         },
@@ -320,7 +325,11 @@ describe("createChatMessageTimelineRows", () => {
       "2026-10-07",
     ]);
     expect(
-      rows.flatMap((row) => (row.kind === "system-activity" ? [row.activity.membershipId] : [])),
+      rows.flatMap((row) =>
+        row.kind === "system-activity" && row.activity.kind !== "room-closed"
+          ? [row.activity.membershipId]
+          : [],
+      ),
     ).toEqual(["membership-old", "membership-new"]);
   });
 });
@@ -332,6 +341,7 @@ function createConfirmed(clientMessageId: string, createdAt = "2026-07-31T00:00:
     roomSequence: 1,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-01",
     clientMessageId,
     content: "확정 메시지",
     createdAt,
@@ -353,6 +363,7 @@ function createDeletedConfirmed(
     roomSequence: 2,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId,
     content: null,
     createdAt,

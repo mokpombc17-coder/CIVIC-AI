@@ -225,6 +225,7 @@ function createMessage(roomSequence: number): Extract<ChatMessage, { state: "ACT
     roomId: "room-01",
     roomSequence,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: `00000000-0000-4000-8000-${String(roomSequence).padStart(12, "0")}`,
     content: `메시지 ${roomSequence}`,
     state: "ACTIVE",

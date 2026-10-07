@@ -20,7 +20,8 @@ export function useChatRoomContentExperience(
   realtime: ChatRoomRealtimeExperience,
   messageNavigation: RoomMessageContextController,
 ) {
-  const { coordinator, messageHistory, receiptStateQuery, session } = realtime;
+  const { coordinator, messageHistory, participationHistory, receiptStateQuery, session } =
+    realtime;
   const participantProfiles = useChatRoomParticipantProfiles(roomId, {
     enabled: realtime.messageHistoryEnabled,
   });
@@ -65,6 +66,7 @@ export function useChatRoomContentExperience(
     includeOutgoingMessages: !contextNavigationActive,
     messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
     participantProfiles,
+    participationHistory,
     readBoundaryAfterSequence: contextNavigationActive ? null : read.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,

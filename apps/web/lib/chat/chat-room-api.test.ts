@@ -36,12 +36,16 @@ describe("chatRoomApi queries", () => {
         nextCursor: null,
         hasNext: false,
       },
+      {
+        items: [PARTICIPATION_LIST_ITEM],
+      },
     );
     const api = createChatRoomApi(request);
     const publicRoomsAbortController = new AbortController();
     const creationRequestsAbortController = new AbortController();
     const roomInboxAbortController = new AbortController();
     const roomDetailsAbortController = new AbortController();
+    const participationsAbortController = new AbortController();
 
     const publicRooms = await api.listPublicRooms(
       {
@@ -80,6 +84,10 @@ describe("chatRoomApi queries", () => {
       cursor: "member cursor",
       limit: 10,
     });
+    const participations = await api.listRoomParticipations(
+      "room-01",
+      participationsAbortController.signal,
+    );
 
     expect(calls.map(({ path }) => path)).toEqual([
       "/rooms?joinPolicy=OPEN&query=%EA%B5%90%ED%86%B5+%26+%ED%99%98%EA%B2%BD&categoryId=00000000-0000-4000-8000-000000000003&cursor=public+cursor&limit=20",
@@ -91,6 +99,7 @@ describe("chatRoomApi queries", () => {
       "/rooms/room-01",
       "/rooms/room-01/memberships/me",
       "/rooms/room-01/memberships?status=BANNED&cursor=member+cursor&limit=10",
+      "/rooms/room-01/participations",
     ]);
     expect(calls[0]?.init?.signal).toBe(publicRoomsAbortController.signal);
     expect(calls[2]?.init?.signal).toBe(creationRequestsAbortController.signal);
@@ -98,9 +107,11 @@ describe("chatRoomApi queries", () => {
     expect(calls[4]?.init).toEqual({ method: "POST" });
     expect(calls[5]?.init?.signal).toBe(roomInboxAbortController.signal);
     expect(calls[6]?.init?.signal).toBe(roomDetailsAbortController.signal);
+    expect(calls[9]?.init?.signal).toBe(participationsAbortController.signal);
     expect(publicRooms.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
     expect(roomInbox.items[0]?.categorySummaries).toEqual(CATEGORY_SUMMARIES);
     expect(roomDetails.categorySummaries).toEqual(CATEGORY_SUMMARIES);
+    expect(participations.items).toEqual([PARTICIPATION_LIST_ITEM]);
   });
 
   it("응답이 계약과 다르면 endpoint 문맥을 가진 오류를 반환한다", async () => {
@@ -682,6 +693,22 @@ const MEMBERSHIP_LIST_ITEM = {
   version: 1,
 };
 
+const PARTICIPATION_LIST_ITEM = {
+  participationId: "participation-02",
+  membershipId: "membership-02",
+  origin: "NORMAL",
+  status: "ENDED",
+  enteredAfterMessageSequence: 10,
+  endedAfterMessageSequence: 25,
+  displayName: "참여자 2",
+  imageUrl: null,
+  profileVersion: 1,
+  joinedAt: "2026-10-07T07:00:00Z",
+  endedAt: "2026-10-07T07:10:00Z",
+  endReason: "LEFT",
+  version: 1,
+};
+
 const PENDING_ROOM_CREATION_RESPONSE = {
   clientRequestId: IDEMPOTENCY_KEY,
   code: "ROOM_CREATION_REQUESTED",
@@ -794,6 +821,7 @@ const CHAT_MESSAGE = {
   roomSequence: 120,
   countable: true,
   senderMembershipId: "membership-01",
+  senderParticipationId: "participation-fixture",
   clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
   content: "안녕하세요.",
   createdAt: "2026-07-29T04:40:00Z",

@@ -202,6 +202,7 @@ function createMessageEvent(roomSequence: number, roomId = "room-01"): ChatMessa
       roomSequence,
       countable: true,
       senderMembershipId: "membership-01",
+      senderParticipationId: "participation-fixture",
       clientMessageId: "550e8400-e29b-41d4-a716-446655440000",
       content: `message ${roomSequence}`,
       createdAt: "2026-07-30T00:00:00Z",
@@ -225,6 +226,7 @@ function createRoomEvent(eventId: string): ChatRoomEventEnvelope {
       roomStatus: "ACTIVE",
       member: {
         membershipId: "membership-01",
+        participationId: "participation-fixture",
         role: "MEMBER",
         status: "ACTIVE",
         membershipVersion: 1,

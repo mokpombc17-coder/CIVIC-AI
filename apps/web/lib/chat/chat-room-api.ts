@@ -28,6 +28,7 @@ import {
   roomMembershipListParamsSchema,
   roomMembershipListResponseSchema,
   roomMembershipSchema,
+  roomParticipationListResponseSchema,
   roomReadReceiptStateResponseSchema,
   roomCreationRequestIdSchema,
   roomCreationRequestListResponseSchema,
@@ -59,6 +60,7 @@ import {
   type RoomMembership,
   type RoomMembershipListParams,
   type RoomMembershipListResponse,
+  type RoomParticipationListResponse,
   type RoomMessageContextParams,
   type RoomMessageContextResponse,
   type RoomMessageSearchRequest,
@@ -139,6 +141,10 @@ export type ChatRoomApi = Readonly<{
     roomId: string,
     params?: RoomMembershipListParams,
   ): Promise<RoomMembershipListResponse>;
+  listRoomParticipations(
+    roomId: string,
+    signal?: AbortSignal,
+  ): Promise<RoomParticipationListResponse>;
   getRoomMessages(
     roomId: string,
     request?: MessageHistoryRequest,
@@ -386,6 +392,16 @@ export function createChatRoomApi(request: ChatFetch = chatFetch): ChatRoomApi {
         "방 멤버 목록 응답",
         roomMembershipListResponseSchema,
         createListPath(`${createRoomPath(roomId)}/memberships`, parsedParams),
+      );
+    },
+
+    async listRoomParticipations(roomId, signal) {
+      return requestAndParse(
+        request,
+        "방 참여 이력 응답",
+        roomParticipationListResponseSchema,
+        `${createRoomPath(roomId)}/participations`,
+        signal ? { signal } : undefined,
       );
     },
 

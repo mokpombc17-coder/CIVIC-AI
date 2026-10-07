@@ -280,6 +280,65 @@ export const roomMembershipListResponseSchema = createCursorPageSchema(
   roomMembershipListItemSchema,
 );
 
+export const roomParticipationOriginSchema = z.enum(["NORMAL", "LEGACY"]);
+export const roomParticipationHistoryStatusSchema = z.enum(["ACTIVE", "ENDED"]);
+export const roomParticipationEndReasonSchema = z.enum(["LEFT", "BANNED", "ROOM_CLOSED"]);
+export const roomParticipationListItemSchema = z
+  .object({
+    participationId: opaqueIdSchema,
+    membershipId: opaqueIdSchema,
+    origin: roomParticipationOriginSchema,
+    status: roomParticipationHistoryStatusSchema,
+    enteredAfterMessageSequence: nonnegativeSequenceSchema,
+    endedAfterMessageSequence: nonnegativeSequenceSchema.nullable(),
+    displayName: membershipDisplayNameSchema,
+    imageUrl: z.string().nullable(),
+    profileVersion: z.number().int().positive(),
+    joinedAt: instantSchema,
+    endedAt: nullableInstantSchema,
+    endReason: roomParticipationEndReasonSchema.nullable(),
+    version: versionSchema,
+  })
+  .superRefine((participation, context) => {
+    if (participation.status === "ACTIVE") {
+      for (const field of ["endedAfterMessageSequence", "endedAt", "endReason"] as const) {
+        if (participation[field] !== null) {
+          context.addIssue({
+            code: "custom",
+            path: [field],
+            message: `ACTIVE participation의 ${field}은 null이어야 합니다.`,
+          });
+        }
+      }
+      return;
+    }
+
+    if (participation.endedAt === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["endedAt"],
+        message: "ENDED participation에는 endedAt이 필요합니다.",
+      });
+    }
+    if (participation.endReason === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["endReason"],
+        message: "ENDED participation에는 endReason이 필요합니다.",
+      });
+    }
+    if (participation.origin === "NORMAL" && participation.endedAfterMessageSequence === null) {
+      context.addIssue({
+        code: "custom",
+        path: ["endedAfterMessageSequence"],
+        message: "NORMAL ENDED participation에는 종료 sequence가 필요합니다.",
+      });
+    }
+  });
+export const roomParticipationListResponseSchema = z.object({
+  items: z.array(roomParticipationListItemSchema),
+});
+
 export const createRoomRequestSchema = z.object({
   name: roomNameSchema,
   description: roomDescriptionInputSchema.nullish().transform((description) => description ?? ""),
@@ -469,6 +528,7 @@ const chatMessageSnapshotBaseSchema = z.object({
   roomSequence: positiveSequenceSchema,
   countable: z.boolean(),
   senderMembershipId: opaqueIdSchema,
+  senderParticipationId: opaqueIdSchema,
   clientMessageId: idempotencyKeySchema,
   messageVersion: positiveMessageVersionSchema,
   createdAt: instantSchema,
@@ -812,10 +872,15 @@ export type MyRoomListItem = z.infer<typeof myRoomListItemSchema>;
 export type RoomInboxLastMessage = z.infer<typeof roomInboxLastMessageSchema>;
 export type RoomInboxListItem = z.infer<typeof roomInboxListItemSchema>;
 export type RoomMembershipListItem = z.infer<typeof roomMembershipListItemSchema>;
+export type RoomParticipationOrigin = z.infer<typeof roomParticipationOriginSchema>;
+export type RoomParticipationHistoryStatus = z.infer<typeof roomParticipationHistoryStatusSchema>;
+export type RoomParticipationEndReason = z.infer<typeof roomParticipationEndReasonSchema>;
+export type RoomParticipationListItem = z.infer<typeof roomParticipationListItemSchema>;
 export type PublicRoomListResponse = z.infer<typeof publicRoomListResponseSchema>;
 export type MyRoomListResponse = z.infer<typeof myRoomListResponseSchema>;
 export type RoomInboxListResponse = z.infer<typeof roomInboxListResponseSchema>;
 export type RoomMembershipListResponse = z.infer<typeof roomMembershipListResponseSchema>;
+export type RoomParticipationListResponse = z.infer<typeof roomParticipationListResponseSchema>;
 export type CreateRoomRequest = z.input<typeof createRoomRequestSchema>;
 export type UpdateRoomSettingsRequest = z.input<typeof updateRoomSettingsRequestSchema>;
 export type TargetMembershipRequest = z.infer<typeof targetMembershipRequestSchema>;

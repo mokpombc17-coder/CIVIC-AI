@@ -415,6 +415,7 @@ function createRoomEventDelivery(
             roomStatus: "ACTIVE" as const,
             member: {
               membershipId: "membership-c",
+              participationId: "participation-fixture",
               role: "MEMBER" as const,
               status: "ACTIVE" as const,
               membershipVersion: 1,
@@ -432,6 +433,7 @@ function createRoomEventDelivery(
             roomStatus: "CLOSED" as const,
             owner: {
               membershipId: "membership-a",
+              participationId: "participation-fixture",
               role: "OWNER" as const,
               status: "ACTIVE" as const,
               membershipVersion: 1,

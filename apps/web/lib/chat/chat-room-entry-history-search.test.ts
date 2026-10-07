@@ -192,6 +192,7 @@ function createMessage(roomSequence: number): ChatMessage {
     roomId: "room-01",
     roomSequence,
     senderMembershipId: "membership-a",
+    senderParticipationId: "participation-fixture",
     state: "ACTIVE",
     updatedAt: "2026-08-10T03:00:00Z",
   };

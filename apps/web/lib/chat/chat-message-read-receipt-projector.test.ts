@@ -16,6 +16,7 @@ const ACTIVE_MESSAGE: ChatMessage = {
   roomId: "room-01",
   roomSequence: 120,
   senderMembershipId: "membership-a",
+  senderParticipationId: "participation-fixture",
   state: "ACTIVE",
   updatedAt: "2026-08-10T03:00:00Z",
 };

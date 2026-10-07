@@ -118,6 +118,7 @@ export function createChatMessageItemViewModels(
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
   canMutateMessages = true,
+  participationDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): readonly ChatMessageItemViewModel[] {
   const groupKeys = timeline.map((item) => createChatMessageSenderGroupKey(item, selfMembershipId));
 
@@ -139,6 +140,7 @@ export function createChatMessageItemViewModels(
       startsSenderGroup,
       endsSenderGroup,
       canMutateMessages,
+      participationDisplayNames,
     );
   });
 }
@@ -151,6 +153,7 @@ export function createChatMessageViewportItemViewModels(
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
   ownerMembershipId: string | null = null,
   canMutateMessages = true,
+  participationDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): readonly ChatMessageViewportItemViewModel[] {
   let previousGroupKey: ChatMessageSenderGroupKey | null = null;
 
@@ -201,6 +204,7 @@ export function createChatMessageViewportItemViewModels(
       startsSenderGroup,
       endsSenderGroup,
       canMutateMessages,
+      participationDisplayNames,
     );
     return {
       item,
@@ -220,6 +224,7 @@ function createChatMessageItemViewModel(
   startsSenderGroup: boolean,
   endsSenderGroup: boolean,
   canMutateMessages: boolean,
+  participationDisplayNames: ReadonlyMap<string, string>,
 ): ChatMessageItemViewModel {
   const selfDisplayName =
     selfMembershipId === null ? null : (participantDisplayNames.get(selfMembershipId) ?? null);
@@ -281,6 +286,7 @@ function createChatMessageItemViewModel(
     roomSequence: item.message.roomSequence,
     senderIsOwner: item.message.senderMembershipId === ownerMembershipId,
     senderLabel:
+      participationDisplayNames.get(item.message.senderParticipationId) ??
       participantDisplayNames.get(item.message.senderMembershipId) ??
       (isMine ? selfDisplayName : UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
     startsSenderGroup,

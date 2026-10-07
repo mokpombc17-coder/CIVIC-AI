@@ -12,13 +12,20 @@ import {
   createChatMessageTimeline,
   createChatMessageTimelineRows,
 } from "@/lib/chat/chat-message-timeline";
-import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-contracts";
+import type {
+  ChatMessage,
+  RoomMembershipListItem,
+  RoomParticipationListItem,
+} from "@/lib/chat/chat-room-contracts";
 import type { ChatRoomReadReceiptState } from "@/lib/chat/chat-room-read-receipt-state";
-import { createRoomParticipantDisplayNames } from "@/lib/chat/chat-room-participant-profiles";
+import {
+  createRoomParticipantDisplayNames,
+  createRoomParticipationDisplayNames,
+} from "@/lib/chat/chat-room-participant-profiles";
 import type { ChatOutgoingMessage } from "@/lib/chat/realtime/chat-message-outbox";
 import {
   combineChatRoomSystemActivities,
-  createMembershipEntrySystemActivities,
+  createParticipationSystemActivities,
   type ChatRoomSystemActivity,
 } from "@/lib/chat/realtime/chat-room-system-activity";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
@@ -36,9 +43,11 @@ type ChatRoomMessagePresentationInput = Readonly<{
   messageVisibleAfterSequence?: number;
   outgoingMessages: readonly ChatOutgoingMessage[];
   participantProfiles: readonly RoomMembershipListItem[];
+  participationHistory?: readonly RoomParticipationListItem[];
   readBoundaryAfterSequence: number | null;
   receiptState: ChatRoomReadReceiptState | undefined;
   receiptSyncStatus: ChatRoomReadReceiptSyncStatus;
+  roomId: string;
   selfMembershipId: string | null;
   systemActivities?: readonly ChatRoomSystemActivity[];
 }>;
@@ -50,9 +59,11 @@ export function useChatRoomMessagePresentation({
   messageVisibleAfterSequence = 0,
   outgoingMessages,
   participantProfiles,
+  participationHistory = [],
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
+  roomId,
   selfMembershipId,
   systemActivities = [],
 }: ChatRoomMessagePresentationInput): ChatRoomMessagePresentation {
@@ -65,9 +76,11 @@ export function useChatRoomMessagePresentation({
         messageVisibleAfterSequence,
         outgoingMessages,
         participantProfiles,
+        participationHistory,
         readBoundaryAfterSequence,
         receiptState,
         receiptSyncStatus,
+        roomId,
         selfMembershipId,
         systemActivities,
       }),
@@ -78,9 +91,11 @@ export function useChatRoomMessagePresentation({
       messageVisibleAfterSequence,
       outgoingMessages,
       participantProfiles,
+      participationHistory,
       readBoundaryAfterSequence,
       receiptState,
       receiptSyncStatus,
+      roomId,
       selfMembershipId,
       systemActivities,
     ],
@@ -94,13 +109,16 @@ export function createChatRoomMessagePresentation({
   messageVisibleAfterSequence = 0,
   outgoingMessages,
   participantProfiles,
+  participationHistory = [],
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
+  roomId,
   selfMembershipId,
   systemActivities = [],
 }: ChatRoomMessagePresentationInput): ChatRoomMessagePresentation {
   const participantDisplayNames = createRoomParticipantDisplayNames(participantProfiles);
+  const participationDisplayNames = createRoomParticipationDisplayNames(participationHistory);
   const ownerMembershipId =
     participantProfiles.find((participant) => participant.role === "OWNER")?.membershipId ?? null;
   const readReceiptPresentation = createChatMessageReadReceiptPresentation({
@@ -110,8 +128,9 @@ export function createChatRoomMessagePresentation({
     selfMembershipId,
   });
   const timeline = createChatMessageTimeline(confirmedMessages, outgoingMessages);
-  const restoredActivities = createMembershipEntrySystemActivities(
-    participantProfiles,
+  const restoredActivities = createParticipationSystemActivities(
+    roomId,
+    participationHistory,
     selfMembershipId,
   );
   const timelineRows = createChatMessageTimelineRows(timeline, {
@@ -127,6 +146,7 @@ export function createChatRoomMessagePresentation({
     participantDisplayNames,
     ownerMembershipId,
     canMutateMessages,
+    participationDisplayNames,
   );
 
   return {

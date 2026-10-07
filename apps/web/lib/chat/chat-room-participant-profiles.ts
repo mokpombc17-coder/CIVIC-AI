@@ -1,4 +1,4 @@
-import type { RoomMembershipListItem } from "./chat-room-contracts";
+import type { RoomMembershipListItem, RoomParticipationListItem } from "./chat-room-contracts";
 
 export const ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT = 100;
 export const UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME = "알 수 없음";
@@ -16,6 +16,17 @@ export function createRoomParticipantDisplayNames(
     memberships.map((membership) => [
       membership.membershipId,
       getRoomParticipantDisplayName(membership),
+    ]),
+  );
+}
+
+export function createRoomParticipationDisplayNames(
+  participations: readonly RoomParticipationListItem[],
+): ReadonlyMap<string, string> {
+  return new Map(
+    participations.map((participation) => [
+      participation.participationId,
+      participation.displayName,
     ]),
   );
 }

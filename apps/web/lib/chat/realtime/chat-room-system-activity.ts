@@ -1,21 +1,35 @@
-import type { RoomMembershipListItem } from "../chat-room-contracts";
+import type { RoomParticipationListItem } from "../chat-room-contracts";
 import type {
   ChatRealtimeBufferedEvent,
   ChatRealtimeEventDelivery,
 } from "./chat-realtime-event-buffer";
 import type { ChatRoomEventEnvelope, ChatRoomEventMemberState } from "./chat-stomp-contracts";
 
-export type ChatRoomSystemActivityKind = "joined" | "left" | "banned";
+export type ChatRoomSystemActivityKind = "joined" | "left" | "banned" | "room-closed";
 
-export type ChatRoomSystemActivity = Readonly<{
+type ChatRoomSystemActivityBase = Readonly<{
   afterMessageSequence: number;
   emittedAt: string;
   eventKey: string;
-  kind: ChatRoomSystemActivityKind;
-  membershipId: string;
   receivedOrder: number;
-  userLabel: string | null;
 }>;
+
+type ChatRoomParticipantSystemActivity = ChatRoomSystemActivityBase &
+  Readonly<{
+    kind: Exclude<ChatRoomSystemActivityKind, "room-closed">;
+    participationId: string;
+    membershipId: string;
+    userLabel: string | null;
+  }>;
+
+type ChatRoomClosedSystemActivity = ChatRoomSystemActivityBase &
+  Readonly<{
+    kind: "room-closed";
+    roomId: string;
+  }>;
+
+export type ChatRoomSystemActivity =
+  ChatRoomParticipantSystemActivity | ChatRoomClosedSystemActivity;
 
 export type ChatRoomSystemActivityJournal = Readonly<{
   activities: readonly ChatRoomSystemActivity[];
@@ -52,7 +66,10 @@ export function mergeChatRoomSystemActivities({
   }
 
   let latestMessageSequence = initialLatestMessageSequence;
-  let receivedOrder = journal?.activities.at(-1)?.receivedOrder ?? 0;
+  let receivedOrder = Math.max(
+    0,
+    ...(journal?.activities.map(({ receivedOrder }) => receivedOrder) ?? []),
+  );
   const activities = [...(journal?.activities ?? [])];
   const seenEventKeys = new Set(activities.map((activity) => activity.eventKey));
 
@@ -75,11 +92,21 @@ export function mergeChatRoomSystemActivities({
 
     const activityState = getSystemActivityState(bufferedEvent);
 
-    if (!activityState || activityState.member.membershipId === selfMembershipId) {
+    if (
+      !activityState ||
+      (activityState.type === "participant" &&
+        activityState.member.membershipId === selfMembershipId)
+    ) {
       continue;
     }
 
-    const eventKey = createChatRoomEventKey(bufferedEvent.event);
+    const eventKey =
+      activityState.type === "room"
+        ? createRoomClosedActivityKey(delivery.roomId)
+        : createParticipationActivityKey(
+            activityState.member.participationId,
+            activityState.kind === "joined" ? "entered" : "ended",
+          );
 
     if (seenEventKeys.has(eventKey)) {
       continue;
@@ -87,6 +114,20 @@ export function mergeChatRoomSystemActivities({
 
     receivedOrder += 1;
     seenEventKeys.add(eventKey);
+    if (activityState.type === "room") {
+      activities.push(
+        Object.freeze({
+          afterMessageSequence: latestMessageSequence,
+          emittedAt: bufferedEvent.event.emittedAt,
+          eventKey,
+          kind: "room-closed" as const,
+          receivedOrder,
+          roomId: delivery.roomId,
+        }),
+      );
+      continue;
+    }
+
     activities.push(
       Object.freeze({
         afterMessageSequence: latestMessageSequence,
@@ -94,6 +135,7 @@ export function mergeChatRoomSystemActivities({
         eventKey,
         kind: activityState.kind,
         membershipId: activityState.member.membershipId,
+        participationId: activityState.member.participationId,
         receivedOrder,
         userLabel:
           activityState.member.userLabel ??
@@ -113,51 +155,97 @@ export function mergeChatRoomSystemActivities({
   });
 }
 
-export function createMembershipEntrySystemActivities(
-  memberships: readonly RoomMembershipListItem[],
+export function createParticipationSystemActivities(
+  roomId: string,
+  participations: readonly RoomParticipationListItem[],
   selfMembershipId: string | null,
 ): readonly ChatRoomSystemActivity[] {
-  return Object.freeze(
-    memberships.flatMap((membership, index) => {
-      if (
-        membership.membershipId === selfMembershipId ||
-        membership.enteredAfterMessageSequence === undefined
-      ) {
-        return [];
-      }
+  const activities: ChatRoomSystemActivity[] = [];
 
-      return [
-        Object.freeze({
-          afterMessageSequence: membership.enteredAfterMessageSequence,
-          emittedAt: membership.joinedAt,
-          eventKey: `membership-entry:${membership.membershipId}:${membership.enteredAfterMessageSequence}`,
-          kind: "joined" as const,
-          membershipId: membership.membershipId,
-          receivedOrder: index,
-          userLabel: membership.userLabel ?? membership.displayName,
-        }),
-      ];
-    }),
+  participations.forEach((participation, index) => {
+    if (participation.membershipId === selfMembershipId) {
+      return;
+    }
+
+    activities.push(
+      Object.freeze({
+        afterMessageSequence: participation.enteredAfterMessageSequence,
+        emittedAt: participation.joinedAt,
+        eventKey: createParticipationActivityKey(participation.participationId, "entered"),
+        kind: "joined" as const,
+        membershipId: participation.membershipId,
+        participationId: participation.participationId,
+        receivedOrder: index * 2,
+        userLabel: participation.displayName,
+      }),
+    );
+
+    if (
+      participation.status !== "ENDED" ||
+      participation.endedAfterMessageSequence === null ||
+      participation.endedAt === null ||
+      participation.endReason === null ||
+      participation.endReason === "ROOM_CLOSED"
+    ) {
+      return;
+    }
+
+    activities.push(
+      Object.freeze({
+        afterMessageSequence: participation.endedAfterMessageSequence,
+        emittedAt: participation.endedAt,
+        eventKey: createParticipationActivityKey(participation.participationId, "ended"),
+        kind: participation.endReason === "BANNED" ? ("banned" as const) : ("left" as const),
+        membershipId: participation.membershipId,
+        participationId: participation.participationId,
+        receivedOrder: index * 2 + 1,
+        userLabel: participation.displayName,
+      }),
+    );
+  });
+
+  const roomClosedParticipation = participations.find(
+    (participation) =>
+      participation.status === "ENDED" &&
+      participation.endReason === "ROOM_CLOSED" &&
+      participation.endedAfterMessageSequence !== null &&
+      participation.endedAt !== null,
   );
+
+  if (
+    roomClosedParticipation &&
+    roomClosedParticipation.endedAfterMessageSequence !== null &&
+    roomClosedParticipation.endedAt !== null
+  ) {
+    activities.push(
+      Object.freeze({
+        afterMessageSequence: roomClosedParticipation.endedAfterMessageSequence,
+        emittedAt: roomClosedParticipation.endedAt,
+        eventKey: createRoomClosedActivityKey(roomId),
+        kind: "room-closed" as const,
+        receivedOrder: participations.length * 2,
+        roomId,
+      }),
+    );
+  }
+
+  return Object.freeze(activities);
 }
 
 export function combineChatRoomSystemActivities(
   restoredActivities: readonly ChatRoomSystemActivity[],
   realtimeActivities: readonly ChatRoomSystemActivity[],
 ): readonly ChatRoomSystemActivity[] {
-  const realtimePlacementKeys = new Set(realtimeActivities.map(createActivityPlacementKey));
-  const realtimeActivitiesByEventKey = new Map(
+  const activitiesByEventKey = new Map(
     realtimeActivities.map((activity) => [activity.eventKey, activity]),
   );
-  const activities = [
-    ...restoredActivities.filter(
-      (activity) => !realtimePlacementKeys.has(createActivityPlacementKey(activity)),
-    ),
-    ...realtimeActivitiesByEventKey.values(),
-  ];
+
+  for (const activity of restoredActivities) {
+    activitiesByEventKey.set(activity.eventKey, activity);
+  }
 
   return Object.freeze(
-    activities.sort(
+    [...activitiesByEventKey.values()].sort(
       (left, right) =>
         left.afterMessageSequence - right.afterMessageSequence ||
         Date.parse(left.emittedAt) - Date.parse(right.emittedAt) ||
@@ -171,6 +259,10 @@ export function createChatRoomSystemActivityMessage(
   activity: ChatRoomSystemActivity,
   participantDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): string {
+  if (activity.kind === "room-closed") {
+    return "토론방이 종료되었습니다.";
+  }
+
   const userLabel =
     activity.userLabel ?? participantDisplayNames.get(activity.membershipId) ?? "참여자";
 
@@ -195,6 +287,7 @@ export function createChatRoomEventKey(event: ChatRoomEventEnvelope): string {
     event.payload.roomVersion,
     getRoomEventMemberStates(event).map((member) => [
       member.membershipId,
+      member.participationId,
       member.membershipVersion,
     ]),
   ])}`;
@@ -202,18 +295,24 @@ export function createChatRoomEventKey(event: ChatRoomEventEnvelope): string {
 
 function getSystemActivityState(
   bufferedEvent: Extract<ChatRealtimeBufferedEvent, { kind: "room" }>,
-): Readonly<{
-  kind: ChatRoomSystemActivityKind;
-  member: ChatRoomEventMemberState;
-}> | null {
+):
+  | Readonly<{
+      type: "participant";
+      kind: Exclude<ChatRoomSystemActivityKind, "room-closed">;
+      member: ChatRoomEventMemberState;
+    }>
+  | Readonly<{ type: "room"; kind: "room-closed" }>
+  | null {
   switch (bufferedEvent.event.eventType) {
+    case "ROOM_CLOSED":
+      return { type: "room", kind: "room-closed" };
     case "ROOM_MEMBER_JOINED":
     case "ROOM_MEMBER_REJOINED":
-      return { kind: "joined", member: bufferedEvent.event.payload.member };
+      return { type: "participant", kind: "joined", member: bufferedEvent.event.payload.member };
     case "ROOM_MEMBER_LEFT":
-      return { kind: "left", member: bufferedEvent.event.payload.member };
+      return { type: "participant", kind: "left", member: bufferedEvent.event.payload.member };
     case "ROOM_MEMBER_BANNED":
-      return { kind: "banned", member: bufferedEvent.event.payload.member };
+      return { type: "participant", kind: "banned", member: bufferedEvent.event.payload.member };
     default:
       return null;
   }
@@ -239,6 +338,13 @@ function getRoomEventMemberStates(
   }
 }
 
-function createActivityPlacementKey(activity: ChatRoomSystemActivity): string {
-  return `${activity.kind}:${activity.membershipId}:${activity.afterMessageSequence}`;
+function createParticipationActivityKey(
+  participationId: string,
+  phase: "entered" | "ended",
+): string {
+  return `participation:${participationId}:${phase}`;
+}
+
+function createRoomClosedActivityKey(roomId: string): string {
+  return `room:${roomId}:closed`;
 }

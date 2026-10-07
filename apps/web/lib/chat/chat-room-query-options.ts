@@ -16,6 +16,7 @@ import {
   type ChatRoomMessageContextQueryParams,
   type ChatRoomMessageSearchCriteria,
   type ChatRoomMessageSearchQueryParams,
+  type ChatRoomParticipationQueryParams,
   type ChatRoomReadReceiptStateQueryParams,
   type PublicRoomListCriteria,
   type PublicRoomListQueryParams,
@@ -198,6 +199,21 @@ export function roomMembershipsInfiniteQueryOptions(
         ...(pageParam === null ? {} : { cursor: pageParam }),
       }),
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
+  });
+}
+
+export function roomParticipationsQueryOptions(
+  roomId: string,
+  { enabled, generation }: ChatRoomParticipationQueryParams,
+  api: Pick<ChatRoomApi, "listRoomParticipations"> = chatRoomApi,
+) {
+  return queryOptions({
+    queryKey: chatRoomQueryKeys.participation(roomId, generation),
+    enabled,
+    queryFn: ({ signal }) => api.listRoomParticipations(roomId, signal),
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 }
 

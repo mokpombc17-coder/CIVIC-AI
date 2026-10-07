@@ -16,6 +16,7 @@ import {
   type ChatRoomMembershipListQueryParams,
   type ChatRoomMessageContextQueryParams,
   type ChatRoomMessageSearchQueryParams,
+  type ChatRoomParticipationQueryParams,
   type ChatRoomQueryParams,
   type ChatRoomReadReceiptStateQueryParams,
   type InvalidCursorRecoveryState,
@@ -34,6 +35,7 @@ import {
   roomMessageContextQueryOptions,
   roomMessageHistoryInfiniteQueryOptions,
   roomMessageSearchInfiniteQueryOptions,
+  roomParticipationsQueryOptions,
   roomReadReceiptStateQueryOptions,
 } from "./chat-room-query-options";
 import {
@@ -179,6 +181,13 @@ export function useRoomMembershipsQuery(
     ...query,
     memberships,
   };
+}
+
+export function useRoomParticipationsQuery(
+  roomId: string,
+  params: ChatRoomParticipationQueryParams,
+) {
+  return useQuery(roomParticipationsQueryOptions(roomId, params));
 }
 
 export function useRoomSystemActivityJournalQuery(roomId: string) {

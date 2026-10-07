@@ -22,6 +22,7 @@ import {
   roomMessageHistoryInfiniteQueryOptions,
   roomMessageSearchInfiniteQueryOptions,
   roomMembershipsInfiniteQueryOptions,
+  roomParticipationsQueryOptions,
   roomReadReceiptStateQueryOptions,
   shouldRetryPublicRoomRequest,
   shouldRetryRoomInboxRequest,
@@ -436,6 +437,28 @@ describe("chat room query options", () => {
     });
     expect(chatRoomQueryKeys.readReceiptState("room-01", 7)).not.toEqual(
       chatRoomQueryKeys.readReceiptState("room-01", 8),
+    );
+  });
+
+  it("participation 이력을 연결 generation마다 새로 조회한다", async () => {
+    const response = { items: [] };
+    const listRoomParticipations = vi.fn(async () => response);
+    const options = roomParticipationsQueryOptions(
+      "room-01",
+      { enabled: true, generation: 7 },
+      { listRoomParticipations },
+    );
+
+    const result = await createQueryClient().fetchQuery(options);
+
+    expect(result).toBe(response);
+    expect(options.queryKey).toEqual(chatRoomQueryKeys.participation("room-01", 7));
+    expect(options.staleTime).toBe(Number.POSITIVE_INFINITY);
+    expect(options.refetchOnReconnect).toBe(false);
+    expect(options.refetchOnWindowFocus).toBe(false);
+    expect(listRoomParticipations).toHaveBeenCalledWith("room-01", expect.any(AbortSignal));
+    expect(chatRoomQueryKeys.participation("room-01", 7)).not.toEqual(
+      chatRoomQueryKeys.participation("room-01", 8),
     );
   });
 
@@ -936,6 +959,7 @@ function createMessage(roomSequence: number) {
     roomSequence,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: `메시지 ${roomSequence}`,
     createdAt: "2026-07-29T04:40:00Z",

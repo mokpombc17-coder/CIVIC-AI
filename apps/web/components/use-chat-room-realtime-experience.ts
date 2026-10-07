@@ -8,6 +8,7 @@ import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-
 import { useChatRoomMessageHistoryData } from "@/components/use-chat-room-screen-data";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
+  useRoomParticipationsQuery,
   useRoomReadReceiptStateQuery,
   useRoomSystemActivityJournalQuery,
 } from "@/lib/chat/chat-room-queries";
@@ -27,6 +28,10 @@ export function useChatRoomRealtimeExperience(
     enabled: messageHistoryEnabled,
   });
   const receiptStateQuery = useRoomReadReceiptStateQuery(roomId, {
+    enabled: session.isActive,
+    generation: session.generation,
+  });
+  const participationQuery = useRoomParticipationsQuery(roomId, {
     enabled: session.isActive,
     generation: session.generation,
   });
@@ -58,6 +63,8 @@ export function useChatRoomRealtimeExperience(
     coordinatorEnabled,
     messageHistory,
     messageHistoryEnabled,
+    participationHistory: participationQuery.data?.items ?? [],
+    participationQuery,
     receiptStateQuery,
     reconnect,
     realtimeReady,

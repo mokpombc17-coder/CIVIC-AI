@@ -5,7 +5,11 @@ import { useChatMessageOutbox, useChatOutgoingMessages } from "@/components/chat
 import { useChatMessageActionsBottomSheet } from "@/components/use-chat-message-actions-bottom-sheet";
 import { useChatMessageMutations } from "@/components/use-chat-message-mutations";
 import { useChatRoomMessagePresentation } from "@/components/use-chat-room-message-presentation";
-import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-contracts";
+import type {
+  ChatMessage,
+  RoomMembershipListItem,
+  RoomParticipationListItem,
+} from "@/lib/chat/chat-room-contracts";
 import type { ChatRoomReadReceiptState } from "@/lib/chat/chat-room-read-receipt-state";
 import type { ChatRoomReadReceiptSyncStatus } from "@/lib/chat/realtime/chat-room-read-receipt-coordinator";
 import type { ChatRoomSystemActivity } from "@/lib/chat/realtime/chat-room-system-activity";
@@ -17,6 +21,7 @@ type ChatRoomMessageExperienceInput = Readonly<{
   includeOutgoingMessages?: boolean;
   messageVisibleAfterSequence: number;
   participantProfiles: readonly RoomMembershipListItem[];
+  participationHistory: readonly RoomParticipationListItem[];
   readBoundaryAfterSequence: number | null;
   receiptState: ChatRoomReadReceiptState | undefined;
   receiptSyncStatus: ChatRoomReadReceiptSyncStatus;
@@ -32,6 +37,7 @@ export function useChatRoomMessageExperience({
   includeOutgoingMessages = true,
   messageVisibleAfterSequence,
   participantProfiles,
+  participationHistory,
   readBoundaryAfterSequence,
   receiptState,
   receiptSyncStatus,
@@ -53,9 +59,11 @@ export function useChatRoomMessageExperience({
     mutationStates: mutations.states,
     outgoingMessages: includeOutgoingMessages ? outgoingMessages : [],
     participantProfiles,
+    participationHistory,
     readBoundaryAfterSequence,
     receiptState,
     receiptSyncStatus,
+    roomId,
     selfMembershipId,
     systemActivities,
   });

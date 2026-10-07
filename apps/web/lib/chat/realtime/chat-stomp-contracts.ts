@@ -319,6 +319,7 @@ export const chatMessageEventSchema = z.discriminatedUnion("eventType", [
 
 export const chatRoomEventMemberStateSchema = z.object({
   membershipId: opaqueIdSchema,
+  participationId: opaqueIdSchema,
   userLabel: z.string().min(1).optional(),
   role: membershipRoleSchema,
   status: membershipStatusSchema,

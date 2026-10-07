@@ -25,6 +25,7 @@ import {
   roomInboxListParamsSchema,
   roomInboxListResponseSchema,
   roomMembershipListResponseSchema,
+  roomParticipationListResponseSchema,
   roomMessageContextParamsSchema,
   roomMessageSearchQuerySchema,
   roomMessageSearchRequestSchema,
@@ -548,6 +549,51 @@ describe("chat room REST contracts", () => {
         }).success,
       ).toBe(false);
     }
+  });
+
+  it("participation 이력의 ACTIVE와 ENDED 상태 불변식을 검증한다", () => {
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [createRoomParticipationListItem()],
+      }).success,
+    ).toBe(true);
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [
+          createRoomParticipationListItem({
+            status: "ENDED",
+            endedAfterMessageSequence: 25,
+            endedAt: "2026-10-07T07:10:00Z",
+            endReason: "LEFT",
+          }),
+        ],
+      }).success,
+    ).toBe(true);
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [createRoomParticipationListItem({ endedAt: "2026-10-07T07:10:00Z" })],
+      }).success,
+    ).toBe(false);
+  });
+
+  it("NORMAL 종료에는 sequence를 요구하고 LEGACY 종료의 누락은 허용한다", () => {
+    const endedWithoutSequence = {
+      status: "ENDED",
+      endedAfterMessageSequence: null,
+      endedAt: "2026-10-07T07:10:00Z",
+      endReason: "LEFT",
+    };
+
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [createRoomParticipationListItem(endedWithoutSequence)],
+      }).success,
+    ).toBe(false);
+    expect(
+      roomParticipationListResponseSchema.safeParse({
+        items: [createRoomParticipationListItem({ ...endedWithoutSequence, origin: "LEGACY" })],
+      }).success,
+    ).toBe(true);
   });
 
   it("참여자 표시 이름을 trim된 Unicode code point 1~50자로 제한한다", () => {
@@ -1141,6 +1187,7 @@ function createMessage(roomSequence: number) {
     roomSequence,
     countable: true,
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: "ed7d2fe8-996d-4660-822f-e84af1218743",
     content: "안녕하세요.",
     createdAt: "2026-07-29T04:40:00Z",
@@ -1206,6 +1253,25 @@ function createRoomMembershipListItem(patch: Record<string, unknown> = {}) {
     joinedAt: "2026-08-10T03:00:00Z",
     leftAt: null,
     bannedAt: null,
+    version: 1,
+    ...patch,
+  };
+}
+
+function createRoomParticipationListItem(patch: Record<string, unknown> = {}) {
+  return {
+    participationId: "participation-02",
+    membershipId: "membership-02",
+    origin: "NORMAL",
+    status: "ACTIVE",
+    enteredAfterMessageSequence: 10,
+    endedAfterMessageSequence: null,
+    displayName: "참여자 2",
+    imageUrl: null,
+    profileVersion: 1,
+    joinedAt: "2026-10-07T07:00:00Z",
+    endedAt: null,
+    endReason: null,
     version: 1,
     ...patch,
   };

@@ -17,6 +17,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_JOINED",
       roomVersion: 1,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 1,
       role: "MEMBER",
       status: "ACTIVE",
@@ -41,6 +42,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_REJOINED",
       roomVersion: 1,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 2,
       role: "MEMBER",
       status: "ACTIVE",
@@ -62,6 +64,7 @@ describe("chat room event cache projector", () => {
           eventType: "ROOM_MEMBER_LEFT",
           roomVersion: 1,
           membershipId: "membership-02",
+          participationId: "participation-fixture",
           membershipVersion: 2,
           role: "MEMBER",
           status: "LEFT",
@@ -75,6 +78,7 @@ describe("chat room event cache projector", () => {
           eventType: "ROOM_MEMBER_BANNED",
           roomVersion: 1,
           membershipId: "membership-02",
+          participationId: "participation-fixture",
           membershipVersion: 2,
           role: "MEMBER",
           status: "BANNED",
@@ -101,6 +105,7 @@ describe("chat room event cache projector", () => {
       roomId: "room-02",
       roomVersion: 1,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 1,
       role: "MEMBER",
       status: "ACTIVE",
@@ -121,6 +126,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_JOINED",
       roomVersion: 1,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 1,
       role: "MEMBER",
       status: "ACTIVE",
@@ -130,6 +136,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_LEFT",
       roomVersion: 1,
       membershipId: "membership-03",
+      participationId: "participation-fixture",
       membershipVersion: 2,
       role: "MEMBER",
       status: "LEFT",
@@ -172,6 +179,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_JOINED",
       roomVersion: 1,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 1,
       role: "MEMBER",
       status: "ACTIVE",
@@ -195,6 +203,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_JOINED",
       roomVersion: 2,
       membershipId: "membership-02",
+      participationId: "participation-fixture",
       membershipVersion: 1,
       role: "MEMBER",
       status: "ACTIVE",
@@ -251,6 +260,7 @@ describe("chat room event cache projector", () => {
       eventType: "ROOM_MEMBER_BANNED",
       roomVersion: 2,
       membershipId: "membership-01",
+      participationId: "participation-fixture",
       membershipVersion: 2,
       role: "OWNER",
       status: "BANNED",
@@ -381,6 +391,7 @@ function createMemberEvent({
   eventType,
   membershipId,
   membershipVersion,
+  participationId = "participation-fixture",
   role,
   roomId = "room-01",
   roomVersion,
@@ -395,6 +406,7 @@ function createMemberEvent({
     | "ROOM_MEMBER_UNBANNED";
   membershipId: string;
   membershipVersion: number;
+  participationId?: string;
   role: "OWNER" | "MEMBER";
   roomId?: string;
   roomVersion: number;
@@ -411,6 +423,7 @@ function createMemberEvent({
       roomStatus: "ACTIVE",
       member: {
         membershipId,
+        participationId,
         role,
         status,
         membershipVersion,
@@ -442,12 +455,14 @@ function createOwnershipTransferredEvent(): ChatRoomEventEnvelope {
       roomStatus: "ACTIVE",
       previousOwner: {
         membershipId: "membership-01",
+        participationId: "participation-fixture",
         role: "MEMBER",
         status: "ACTIVE",
         membershipVersion: 2,
       },
       newOwner: {
         membershipId: "membership-02",
+        participationId: "participation-fixture",
         role: "OWNER",
         status: "ACTIVE",
         membershipVersion: 2,
@@ -468,6 +483,7 @@ function createOwnerEvent(eventId: string, roomVersion: number): ChatRoomEventEn
       roomStatus: "CLOSED",
       owner: {
         membershipId: "membership-01",
+        participationId: "participation-fixture",
         role: "OWNER",
         status: "BANNED",
         membershipVersion: 2,

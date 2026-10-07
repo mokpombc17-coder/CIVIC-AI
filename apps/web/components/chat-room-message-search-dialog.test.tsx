@@ -178,6 +178,7 @@ function createMessage(messageId: string): ChatMessage {
     roomId: "room-01",
     roomSequence: Number(messageId.replace("message-", "")),
     senderMembershipId: "membership-01",
+    senderParticipationId: "participation-fixture",
     clientMessageId: `client-${messageId}`,
     content: "환경 정책입니다.",
     state: "ACTIVE",
