@@ -79,6 +79,7 @@ export type ChatRoomMembershipPanelController = Readonly<{
   isActiveMembershipListEnabled: boolean;
   isOwner: boolean;
   ownerManagedMemberships: MembershipListController;
+  roomActionDisabledReason: string | null;
   roomActionKind: "leave" | "close" | null;
   selfMembership: Readonly<{
     errorMessage: string | null;
@@ -174,6 +175,10 @@ export function useChatRoomMembershipPanel(
   }
 
   function startRoomCommand(kind: "leave" | "close") {
+    if (kind === "close" && room.activeMemberCount > 1) {
+      return;
+    }
+
     const prompt =
       kind === "leave"
         ? "이 토론방에서 나갈까요?"
@@ -227,6 +232,10 @@ export function useChatRoomMembershipPanel(
         ? "leave"
         : "close"
       : null;
+  const roomActionDisabledReason =
+    roomActionKind === "close" && room.activeMemberCount > 1
+      ? "다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다."
+      : null;
 
   return {
     activeMemberships: {
@@ -268,6 +277,7 @@ export function useChatRoomMembershipPanel(
       memberships: ownerManagedMembershipsQuery.memberships,
       retry: () => void ownerManagedMembershipsQuery.refetch(),
     },
+    roomActionDisabledReason,
     roomActionKind,
     selfMembership: {
       errorMessage: membershipQuery.isError ? toErrorMessage(membershipQuery.error) : null,

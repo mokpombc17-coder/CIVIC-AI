@@ -1,6 +1,6 @@
 "use client";
 
-import type { ReactNode } from "react";
+import { useId, type ReactNode } from "react";
 import { ChatRoomParticipantProfile } from "@/components/chat-room-participant-profile";
 import { ChatRoomInformationSection } from "@/components/chat-room-settings-control";
 import {
@@ -67,9 +67,11 @@ export function ChatRoomMembershipPanelView({
     isActiveMembershipListEnabled,
     isOwner,
     ownerManagedMemberships,
+    roomActionDisabledReason,
     roomActionKind,
     selfMembership,
   } = controller;
+  const roomActionDisabledReasonId = useId();
 
   return (
     <section className="px-5 pt-2 pb-6">
@@ -157,9 +159,18 @@ export function ChatRoomMembershipPanelView({
 
       {roomActionKind ? (
         <div className="mt-5 border-t border-[var(--chat-publishing-color-border)] pt-5">
+          {roomActionDisabledReason ? (
+            <p
+              className="mb-3 text-sm leading-6 text-[var(--chat-publishing-color-muted)]"
+              id={roomActionDisabledReasonId}
+            >
+              {roomActionDisabledReason}
+            </p>
+          ) : null}
           <button
+            aria-describedby={roomActionDisabledReason ? roomActionDisabledReasonId : undefined}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-4 text-sm font-semibold text-[#b42318] transition hover:bg-[#fff1f0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50"
-            disabled={command.isPending}
+            disabled={command.isPending || roomActionDisabledReason !== null}
             onClick={() => command.startRoom(roomActionKind)}
             type="button"
           >

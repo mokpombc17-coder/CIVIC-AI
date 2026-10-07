@@ -150,12 +150,41 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("blocked-member");
     expect(html).not.toContain("참여자 3");
     expect(html).toContain("차단 해제");
+    expect(html).toContain("다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다.");
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>방 종료<\/button>/);
     expect(html).not.toContain("비활성 멤버 상태 필터");
     expect(html).not.toContain("나감");
     expect(mocks.useRoomMembershipsQuery).toHaveBeenNthCalledWith(2, "room-01", {
       enabled: true,
       status: "BANNED",
     });
+  });
+
+  it("방장만 남은 ACTIVE 토론방은 종료할 수 있다", () => {
+    const membership = createMembership({
+      membershipId: "membership-owner",
+      role: "OWNER",
+    });
+    prepareQueries(membership, {
+      ACTIVE: [
+        createMembershipListItem({
+          membershipId: membership.membershipId,
+          role: "OWNER",
+        }),
+      ],
+    });
+
+    const html = renderPanel(
+      createRoomDetails({
+        activeMemberCount: 1,
+        myMembership: membership,
+        ownerMembershipId: membership.membershipId,
+      }),
+    );
+
+    expect(html).toContain(">방 종료</button>");
+    expect(html).not.toContain("다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다.");
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>방 종료<\/button>/);
   });
 
   it("View는 Query나 mutation hook 없이 controller 상태만 렌더링한다", () => {
@@ -294,6 +323,7 @@ function createMembershipPanelController(
     isActiveMembershipListEnabled: true,
     isOwner: false,
     ownerManagedMemberships: emptyList,
+    roomActionDisabledReason: null,
     roomActionKind: "leave",
     selfMembership: {
       errorMessage: null,
