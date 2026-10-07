@@ -108,7 +108,7 @@ describe("chat room message presentation", () => {
     });
   });
 
-  it("메시지의 participation 당시 프로필을 현재 Membership 프로필보다 우선한다", () => {
+  it("현재 Membership의 사용자 이름을 participation 표시명보다 우선한다", () => {
     const presentation = createChatRoomMessagePresentation({
       confirmedMessages: [MESSAGE],
       mutationStates: new Map(),
@@ -122,7 +122,7 @@ describe("chat room message presentation", () => {
       selfMembershipId: "membership-01",
     });
 
-    expect(presentation.messageItems[0]?.senderLabel).toBe("과거 참여자 이름");
+    expect(presentation.messageItems[0]?.senderLabel).toBe("member");
   });
 });
 

@@ -286,8 +286,8 @@ function createChatMessageItemViewModel(
     roomSequence: item.message.roomSequence,
     senderIsOwner: item.message.senderMembershipId === ownerMembershipId,
     senderLabel:
-      participationDisplayNames.get(item.message.senderParticipationId) ??
       participantDisplayNames.get(item.message.senderMembershipId) ??
+      participationDisplayNames.get(item.message.senderParticipationId) ??
       (isMine ? selfDisplayName : UNKNOWN_ROOM_PARTICIPANT_DISPLAY_NAME),
     startsSenderGroup,
     timeLabel: formatMessageTime(item.message.createdAt),

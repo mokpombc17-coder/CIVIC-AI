@@ -162,6 +162,7 @@ describe("chat room system activity", () => {
         },
       ],
       null,
+      new Map([["membership-02", "member-02"]]),
     );
 
     expect(activities.map(({ kind }) => kind)).toEqual([
@@ -171,6 +172,9 @@ describe("chat room system activity", () => {
       "banned",
       "joined",
     ]);
+    expect(activities[0]).toMatchObject({ userLabel: "member-02" });
+    expect(activities[1]).toMatchObject({ userLabel: "member-02" });
+    expect(activities[2]).toMatchObject({ userLabel: "membership-03" });
   });
 
   it("ROOM_CLOSED participation이 여러 개여도 방 종료 안내를 한 번만 복원한다", () => {

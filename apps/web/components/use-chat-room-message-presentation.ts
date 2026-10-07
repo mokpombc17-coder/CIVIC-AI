@@ -132,6 +132,7 @@ export function createChatRoomMessagePresentation({
     roomId,
     participationHistory,
     selfMembershipId,
+    participantDisplayNames,
   );
   const timelineRows = createChatMessageTimelineRows(timeline, {
     readBoundaryAfterSequence,

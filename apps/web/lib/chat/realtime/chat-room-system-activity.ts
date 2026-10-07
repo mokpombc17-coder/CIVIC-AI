@@ -159,6 +159,7 @@ export function createParticipationSystemActivities(
   roomId: string,
   participations: readonly RoomParticipationListItem[],
   selfMembershipId: string | null,
+  participantDisplayNames: ReadonlyMap<string, string> = new Map(),
 ): readonly ChatRoomSystemActivity[] {
   const activities: ChatRoomSystemActivity[] = [];
 
@@ -176,7 +177,8 @@ export function createParticipationSystemActivities(
         membershipId: participation.membershipId,
         participationId: participation.participationId,
         receivedOrder: index * 2,
-        userLabel: participation.displayName,
+        userLabel:
+          participantDisplayNames.get(participation.membershipId) ?? participation.displayName,
       }),
     );
 
@@ -199,7 +201,8 @@ export function createParticipationSystemActivities(
         membershipId: participation.membershipId,
         participationId: participation.participationId,
         receivedOrder: index * 2 + 1,
-        userLabel: participation.displayName,
+        userLabel:
+          participantDisplayNames.get(participation.membershipId) ?? participation.displayName,
       }),
     );
   });
