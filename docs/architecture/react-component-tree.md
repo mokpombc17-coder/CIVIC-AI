@@ -502,10 +502,13 @@ Infinite Query를 사용해 서버 정렬 순서대로 진행 중·완료 결과
 선택하면 cache된 통합 결과로 복귀한다. 사용자용 완료 목록 API가 제공되기 전에는 완료 Query를 비활성화하고
 준비 중 상태를 표시하며, 개발 환경에서만 publishing 디자인 샘플 카드를 실제 데이터와 구분해 제공한다.
 
-`VoteTaskScreen`은 Task 상세 Query로 실제 질문·선택지를 조립하고, 1/4 과업 확인부터 4/4 참여 완료까지의
-local draft와 단계 전이, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출
-mutation, 종료 bottom sheet를 소유한다. 또한 사용자 UUID가 설정된 방문에 대해 단계별 최초 노출,
-Prediction 참여 가능 상태의 최초 노출과 실제 제출 시도를 GA custom event로 기록한다.
+`VoteTaskScreen`은 controller가 제공하는 화면 model과 action으로 실제 질문·선택지, 1/4 과업 확인부터
+4/4 참여 완료까지의 단계 view와 종료 bottom sheet를 조립한다. `useVoteTaskController`는 Task 상세·제출
+Query, Prediction 상태 조회·생성·polling coordinator, Task 멱등 제출 mutation, query invalidation과
+analytics 같은 부수효과를 소유한다. `vote-task-flow.ts`의 순수 reducer는 local draft, 단계 전이와
+복구 가능한 제출 상태를 관리하고, `vote-submission-recovery.ts`는 제출 오류를 side effect 없는 복구
+정책으로 분류한다. 사용자 UUID가 설정된 방문에 대해서는 단계별 최초 노출, Prediction 참여 가능 상태의
+최초 노출과 실제 제출 시도를 GA custom event로 기록한다.
 Vote 목록·참여·제출 응답·결과 screen의 사용자 노출 조회 실패와 Prediction 최종 실패, 제출 실패는
 공통 failure analytics로 기록하고, 같은 방문에서 재조회·Prediction 준비·멱등 제출이 성공한 경우에만
 복구를 기록한다. Prediction polling의 대기 상태와 자동 복구되는 중간 오류는 실패로 세지 않는다.
