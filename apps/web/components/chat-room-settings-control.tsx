@@ -13,6 +13,8 @@ const SETTINGS_PRIMARY_BUTTON_CLASS_NAME =
   "inline-flex min-h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-primary)] px-4 text-base font-bold text-white transition hover:bg-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
 const SETTINGS_SECONDARY_BUTTON_CLASS_NAME =
   "inline-flex min-h-12 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-border)] bg-white px-4 text-base font-bold text-[var(--chat-publishing-color-text)] transition hover:bg-[var(--chat-publishing-color-neutral-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] disabled:cursor-not-allowed disabled:opacity-50";
+const ROOM_SETTINGS_FIELD_CLASS_NAME =
+  "w-full rounded-[4px] border border-[#d8dde6] bg-white px-3 py-2 text-[var(--chat-publishing-color-text)] outline-none transition-[border-color,box-shadow] hover:border-[#aeb6c2] focus:border-[var(--chat-publishing-color-primary)] focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)] disabled:cursor-not-allowed disabled:bg-[var(--chat-publishing-color-neutral-soft)]";
 
 export function ChatRoomInformationSection({
   canEdit,
@@ -141,7 +143,7 @@ export function ChatRoomSettingsInlineForm({
         <label className="grid gap-1 text-xs font-medium text-[var(--chat-publishing-color-muted)]">
           방 이름
           <input
-            className="-mx-2 min-h-10 w-[calc(100%+1rem)] rounded-[var(--chat-publishing-radius-control)] border border-transparent bg-transparent px-2 py-1 text-base font-bold text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
+            className={`${ROOM_SETTINGS_FIELD_CLASS_NAME} min-h-11 text-base font-bold`}
             maxLength={100}
             name="name"
             onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
@@ -159,7 +161,7 @@ export function ChatRoomSettingsInlineForm({
           </label>
           <textarea
             aria-describedby={descriptionHelpId}
-            className="-mx-2 min-h-16 w-[calc(100%+1rem)] resize-none rounded-[var(--chat-publishing-radius-control)] border border-transparent bg-transparent px-2 py-1 text-sm leading-6 text-[var(--chat-publishing-color-text)] outline-none transition focus:border-[var(--chat-publishing-color-primary)] focus:bg-white focus:ring-2 focus:ring-[var(--chat-publishing-color-accent-soft)]"
+            className={`${ROOM_SETTINGS_FIELD_CLASS_NAME} min-h-20 resize-none text-sm leading-6`}
             id={descriptionId}
             maxLength={500}
             name="description"

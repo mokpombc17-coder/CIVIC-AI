@@ -74,8 +74,11 @@ export function ChatRoomMembershipPanelView({
   const roomActionDisabledReasonId = useId();
 
   return (
-    <section className="px-5 pt-2 pb-6">
-      <div className="flex min-h-11 items-start justify-between gap-4">
+    <section className="px-5 pb-6">
+      <div
+        className="sticky top-0 z-20 -mx-5 flex min-h-14 items-start justify-between gap-4 border-b border-[var(--chat-publishing-color-border)] bg-white px-5 py-2"
+        data-chat-room-membership-header="true"
+      >
         <h2 className="min-w-0 pt-2 text-xl font-semibold leading-7" id={headingId}>
           토론방 메뉴
         </h2>
