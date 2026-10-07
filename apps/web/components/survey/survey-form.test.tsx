@@ -209,6 +209,34 @@ describe("SurveyForm", () => {
     );
   });
 
+  it("마지막 단계로 복원된 불완전 draft를 제출 전에 전체 검증하고 첫 오류 단계로 이동한다", () => {
+    const rendered = renderSurveyForm();
+    const draft = getDraftParams();
+
+    act(() => {
+      draft.onDraftRestored({
+        answers: {
+          [FIRST_QUESTION_ID]: { text: "", type: "SHORT_TEXT" },
+          [SECOND_QUESTION_ID]: { text: "복원된 둘째 답변", type: "SHORT_TEXT" },
+        },
+        currentStep: 3,
+      });
+    });
+    expect(rendered.container.querySelector("[data-survey-step='3']")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ }));
+    fireEvent.click(screen.getByRole("button", { name: "제출하기" }));
+
+    expect(rendered.container.querySelector("[data-survey-step='1']")).not.toBeNull();
+    expect(rendered.container.querySelector("[data-invalid='true']")).not.toBeNull();
+    expect(screen.getByText("답변을 입력해 주세요.")).toBeTruthy();
+    expect(requestAnimationFrame).toHaveBeenCalled();
+    expect(submissionHarness.coordinatorSubmit).not.toHaveBeenCalled();
+    expect(submissionHarness.acceptConsent).not.toHaveBeenCalled();
+    expect(submissionHarness.submitSurvey).not.toHaveBeenCalled();
+    expect(submissionHarness.trackSubmissionAttempted).not.toHaveBeenCalled();
+  });
+
   it("마지막 단계에서 필수 동의 전에는 제출을 막고 동의 후 성공 결과를 전달한다", async () => {
     renderSurveyForm();
     completeSurveyAnswers();
@@ -262,7 +290,9 @@ describe("SurveyForm", () => {
     expect(screen.getByText("입력값을 다시 확인해 주세요.").getAttribute("role")).toBe("alert");
     expect(submissionHarness.coordinatorReset).toHaveBeenCalledTimes(2);
     expect(submissionHarness.onRefresh).not.toHaveBeenCalled();
-    expect(requestAnimationFrame).toHaveBeenCalled();
+    await waitFor(() => {
+      expect(requestAnimationFrame).toHaveBeenCalled();
+    });
   });
 });
 
