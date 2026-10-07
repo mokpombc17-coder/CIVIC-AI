@@ -107,7 +107,9 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`의 7개 Se
 subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
 Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며, 동의 저장과 Survey 제출은
 각각 독립된 idempotency key를 사용한다. Survey 재시도에는 최초 클릭 시각과 이미 발급된 consent receipt를
-유지한다. 제출 성공 또는
+유지한다. `survey-submission-recovery.ts`는 동의·설문 제출 오류를 사용자 메시지, 필드 오류,
+최신 설문 재조회와 새 멱등 시도 여부로 분류하고 첫 오류가 속한 Section을 결정한다. `SurveyForm`은 이
+순수 정책의 결과만 화면 상태와 제출 coordinator에 반영한다. 제출 성공 또는
 `SUBMITTED` 재진입 시 임시 답변을 삭제한다. 1~~7단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
