@@ -4,10 +4,13 @@ import com.hamcheeze.chat.application.RoomAuthorizationDecision;
 import com.hamcheeze.chat.application.RoomAuthorizationService;
 import com.hamcheeze.chat.room.api.dto.RoomParticipationListResponse;
 import com.hamcheeze.chat.room.api.dto.RoomParticipationResponse;
+import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomParticipation;
+import com.hamcheeze.chat.room.label.RoomMemberUserLabelResolver;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -21,6 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashSet;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/v1")
@@ -30,17 +35,21 @@ public class RoomParticipationQueryController {
     private final MembershipStore membershipStore;
     private final RoomAuthorizationService authorizationService;
     private final AuthenticatedUserIdResolver userIdResolver;
+    private final RoomMemberUserLabelResolver userLabels;
 
     public RoomParticipationQueryController(
             RoomParticipationStore participationStore,
             MembershipStore membershipStore,
             RoomAuthorizationService authorizationService,
-            AuthenticatedUserIdResolver userIdResolver
+            AuthenticatedUserIdResolver userIdResolver,
+            UserLabelDirectory userLabelDirectory
     ) {
         this.participationStore = participationStore;
         this.membershipStore = membershipStore;
         this.authorizationService = authorizationService;
         this.userIdResolver = userIdResolver;
+        this.userLabels = new RoomMemberUserLabelResolver(
+                userLabelDirectory);
     }
 
     @GetMapping("/rooms/{roomId}/participations")
@@ -62,34 +71,67 @@ public class RoomParticipationQueryController {
         }
         var participations = new ArrayList<>(participationStore
                 .findByRoomId(validatedRoomId));
+        var memberships = new ArrayList<Membership>();
+        for (MembershipStatus status : MembershipStatus.values()) {
+            memberships.addAll(membershipStore.findByRoomIdAndStatus(
+                    validatedRoomId,
+                    status));
+        }
         var representedMembershipIds = new HashSet<>(participations
                 .stream()
                 .map(RoomParticipation::membershipId)
                 .toList());
-        for (MembershipStatus status : MembershipStatus.values()) {
-            membershipStore.findByRoomIdAndStatus(
-                            validatedRoomId,
-                            status)
-                    .stream()
-                    .filter(membership -> representedMembershipIds.add(
-                            membership.membershipId()))
-                    .map(membership ->
-                            membership.status() == MembershipStatus.ACTIVE
-                                    ? RoomParticipation.legacyActive(
-                                            membership)
-                                    : RoomParticipation.legacyEnded(
-                                            membership))
-                    .forEach(participations::add);
-        }
+        var resolvedUserLabels = userLabels.resolveAll(memberships);
+        memberships.stream()
+                .filter(membership -> representedMembershipIds.add(
+                        membership.membershipId()))
+                .map(membership ->
+                        membership.status() == MembershipStatus.ACTIVE
+                                ? RoomParticipation.legacyActive(
+                                        membership,
+                                        resolvedUserLabels.get(
+                                                membership.userId()))
+                                : RoomParticipation.legacyEnded(
+                                        membership,
+                                        resolvedUserLabels.get(
+                                                membership.userId())))
+                .forEach(participations::add);
+        var membershipsById = memberships.stream()
+                .collect(Collectors.toMap(
+                        Membership::membershipId,
+                        Function.identity()));
         participations.sort(Comparator
                 .comparing(RoomParticipation::joinedAt)
                 .thenComparing(RoomParticipation::participationId));
         var items = participations
                 .stream()
-                .map(RoomParticipationResponse::from)
+                .map(participation -> RoomParticipationResponse.from(
+                        participation,
+                        resolveUserLabel(
+                                participation,
+                                membershipsById,
+                                resolvedUserLabels)))
                 .toList();
         return ResponseEntity.ok()
                 .cacheControl(CacheControl.noStore().cachePrivate())
                 .body(new RoomParticipationListResponse(items));
+    }
+
+    private static String resolveUserLabel(
+            RoomParticipation participation,
+            java.util.Map<String, Membership> membershipsById,
+            java.util.Map<String, String> resolvedUserLabels
+    ) {
+        if (participation.userLabel() != null) {
+            return participation.userLabel();
+        }
+        Membership membership = membershipsById.get(
+                participation.membershipId());
+        if (membership == null) {
+            return participation.profile().displayName();
+        }
+        return resolvedUserLabels.getOrDefault(
+                membership.userId(),
+                participation.profile().displayName());
     }
 }

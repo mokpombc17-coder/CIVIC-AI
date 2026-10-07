@@ -10,6 +10,7 @@ public final class RoomParticipation {
     private final String roomId;
     private final ParticipationOrigin origin;
     private final ParticipationStatus status;
+    private final String userLabel;
     private final MembershipProfile profile;
     private final Instant joinedAt;
     private final Instant endedAt;
@@ -24,6 +25,7 @@ public final class RoomParticipation {
             String roomId,
             ParticipationOrigin origin,
             ParticipationStatus status,
+            String userLabel,
             MembershipProfile profile,
             Instant joinedAt,
             Instant endedAt,
@@ -38,6 +40,7 @@ public final class RoomParticipation {
         this.roomId = requireText(roomId, "roomId");
         this.origin = Objects.requireNonNull(origin, "origin");
         this.status = Objects.requireNonNull(status, "status");
+        this.userLabel = normalizeOptionalText(userLabel);
         this.profile = Objects.requireNonNull(profile, "profile");
         this.joinedAt = Objects.requireNonNull(joinedAt, "joinedAt");
         if (enteredAfterMessageSequence < 0) {
@@ -68,7 +71,8 @@ public final class RoomParticipation {
 
     public static RoomParticipation normal(
             String participationId,
-            Membership membership
+            Membership membership,
+            String userLabel
     ) {
         Objects.requireNonNull(membership, "membership");
         if (membership.status() != MembershipStatus.ACTIVE) {
@@ -78,10 +82,14 @@ public final class RoomParticipation {
         return active(
                 participationId,
                 membership,
-                ParticipationOrigin.NORMAL);
+                ParticipationOrigin.NORMAL,
+                requireText(userLabel, "userLabel"));
     }
 
-    public static RoomParticipation legacyActive(Membership membership) {
+    public static RoomParticipation legacyActive(
+            Membership membership,
+            String userLabel
+    ) {
         Objects.requireNonNull(membership, "membership");
         if (membership.status() != MembershipStatus.ACTIVE) {
             throw new IllegalArgumentException(
@@ -90,10 +98,14 @@ public final class RoomParticipation {
         return active(
                 RoomParticipationIds.legacy(membership.membershipId()),
                 membership,
-                ParticipationOrigin.LEGACY);
+                ParticipationOrigin.LEGACY,
+                requireText(userLabel, "userLabel"));
     }
 
-    public static RoomParticipation legacyEnded(Membership membership) {
+    public static RoomParticipation legacyEnded(
+            Membership membership,
+            String userLabel
+    ) {
         Objects.requireNonNull(membership, "membership");
         if (membership.status() == MembershipStatus.ACTIVE) {
             throw new IllegalArgumentException(
@@ -112,6 +124,7 @@ public final class RoomParticipation {
                 membership.roomId(),
                 ParticipationOrigin.LEGACY,
                 ParticipationStatus.ENDED,
+                requireText(userLabel, "userLabel"),
                 membership.profile(),
                 membership.joinedAt(),
                 endedAt,
@@ -127,6 +140,7 @@ public final class RoomParticipation {
             String roomId,
             ParticipationOrigin origin,
             ParticipationStatus status,
+            String userLabel,
             MembershipProfile profile,
             Instant joinedAt,
             Instant endedAt,
@@ -141,6 +155,30 @@ public final class RoomParticipation {
                 roomId,
                 origin == null ? ParticipationOrigin.LEGACY : origin,
                 status,
+                userLabel,
+                profile,
+                joinedAt,
+                endedAt,
+                endReason,
+                enteredAfterMessageSequence,
+                endedAfterMessageSequence,
+                version);
+    }
+
+    public RoomParticipation withUserLabel(String resolvedUserLabel) {
+        String requiredUserLabel = requireText(
+                resolvedUserLabel,
+                "userLabel");
+        if (requiredUserLabel.equals(userLabel)) {
+            return this;
+        }
+        return new RoomParticipation(
+                participationId,
+                membershipId,
+                roomId,
+                origin,
+                status,
+                requiredUserLabel,
                 profile,
                 joinedAt,
                 endedAt,
@@ -153,7 +191,8 @@ public final class RoomParticipation {
     private static RoomParticipation active(
             String participationId,
             Membership membership,
-            ParticipationOrigin origin
+            ParticipationOrigin origin,
+            String userLabel
     ) {
         return new RoomParticipation(
                 participationId,
@@ -161,6 +200,7 @@ public final class RoomParticipation {
                 membership.roomId(),
                 origin,
                 ParticipationStatus.ACTIVE,
+                userLabel,
                 membership.profile(),
                 membership.joinedAt(),
                 null,
@@ -185,6 +225,7 @@ public final class RoomParticipation {
                 roomId,
                 origin,
                 ParticipationStatus.ENDED,
+                userLabel,
                 profile,
                 joinedAt,
                 Objects.requireNonNull(endedAt, "endedAt"),
@@ -224,6 +265,10 @@ public final class RoomParticipation {
         return value;
     }
 
+    private static String normalizeOptionalText(String value) {
+        return value == null || value.isBlank() ? null : value;
+    }
+
     public String participationId() {
         return participationId;
     }
@@ -242,6 +287,10 @@ public final class RoomParticipation {
 
     public ParticipationStatus status() {
         return status;
+    }
+
+    public String userLabel() {
+        return userLabel;
     }
 
     public MembershipProfile profile() {

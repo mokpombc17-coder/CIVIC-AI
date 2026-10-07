@@ -16,6 +16,7 @@ import com.hamcheeze.chat.room.RoomDomainException;
 import com.hamcheeze.chat.room.RoomMembershipTransitions;
 import com.hamcheeze.chat.room.RoomParticipation;
 import com.hamcheeze.chat.room.RoomParticipationIds;
+import com.hamcheeze.chat.room.label.RoomMemberUserLabelResolver;
 import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomSettingsUpdateOutcome;
 import com.hamcheeze.chat.room.RoomSettingsUpdateTransition;
@@ -43,6 +44,7 @@ import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.hamcheeze.chat.room.persistence.RoomParticipationStore;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
 import com.hamcheeze.chat.room.persistence.RoomStore;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -68,6 +70,7 @@ public final class RoomCommandService {
     private final ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics;
     private final RoomCommandPostCommitCoordinator
             postCommitCoordinator;
+    private final RoomMemberUserLabelResolver userLabels;
 
     public RoomCommandService(
             RoomStore roomStore,
@@ -84,7 +87,8 @@ public final class RoomCommandService {
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
             ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
-            RoomCommandPostCommitCoordinator postCommitCoordinator
+            RoomCommandPostCommitCoordinator postCommitCoordinator,
+            UserLabelDirectory userLabelDirectory
     ) {
         this.roomStore = Objects.requireNonNull(roomStore, "roomStore");
         this.membershipStore = Objects.requireNonNull(
@@ -121,6 +125,44 @@ public final class RoomCommandService {
         this.postCommitCoordinator = Objects.requireNonNull(
                 postCommitCoordinator,
                 "postCommitCoordinator");
+        this.userLabels = new RoomMemberUserLabelResolver(
+                userLabelDirectory);
+    }
+
+    public RoomCommandService(
+            RoomStore roomStore,
+            MembershipStore membershipStore,
+            RoomParticipationStore participationStore,
+            RoomParticipationProperties participationProperties,
+            RoomMessageBoundaryPort messageBoundaryPort,
+            IdempotentRoomCommandExecutor executor,
+            RoomCommandFingerprintFactory fingerprintFactory,
+            RoomCommandIdGenerator idGenerator,
+            ApprovedRoomCreator approvedRoomCreator,
+            Clock clock,
+            RoomCommandProperties properties,
+            RoomMembershipProperties membershipProperties,
+            ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
+            RoomCommandPostCommitCoordinator postCommitCoordinator
+    ) {
+        this(
+                roomStore,
+                membershipStore,
+                participationStore,
+                participationProperties,
+                messageBoundaryPort,
+                executor,
+                fingerprintFactory,
+                idGenerator,
+                approvedRoomCreator,
+                clock,
+                properties,
+                membershipProperties,
+                membershipQuotaGuard,
+                membershipQuotaMetrics,
+                postCommitCoordinator,
+                UserLabelDirectory.noop());
     }
 
     public RoomCommandService(
@@ -153,7 +195,8 @@ public final class RoomCommandService {
                 membershipProperties,
                 membershipQuotaGuard,
                 membershipQuotaMetrics,
-                postCommitCoordinator);
+                postCommitCoordinator,
+                UserLabelDirectory.noop());
     }
 
     public RoomCommandExecution createRoom(
@@ -939,7 +982,8 @@ public final class RoomCommandService {
         }
         participationStore.insert(RoomParticipation.normal(
                 RoomParticipationIds.normal(candidateMembershipId),
-                membership));
+                membership,
+                userLabels.resolve(membership)));
     }
 
     private void materializeLegacyActiveParticipation(
@@ -951,7 +995,9 @@ public final class RoomCommandService {
             return;
         }
         participationStore.insert(
-                RoomParticipation.legacyActive(membership));
+                RoomParticipation.legacyActive(
+                        membership,
+                        userLabels.resolve(membership)));
     }
 
     private void materializeLegacyEndedParticipation(
@@ -963,7 +1009,9 @@ public final class RoomCommandService {
         if (!participationStore.existsByMembershipId(
                 membership.membershipId())) {
             participationStore.insert(
-                    RoomParticipation.legacyEnded(membership));
+                    RoomParticipation.legacyEnded(
+                            membership,
+                            userLabels.resolve(membership)));
         }
     }
 
@@ -981,7 +1029,9 @@ public final class RoomCommandService {
                 .orElse(null);
         if (active == null) {
             RoomParticipation ended = RoomParticipation
-                    .legacyActive(membership)
+                    .legacyActive(
+                            membership,
+                            userLabels.resolve(membership))
                     .end(
                             endedAt,
                             endedAfterMessageSequence,
@@ -989,7 +1039,10 @@ public final class RoomCommandService {
             participationStore.insert(ended);
             return;
         }
-        RoomParticipation ended = active.end(
+        RoomParticipation participationToEnd = active.userLabel() == null
+                ? active.withUserLabel(userLabels.resolve(membership))
+                : active;
+        RoomParticipation ended = participationToEnd.end(
                 endedAt,
                 endedAfterMessageSequence,
                 reason);

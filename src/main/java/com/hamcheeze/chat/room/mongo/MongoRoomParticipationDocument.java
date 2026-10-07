@@ -21,6 +21,7 @@ public record MongoRoomParticipationDocument(
         String roomId,
         ParticipationOrigin origin,
         ParticipationStatus status,
+        String userLabel,
         MongoMembershipProfileDocument profile,
         Instant joinedAt,
         Instant endedAt,
@@ -59,6 +60,7 @@ public record MongoRoomParticipationDocument(
                 participation.roomId(),
                 participation.origin(),
                 participation.status(),
+                participation.userLabel(),
                 MongoMembershipProfileDocument.fromDomain(
                         participation.profile()),
                 participation.joinedAt(),
@@ -76,6 +78,7 @@ public record MongoRoomParticipationDocument(
                 roomId,
                 origin,
                 status,
+                userLabel,
                 profile.toDomain(),
                 joinedAt,
                 endedAt,

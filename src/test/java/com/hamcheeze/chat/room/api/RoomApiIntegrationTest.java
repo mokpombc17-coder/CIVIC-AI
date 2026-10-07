@@ -18,6 +18,7 @@ import com.hamcheeze.chat.room.mongo.MongoMembershipDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomCommandReceiptDocument;
 import com.hamcheeze.chat.room.mongo.MongoRoomDocument;
 import com.hamcheeze.chat.support.MongoRuntimeIntegrationTest;
+import com.hamcheeze.chat.userlabel.UserLabelDirectory;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -84,6 +85,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
 
     @Autowired
     private RoomMembershipProperties membershipProperties;
+
+    @Autowired
+    private UserLabelDirectory userLabelDirectory;
 
     @MockitoSpyBean
     private RoomEventDeliveryPort eventDeliveryPort;
@@ -1450,6 +1454,8 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
     @Test
     void participationHistorySeparatesRejoinedAnonymousIdentities()
             throws Exception {
+        userLabelDirectory.upsert("owner-1", "owner");
+        userLabelDirectory.upsert("user-2", "user02");
         String roomId = createRoom("owner-1", JoinPolicy.OPEN);
         String membershipId = commandService.joinRoom(
                         new JoinRoomCommand(
@@ -1458,6 +1464,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 roomId))
                 .result()
                 .membershipId();
+        userLabelDirectory.upsert("user-2", "renamed-user");
         commandService.leaveRoom(new LeaveRoomCommand(
                 "user-2",
                 requestId(),
@@ -1466,6 +1473,7 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 "user-2",
                 requestId(),
                 roomId));
+        userLabelDirectory.upsert("user-2", "latest-user");
 
         mockMvc.perform(get(
                                 "/api/v1/rooms/{roomId}/participations",
@@ -1495,7 +1503,14 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 membershipId)
                         .value(containsInAnyOrder(
                                 "참여자 2",
-                                "참여자 3")));
+                                "참여자 3")))
+                .andExpect(jsonPath(
+                                "$.items[?(@.membershipId == '%s')]"
+                                        + ".userLabel",
+                                membershipId)
+                        .value(containsInAnyOrder(
+                                "user02",
+                                "renamed-user")));
     }
 
     @Test
@@ -1507,7 +1522,10 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                                 "/api/v1/rooms/{roomId}/participations",
                                 "legacy-room")
                         .with(jwt().jwt(jwt ->
-                                jwt.subject("legacy-owner"))))
+                                jwt.subject("legacy-owner")
+                                        .claim(
+                                                "email",
+                                                "legacy.owner@example.com"))))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.items.length()").value(1))
                 .andExpect(jsonPath("$.items[0].origin")
@@ -1515,7 +1533,9 @@ class RoomApiIntegrationTest extends MongoRuntimeIntegrationTest {
                 .andExpect(jsonPath("$.items[0].status")
                         .value("ACTIVE"))
                 .andExpect(jsonPath("$.items[0].participationId")
-                        .value("legacy_membership-legacy-room-legacy-owner"));
+                        .value("legacy_membership-legacy-room-legacy-owner"))
+                .andExpect(jsonPath("$.items[0].userLabel")
+                        .value("legacy.owner"));
     }
 
     private String createRoom(

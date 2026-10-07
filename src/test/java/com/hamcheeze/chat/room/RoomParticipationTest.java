@@ -23,7 +23,8 @@ class RoomParticipationTest {
 
         RoomParticipation participation = RoomParticipation.normal(
                 "participation-1",
-                membership);
+                membership,
+                "user01");
 
         assertThat(participation.origin())
                 .isEqualTo(ParticipationOrigin.NORMAL);
@@ -31,6 +32,7 @@ class RoomParticipationTest {
                 .isEqualTo(ParticipationStatus.ACTIVE);
         assertThat(participation.profile().participantNumber())
                 .isEqualTo(7);
+        assertThat(participation.userLabel()).isEqualTo("user01");
         assertThat(participation.enteredAfterMessageSequence())
                 .isEqualTo(12);
     }
@@ -46,7 +48,8 @@ class RoomParticipationTest {
                 7);
         RoomParticipation active = RoomParticipation.normal(
                 "participation-1",
-                membership);
+                membership,
+                "user01");
         Instant leftAt = JOINED_AT.plusSeconds(30);
 
         RoomParticipation ended = active.end(

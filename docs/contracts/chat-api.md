@@ -222,6 +222,7 @@ Room 카테고리는 enum이 아니다. 관리자가 생성한 카테고리 리�
 | `GET` | `/api/v1/rooms/{roomId}/memberships/me` | 내 멤버십 조회 | `200` |
 | `GET` | `/api/v1/me/rooms` | 내 활성 방 목록 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/memberships` | 방 멤버 목록 | `200` |
+| `GET` | `/api/v1/rooms/{roomId}/participations` | 입·퇴장 participation 이력 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/messages` | 채팅 메시지 이력 조회 | `200` |
 | `POST` | `/api/v1/rooms/{roomId}/messages/search` | 접근 가능한 메시지 본문 검색 | `200` |
 | `GET` | `/api/v1/rooms/{roomId}/messages/{messageId}/context` | 검색 결과 주변 문맥 조회 | `200` |
@@ -1183,8 +1184,57 @@ key로 사용하지 않는다. participant identity는 계속 `membershipId`를 
 현재는 최초 참여 순서에 따라 서버가 `참여자 N` 형태로 생성한다.
 `imageUrl`은 프로필 이미지가 없으면 `null`이며, `profileVersion`은
 프로필 변경 병합과 캐시 무효화에 사용하는 단조 증가 버전이다.
-재참여 시 기존 `membershipId`와 프로필을 재사용하므로 표시 이름도
-유지된다. 응답에는 participant의 원문 `userId`를 노출하지 않는다.
+재참여 시 기존 `membershipId`를 재사용하더라도 새 participation과 새 Room
+프로필을 생성한다. 응답에는 participant의 원문 `userId`를 노출하지 않는다.
+
+### 입·퇴장 participation 이력
+
+```http
+GET /api/v1/rooms/{roomId}/participations
+```
+
+응답:
+
+```json
+{
+  "items": [
+    {
+      "participationId": "participation-01",
+      "membershipId": "membership-02",
+      "userLabel": "user02",
+      "origin": "NORMAL",
+      "status": "ENDED",
+      "enteredAfterMessageSequence": 12,
+      "endedAfterMessageSequence": 35,
+      "displayName": "참여자 2",
+      "imageUrl": null,
+      "profileVersion": 1,
+      "joinedAt": "2026-07-29T04:31:00Z",
+      "endedAt": "2026-07-29T05:10:00Z",
+      "endReason": "LEFT",
+      "version": 1
+    }
+  ]
+}
+```
+
+`userLabel`은 참여 시 인증된 JWT `email`의 첫 번째 `@` 앞부분이다.
+예를 들어 `user02@dev.civic.co.kr`의 `userLabel`은 `user02`다. 신규
+participation은 참여 당시 값을 스냅샷으로 저장한다. 필드가 없던 기존 문서와
+동적으로 합성한 `LEGACY` participation은 서버가 Membership의 `userId`와
+label directory를 통해 복원하므로 공개 응답에서는 항상 문자열이다. 프론트는
+사용자 이름을 별도로 조회하거나 `displayName`으로 대체하지 않는다.
+
+`origin`은 `NORMAL | LEGACY`, `status`는 `ACTIVE | ENDED`다. `ACTIVE`이면
+`endedAfterMessageSequence`, `endedAt`, `endReason`은 `null`이다. `ENDED`인
+`NORMAL` participation은 세 필드가 모두 존재하고 `endReason`은
+`LEFT | BANNED | ROOM_CLOSED`다. 과거 Membership에서 합성한 `LEGACY`의
+`endedAfterMessageSequence`는 복원할 수 없어 `null`일 수 있다.
+
+응답은 `joinedAt`, `participationId` 오름차순이며 pagination하지 않는다.
+빈 결과도 `200 { "items": [] }`로 반환하고 `Cache-Control: private,
+no-store`를 적용한다. `participationId`는 참여 회차 식별자이고,
+`membershipId`는 사용자와 방의 관계 식별자다.
 
 ## 메시지 이력 Query API
 

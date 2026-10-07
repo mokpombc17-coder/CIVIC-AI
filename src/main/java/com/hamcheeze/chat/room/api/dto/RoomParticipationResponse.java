@@ -10,6 +10,7 @@ import java.time.Instant;
 public record RoomParticipationResponse(
         String participationId,
         String membershipId,
+        String userLabel,
         ParticipationOrigin origin,
         ParticipationStatus status,
         long enteredAfterMessageSequence,
@@ -26,9 +27,20 @@ public record RoomParticipationResponse(
     public static RoomParticipationResponse from(
             RoomParticipation participation
     ) {
+        String userLabel = participation.userLabel() == null
+                ? participation.profile().displayName()
+                : participation.userLabel();
+        return from(participation, userLabel);
+    }
+
+    public static RoomParticipationResponse from(
+            RoomParticipation participation,
+            String userLabel
+    ) {
         return new RoomParticipationResponse(
                 participation.participationId(),
                 participation.membershipId(),
+                requireText(userLabel, "userLabel"),
                 participation.origin(),
                 participation.status(),
                 participation.enteredAfterMessageSequence(),
@@ -40,5 +52,13 @@ public record RoomParticipationResponse(
                 participation.endedAt(),
                 participation.endReason(),
                 participation.version());
+    }
+
+    private static String requireText(String value, String field) {
+        if (value == null || value.isBlank()) {
+            throw new IllegalArgumentException(
+                    field + " must not be blank");
+        }
+        return value;
     }
 }

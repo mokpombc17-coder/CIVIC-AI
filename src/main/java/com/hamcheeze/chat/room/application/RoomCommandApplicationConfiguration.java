@@ -113,7 +113,8 @@ public class RoomCommandApplicationConfiguration {
             RoomParticipationProperties participationProperties,
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
-            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics
+            ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
+            UserLabelDirectory userLabels
     ) {
         return new ApprovedRoomCreator(
                 roomStore,
@@ -122,7 +123,8 @@ public class RoomCommandApplicationConfiguration {
                 participationProperties,
                 membershipProperties,
                 membershipQuotaGuard,
-                membershipQuotaMetrics);
+                membershipQuotaMetrics,
+                userLabels);
     }
 
     @Bean
@@ -140,7 +142,8 @@ public class RoomCommandApplicationConfiguration {
             RoomMembershipProperties membershipProperties,
             ActiveRoomMembershipQuotaGuard membershipQuotaGuard,
             ActiveRoomMembershipQuotaMetrics membershipQuotaMetrics,
-            RoomCommandPostCommitCoordinator postCommitCoordinator
+            RoomCommandPostCommitCoordinator postCommitCoordinator,
+            UserLabelDirectory userLabels
     ) {
         return new RoomCommandService(
                 roomStore,
@@ -157,7 +160,8 @@ public class RoomCommandApplicationConfiguration {
                 membershipProperties,
                 membershipQuotaGuard,
                 membershipQuotaMetrics,
-                postCommitCoordinator);
+                postCommitCoordinator,
+                userLabels);
     }
 
     @Bean
