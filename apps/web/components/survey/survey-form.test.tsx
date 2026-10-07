@@ -191,6 +191,41 @@ describe("SurveyForm", () => {
     expect(submissionHarness.trackStepExited).toHaveBeenCalledWith("previous");
   });
 
+  it.each([
+    { behavior: "smooth", label: "일반 모션", reduceMotion: false },
+    { behavior: "auto", label: "동작 감소", reduceMotion: true },
+  ])(
+    "$label 설정에서 첫 오류를 중앙으로 scroll하고 입력 control에 focus한다",
+    ({ behavior, reduceMotion }) => {
+      const matchMedia = vi.fn().mockReturnValue({ matches: reduceMotion });
+      vi.stubGlobal("matchMedia", matchMedia);
+      const rendered = renderSurveyForm();
+
+      fireEvent.click(screen.getByRole("button", { name: "다음으로" }));
+
+      const invalidField = rendered.container.querySelector<HTMLElement>("[data-invalid='true']");
+      if (!invalidField) throw new Error("첫 오류 field를 찾지 못했습니다.");
+      const input = screen.getByLabelText("첫 번째 답변") as HTMLInputElement;
+      const focus = vi.spyOn(input, "focus");
+      const scrollIntoView = vi.fn();
+      Object.defineProperty(invalidField, "scrollIntoView", {
+        configurable: true,
+        value: scrollIntoView,
+      });
+
+      runLatestAnimationFrame();
+
+      expect(matchMedia).toHaveBeenCalledWith("(prefers-reduced-motion: reduce)");
+      expect(scrollIntoView).toHaveBeenCalledWith({
+        behavior,
+        block: "center",
+        inline: "nearest",
+      });
+      expect(focus).toHaveBeenCalledWith({ preventScroll: true });
+      expect(document.activeElement).toBe(input);
+    },
+  );
+
   it("draft가 복원한 답변과 단계를 동일한 form 상태에 반영한다", () => {
     const rendered = renderSurveyForm();
     const draft = getDraftParams();
@@ -381,6 +416,15 @@ function completeSurveyAnswers() {
     target: { value: "두 번째 입력값" },
   });
   fireEvent.click(screen.getByRole("button", { name: "다음으로" }));
+}
+
+function runLatestAnimationFrame(): void {
+  const callback = vi.mocked(requestAnimationFrame).mock.calls.at(-1)?.[0];
+  if (!callback) throw new Error("실행할 animation frame이 없습니다.");
+
+  act(() => {
+    callback(0);
+  });
 }
 
 function getDraftParams(): {
