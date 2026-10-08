@@ -157,11 +157,11 @@ export function getChatRoomSessionView(
       title: "다른 토론방에서 채팅 중이에요.",
       description: "이 토론방의 채팅은 잠시 대기 중이에요.",
       canDraft: false,
-      canReactivate: false,
+      canReactivate: true,
       canReconnect: false,
       indicatorLabel: "다른 토론방 사용 중",
       indicatorTone: "pending",
-      showNotice: false,
+      showNotice: true,
     };
   }
 
