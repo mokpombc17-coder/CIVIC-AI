@@ -109,7 +109,7 @@ export function ChatRoomMembershipPanelView({
           ) : null}
 
           {isOwner ? (
-            <div className={isActiveMembershipListEnabled ? "mt-3" : undefined}>
+            <div className={isActiveMembershipListEnabled ? "mt-5" : undefined}>
               <BlockedMembershipManagement
                 errorMessage={ownerManagedMemberships.errorMessage}
                 hasNextPage={ownerManagedMemberships.hasNextPage}
@@ -162,14 +162,6 @@ export function ChatRoomMembershipPanelView({
 
       {roomActionKind ? (
         <div className="mt-5 border-t border-[var(--chat-publishing-color-border)] pt-5">
-          {roomActionDisabledReason ? (
-            <p
-              className="mb-3 text-sm leading-6 text-[var(--chat-publishing-color-muted)]"
-              id={roomActionDisabledReasonId}
-            >
-              {roomActionDisabledReason}
-            </p>
-          ) : null}
           <button
             aria-describedby={roomActionDisabledReason ? roomActionDisabledReasonId : undefined}
             className="inline-flex min-h-11 w-full items-center justify-center rounded-[var(--chat-publishing-radius-control)] px-4 text-sm font-semibold text-[#b42318] transition hover:bg-[#fff1f0] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#b42318] disabled:cursor-not-allowed disabled:opacity-50"
@@ -185,6 +177,14 @@ export function ChatRoomMembershipPanelView({
                 ? "종료 중…"
                 : "방 종료"}
           </button>
+          {roomActionDisabledReason ? (
+            <p
+              className="mt-2 text-center text-[13px] leading-5 text-[var(--chat-publishing-color-muted)]"
+              id={roomActionDisabledReasonId}
+            >
+              {roomActionDisabledReason}
+            </p>
+          ) : null}
         </div>
       ) : null}
     </section>
@@ -306,26 +306,12 @@ function BlockedMembershipManagement({
   selfMembershipId: string | null;
 }) {
   return (
-    <details className="group border-t border-[var(--chat-publishing-color-border)]">
-      <summary className="flex min-h-12 cursor-pointer list-none items-center justify-between gap-3 text-base font-semibold text-[var(--chat-publishing-color-text)] [&::-webkit-details-marker]:hidden">
-        <span>차단된 사용자 관리</span>
-        <svg
-          aria-hidden="true"
-          className="size-5 shrink-0 text-[var(--chat-publishing-color-muted)] transition group-open:rotate-180"
-          fill="none"
-          viewBox="0 0 24 24"
-        >
-          <path
-            d="m7 10 5 5 5-5"
-            stroke="currentColor"
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth="1.8"
-          />
-        </svg>
-      </summary>
+    <section>
+      <h3 className="text-base font-semibold text-[var(--chat-publishing-color-text)]">
+        차단된 사용자 관리
+      </h3>
 
-      <div className="pb-2">
+      <div className="pb-5">
         {isError ? (
           <div
             className="mt-2 rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] p-4 text-[var(--chat-publishing-color-text)]"
@@ -364,7 +350,7 @@ function BlockedMembershipManagement({
           onFetchNextPage={onFetchNextPage}
         />
       </div>
-    </details>
+    </section>
   );
 }
 

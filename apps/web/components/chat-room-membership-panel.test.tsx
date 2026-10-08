@@ -150,7 +150,9 @@ describe("ChatRoomMembershipPanel", () => {
     expect(html).toContain("blocked-member");
     expect(html).not.toContain("참여자 3");
     expect(html).toContain("차단 해제");
-    expect(html).toContain("다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다.");
+    expect(html).toContain("다른 참여자가 있을 때는 토론방을 종료할 수 없습니다.");
+    expect(html).toMatch(/<h3[^>]*>차단된 사용자 관리<\/h3>/);
+    expect(html).not.toMatch(/<summary[^>]*>[^<]*차단된 사용자 관리/);
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>방 종료<\/button>/);
     expect(html).not.toContain("비활성 멤버 상태 필터");
     expect(html).not.toContain("나감");
@@ -183,7 +185,7 @@ describe("ChatRoomMembershipPanel", () => {
     );
 
     expect(html).toContain(">방 종료</button>");
-    expect(html).not.toContain("다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다.");
+    expect(html).not.toContain("다른 참여자가 있을 때는 토론방을 종료할 수 없습니다.");
     expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*>방 종료<\/button>/);
   });
 

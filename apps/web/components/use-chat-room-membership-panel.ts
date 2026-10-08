@@ -234,7 +234,7 @@ export function useChatRoomMembershipPanel(
       : null;
   const roomActionDisabledReason =
     roomActionKind === "close" && room.activeMemberCount > 1
-      ? "다른 참여자가 모두 나간 뒤 토론방을 종료할 수 있습니다."
+      ? "다른 참여자가 있을 때는 토론방을 종료할 수 없습니다."
       : null;
 
   return {
