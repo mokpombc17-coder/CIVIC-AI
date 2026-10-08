@@ -40,21 +40,9 @@ export function getChatRoomComposerPresentation(
   disabledMessage: string | null;
   placeholder: string;
 }> {
-  const placeholder = view.canDraft
-    ? "메시지를 입력해 주세요."
-    : view.kind === "authentication-required"
-      ? "로그인 후 메시지를 입력할 수 있습니다."
-      : view.kind === "pending"
-        ? "메시지를 입력해 주세요."
-        : view.kind === "replaced"
-          ? "메시지를 입력해 주세요."
-          : view.kind === "closed"
-            ? "메시지를 입력해 주세요."
-            : "채팅을 사용할 수 없습니다.";
-
   return {
     disabledAppearance: view.kind === "pending" || view.kind === "replaced" ? "stable" : "muted",
-    disabledMessage: view.kind === "closed" ? "종료된 토론방에는 메시지를 보낼 수 없습니다." : null,
-    placeholder,
+    disabledMessage: null,
+    placeholder: view.canDraft ? "메시지를 입력해 주세요." : "채팅을 사용할 수 없습니다.",
   };
 }

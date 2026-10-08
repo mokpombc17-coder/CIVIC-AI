@@ -6,15 +6,15 @@ describe("chat room composer presentation", () => {
     expect(getChatRoomComposerPresentation({ canDraft: false, kind: "pending" })).toEqual({
       disabledAppearance: "stable",
       disabledMessage: null,
-      placeholder: "메시지를 입력해 주세요.",
+      placeholder: "채팅을 사용할 수 없습니다.",
     });
   });
 
-  it("종료된 방처럼 지속되는 상태에는 비활성 사유를 표시한다", () => {
+  it("종료된 방에서도 입력창의 비활성 문구를 동일하게 표시한다", () => {
     expect(getChatRoomComposerPresentation({ canDraft: false, kind: "closed" })).toEqual({
       disabledAppearance: "muted",
-      disabledMessage: "종료된 토론방에는 메시지를 보낼 수 없습니다.",
-      placeholder: "메시지를 입력해 주세요.",
+      disabledMessage: null,
+      placeholder: "채팅을 사용할 수 없습니다.",
     });
   });
 
@@ -22,7 +22,7 @@ describe("chat room composer presentation", () => {
     expect(getChatRoomComposerPresentation({ canDraft: false, kind: "replaced" })).toEqual({
       disabledAppearance: "stable",
       disabledMessage: null,
-      placeholder: "메시지를 입력해 주세요.",
+      placeholder: "채팅을 사용할 수 없습니다.",
     });
   });
 });

@@ -6,7 +6,7 @@ import {
 } from "./use-chat-room-content-experience";
 
 describe("ChatRoom content experience", () => {
-  it("비활성 Room과 최초 loading을 서로 다른 안내로 표현한다", () => {
+  it("비활성 Room의 구독 준비 안내는 숨기고 실제 loading만 표시한다", () => {
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,
@@ -15,10 +15,7 @@ describe("ChatRoom content experience", () => {
         isPending: true,
         messageCount: 0,
       }),
-    ).toEqual({
-      kind: "notice",
-      message: "실시간 방 구독이 준비되면 최근 메시지를 불러옵니다.",
-    });
+    ).toBeNull();
     expect(
       createChatRoomMessageHistoryFeedback({
         error: null,

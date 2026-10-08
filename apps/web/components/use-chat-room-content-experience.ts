@@ -200,10 +200,7 @@ export function createChatRoomMessageHistoryFeedback({
   const hasMessages = messageCount > 0 || hasSystemActivities;
 
   if (!isHistoryEnabled && !hasMessages) {
-    return {
-      kind: "notice",
-      message: "실시간 방 구독이 준비되면 최근 메시지를 불러옵니다.",
-    };
+    return null;
   }
 
   if (isPending && !hasMessages) {
