@@ -21,6 +21,7 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
     <ChatMessageComposer
       canSend={composer.canSend}
       disabled={!canDraft}
+      disabledAppearance={presentation.disabledAppearance}
       disabledMessage={presentation.disabledMessage}
       draft={composer.draft}
       inputId={`chat-message-${roomId}`}
@@ -34,7 +35,11 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
 
 export function getChatRoomComposerPresentation(
   view: Pick<ChatRoomSessionView, "canDraft" | "kind">,
-): Readonly<{ disabledMessage: string | null; placeholder: string }> {
+): Readonly<{
+  disabledAppearance: "muted" | "stable";
+  disabledMessage: string | null;
+  placeholder: string;
+}> {
   const placeholder = view.canDraft
     ? "메시지를 입력해 주세요."
     : view.kind === "authentication-required"
@@ -42,12 +47,13 @@ export function getChatRoomComposerPresentation(
       : view.kind === "pending"
         ? "메시지를 입력해 주세요."
         : view.kind === "replaced"
-          ? "여기서 계속하기를 선택하면 입력할 수 있습니다."
+          ? "메시지를 입력해 주세요."
           : view.kind === "closed"
             ? "메시지를 입력해 주세요."
             : "채팅을 사용할 수 없습니다.";
 
   return {
+    disabledAppearance: view.kind === "pending" || view.kind === "replaced" ? "stable" : "muted",
     disabledMessage: view.kind === "closed" ? "종료된 토론방에는 메시지를 보낼 수 없습니다." : null,
     placeholder,
   };

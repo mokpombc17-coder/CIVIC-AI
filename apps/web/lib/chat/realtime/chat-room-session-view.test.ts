@@ -81,7 +81,7 @@ describe("getChatRoomSessionView", () => {
     });
   });
 
-  it("다른 탭이 방을 선점하면 입력을 막고 재활성화를 제공한다", () => {
+  it("다른 탭이 방을 선점하면 입력을 막고 자동 전환 상태를 조용히 유지한다", () => {
     const view = getChatRoomSessionView(
       {
         status: "replaced",
@@ -100,9 +100,9 @@ describe("getChatRoomSessionView", () => {
       title: "다른 토론방에서 채팅 중이에요.",
       description: "이 토론방의 채팅은 잠시 대기 중이에요.",
       canDraft: false,
-      canReactivate: true,
+      canReactivate: false,
       indicatorLabel: "다른 토론방 사용 중",
-      showNotice: true,
+      showNotice: false,
     });
   });
 

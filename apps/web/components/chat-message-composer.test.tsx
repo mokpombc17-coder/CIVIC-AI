@@ -33,6 +33,26 @@ describe("ChatMessageComposer", () => {
     expect(html).not.toContain("bg-red-50");
   });
 
+  it("짧은 연결 전환에는 입력을 막되 입력창 외형을 유지한다", () => {
+    const html = renderComposer({
+      disabled: true,
+      disabledAppearance: "stable",
+      draft: "작성 중인 메시지",
+    });
+    const form = html.match(/<form[^>]*>/)?.[0];
+    const textarea = html.match(/<textarea[^>]*>/)?.[0];
+    const button = html.match(/<button[^>]*>/)?.[0];
+
+    expect(form).toContain('data-chat-message-composer-state="disabled-form"');
+    expect(form).toContain("bg-white");
+    expect(form).not.toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(textarea).toContain("bg-white");
+    expect(textarea).not.toContain("bg-transparent");
+    expect(textarea).toContain("text-[var(--chat-publishing-color-text)]");
+    expect(button).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+
   it("메시지 영역과의 간격을 위한 위쪽 margin을 form에 두지 않는다", () => {
     const html = renderComposer();
     const form = html.match(/<form[^>]*>/)?.[0];

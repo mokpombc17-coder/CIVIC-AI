@@ -5,6 +5,7 @@ import { useChatMessageComposerTextarea } from "./use-chat-message-composer-text
 export type ChatMessageComposerProps = Readonly<{
   canSend: boolean;
   disabled: boolean;
+  disabledAppearance?: "muted" | "stable";
   disabledMessage?: string | null;
   draft: string;
   inputId: string;
@@ -17,6 +18,7 @@ export type ChatMessageComposerProps = Readonly<{
 export function ChatMessageComposer({
   canSend,
   disabled,
+  disabledAppearance = "muted",
   disabledMessage = null,
   draft,
   inputId,
@@ -30,6 +32,10 @@ export function ChatMessageComposer({
     draft,
     onSubmit,
   });
+  const hasStableDisabledAppearance = disabled && disabledAppearance === "stable";
+  const showMutedDisabledAppearance = disabled && disabledAppearance === "muted";
+  const showReadySendAppearance =
+    canSend || (hasStableDisabledAppearance && draft.trim().length > 0);
 
   return (
     <>
@@ -56,7 +62,7 @@ export function ChatMessageComposer({
 
       <form
         className={`mx-4 mb-4 flex items-end gap-2 rounded-[var(--chat-publishing-radius-card)] border p-3 transition ${
-          disabled
+          showMutedDisabledAppearance
             ? "border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)]"
             : "border-[var(--chat-publishing-color-border)] bg-white focus-within:border-[var(--chat-publishing-color-primary)] focus-within:ring-2 focus-within:ring-[var(--chat-publishing-color-accent-soft)]"
         }`}
@@ -72,9 +78,11 @@ export function ChatMessageComposer({
         <textarea
           {...textareaBehaviorProps}
           className={`max-h-32 min-h-[72px] min-w-0 flex-1 resize-none overflow-y-auto rounded-[var(--chat-publishing-radius-control)] border px-3 py-2.5 text-[15px] leading-[1.5] outline-none ${
-            disabled
+            showMutedDisabledAppearance
               ? "cursor-not-allowed border-transparent bg-transparent text-[var(--chat-publishing-color-muted)]"
-              : "border-[var(--chat-publishing-color-border)] bg-white text-[var(--chat-publishing-color-text)]"
+              : `border-[var(--chat-publishing-color-border)] bg-white text-[var(--chat-publishing-color-text)] ${
+                  disabled ? "cursor-not-allowed" : ""
+                }`
           }`}
           disabled={disabled}
           enterKeyHint="send"
@@ -86,8 +94,12 @@ export function ChatMessageComposer({
         />
         <button
           className={`inline-flex h-12 w-16 shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] text-[15px] font-bold transition focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)] ${
-            canSend
-              ? "bg-[var(--chat-publishing-color-primary)] text-white hover:bg-[var(--chat-publishing-color-primary-emphasis)]"
+            showReadySendAppearance
+              ? `bg-[var(--chat-publishing-color-primary)] text-white ${
+                  disabled
+                    ? "cursor-not-allowed"
+                    : "hover:bg-[var(--chat-publishing-color-primary-emphasis)]"
+                }`
               : "cursor-not-allowed border border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[var(--chat-publishing-color-muted)]"
           }`}
           disabled={!canSend}
