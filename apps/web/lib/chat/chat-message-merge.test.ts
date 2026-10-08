@@ -112,6 +112,38 @@ describe("mergeChatMessages", () => {
     ).toEqual([updatedMessage]);
   });
 
+  it("senderParticipationId가 달라도 같은 작성자의 새 snapshot으로 병합한다", () => {
+    const message = createMessage(1);
+    const updatedMessage = {
+      ...message,
+      senderParticipationId: "participation-after-reentry",
+      content: "재입장 후 수정한 내용",
+      messageVersion: 2,
+      updatedAt: "2026-07-29T04:41:00Z",
+    };
+
+    expect(
+      mergeChatMessages({
+        roomId: "room-01",
+        sources: [[message], [updatedMessage]],
+      }).messages,
+    ).toEqual([updatedMessage]);
+  });
+
+  it("같은 version의 senderParticipationId 차이만으로 계약 충돌을 만들지 않는다", () => {
+    const message = createMessage(1);
+
+    expect(
+      mergeChatMessages({
+        roomId: "room-01",
+        sources: [
+          [message],
+          [{ ...message, senderParticipationId: "participation-after-reentry" }],
+        ],
+      }).messages,
+    ).toEqual([message]);
+  });
+
   it("생성 시 결정된 countable이 이후 snapshot에서 바뀌면 계약 충돌로 처리한다", () => {
     const message = createMessage(1);
 

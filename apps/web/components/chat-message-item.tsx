@@ -24,6 +24,8 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           : item.isMine
             ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white"
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
+    } ${
+      isNavigationTarget ? "ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2" : ""
     }`;
     const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
     const displayedUnreadCount = item.unreadCount;
@@ -34,7 +36,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
     return (
       <li
         aria-current={isNavigationTarget ? "true" : undefined}
-        className={`flex ${item.isMine ? "justify-end" : "justify-start"}`}
+        className={`flex focus:outline-none ${item.isMine ? "justify-end" : "justify-start"}`}
         data-client-message-id={item.clientMessageId}
         data-delivery-status={item.deliveryStatus ?? undefined}
         data-index={virtualIndex}
@@ -51,11 +53,9 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           className="relative flex w-fit min-w-0 max-w-[82%] flex-col"
           data-message-bubble-container="true"
         >
-          {item.startsSenderGroup ? (
+          {item.startsSenderGroup && !item.isMine ? (
             <div
-              className={`flex items-center ${
-                item.isMine ? "mb-0.5 min-h-5 justify-end" : "mb-1 min-h-[29px] justify-start"
-              }`}
+              className="mb-1 flex min-h-[29px] items-center justify-start"
               data-message-metadata="visible"
             >
               {senderLabel || item.senderIsOwner ? (
@@ -63,7 +63,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
                   {senderLabel ? (
                     <strong
                       className={
-                        item.isMine || item.senderIsOwner
+                        item.senderIsOwner
                           ? "min-w-0 truncate text-[13px] font-bold leading-[19.5px] text-[var(--chat-publishing-color-muted)]"
                           : "inline-flex h-[29px] max-w-full items-center truncate rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-accent-soft)] px-[6px] text-[13px] font-bold leading-[16.25px] text-[var(--chat-publishing-color-primary-emphasis)]"
                       }
@@ -71,7 +71,7 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
                       {senderLabel}
                     </strong>
                   ) : null}
-                  {item.senderIsOwner && !item.isMine ? (
+                  {item.senderIsOwner ? (
                     <span className="inline-flex h-7 shrink-0 items-center rounded-full border border-[#9ed1fa] bg-[#edf7ff] px-[6px] text-xs font-bold leading-[18px] text-[#085985]">
                       방장
                     </span>

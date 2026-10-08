@@ -208,7 +208,6 @@ function hasSameChatMessageIdentity(left: ChatMessage, right: ChatMessage): bool
     left.roomSequence === right.roomSequence &&
     left.countable === right.countable &&
     left.senderMembershipId === right.senderMembershipId &&
-    left.senderParticipationId === right.senderParticipationId &&
     left.clientMessageId === right.clientMessageId &&
     left.createdAt === right.createdAt
   );

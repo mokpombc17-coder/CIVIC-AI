@@ -7,14 +7,15 @@ import { ChatRoomEntryError } from "./chat-room-entry-error";
 import type { ChatMessageItemViewModel } from "./chat-room-view-model";
 
 describe("chat room publishing view", () => {
-  it("내 메시지를 Figma blue bubble과 우측 정렬된 displayName으로 표시하고 방장 badge는 숨긴다", () => {
+  it("내 메시지는 작성자 이름과 방장 badge 없이 blue bubble로 표시한다", () => {
     const html = renderMessage({ isMine: true, senderIsOwner: true, senderLabel: "noah111" });
 
-    expect(html).toContain(">noah111</strong>");
+    expect(html).not.toContain(">noah111</strong>");
     expect(html).not.toContain(">방장</span>");
     expect(html).toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(html).toContain("rounded-br-[4px]");
-    expect(html).toContain("flex items-center mb-0.5 min-h-5 justify-end");
+    expect(html).not.toContain('data-message-metadata="visible"');
+    expect(html).toContain('data-message-metadata="accessible-only"');
     expect(html).toContain("오전 10:14");
   });
 
@@ -38,7 +39,8 @@ describe("chat room publishing view", () => {
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
     expect(html).toContain("rounded-bl-[4px]");
-    expect(html).toContain("flex items-center mb-1 min-h-[29px] justify-start");
+    expect(html).toContain('data-message-metadata="visible"');
+    expect(html).toContain("mb-1 flex min-h-[29px] items-center justify-start");
   });
 
   it("말풍선은 metadata 너비와 무관하게 내용 너비를 따르되 메시지 영역의 82%를 넘지 않는다", () => {
@@ -47,12 +49,16 @@ describe("chat room publishing view", () => {
       isMine: true,
       senderLabel: "아주 긴 사용자 이름입니다",
     });
-    const other = renderMessage({ content: "확인했습니다", isMine: false });
+    const other = renderMessage({
+      content: "확인했습니다",
+      isMine: false,
+      senderLabel: "참여자 2",
+    });
 
     expect(mine).toContain('data-message-bubble-container="true"');
     expect(mine).toContain("w-fit min-w-0 max-w-[82%]");
     expect(mine).toContain("w-fit min-w-0 max-w-full");
-    expect(mine).toContain("inline-flex min-w-0 max-w-full");
+    expect(other).toContain("inline-flex min-w-0 max-w-full");
     expect(mine).toContain("flex w-full min-w-0 items-end gap-1.5 flex-row-reverse justify-start");
     expect(other).toContain("flex w-full min-w-0 items-end gap-1.5 justify-start");
   });
@@ -134,6 +140,16 @@ describe("chat room publishing view", () => {
     expect(html).toContain('aria-current="true"');
     expect(html).toContain('data-navigation-target="true"');
     expect(html).toContain('tabindex="-1"');
+    expect(html).toContain("focus:outline-none");
+    expect(html).toContain("ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2");
+  });
+
+  it("일반 메시지 말풍선에는 검색 결과 강조를 표시하지 않는다", () => {
+    const html = renderMessage({ messageId: "message-01" });
+
+    expect(html).not.toContain('aria-current="true"');
+    expect(html).not.toContain('data-navigation-target="true"');
+    expect(html).not.toContain("ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2");
   });
 
   it("전송 중 상태를 확정 bubble 스타일과 동일하게 유지하고 지연 indicator로 표시한다", () => {
