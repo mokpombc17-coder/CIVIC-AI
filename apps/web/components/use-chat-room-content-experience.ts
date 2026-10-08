@@ -97,7 +97,12 @@ export function useChatRoomContentExperience(
     }),
     messageActions: message.actions,
     messageHistory: {
-      canLoadOlder: roomClosed || contextNavigationActive ? false : messageHistory.hasNextPage,
+      canLoadOlder: canLoadOlderChatRoomMessages({
+        contextNavigationActive,
+        hasNextPage: messageHistory.hasNextPage,
+        isHistoryEnabled: realtime.messageHistoryEnabled,
+        roomClosed,
+      }),
       entryNavigation: roomClosed || contextNavigationActive ? null : read.entryNavigationNotice,
       feedback: roomClosed
         ? null
@@ -148,6 +153,20 @@ export function useChatRoomContentExperience(
         }
       : null,
   };
+}
+
+export function canLoadOlderChatRoomMessages({
+  contextNavigationActive,
+  hasNextPage,
+  isHistoryEnabled,
+  roomClosed,
+}: Readonly<{
+  contextNavigationActive: boolean;
+  hasNextPage: boolean;
+  isHistoryEnabled: boolean;
+  roomClosed: boolean;
+}>): boolean {
+  return isHistoryEnabled && !roomClosed && !contextNavigationActive && hasNextPage;
 }
 
 export function createChatRoomMessageNavigationFeedback(

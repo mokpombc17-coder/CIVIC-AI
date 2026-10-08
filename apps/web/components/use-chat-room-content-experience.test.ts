@@ -1,11 +1,31 @@
 import { describe, expect, it } from "vitest";
 import {
+  canLoadOlderChatRoomMessages,
   createChatRoomMessageHistoryFeedback,
   createChatRoomMessageNavigationFeedback,
   toChatRoomErrorMessage,
 } from "./use-chat-room-content-experience";
 
 describe("ChatRoom content experience", () => {
+  it("실시간 이력이 비활성화되면 캐시를 표시하되 과거 이력은 더 불러오지 않는다", () => {
+    expect(
+      canLoadOlderChatRoomMessages({
+        contextNavigationActive: false,
+        hasNextPage: true,
+        isHistoryEnabled: false,
+        roomClosed: false,
+      }),
+    ).toBe(false);
+    expect(
+      canLoadOlderChatRoomMessages({
+        contextNavigationActive: false,
+        hasNextPage: true,
+        isHistoryEnabled: true,
+        roomClosed: false,
+      }),
+    ).toBe(true);
+  });
+
   it("비활성 Room의 구독 준비 안내는 숨기고 실제 loading만 표시한다", () => {
     expect(
       createChatRoomMessageHistoryFeedback({

@@ -211,10 +211,28 @@ export function roomParticipationsQueryOptions(
     queryKey: chatRoomQueryKeys.participation(roomId, generation),
     enabled,
     queryFn: ({ signal }) => api.listRoomParticipations(roomId, signal),
+    placeholderData: (previousData, previousQuery) =>
+      retainPreviousRoomParticipationData(roomId, previousData, previousQuery?.queryKey),
     staleTime: Number.POSITIVE_INFINITY,
     refetchOnReconnect: false,
     refetchOnWindowFocus: false,
   });
+}
+
+export function retainPreviousRoomParticipationData<T>(
+  roomId: string,
+  previousData: T | undefined,
+  previousQueryKey: readonly unknown[] | undefined,
+): T | undefined {
+  const roomParticipationKey = chatRoomQueryKeys.participationsForRoom(roomId);
+
+  if (previousQueryKey?.length !== roomParticipationKey.length + 1) {
+    return undefined;
+  }
+
+  return roomParticipationKey.every((part, index) => previousQueryKey[index] === part)
+    ? previousData
+    : undefined;
 }
 
 export function roomMessageHistoryInfiniteQueryOptions(

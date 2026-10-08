@@ -16,6 +16,7 @@ import {
   publicRoomsInfiniteQueryOptions,
   recoverPublicRoomInvalidCursorOnce,
   recoverRoomCreationRequestInvalidCursorOnce,
+  retainPreviousRoomParticipationData,
   roomDetailsQueryOptions,
   roomInboxInfiniteQueryOptions,
   roomMessageContextQueryOptions,
@@ -460,6 +461,61 @@ describe("chat room query options", () => {
     expect(chatRoomQueryKeys.participation("room-01", 7)).not.toEqual(
       chatRoomQueryKeys.participation("room-01", 8),
     );
+  });
+
+  it("같은 방의 이전 participation 이력만 generation 전환 중 유지한다", () => {
+    const response = { items: [] };
+
+    expect(
+      retainPreviousRoomParticipationData(
+        "room-01",
+        response,
+        chatRoomQueryKeys.participation("room-01", 7),
+      ),
+    ).toBe(response);
+    expect(
+      retainPreviousRoomParticipationData(
+        "room-01",
+        response,
+        chatRoomQueryKeys.participation("room-02", 7),
+      ),
+    ).toBeUndefined();
+    expect(
+      retainPreviousRoomParticipationData(
+        "room-01",
+        response,
+        chatRoomQueryKeys.messageHistory("room-01", 50),
+      ),
+    ).toBeUndefined();
+  });
+
+  it("비활성 generation으로 전환할 때 같은 방의 participation 스냅샷만 표시한다", async () => {
+    const response = { items: [] };
+    const listRoomParticipations = vi.fn(async () => ({ items: [] }));
+    const queryClient = createQueryClient();
+    const activeOptions = roomParticipationsQueryOptions(
+      "room-01",
+      { enabled: false, generation: 7 },
+      { listRoomParticipations },
+    );
+    queryClient.setQueryData(activeOptions.queryKey, response);
+    const observer = new QueryObserver(queryClient, activeOptions);
+    const unsubscribe = observer.subscribe(() => {});
+
+    observer.setOptions(
+      roomParticipationsQueryOptions(
+        "room-01",
+        { enabled: false, generation: 8 },
+        { listRoomParticipations },
+      ),
+    );
+    await Promise.resolve();
+
+    expect(observer.getCurrentResult().data).toBe(response);
+    expect(observer.getCurrentResult().isPlaceholderData).toBe(true);
+    expect(listRoomParticipations).not.toHaveBeenCalled();
+
+    unsubscribe();
   });
 
   it("멤버 목록 key와 요청에 status 및 limit을 고정하고 cursor만 페이지별로 전달한다", async () => {
