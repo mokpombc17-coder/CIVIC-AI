@@ -33,11 +33,12 @@ import type {
 } from "@/components/chat-room-view-model";
 
 const AT_END_THRESHOLD = 96;
-const ESTIMATED_DATE_SEPARATOR_HEIGHT = 24;
-const ESTIMATED_READ_BOUNDARY_HEIGHT = 28;
-const ESTIMATED_SYSTEM_ACTIVITY_HEIGHT = 28;
+const ESTIMATED_DATE_SEPARATOR_HEIGHT = 38;
+const ESTIMATED_READ_BOUNDARY_HEIGHT = 42;
+const ESTIMATED_SYSTEM_ACTIVITY_HEIGHT = 42;
 const ESTIMATED_MESSAGE_HEIGHT = 76;
-const MESSAGE_GAP = 20;
+const MESSAGE_GAP = 6;
+const MESSAGE_FOLLOWING_GAP_RESERVE = 14;
 const MESSAGE_OVERSCAN = 10;
 const LATEST_SCROLL_SETTLE_FRAMES = 4;
 const OLDER_SCROLL_SETTLE_FRAMES = 4;
@@ -129,7 +130,12 @@ export function ChatMessageViewport({
         return ESTIMATED_SYSTEM_ACTIVITY_HEIGHT;
       }
 
-      return ESTIMATED_MESSAGE_HEIGHT;
+      const preservesFollowingGap =
+        item?.kind === "message" &&
+        (item.item.endsSenderGroup ||
+          (item.item.deliveryTone === "pending" && item.item.deliveryLabel !== null));
+
+      return ESTIMATED_MESSAGE_HEIGHT + (preservesFollowingGap ? MESSAGE_FOLLOWING_GAP_RESERVE : 0);
     },
     gap: MESSAGE_GAP,
     getItemKey: (index) => history.items[index]?.renderKey ?? index,
@@ -715,7 +721,7 @@ export function ChatMessageViewport({
       <div
         aria-label={history.roomLabel}
         aria-live="off"
-        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-b-[4px] px-4 pt-4 pb-6"
+        className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-b-[4px] px-4 pt-4 pb-[10px]"
         data-viewport-key={viewportKey}
         onScroll={handleScroll}
         ref={scrollElementRef}

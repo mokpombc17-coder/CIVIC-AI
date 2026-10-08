@@ -19,7 +19,7 @@ export const ChatMessageDateSeparator = forwardRef<HTMLLIElement, ChatMessageDat
     return (
       <li
         aria-label={label ?? undefined}
-        className="flex items-center gap-3 text-xs text-slate-500"
+        className="flex items-center gap-3 pb-[14px] text-xs text-slate-500"
         data-date-key={date.key}
         data-index={virtualIndex}
         data-render-key={renderKey}

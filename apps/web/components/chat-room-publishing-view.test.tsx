@@ -129,9 +129,23 @@ describe("chat room publishing view", () => {
 
     expect(middle).toContain('data-sender-group-end="false"');
     expect(middle).not.toContain("<time");
+    expect(middle).not.toContain("pb-[14px]");
     expect(end).toContain('data-sender-group-end="true"');
     expect(end).toContain("<time");
     expect(end).toContain("오전 10:14");
+    expect(end).toContain("pb-[14px]");
+  });
+
+  it("내 메시지와 다른 참여자 메시지 모두 그룹 내부 보정 간격을 추가하지 않는다", () => {
+    const mine = renderMessage({ endsSenderGroup: false, isMine: true });
+    const other = renderMessage({
+      endsSenderGroup: false,
+      isMine: false,
+      senderLabel: "참여자 2",
+    });
+
+    expect(mine).not.toContain("pb-[14px]");
+    expect(other).not.toContain("pb-[14px]");
   });
 
   it("검색으로 이동한 메시지를 현재 항목으로 표시하고 focus 대상으로 만든다", () => {
@@ -141,7 +155,10 @@ describe("chat room publishing view", () => {
     expect(html).toContain('data-navigation-target="true"');
     expect(html).toContain('tabindex="-1"');
     expect(html).toContain("focus:outline-none");
-    expect(html).toContain("ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2");
+    expect(html).toContain(
+      "shadow-[0_0_0_3px_rgba(43,105,255,0.18),0_4px_12px_rgba(43,105,255,0.16)]",
+    );
+    expect(html).not.toContain("ring-offset-2");
   });
 
   it("일반 메시지 말풍선에는 검색 결과 강조를 표시하지 않는다", () => {
@@ -149,7 +166,9 @@ describe("chat room publishing view", () => {
 
     expect(html).not.toContain('aria-current="true"');
     expect(html).not.toContain('data-navigation-target="true"');
-    expect(html).not.toContain("ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2");
+    expect(html).not.toContain(
+      "shadow-[0_0_0_3px_rgba(43,105,255,0.18),0_4px_12px_rgba(43,105,255,0.16)]",
+    );
   });
 
   it("전송 중 상태를 확정 bubble 스타일과 동일하게 유지하고 지연 indicator로 표시한다", () => {
@@ -166,6 +185,20 @@ describe("chat room publishing view", () => {
     expect(html).toContain('data-delivery-indicator="pending"');
     expect(html).toContain("chat-message-delivery-pending");
     expect(html).toContain("absolute");
+    expect(html).toContain("pb-[14px]");
+  });
+
+  it("확정되어 상태 문구가 사라진 그룹 중간 메시지는 내부 간격을 사용한다", () => {
+    const html = renderMessage({
+      deliveryLabel: null,
+      deliveryStatus: "accepted",
+      deliveryTone: "pending",
+      endsSenderGroup: false,
+      startsSenderGroup: false,
+    });
+
+    expect(html).not.toContain('data-delivery-indicator="pending"');
+    expect(html).not.toContain("pb-[14px]");
   });
 
   it("전송 실패 상태는 즉시 보이는 오류 indicator로 표시한다", () => {

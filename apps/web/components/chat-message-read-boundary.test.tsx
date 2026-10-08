@@ -19,6 +19,7 @@ describe("ChatMessageReadBoundary", () => {
     expect(html).toContain('data-render-key="read-boundary-130"');
     expect(html).toContain('data-index="3"');
     expect(html).toContain("여기까지 읽었습니다");
+    expect(html).toContain("pb-[14px]");
     expect(html).toContain("text-[var(--chat-publishing-color-muted)]");
     expect(html.match(/bg-\[var\(--chat-publishing-color-border\)\]/g)).toHaveLength(2);
     expect(html).not.toContain("text-sky-700");

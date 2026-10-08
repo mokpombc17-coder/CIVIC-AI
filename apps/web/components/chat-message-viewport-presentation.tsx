@@ -215,7 +215,7 @@ export function ChatMessageViewportVirtualRow({
   if (item.kind === "system-activity") {
     return (
       <li
-        className="flex w-full justify-center px-4 py-1 text-center text-xs font-medium leading-5 text-[var(--chat-publishing-color-muted)]"
+        className="flex w-full justify-center px-4 pt-1 pb-[18px] text-center text-xs font-medium leading-5 text-[var(--chat-publishing-color-muted)]"
         data-index={virtualIndex}
         data-render-key={item.renderKey}
         data-system-activity="true"

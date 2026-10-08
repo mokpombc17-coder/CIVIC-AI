@@ -14,7 +14,7 @@ export const ChatMessageReadBoundary = forwardRef<HTMLLIElement, ChatMessageRead
     return (
       <li
         aria-label="여기까지 읽었습니다"
-        className="flex items-center gap-3 text-xs font-medium text-[var(--chat-publishing-color-muted)]"
+        className="flex items-center gap-3 pb-[14px] text-xs font-medium text-[var(--chat-publishing-color-muted)]"
         data-index={virtualIndex}
         data-read-boundary-after-sequence={afterSequence}
         data-render-key={renderKey}

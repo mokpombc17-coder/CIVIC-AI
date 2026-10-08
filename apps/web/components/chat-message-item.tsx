@@ -16,6 +16,8 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
     ref,
   ) {
     const failed = item.deliveryTone === "error";
+    const preservesFollowingGap =
+      item.endsSenderGroup || (item.deliveryTone === "pending" && item.deliveryLabel !== null);
     const bubbleClassName = `w-fit min-w-0 max-w-full whitespace-pre-wrap break-words border px-3 py-3 text-[15px] leading-[1.55] ${
       item.isDeleted
         ? "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] italic text-[var(--chat-publishing-color-muted)]"
@@ -24,8 +26,10 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
           : item.isMine
             ? "rounded-t-xl rounded-br-[4px] rounded-bl-xl border-[var(--chat-publishing-color-primary)] bg-[var(--chat-publishing-color-primary)] text-white"
             : "rounded-t-xl rounded-br-xl rounded-bl-[4px] border-[var(--chat-publishing-color-border)] bg-[var(--chat-publishing-color-neutral-soft)] text-[#1f2124]"
-    } ${
-      isNavigationTarget ? "ring-2 ring-[var(--chat-publishing-color-primary)] ring-offset-2" : ""
+    } transition-shadow duration-200 ${
+      isNavigationTarget
+        ? "shadow-[0_0_0_3px_rgba(43,105,255,0.18),0_4px_12px_rgba(43,105,255,0.16)]"
+        : ""
     }`;
     const senderLabel = item.senderLabel ?? (item.isMine ? "나" : null);
     const displayedUnreadCount = item.unreadCount;
@@ -36,7 +40,9 @@ export const ChatMessageItem = forwardRef<HTMLLIElement, ChatMessageItemProps>(
     return (
       <li
         aria-current={isNavigationTarget ? "true" : undefined}
-        className={`flex focus:outline-none ${item.isMine ? "justify-end" : "justify-start"}`}
+        className={`flex focus:outline-none ${preservesFollowingGap ? "pb-[14px]" : ""} ${
+          item.isMine ? "justify-end" : "justify-start"
+        }`}
         data-client-message-id={item.clientMessageId}
         data-delivery-status={item.deliveryStatus ?? undefined}
         data-index={virtualIndex}

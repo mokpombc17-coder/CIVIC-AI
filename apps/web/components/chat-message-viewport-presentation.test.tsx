@@ -122,6 +122,7 @@ describe("ChatMessageViewport presentation", () => {
     expect(markup).toContain("철수님이 입장했습니다.");
     expect(markup).toContain('data-system-activity="true"');
     expect(markup).toContain('data-render-key="system-activity-event-join"');
+    expect(markup).toContain("pb-[18px]");
     expect(markup).not.toContain("button");
   });
 });

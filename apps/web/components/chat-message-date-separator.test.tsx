@@ -48,5 +48,6 @@ describe("ChatMessageDateSeparator", () => {
     expect(html).toContain('data-date-key="2026-08-07"');
     expect(html).toContain('data-index="2"');
     expect(html).toContain('<time dateTime="2026-08-07">오늘</time>');
+    expect(html).toContain("pb-[14px]");
   });
 });
