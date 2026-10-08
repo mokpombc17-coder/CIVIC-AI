@@ -24,7 +24,7 @@ describe("getChatRoomSessionView", () => {
     expect(view).toMatchObject({
       kind: "closed",
       title: "종료된 토론방입니다.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
       canReconnect: false,
       indicatorLabel: "종료됨",
@@ -49,7 +49,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "active",
-      canDraft: true,
+      canCompose: true,
       canReactivate: false,
       indicatorLabel: "채팅 가능",
       indicatorTone: "positive",
@@ -74,7 +74,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "pending",
-      canDraft: false,
+      canCompose: false,
       indicatorLabel: "준비 중",
       indicatorTone: "pending",
       showNotice: false,
@@ -99,7 +99,7 @@ describe("getChatRoomSessionView", () => {
       kind: "replaced",
       title: "다른 토론방에서 채팅 중이에요.",
       description: "이 토론방의 채팅은 잠시 대기 중이에요.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: true,
       indicatorLabel: "다른 토론방 사용 중",
       showNotice: true,
@@ -127,7 +127,7 @@ describe("getChatRoomSessionView", () => {
     expect(view).toMatchObject({
       kind: "error",
       description: "서버가 방 구독을 거절했습니다.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
     });
   });
@@ -153,7 +153,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "error",
-      canDraft: false,
+      canCompose: false,
       canReactivate: true,
     });
   });
@@ -179,7 +179,7 @@ describe("getChatRoomSessionView", () => {
     expect(view).toMatchObject({
       kind: "error",
       description: "토론방이 종료되어 연결이 해제되었습니다.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
     });
   });
@@ -209,7 +209,7 @@ describe("getChatRoomSessionView", () => {
       title: "현재 채팅을 사용할 수 없습니다.",
       description:
         "다른 기기나 창에서 채팅이 시작되었습니다. 여기서 계속하면 다른 쪽 채팅은 중단됩니다.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
       canReconnect: false,
       indicatorLabel: "다른 곳에서 사용 중",
@@ -242,7 +242,7 @@ describe("getChatRoomSessionView", () => {
       kind: "authentication-required",
       title: "채팅을 계속하려면 로그인이 필요합니다.",
       description: "채팅 연결 인증이 만료되었습니다. 다시 로그인해 주세요.",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
       canReconnect: false,
       indicatorLabel: "로그인 필요",
@@ -269,7 +269,7 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "pending",
-      canDraft: false,
+      canCompose: false,
       canReconnect: false,
       indicatorLabel: "준비 중",
       showNotice: false,
@@ -298,7 +298,7 @@ describe("getChatRoomSessionView", () => {
     expect(view).toMatchObject({
       kind: "error",
       description: "실시간 연결이 예기치 않게 종료되었습니다.",
-      canDraft: false,
+      canCompose: false,
       canReconnect: true,
       indicatorLabel: "채팅 불가",
       showNotice: true,
@@ -323,12 +323,12 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "pending",
-      canDraft: false,
+      canCompose: false,
       canReactivate: false,
     });
   });
 
-  it("방 활성화가 끝나기 전에는 대기 상태를 반환한다", () => {
+  it("방 활성화 중에는 작성만 허용하고 전송은 막는다", () => {
     const view = getChatRoomSessionView(
       {
         status: "claiming",
@@ -344,7 +344,8 @@ describe("getChatRoomSessionView", () => {
 
     expect(view).toMatchObject({
       kind: "pending",
-      canDraft: false,
+      canCompose: true,
+      canSend: false,
       canReactivate: false,
     });
   });

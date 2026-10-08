@@ -33,7 +33,7 @@ describe("ChatMessageComposer", () => {
     expect(html).not.toContain("bg-red-50");
   });
 
-  it("짧은 연결 전환에는 입력을 막되 입력창 외형을 유지한다", () => {
+  it("짧은 연결 전환에는 입력창 외형을 유지하되 전송 버튼을 비활성화한다", () => {
     const html = renderComposer({
       disabled: true,
       disabledAppearance: "stable",
@@ -49,8 +49,25 @@ describe("ChatMessageComposer", () => {
     expect(textarea).toContain("bg-white");
     expect(textarea).not.toContain("bg-transparent");
     expect(textarea).toContain("text-[var(--chat-publishing-color-text)]");
-    expect(button).toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(button).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(button).not.toContain("bg-[var(--chat-publishing-color-primary)]");
     expect(html.match(/disabled=""/g)).toHaveLength(2);
+  });
+
+  it("자동 전환 중에는 입력을 허용하고 전송 버튼만 비활성화한다", () => {
+    const html = renderComposer({
+      canSend: false,
+      disabled: false,
+      draft: "작성 중인 메시지",
+    });
+    const textarea = html.match(/<textarea[^>]*>/)?.[0];
+    const button = html.match(/<button[^>]*>/)?.[0];
+
+    expect(textarea).not.toContain('disabled=""');
+    expect(button).toContain('disabled=""');
+    expect(button).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
+    expect(button).not.toContain("bg-[var(--chat-publishing-color-primary)]");
+    expect(html.match(/disabled=""/g)).toHaveLength(1);
   });
 
   it("메시지 영역과의 간격을 위한 위쪽 margin을 form에 두지 않는다", () => {

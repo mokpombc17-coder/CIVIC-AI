@@ -91,7 +91,8 @@ describe("ChatRoomSessionNotice", () => {
 });
 
 const REPLACED_VIEW = {
-  canDraft: false,
+  canCompose: false,
+  canSend: false,
   canReactivate: true,
   canReconnect: false,
   description: "이 토론방의 채팅은 잠시 대기 중이에요.",
@@ -103,7 +104,8 @@ const REPLACED_VIEW = {
 } satisfies ChatRoomSessionView;
 
 const ERROR_VIEW = {
-  canDraft: false,
+  canCompose: false,
+  canSend: false,
   canReactivate: false,
   canReconnect: true,
   description: "다시 연결해 채팅을 복구해 주세요.",
@@ -115,7 +117,8 @@ const ERROR_VIEW = {
 } satisfies ChatRoomSessionView;
 
 const CONNECTION_REPLACED_VIEW = {
-  canDraft: false,
+  canCompose: false,
+  canSend: false,
   canReactivate: false,
   canReconnect: false,
   description:
@@ -128,7 +131,8 @@ const CONNECTION_REPLACED_VIEW = {
 } satisfies ChatRoomSessionView;
 
 const CLOSED_VIEW = {
-  canDraft: false,
+  canCompose: false,
+  canSend: false,
   canReactivate: false,
   canReconnect: false,
   description: "종료된 토론방에서는 새 메시지를 보내거나 지난 대화 내역을 확인할 수 없습니다.",
@@ -140,7 +144,8 @@ const CLOSED_VIEW = {
 } satisfies ChatRoomSessionView;
 
 const ACTIVE_VIEW = {
-  canDraft: true,
+  canCompose: true,
+  canSend: true,
   canReactivate: false,
   canReconnect: false,
   description: "실시간 채팅을 사용 중입니다.",

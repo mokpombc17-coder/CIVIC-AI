@@ -10,9 +10,8 @@ type ChatRoomSessionControlsProps = Readonly<{
 }>;
 
 export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControlsProps) {
-  const canDraft = view.canDraft;
   const composer = useChatMessageComposer({
-    enabled: canDraft,
+    enabled: view.canSend,
     roomId,
   });
   const presentation = getChatRoomComposerPresentation(view);
@@ -20,7 +19,7 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
   return (
     <ChatMessageComposer
       canSend={composer.canSend}
-      disabled={!canDraft}
+      disabled={!view.canCompose}
       disabledAppearance={presentation.disabledAppearance}
       disabledMessage={presentation.disabledMessage}
       draft={composer.draft}
@@ -34,15 +33,15 @@ export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControl
 }
 
 export function getChatRoomComposerPresentation(
-  view: Pick<ChatRoomSessionView, "canDraft" | "kind">,
+  view: Pick<ChatRoomSessionView, "canCompose" | "kind">,
 ): Readonly<{
   disabledAppearance: "muted" | "stable";
   disabledMessage: string | null;
   placeholder: string;
 }> {
   return {
-    disabledAppearance: view.kind === "pending" || view.kind === "replaced" ? "stable" : "muted",
+    disabledAppearance: view.kind === "pending" ? "stable" : "muted",
     disabledMessage: null,
-    placeholder: view.canDraft ? "메시지를 입력해 주세요." : "채팅을 사용할 수 없습니다.",
+    placeholder: view.canCompose ? "메시지를 입력해 주세요." : "채팅을 사용할 수 없습니다.",
   };
 }
