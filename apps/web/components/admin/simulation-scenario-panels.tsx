@@ -7,11 +7,12 @@ import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/
 import { ConsoleModal } from "@/components/admin/console/console-modal";
 import { ConsoleBadge, ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import {
-  formatAdminProblem,
+  formatSimulationProblem,
   readAdminProblem,
   readTaskDetail,
   type TaskSummary,
 } from "@/lib/admin/domain-contracts";
+import { errorMessage } from "@/lib/user-facing-message";
 import {
   readSimulationScenario,
   readSimulationScenarios,
@@ -54,12 +55,13 @@ export async function loadSimulationTarget(
     };
   }
   if (scenarioResponse.status !== 404) {
-    throw new Error(formatAdminProblem(await readAdminProblem(scenarioResponse)));
+    throw new Error(formatSimulationProblem(await readAdminProblem(scenarioResponse)));
   }
   const voteResponse = await request(`/api/v1/admin/simulation-tasks/${encoded}`, {
     cache: "no-store",
   });
-  if (!voteResponse.ok) throw new Error(formatAdminProblem(await readAdminProblem(voteResponse)));
+  if (!voteResponse.ok)
+    throw new Error(formatSimulationProblem(await readAdminProblem(voteResponse)));
   const detail = readTaskDetail(await voteResponse.json());
   if (!detail) throw new Error("서버의 투표 응답 형식을 확인해야 합니다.");
   return {
@@ -171,7 +173,8 @@ function useListLoader<T>(path: string, read: (value: unknown) => readonly T[] |
     setLoading(true);
     try {
       const response = await authenticatedFetch(path, { cache: "no-store" });
-      if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok)
+        return setMessage(formatSimulationProblem(await readAdminProblem(response)));
       const next = read(await response.json());
       if (!next) return setMessage("서버의 목록 응답 형식을 확인해야 합니다.");
       setItems(next);
@@ -330,7 +333,8 @@ export function SimulationScenarioEditor() {
         `/api/v1/admin/simulation-tasks/${encodeURIComponent(task.taskId)}`,
         { cache: "no-store" },
       );
-      if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok)
+        return setMessage(formatSimulationProblem(await readAdminProblem(response)));
       const detail = readTaskDetail(await response.json());
       if (!detail?.task.question) {
         return setMessage("질문이 작성된 투표만 불러올 수 있습니다.");
@@ -375,7 +379,8 @@ export function SimulationScenarioEditor() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify(draft),
       });
-      if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok)
+        return setMessage(formatSimulationProblem(await readAdminProblem(response)));
       const created = readSimulationScenario(await response.json());
       if (!created) return setMessage("서버의 시뮬레이션 저장 응답 형식을 확인해야 합니다.");
       router.push(
@@ -548,14 +553,14 @@ function VoteImportDialog({
     let disposed = false;
     void authenticatedFetch("/api/v1/admin/simulation-tasks", { cache: "no-store" })
       .then(async (response) => {
-        if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+        if (!response.ok)
+          throw new Error(formatSimulationProblem(await readAdminProblem(response)));
         const tasks = readSimulationTaskSummaries(await response.json());
         if (!tasks) throw new Error("서버의 투표 목록 응답 형식을 확인해야 합니다.");
         if (!disposed) setItems(tasks);
       })
       .catch((error: unknown) => {
-        if (!disposed)
-          setMessage(error instanceof Error ? error.message : "투표 목록을 불러오지 못했습니다.");
+        if (!disposed) setMessage(errorMessage(error, "투표 목록을 불러오지 못했습니다."));
       });
     return () => {
       disposed = true;

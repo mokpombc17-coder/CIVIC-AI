@@ -17,7 +17,8 @@ import {
   voteDonutData,
 } from "@/components/admin/vote-simulation-analysis";
 import { ScreenFrame } from "@/components/screens/screen-frame";
-import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { formatSimulationProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { errorMessage } from "@/lib/user-facing-message";
 import {
   buildVoteSimulationComparison,
   latestCompletedSimulations,
@@ -130,7 +131,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
         `/api/v1/admin/simulations?taskId=${encodeURIComponent(taskId)}`,
         { cache: "no-store" },
       );
-      if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok) throw new Error(formatSimulationProblem(await readAdminProblem(response)));
       const views = readSimulationViews(await response.json());
       if (!views) throw new Error("서버의 시뮬레이션 목록 응답 형식을 확인해야 합니다.");
       setRuns({ status: "ready", runs: views });
@@ -141,8 +142,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
           ? current
           : {
               status: "error",
-              message:
-                error instanceof Error ? error.message : "시뮬레이션 목록을 불러오지 못했습니다.",
+              message: errorMessage(error, "시뮬레이션 목록을 불러오지 못했습니다."),
             },
       );
     }
@@ -172,7 +172,8 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
       cache: "no-store",
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+        if (!response.ok)
+          throw new Error(formatSimulationProblem(await readAdminProblem(response)));
         const result = readSimulationResult(await response.json());
         if (!result) throw new Error("서버의 시뮬레이션 결과 응답 형식을 확인해야 합니다.");
         if (!disposed) setSimulation({ id: currentId, message: "", result });
@@ -181,8 +182,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
         if (!disposed)
           setSimulation({
             id: currentId,
-            message:
-              error instanceof Error ? error.message : "시뮬레이션 결과를 불러오지 못했습니다.",
+            message: errorMessage(error, "시뮬레이션 결과를 불러오지 못했습니다."),
             result: null,
           });
       });

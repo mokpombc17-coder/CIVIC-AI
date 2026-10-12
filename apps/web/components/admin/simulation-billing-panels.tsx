@@ -12,7 +12,8 @@ import {
   type DailyUsage,
   type WalletSummary,
 } from "@/lib/admin/simulation-billing-contracts";
-import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { formatSimulationProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { errorMessage } from "@/lib/user-facing-message";
 import {
   IdempotentMutationKeys,
   mutationFingerprint,
@@ -121,7 +122,7 @@ function WalletPanel({
     const response = await authenticatedFetch("/api/v1/admin/simulation-billing/wallet", {
       cache: "no-store",
     });
-    if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+    if (!response.ok) throw new Error(formatSimulationProblem(await readAdminProblem(response)));
     const next = readWalletSummary(await response.json());
     if (!next) throw new Error("지갑 응답 형식을 확인해야 합니다.");
     onWalletChange?.(next);
@@ -134,7 +135,8 @@ function WalletPanel({
       const response = await mutate("/api/v1/admin/simulation-billing/coupons/redeem", {
         rawCode: rawCode.trim(),
       });
-      if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok)
+        return setMessage(formatSimulationProblem(await readAdminProblem(response)));
       const next = readWalletSummary(await response.json());
       if (!next) return setMessage("쿠폰 사용 응답 형식을 확인해야 합니다.");
       onWalletChange?.(next);
@@ -227,7 +229,7 @@ function UsagePanel() {
       `/api/v1/admin/simulation-billing/reports/daily?${query.toString()}`,
       { cache: "no-store" },
     );
-    if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+    if (!response.ok) throw new Error(formatSimulationProblem(await readAdminProblem(response)));
     const next = readDailyUsage(await response.json());
     if (!next) throw new Error("사용량 응답 형식을 확인해야 합니다.");
     setRows(next);
@@ -328,5 +330,5 @@ function useIdempotentMutation() {
 }
 
 function messageOf(error: unknown): string {
-  return error instanceof Error ? error.message : "정보를 불러오지 못했습니다.";
+  return errorMessage(error, "정보를 불러오지 못했습니다.");
 }

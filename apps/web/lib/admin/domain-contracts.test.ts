@@ -3,6 +3,7 @@ import {
   canReadTaskResult,
   adminFieldError,
   formatAdminProblem,
+  formatSimulationProblem,
   readRoomCreationRequestPage,
   readTaskDetail,
   readTaskPreparationStartResponse,
@@ -161,6 +162,44 @@ describe("admin domain response contracts", () => {
         violations: [],
       }),
     ).toBe("아직 결과가 없습니다.");
+  });
+
+  it("시뮬레이션 서버의 영어 오류는 상태별 한국어로 바꾸고 문의 코드는 유지한다", () => {
+    expect(
+      formatSimulationProblem({
+        code: "SIMULATION_SCENARIO_INVALID",
+        detail: "scenario name is required",
+        status: 422,
+        traceId: "trace-2",
+        violations: [],
+      }),
+    ).toBe("입력한 내용을 다시 확인해 주세요. 문의 코드: trace-2");
+    expect(
+      formatSimulationProblem({
+        code: "HTTP_503",
+        status: 503,
+        violations: [],
+      }),
+    ).toBe("서버에 일시적인 문제가 있습니다. 잠시 후 다시 시도해 주세요.");
+    expect(
+      formatSimulationProblem({
+        code: "SIMULATION_BUDGET",
+        detail: "잔액이 부족합니다.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("잔액이 부족합니다.");
+  });
+
+  it("투표·토론방 오류는 서버 원문 처리를 바꾸지 않는다", () => {
+    expect(
+      formatAdminProblem({
+        code: "TASK_LOCKED",
+        detail: "Task is locked",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("Task is locked");
   });
 
   it("조치가 필요한 오류에는 기존 문의 코드를 유지한다", () => {

@@ -12,6 +12,7 @@ import { AuthFormCard, AuthInfo } from "@/components/wireflow/auth-layouts";
 import { WireflowButton } from "@/components/wireflow/wireflow-primitives";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
+import { PASSWORD_POLICY_MESSAGE } from "@/lib/auth/password-policy";
 
 type SignupDraft = {
   email: string;
@@ -59,8 +60,7 @@ const defaultSignupPreferences = Object.freeze({
 });
 const signupPasswordPattern =
   /^(?=.*[A-Za-z])(?=.*[0-9])(?=.*[!@#$%^&*()_+\-=])[A-Za-z0-9!@#$%^&*()_+\-=]{8,1024}$/u;
-const signupPasswordPolicyMessage =
-  "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.";
+const signupPasswordPolicyMessage = PASSWORD_POLICY_MESSAGE;
 
 export type AuthErrorOperation =
   | "LOGIN"

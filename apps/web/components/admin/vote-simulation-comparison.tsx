@@ -3,7 +3,8 @@
 import type { Route } from "next";
 import Link from "next/link";
 import { useEffect, useState } from "react";
-import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { formatSimulationProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { errorMessage } from "@/lib/user-facing-message";
 import {
   buildVoteSimulationComparison,
   latestCompletedSimulations,
@@ -42,7 +43,8 @@ export function VoteSimulationComparison({
       .then(async (response) => {
         if (response.status === 401 || response.status === 403)
           throw new Error("시뮬레이션 조회 권한이 없어 결과를 비교할 수 없습니다.");
-        if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+        if (!response.ok)
+          throw new Error(formatSimulationProblem(await readAdminProblem(response)));
         const views = readSimulationViews(await response.json());
         if (!views) throw new Error("서버의 시뮬레이션 목록 응답 형식을 확인해야 합니다.");
         if (!disposed) setRuns({ status: "ready", runs: views });
@@ -51,8 +53,7 @@ export function VoteSimulationComparison({
         if (!disposed)
           setRuns({
             status: "error",
-            message:
-              error instanceof Error ? error.message : "시뮬레이션 목록을 불러오지 못했습니다.",
+            message: errorMessage(error, "시뮬레이션 목록을 불러오지 못했습니다."),
           });
       });
     return () => {
@@ -72,7 +73,8 @@ export function VoteSimulationComparison({
       cache: "no-store",
     })
       .then(async (response) => {
-        if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+        if (!response.ok)
+          throw new Error(formatSimulationProblem(await readAdminProblem(response)));
         const result = readSimulationResult(await response.json());
         if (!result) throw new Error("서버의 시뮬레이션 결과 응답 형식을 확인해야 합니다.");
         if (!disposed) setSimulation({ id: currentId, message: "", result });
@@ -81,8 +83,7 @@ export function VoteSimulationComparison({
         if (!disposed)
           setSimulation({
             id: currentId,
-            message:
-              error instanceof Error ? error.message : "시뮬레이션 결과를 불러오지 못했습니다.",
+            message: errorMessage(error, "시뮬레이션 결과를 불러오지 못했습니다."),
             result: null,
           });
       });

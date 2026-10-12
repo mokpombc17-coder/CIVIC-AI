@@ -45,6 +45,7 @@ import {
 } from "@/components/screens/admin-functional-screen";
 import {
   accountMutation,
+  accountProblemMessage,
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
@@ -571,7 +572,67 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>변경하기<\/button>/u);
   });
 
-  it("계정 변경 요청은 취소 신호를 전달하고 서버 오류 내용을 그대로 알린다", async () => {
+  it.each([
+    [
+      "/api/v1/account/2fa/enable",
+      401,
+      { detail: "Authentication code is invalid", code: "TWO_FACTOR_ENABLE_EXPIRED" },
+      "인증 유효 시간이 지났습니다. 인증번호를 다시 받아 주세요.",
+    ],
+    [
+      "/api/v1/account/2fa/enable",
+      401,
+      { detail: "Authentication flow subject mismatch" },
+      "인증 유효 시간이 지났습니다. 인증번호를 다시 받아 주세요.",
+    ],
+    [
+      "/api/v1/account/password",
+      401,
+      { detail: "Email or password is invalid" },
+      "비밀번호를 변경하지 못했습니다. 현재 비밀번호와, 새 비밀번호가 현재 비밀번호와 다른지 확인해 주세요.",
+    ],
+    [
+      "/api/v1/account/2fa/disable",
+      401,
+      { detail: "Email or password is invalid" },
+      "현재 비밀번호가 올바르지 않습니다.",
+    ],
+    [
+      "/api/v1/account/deactivate",
+      401,
+      { detail: "Email or password is invalid" },
+      "현재 비밀번호가 올바르지 않습니다.",
+    ],
+    [
+      "/api/v1/account/password",
+      401,
+      { detail: "New password does not satisfy the password policy" },
+      "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+    ],
+    [
+      "/api/v1/account/2fa/enable",
+      403,
+      { detail: "Password rotation is required" },
+      "비밀번호를 먼저 변경해 주세요.",
+    ],
+    [
+      "/api/v1/account/2fa/disable",
+      401,
+      { detail: "Access token is invalid or expired" },
+      "로그인이 만료되었습니다. 다시 로그인해 주세요.",
+    ],
+    ["/api/v1/account/2fa/enable", 401, {}, "로그인이 만료되었습니다. 다시 로그인해 주세요."],
+    [
+      "/api/v1/account/2fa/enable",
+      400,
+      { detail: "CSRF token is invalid" },
+      "요청을 처리하지 못했습니다.",
+    ],
+  ] as const)("계정 오류 %s %i를 한국어로 안내한다", (path, status, problem, message) => {
+    expect(accountProblemMessage(path, status, problem)).toBe(message);
+  });
+
+  it("계정 변경 요청은 취소 신호를 전달하고 서버 오류를 한국어로 알린다", async () => {
     const controller = new AbortController();
     const request = vi.fn<typeof fetch>(async () =>
       Response.json({ detail: "Authentication code is invalid" }, { status: 401 }),
@@ -585,7 +646,7 @@ describe("25 functional Main/Auth screens", () => {
         controller.signal,
         request,
       ),
-    ).rejects.toThrow("Authentication code is invalid");
+    ).rejects.toThrow("인증번호가 올바르지 않습니다. 다시 확인해 주세요.");
     expect(request.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 

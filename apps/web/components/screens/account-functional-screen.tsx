@@ -9,6 +9,8 @@ import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { WireflowButton, WireflowField } from "@/components/wireflow/wireflow-primitives";
 import { authenticatedFetch, authenticatedFetchOnce } from "@/lib/auth/authenticated-fetch";
+import { PASSWORD_POLICY_MESSAGE } from "@/lib/auth/password-policy";
+import { DEFAULT_FAILURE_MESSAGE, errorMessage, koreanMessage } from "@/lib/user-facing-message";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
@@ -93,7 +95,10 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         if (!active) return;
         setProfile(value);
       })
-      .catch((error: Error) => active && updateFeedback("load", error.message));
+      .catch(
+        (error: unknown) =>
+          active && updateFeedback("load", errorMessage(error, "계정 정보를 불러오지 못했습니다.")),
+      );
     return () => {
       active = false;
     };
@@ -162,10 +167,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
       }
     } catch (error) {
       if (controller.signal.aborted) return;
-      updateFeedback(
-        feedbackTarget,
-        error instanceof Error ? error.message : "요청을 처리하지 못했습니다.",
-      );
+      updateFeedback(feedbackTarget, errorMessage(error, DEFAULT_FAILURE_MESSAGE));
     } finally {
       pendingSubmissions.current.delete(controller);
       setBusy(false);
@@ -576,8 +578,38 @@ export async function accountMutation(
     signal,
   });
   if (!response.ok) {
-    const problem = (await response.json().catch(() => ({}))) as { detail?: string };
-    throw new Error(problem.detail ?? "요청을 처리하지 못했습니다.");
+    const problem = (await response.json().catch(() => ({}))) as AccountProblem;
+    throw new Error(accountProblemMessage(path, response.status, problem));
   }
   return response;
+}
+
+type AccountProblem = Readonly<{ code?: string; detail?: string }>;
+
+const CODE_INVALID_MESSAGE = "인증번호가 올바르지 않습니다. 다시 확인해 주세요.";
+const CODE_EXPIRED_MESSAGE = "인증 유효 시간이 지났습니다. 인증번호를 다시 받아 주세요.";
+
+/** Main/Auth answers account changes with English details; the screen shows Korean copy. */
+export function accountProblemMessage(
+  path: string,
+  status: number,
+  problem: AccountProblem,
+): string {
+  const { code, detail } = problem;
+  if (detail === "Password rotation is required") return "비밀번호를 먼저 변경해 주세요.";
+  if (detail === "New password does not satisfy the password policy") {
+    return PASSWORD_POLICY_MESSAGE;
+  }
+  if (path.endsWith("/2fa/enable")) {
+    if (code === "TWO_FACTOR_ENABLE_EXPIRED" || detail === "Authentication flow subject mismatch") {
+      return CODE_EXPIRED_MESSAGE;
+    }
+    if (detail === "Authentication code is invalid") return CODE_INVALID_MESSAGE;
+  } else if (detail === "Email or password is invalid") {
+    return path.endsWith("/password")
+      ? "비밀번호를 변경하지 못했습니다. 현재 비밀번호와, 새 비밀번호가 현재 비밀번호와 다른지 확인해 주세요."
+      : "현재 비밀번호가 올바르지 않습니다.";
+  }
+  if (status === 401) return "로그인이 만료되었습니다. 다시 로그인해 주세요.";
+  return koreanMessage(detail, DEFAULT_FAILURE_MESSAGE);
 }

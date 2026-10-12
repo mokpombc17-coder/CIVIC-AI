@@ -5,6 +5,7 @@ import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleStatus } from "@/components/admin/console/console-ui";
 import type { Folder } from "./admin-rag-screen";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { errorMessage } from "@/lib/user-facing-message";
 
 type CrawlSource = Readonly<{
   source_id: string;
@@ -140,7 +141,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
   useEffect(() => {
     const timer = window.setTimeout(() => {
       void refresh().catch((error: unknown) =>
-        setMessage(error instanceof Error ? error.message : "웹 수집원을 불러오지 못했습니다."),
+        setMessage(errorMessage(error, "웹 수집원을 불러오지 못했습니다.")),
       );
     }, 0);
     return () => window.clearTimeout(timer);
@@ -289,7 +290,7 @@ export function AdminRagCrawler({ folders }: Readonly<{ folders: readonly Folder
       setPreviewAuthorization("");
       setMessage("접속을 확인했습니다. 로그인 정보는 저장하지 않았습니다.");
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : "접속 확인에 실패했습니다.");
+      setMessage(errorMessage(error, "접속 확인에 실패했습니다."));
     } finally {
       if (sessionHandle) {
         await authenticatedFetch(

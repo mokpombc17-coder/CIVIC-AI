@@ -1,3 +1,5 @@
+import { koreanMessage, statusMessage } from "@/lib/user-facing-message";
+
 export type ProblemViolation = Readonly<{
   field: string;
   message: string;
@@ -371,7 +373,10 @@ export async function readAdminProblem(response: Response): Promise<AdminProblem
   };
 }
 
-export function formatAdminProblem(problem: AdminProblem): string {
+export function formatAdminProblem(
+  problem: AdminProblem,
+  options: Readonly<{ localizeDetail?: boolean }> = {},
+): string {
   const codeMessages: Readonly<Record<string, string>> = {
     CHAT_EXPORT_UNAVAILABLE:
       "대화 내역을 불러오는 서버가 다른 작업을 처리 중입니다. 자동 재시도를 마쳤지만 아직 사용할 수 없습니다. 잠시 후 다시 시도해 주세요.",
@@ -403,10 +408,17 @@ export function formatAdminProblem(problem: AdminProblem): string {
       ? "이 작업을 수행할 관리자 권한이 없습니다."
       : problem.status === 429
         ? `요청이 많습니다.${problem.retryAfter ? ` ${problem.retryAfter}초 후 다시 시도하세요.` : " 잠시 후 다시 시도하세요."}`
-        : (problem.detail ?? "요청을 처리하지 못했습니다."));
+        : options.localizeDetail
+          ? koreanMessage(problem.detail, statusMessage(problem.status))
+          : (problem.detail ?? "요청을 처리하지 못했습니다."));
   return problem.code === "SIMULATION_NOT_COMPLETED" || !problem.traceId
     ? base
     : `${base} 문의 코드: ${problem.traceId}`;
+}
+
+/** Simulation service details are English, so only Korean copy reaches the screen. */
+export function formatSimulationProblem(problem: AdminProblem): string {
+  return formatAdminProblem(problem, { localizeDetail: true });
 }
 
 export function adminFieldError(
