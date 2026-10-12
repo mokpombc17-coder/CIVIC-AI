@@ -2,7 +2,7 @@
 
 import { useEffect, useState, type ReactNode } from "react";
 import { FullscreenStatus } from "@/components/shell/fullscreen-status";
-import { clearAnalyticsUserId } from "@/lib/analytics/user-id";
+import { refreshSession } from "@/lib/auth/authenticated-fetch";
 
 export function AccessTokenRefresh({
   loadingFallback,
@@ -12,24 +12,18 @@ export function AccessTokenRefresh({
 
   useEffect(() => {
     let active = true;
-    void fetch("/api/v1/auth/refresh", {
-      method: "POST",
-      credentials: "same-origin",
-      headers: { "content-type": "application/json" },
-      body: "{}",
-    })
-      .then((response) => {
-        if (!active) return;
-        if (response.ok) {
-          location.replace(returnTo);
-          return;
-        }
-        if (response.status === 401 || response.status === 403) clearAnalyticsUserId();
+    // The shared refresh joins another tab's rotation (409) instead of reporting it as a
+    // sign-out, and only a refused session goes back to login.
+    void refreshSession().then((outcome) => {
+      if (!active) return;
+      if (outcome === "refreshed") {
+        location.replace(returnTo);
+      } else if (outcome === "rejected") {
         location.replace(`/login?returnTo=${encodeURIComponent(returnTo)}`);
-      })
-      .catch(() => {
-        if (active) setFailed(true);
-      });
+      } else {
+        setFailed(true);
+      }
+    });
     return () => {
       active = false;
     };

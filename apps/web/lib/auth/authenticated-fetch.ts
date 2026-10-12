@@ -9,10 +9,14 @@ type ClearAnalyticsUserId = () => void;
 
 const REFRESH_CONFLICT_RETRY_DELAYS_MS = [100, 200, 400] as const;
 
+/** `rejected`: Main/Auth refused the session. `unavailable`: it could not be confirmed now. */
+export type RefreshOutcome = "refreshed" | "rejected" | "unavailable";
+
 export type AuthenticatedClient = Readonly<{
   fetch: FetchBackend;
   fetchOnce: FetchBackend;
   ensureAccessToken: () => Promise<boolean>;
+  refreshSession: () => Promise<RefreshOutcome>;
 }>;
 
 /**
@@ -25,9 +29,11 @@ export function createAuthenticatedClient(
   pauseBackend: PauseBackend = pause,
   clearUserId: ClearAnalyticsUserId = clearAnalyticsUserId,
 ): AuthenticatedClient {
-  let refreshInFlight: Promise<boolean> | null = null;
+  let refreshInFlight: Promise<RefreshOutcome> | null = null;
 
-  function rotateAccessToken(requestUrl: string): Promise<boolean> {
+  function refreshSession(
+    requestUrl = createRequest("/api/v1/auth/refresh").url,
+  ): Promise<RefreshOutcome> {
     if (!refreshInFlight) {
       refreshInFlight = refreshAccessToken(
         requestUrl,
@@ -39,6 +45,10 @@ export function createAuthenticatedClient(
       });
     }
     return refreshInFlight;
+  }
+
+  async function rotateAccessToken(requestUrl: string): Promise<boolean> {
+    return (await refreshSession(requestUrl)) === "refreshed";
   }
 
   async function ensureAccessToken(): Promise<boolean> {
@@ -84,7 +94,8 @@ export function createAuthenticatedClient(
    * Replaying those after a refresh would submit the same attempt twice, so the access token
    * is refreshed before the request and the request itself is sent exactly once. The request
    * is not sent when that preflight fails, the caller aborts, or another tab switches the
-   * account meanwhile.
+   * account meanwhile. Once sent it is no longer aborted: Main/Auth may already have applied
+   * it, so the caller must see its response.
    */
   const authenticatedRequestOnce: FetchBackend = async (input, init) => {
     const revision = authSessionRevision();
@@ -99,10 +110,15 @@ export function createAuthenticatedClient(
     await preflight.body?.cancel().catch(() => undefined);
     signal.throwIfAborted();
     if (revision !== authSessionRevision()) return sessionChanged();
-    return requestBackend(request);
+    return requestBackend(new Request(request, { signal: null }));
   };
 
-  return { ensureAccessToken, fetch: authenticatedRequest, fetchOnce: authenticatedRequestOnce };
+  return {
+    ensureAccessToken,
+    fetch: authenticatedRequest,
+    fetchOnce: authenticatedRequestOnce,
+    refreshSession: () => refreshSession(),
+  };
 }
 
 export function createAuthenticatedFetch(
@@ -118,6 +134,7 @@ const authenticatedClient = createAuthenticatedClient();
 export const authenticatedFetch = authenticatedClient.fetch;
 export const authenticatedFetchOnce = authenticatedClient.fetchOnce;
 export const ensureAccessToken = authenticatedClient.ensureAccessToken;
+export const refreshSession = authenticatedClient.refreshSession;
 
 function createRequest(input: RequestInfo | URL, init?: RequestInit): Request {
   if (input instanceof Request) {
@@ -141,22 +158,23 @@ async function refreshAccessToken(
   requestBackend: FetchBackend,
   pauseBackend: PauseBackend,
   clearUserId: ClearAnalyticsUserId,
-): Promise<boolean> {
+): Promise<RefreshOutcome> {
   let response: Response;
   try {
     response = await requestBackend(refreshRequest(requestUrl));
   } catch {
-    return false;
+    return "unavailable";
   }
 
   if (response.ok) {
     await response.body?.cancel().catch(() => undefined);
-    return true;
+    return "refreshed";
   }
   if (response.status !== 409) {
-    if (response.status === 401 || response.status === 403) clearUserId();
+    const rejected = response.status === 401 || response.status === 403;
+    if (rejected) clearUserId();
     await response.body?.cancel().catch(() => undefined);
-    return false;
+    return rejected ? "rejected" : "unavailable";
   }
   await response.body?.cancel().catch(() => undefined);
 
@@ -166,17 +184,18 @@ async function refreshAccessToken(
     try {
       currentUserResponse = await requestBackend(currentUserRequest(requestUrl));
     } catch {
-      return false;
+      return "unavailable";
     }
     if (currentUserResponse.ok) {
       await currentUserResponse.body?.cancel().catch(() => undefined);
-      return true;
+      return "refreshed";
     }
     const accessTokenPending = currentUserResponse.status === 401;
     await currentUserResponse.body?.cancel().catch(() => undefined);
-    if (!accessTokenPending) return false;
+    if (!accessTokenPending) return "unavailable";
   }
-  return false;
+  // Another tab won the rotation but its access token never became visible here.
+  return "rejected";
 }
 
 function currentUserRequest(requestUrl: string, signal: AbortSignal | null = null): Request {
