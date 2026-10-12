@@ -44,6 +44,7 @@ import {
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
 import {
+  accountMutation,
   loadAccountProfile,
   normalizeTwoFactorCode,
   passwordConfirmationMatches,
@@ -559,6 +560,33 @@ describe("25 functional Main/Auth screens", () => {
 
     expect(html).toContain("로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다.");
     expect(html).toMatch(/<button[^>]*disabled=""[^>]*>설정하기<\/button>/u);
+  });
+
+  it("프로필을 불러오지 못해도 비밀번호는 변경할 수 있다", () => {
+    const security = mainScreens.find((screen) => screen.id === "U-ACCOUNT-002");
+    if (!security) throw new Error("security screen missing");
+
+    const html = renderToStaticMarkup(createElement(MainFunctionalScreen, { screen: security }));
+
+    expect(html).toMatch(/<button(?![^>]*disabled)[^>]*>변경하기<\/button>/u);
+  });
+
+  it("계정 변경 요청은 취소 신호를 전달하고 서버 오류 내용을 그대로 알린다", async () => {
+    const controller = new AbortController();
+    const request = vi.fn<typeof fetch>(async () =>
+      Response.json({ detail: "Authentication code is invalid" }, { status: 401 }),
+    );
+
+    await expect(
+      accountMutation(
+        "/api/v1/account/2fa/enable",
+        "POST",
+        { code: "000000" },
+        controller.signal,
+        request,
+      ),
+    ).rejects.toThrow("Authentication code is invalid");
+    expect(request.mock.calls[0]?.[1]?.signal).toBe(controller.signal);
   });
 
   it("RAG 실패 요약 조회 실패는 확인된 0건과 구분한다", async () => {

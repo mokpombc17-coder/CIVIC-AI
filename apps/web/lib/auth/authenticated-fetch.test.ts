@@ -347,6 +347,31 @@ describe("createAuthenticatedFetch", () => {
       expect(request).not.toHaveBeenCalled();
     });
 
+    it("does not abort a request that was already sent", async () => {
+      let sent: Request | undefined;
+      let release: (() => void) | undefined;
+      const request = vi.fn<typeof fetch>(async (input) => {
+        const pathname = new URL((input as Request).url).pathname;
+        if (pathname === "/api/v1/auth/me") return Response.json({ subject: "user-1" });
+        sent = input as Request;
+        return new Promise<Response>((resolve) => {
+          release = () => resolve(new Response(null, { status: 204 }));
+        });
+      });
+      const controller = new AbortController();
+
+      const response = createAuthenticatedClient(request).fetchOnce(enable, {
+        ...send,
+        signal: controller.signal,
+      });
+      await vi.waitFor(() => expect(release).toBeDefined());
+      controller.abort();
+      release?.();
+
+      await expect(response).resolves.toHaveProperty("status", 204);
+      expect(sent?.signal.aborted).toBe(false);
+    });
+
     it("lets one caller abort while another caller keeps the shared refresh", async () => {
       let releaseRefresh: (() => void) | undefined;
       const request = vi.fn<typeof fetch>(async (input) => {
@@ -376,6 +401,55 @@ describe("createAuthenticatedFetch", () => {
       expect(paths(request).filter((path) => path === "/api/v1/account/2fa/enable")).toHaveLength(
         1,
       );
+    });
+  });
+
+  describe("refreshSession", () => {
+    it.each([
+      [204, "refreshed"],
+      [401, "rejected"],
+      [403, "rejected"],
+      [429, "unavailable"],
+      [503, "unavailable"],
+    ] as const)("reports a %i refresh as %s", async (status, outcome) => {
+      const clearUserId = vi.fn();
+      const request = vi.fn<typeof fetch>().mockResolvedValueOnce(new Response(null, { status }));
+
+      await expect(
+        createAuthenticatedClient(request, async () => undefined, clearUserId).refreshSession(),
+      ).resolves.toBe(outcome);
+      expect(clearUserId).toHaveBeenCalledTimes(outcome === "rejected" ? 1 : 0);
+    });
+
+    it("reports an unreachable Main/Auth as unavailable", async () => {
+      const request = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError("offline"));
+
+      await expect(createAuthenticatedClient(request).refreshSession()).resolves.toBe(
+        "unavailable",
+      );
+    });
+
+    it("joins another tab's 409 rotation instead of signing out", async () => {
+      const request = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ code: "REFRESH_CONFLICT" }, { status: 409 }))
+        .mockResolvedValueOnce(Response.json({ subject: "user-1" }));
+
+      await expect(
+        createAuthenticatedClient(request, async () => undefined).refreshSession(),
+      ).resolves.toBe("refreshed");
+    });
+
+    it("reports a 409 rotation that never becomes visible as rejected", async () => {
+      const request = vi.fn<typeof fetch>(async (input) =>
+        new URL((input as Request).url).pathname === "/api/v1/auth/refresh"
+          ? Response.json({ code: "REFRESH_CONFLICT" }, { status: 409 })
+          : Response.json({ code: "UNAUTHORIZED" }, { status: 401 }),
+      );
+
+      await expect(
+        createAuthenticatedClient(request, async () => undefined).refreshSession(),
+      ).resolves.toBe("rejected");
     });
   });
 

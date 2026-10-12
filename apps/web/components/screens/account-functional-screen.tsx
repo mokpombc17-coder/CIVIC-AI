@@ -3,7 +3,7 @@
 import { sendAuthMessage } from "@/lib/auth/auth-session-events";
 import { clearAuthSessionData } from "@/components/auth/auth-session-data";
 
-import { useEffect, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type FormEvent, type ReactNode } from "react";
 import Image from "next/image";
 import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
@@ -74,6 +74,16 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
   );
   const [deactivationRequested, setDeactivationRequested] = useState(false);
   const deactivationOpen = screen.id === "U-ACCOUNT-004" || deactivationRequested;
+  const pendingSubmissions = useRef(new Set<AbortController>());
+
+  useEffect(() => {
+    // Leaving the screen stops a change that has not been sent yet; one already sent still
+    // completes because Main/Auth may have applied it.
+    const pending = pendingSubmissions.current;
+    return () => {
+      for (const controller of pending) controller.abort();
+    };
+  }, []);
 
   useEffect(() => {
     if (screen.id === "U-ACCOUNT-003") return;
@@ -101,12 +111,18 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
           : operation === "2fa-request" || operation === "2fa-verify" || operation === "2fa-disable"
             ? "twoFactor"
             : "load";
-    if (operation !== "deactivate" && profile === null) {
+    // A password change needs no profile, and an account that must rotate its password cannot
+    // load one until it does.
+    if (operation !== "deactivate" && operation !== "password" && profile === null) {
       updateFeedback(feedbackTarget, "계정 정보를 불러온 뒤 다시 시도해 주세요.");
       return;
     }
     setBusy(true);
     updateFeedback(feedbackTarget, "");
+    const controller = new AbortController();
+    pendingSubmissions.current.add(controller);
+    const mutation = (path: string, method: string, body: unknown) =>
+      accountMutation(path, method, body, controller.signal);
     try {
       if (operation === "password") {
         if (!passwordConfirmationMatches(data)) {
@@ -128,8 +144,9 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         const code = normalizeTwoFactorCode(data.get("code"));
         if (code === null) throw new Error("6자리 인증 코드를 입력해 주세요.");
         await mutation("/api/v1/account/2fa/enable", "POST", { code });
-        const updated = await loadAccountProfile();
-        setProfile(updated);
+        // 2FA is enabled once Main/Auth accepts the code; reloading the profile could fail and
+        // would leave the screen asking for a code that is already used.
+        setProfile((current) => current && { ...current, two_factor_enabled: true });
         setSecurityAccordion((current) => ({ ...current, twoFactorIntent: null }));
         updateFeedback("twoFactor", "로그인 2차 인증이 설정되었습니다.");
       } else if (operation === "2fa-disable") {
@@ -144,11 +161,13 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         location.assign("/reactivate");
       }
     } catch (error) {
+      if (controller.signal.aborted) return;
       updateFeedback(
         feedbackTarget,
         error instanceof Error ? error.message : "요청을 처리하지 못했습니다.",
       );
     } finally {
+      pendingSubmissions.current.delete(controller);
       setBusy(false);
     }
   }
@@ -292,7 +311,7 @@ function AccountManagementSurface({
           <SecurityAction
             actionLabel={securityAccordion.passwordOpen ? "닫기" : "변경하기"}
             controlsId={passwordFormId}
-            disabled={busy || !loaded}
+            disabled={busy}
             description="비밀번호 변경 시 모든 기기에서 로그아웃됩니다."
             expanded={securityAccordion.passwordOpen}
             onAction={onPasswordToggle}
@@ -543,11 +562,18 @@ export async function loadAccountProfile(
   return (await response.json()) as Profile;
 }
 
-async function mutation(path: string, method: string, body: unknown) {
-  const response = await authenticatedFetchOnce(path, {
+export async function accountMutation(
+  path: string,
+  method: string,
+  body: unknown,
+  signal: AbortSignal,
+  request: typeof fetch = authenticatedFetchOnce,
+) {
+  const response = await request(path, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
   if (!response.ok) {
     const problem = (await response.json().catch(() => ({}))) as { detail?: string };
