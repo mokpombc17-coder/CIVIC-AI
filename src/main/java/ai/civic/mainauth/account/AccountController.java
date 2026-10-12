@@ -97,14 +97,17 @@ public class AccountController {
             HttpServletRequest request) {
         var user = requireMutation(accessToken, csrfToken, request);
         requireCompletedPasswordRotation(user);
-        if (authFlow == null) {
+        // The body selects the step, not the flow cookie: login 2FA, signup and reset share that
+        // cookie, so it can still hold another flow or a previous account's enable flow.
+        if (body.code() == null || body.code().isBlank()) {
             var profile = profiles.get(user);
             var flow = authentication.requestTwoFactorEnable(user.userId(), profile.email());
             return ResponseEntity.accepted()
                     .header(HttpHeaders.SET_COOKIE, cookies.authFlow(flow.toString()).toString())
                     .body(Map.of("next", "EMAIL_CODE"));
         }
-        authentication.enableTwoFactor(user.userId(), UUID.fromString(authFlow), body.code());
+        authentication.enableTwoFactor(
+                user.userId(), authFlow == null ? null : UUID.fromString(authFlow), body.code());
         return ResponseEntity.noContent()
                 .header(HttpHeaders.SET_COOKIE, cookies.deleteAuthFlow().toString()).build();
     }

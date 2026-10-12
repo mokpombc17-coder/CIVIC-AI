@@ -470,6 +470,64 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void requestingTwoFactorEnableIgnoresAnotherAccountsLeftoverFlowCookie() throws Exception {
+        var otherUserId = jdbc.queryForObject("""
+                insert into users(email, normalized_email, origin, state, email_verified_at)
+                values ('other@example.com', 'other@example.com', 'SIGNUP', 'ACTIVE', now()) returning id
+                """, UUID.class);
+        var leftoverFlow = auth.requestTwoFactorEnable(otherUserId, "other@example.com");
+
+        var flowCookie = postTwoFactorEnable(credentials.issue(userId), leftoverFlow, """
+                        {"code":null}
+                        """)
+                .andExpect(status().isAccepted())
+                .andExpect(jsonPath("$.next").value("EMAIL_CODE"))
+                .andReturn().getResponse().getCookie(AuthCookieFactory.AUTH_FLOW_COOKIE);
+
+        assertThat(flowCookie).isNotNull();
+        assertThat(flowCookie.getValue()).isNotEqualTo(leftoverFlow.toString());
+        assertThat(jdbc.queryForObject("""
+                select user_id from auth_challenges where flow_hash = ? and purpose = 'TWO_FACTOR_ENABLE'
+                """, UUID.class, sha256(flowCookie.getValue()))).isEqualTo(userId);
+    }
+
+    @Test
+    void submittingTwoFactorEnableCodeWithoutFlowFailsInsteadOfSendingANewCode() throws Exception {
+        var challengesBefore = count("auth_challenges");
+
+        postTwoFactorEnable(credentials.issue(userId), null, """
+                        {"code":"123456"}
+                        """)
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.code").value("TWO_FACTOR_ENABLE_EXPIRED"))
+                .andExpect(cookie().doesNotExist(AuthCookieFactory.AUTH_FLOW_COOKIE));
+
+        assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?", Boolean.class, userId))
+                .isFalse();
+    }
+
+    @Test
+    void submittingTwoFactorEnableCodeWithItsFlowEnablesTwoFactor() throws Exception {
+        var flow = requestTwoFactorEnable();
+        jdbc.update("""
+                update auth_challenges set code_hash = ?
+                where user_id = ? and purpose = 'TWO_FACTOR_ENABLE' and consumed_at is null
+                """, codeProtector.verifier("123456"), userId);
+
+        postTwoFactorEnable(credentials.issue(userId), flow, """
+                        {"code":"123456"}
+                        """)
+                .andExpect(status().isNoContent())
+                .andExpect(cookie().maxAge(AuthCookieFactory.AUTH_FLOW_COOKIE, 0));
+
+        assertThat(jdbc.queryForObject(
+                "select two_factor_enabled from credentials where user_id = ?", Boolean.class, userId))
+                .isTrue();
+    }
+
+    @Test
     void disablingTwoFactorDeletesBothBrowserCredentials() throws Exception {
         jdbc.update("update credentials set two_factor_enabled = true where user_id = ?", userId);
         var credential = credentials.issue(userId);
@@ -1046,6 +1104,20 @@ class AuthenticationLifecycleTest extends PostgresIntegrationTest {
         auth.requestReactivation("person@example.com", "Valid123!");
 
         assertThat(count("auth_challenges")).isEqualTo(challengesBefore);
+    }
+
+    private ResultActions postTwoFactorEnable(
+            AccessCredentialTestFactory.IssuedCredential credential, UUID flow, String body)
+            throws Exception {
+        var request = post("/api/v1/account/2fa/enable")
+                .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken()))
+                .header("X-CSRF-Token", credential.csrfToken())
+                .header("Origin", "https://localhost")
+                .header("Sec-Fetch-Site", "same-origin")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(body);
+        if (flow != null) request.cookie(new Cookie(AuthCookieFactory.AUTH_FLOW_COOKIE, flow.toString()));
+        return mvc.perform(request);
     }
 
     private UUID requestTwoFactorEnable() {
