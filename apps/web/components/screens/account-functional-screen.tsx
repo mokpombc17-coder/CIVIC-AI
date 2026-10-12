@@ -8,7 +8,7 @@ import Image from "next/image";
 import { VoteSurveySurface } from "@/components/account/vote-survey-surface";
 import { LogoutButton } from "@/components/auth/logout-button";
 import { WireflowButton, WireflowField } from "@/components/wireflow/wireflow-primitives";
-import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { authenticatedFetch, authenticatedFetchOnce } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import { mainScreenPrimaryActions } from "./main-screen-actions";
 import { ScreenFrame } from "./screen-frame";
@@ -544,7 +544,7 @@ export async function loadAccountProfile(
 }
 
 async function mutation(path: string, method: string, body: unknown) {
-  const response = await authenticatedFetch(path, {
+  const response = await authenticatedFetchOnce(path, {
     method,
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),

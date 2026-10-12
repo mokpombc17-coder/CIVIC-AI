@@ -157,7 +157,8 @@ function allowlistedCookieHeader(
   for (const part of header.split(";")) {
     const [name, ...rest] = part.trim().split("=");
     if (name && allowedRequestCookies.has(name) && rest.length > 0 && rest.join("=")) {
-      if (!names.add(name)) return { valid: false };
+      if (names.has(name)) return { valid: false };
+      names.add(name);
       values.push(`${name}=${rest.join("=")}`);
     }
   }
