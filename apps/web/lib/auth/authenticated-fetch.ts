@@ -82,11 +82,24 @@ export function createAuthenticatedClient(
   /**
    * Credential-checking Main/Auth mutations answer a wrong code or password with 401 too.
    * Replaying those after a refresh would submit the same attempt twice, so the access token
-   * is refreshed before the request and the request itself is sent exactly once.
+   * is refreshed before the request and the request itself is sent exactly once. The request
+   * is not sent when that preflight fails, the caller aborts, or another tab switches the
+   * account meanwhile.
    */
   const authenticatedRequestOnce: FetchBackend = async (input, init) => {
-    await ensureAccessToken();
-    return requestBackend(createRequest(input, init));
+    const revision = authSessionRevision();
+    const request = createRequest(input, init);
+    const { signal } = request;
+    signal.throwIfAborted();
+    const preflight = await requestBackend(currentUserRequest(request.url, signal));
+    if (!preflight.ok) {
+      if (preflight.status !== 401 || revision !== authSessionRevision()) return preflight;
+      if (!(await untilAborted(rotateAccessToken(request.url), signal))) return preflight;
+    }
+    await preflight.body?.cancel().catch(() => undefined);
+    signal.throwIfAborted();
+    if (revision !== authSessionRevision()) return sessionChanged();
+    return requestBackend(request);
   };
 
   return { ensureAccessToken, fetch: authenticatedRequest, fetchOnce: authenticatedRequestOnce };
@@ -166,11 +179,27 @@ async function refreshAccessToken(
   return false;
 }
 
-function currentUserRequest(requestUrl: string): Request {
+function currentUserRequest(requestUrl: string, signal: AbortSignal | null = null): Request {
   return new Request(new URL("/api/v1/auth/me", requestUrl), {
     cache: "no-store",
     credentials: "same-origin",
     method: "GET",
+    signal,
+  });
+}
+
+/** The request was never sent because the signed-in account changed in another tab. */
+function sessionChanged(): Response {
+  return new Response(null, { status: 401 });
+}
+
+/** Stops waiting on abort without cancelling a refresh that other callers share. */
+function untilAborted<T>(pending: Promise<T>, signal: AbortSignal): Promise<T> {
+  if (signal.aborted) return Promise.reject(signal.reason);
+  return new Promise<T>((resolve, reject) => {
+    const abort = () => reject(signal.reason);
+    signal.addEventListener("abort", abort, { once: true });
+    pending.then(resolve, reject).finally(() => signal.removeEventListener("abort", abort));
   });
 }
 

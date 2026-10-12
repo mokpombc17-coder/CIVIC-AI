@@ -165,6 +165,51 @@ describe("Main/Auth BFF", () => {
     expect(requestBackend).not.toHaveBeenCalled();
   });
 
+  it.each([
+    "civic_ai_access_token=; civic_ai_access_token=header.payload.signature",
+    "civic_ai_access_token=header.payload.signature; civic_ai_access_token",
+  ])("rejects a duplicate Auth cookie even when one copy is empty: %s", async (cookie) => {
+    const requestBackend = vi.fn<typeof fetch>();
+    const proxy = createMainAuthProxy({
+      browserOrigin: "https://civic.example",
+      mainAuthUrl: new URL("http://main-auth.internal:8080"),
+      requestBackend,
+    });
+    const response = await proxy(
+      new NextRequest("https://civic.example/api/v1/account/profile", { headers: { cookie } }),
+      "/api/v1/account/profile",
+    );
+    expect(response.status).toBe(401);
+    expect(requestBackend).not.toHaveBeenCalled();
+  });
+
+  it("drops a single empty Auth cookie instead of blocking sign-in", async () => {
+    let forwarded: string | null = "unset";
+    const proxy = createMainAuthProxy({
+      browserOrigin: "https://civic.example",
+      mainAuthUrl: new URL("http://main-auth.internal:8080"),
+      requestBackend: vi.fn<typeof fetch>(async (_input, init) => {
+        forwarded = new Headers(init?.headers).get("cookie");
+        return new Response(null, { status: 204 });
+      }),
+    });
+    const response = await proxy(
+      new NextRequest("https://civic.example/api/v1/auth/login", {
+        method: "POST",
+        headers: {
+          cookie: "civic_ai_access_token=",
+          "content-type": "application/json",
+          origin: "https://civic.example",
+          "sec-fetch-site": "same-origin",
+        },
+        body: JSON.stringify({ email: "user@example.com", password: "Valid123!" }),
+      }),
+      "/api/v1/auth/login",
+    );
+    expect(response.status).toBe(204);
+    expect(forwarded).toBeNull();
+  });
+
   it("blocks cross-origin mutations before contacting Main/Auth", async () => {
     const requestBackend = vi.fn<typeof fetch>();
     const proxy = createMainAuthProxy({

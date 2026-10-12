@@ -156,11 +156,12 @@ function allowlistedCookieHeader(
   const names = new Set<string>();
   for (const part of header.split(";")) {
     const [name, ...rest] = part.trim().split("=");
-    if (name && allowedRequestCookies.has(name) && rest.length > 0 && rest.join("=")) {
-      if (names.has(name)) return { valid: false };
-      names.add(name);
-      values.push(`${name}=${rest.join("=")}`);
-    }
+    if (!name || !allowedRequestCookies.has(name)) continue;
+    // Count an Auth cookie before checking its value so an empty copy cannot hide a duplicate.
+    if (names.has(name)) return { valid: false };
+    names.add(name);
+    const value = rest.join("=");
+    if (value) values.push(`${name}=${value}`);
   }
   return values.length > 0 ? { valid: true, value: values.join("; ") } : { valid: true };
 }

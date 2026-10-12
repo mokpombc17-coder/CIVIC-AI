@@ -246,6 +246,139 @@ describe("createAuthenticatedFetch", () => {
     ]);
   });
 
+  describe("fetchOnce guards", () => {
+    const enable = "https://civic.example/api/v1/account/2fa/enable";
+    const send = { method: "POST", body: JSON.stringify({ code: "123456" }) };
+    const paths = (request: ReturnType<typeof vi.fn<typeof fetch>>) =>
+      request.mock.calls.map(([input]) => new URL((input as Request).url).pathname);
+
+    it.each([401, 403, 503])(
+      "does not send the request when the refresh fails with %i",
+      async (status) => {
+        const request = vi
+          .fn<typeof fetch>()
+          .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+          .mockResolvedValueOnce(new Response(null, { status }));
+
+        const response = await createAuthenticatedClient(request).fetchOnce(enable, send);
+
+        expect(response.status).toBe(401);
+        expect(paths(request)).toEqual(["/api/v1/auth/me", "/api/v1/auth/refresh"]);
+      },
+    );
+
+    it("returns a non-401 preflight failure without sending the request", async () => {
+      const request = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(new Response(null, { status: 503 }));
+
+      const response = await createAuthenticatedClient(request).fetchOnce(enable, send);
+
+      expect(response.status).toBe(503);
+      expect(paths(request)).toEqual(["/api/v1/auth/me"]);
+    });
+
+    it("does not send the request when the preflight cannot reach Main/Auth", async () => {
+      const request = vi.fn<typeof fetch>().mockRejectedValueOnce(new TypeError("offline"));
+
+      await expect(createAuthenticatedClient(request).fetchOnce(enable, send)).rejects.toThrow(
+        "offline",
+      );
+      expect(paths(request)).toEqual(["/api/v1/auth/me"]);
+    });
+
+    it("does not send the request when a 409 rotation never becomes visible", async () => {
+      const request = vi.fn<typeof fetch>(async (input) =>
+        new URL((input as Request).url).pathname === "/api/v1/auth/refresh"
+          ? Response.json({ code: "REFRESH_CONFLICT" }, { status: 409 })
+          : Response.json({ code: "UNAUTHORIZED" }, { status: 401 }),
+      );
+
+      const response = await createAuthenticatedClient(request, async () => undefined).fetchOnce(
+        enable,
+        send,
+      );
+
+      expect(response.status).toBe(401);
+      expect(paths(request)).not.toContain("/api/v1/account/2fa/enable");
+    });
+
+    it.each(["LOGIN", "LOGOUT"] as const)(
+      "does not send an old account's request when %s arrives during the preflight",
+      async (change) => {
+        const request = vi.fn<typeof fetch>().mockImplementationOnce(async () => {
+          sendAuthMessage(change);
+          return Response.json({ subject: "user-1" });
+        });
+
+        const response = await createAuthenticatedClient(request).fetchOnce(enable, send);
+
+        expect(response.status).toBe(401);
+        expect(paths(request)).toEqual(["/api/v1/auth/me"]);
+      },
+    );
+
+    it("does not send an old account's request when LOGIN arrives during the refresh", async () => {
+      const request = vi
+        .fn<typeof fetch>()
+        .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+        .mockImplementationOnce(async () => {
+          sendAuthMessage("LOGIN");
+          return new Response(null, { status: 204 });
+        });
+
+      const response = await createAuthenticatedClient(request).fetchOnce(enable, send);
+
+      expect(response.status).toBe(401);
+      expect(paths(request)).toEqual(["/api/v1/auth/me", "/api/v1/auth/refresh"]);
+    });
+
+    it("does not contact Main/Auth for an already aborted request", async () => {
+      const request = vi.fn<typeof fetch>();
+      const controller = new AbortController();
+      controller.abort();
+
+      await expect(
+        createAuthenticatedClient(request).fetchOnce(enable, {
+          ...send,
+          signal: controller.signal,
+        }),
+      ).rejects.toThrow();
+      expect(request).not.toHaveBeenCalled();
+    });
+
+    it("lets one caller abort while another caller keeps the shared refresh", async () => {
+      let releaseRefresh: (() => void) | undefined;
+      const request = vi.fn<typeof fetch>(async (input) => {
+        const pathname = new URL((input as Request).url).pathname;
+        if (pathname === "/api/v1/auth/me") {
+          return Response.json({ code: "UNAUTHORIZED" }, { status: 401 });
+        }
+        if (pathname === "/api/v1/auth/refresh") {
+          return new Promise<Response>((resolve) => {
+            releaseRefresh = () => resolve(new Response(null, { status: 204 }));
+          });
+        }
+        return new Response(null, { status: 204 });
+      });
+      const client = createAuthenticatedClient(request);
+      const controller = new AbortController();
+
+      const aborted = client.fetchOnce(enable, { ...send, signal: controller.signal });
+      const kept = client.fetchOnce(enable, send);
+      await vi.waitFor(() => expect(releaseRefresh).toBeDefined());
+      controller.abort();
+      await expect(aborted).rejects.toThrow();
+      releaseRefresh?.();
+
+      await expect(kept).resolves.toHaveProperty("status", 204);
+      expect(paths(request).filter((path) => path === "/api/v1/auth/refresh")).toHaveLength(1);
+      expect(paths(request).filter((path) => path === "/api/v1/account/2fa/enable")).toHaveLength(
+        1,
+      );
+    });
+  });
+
   it("does not rotate a fresh access token during a resource preflight", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ subject: "user-1" }));
 
