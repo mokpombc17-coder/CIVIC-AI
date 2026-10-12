@@ -203,6 +203,49 @@ describe("createAuthenticatedFetch", () => {
     expect(pause.mock.calls).toEqual([[100], [200], [400]]);
   });
 
+  it("does not replay a credential-checking request after its own 401", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ subject: "user-1" }))
+      .mockResolvedValueOnce(
+        Response.json({ detail: "Authentication code is invalid" }, { status: 401 }),
+      )
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const response = await createAuthenticatedClient(request).fetchOnce(
+      "https://civic.example/api/v1/account/2fa/enable",
+      { method: "POST", body: JSON.stringify({ code: "000000" }) },
+    );
+
+    expect(response.status).toBe(401);
+    expect(request).toHaveBeenCalledTimes(2);
+    expect(request.mock.calls.map(([input]) => new URL((input as Request).url).pathname)).toEqual([
+      "/api/v1/auth/me",
+      "/api/v1/account/2fa/enable",
+    ]);
+  });
+
+  it("refreshes an expired access token before sending a credential-checking request", async () => {
+    const request = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(Response.json({ code: "UNAUTHORIZED" }, { status: 401 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }))
+      .mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+    const response = await createAuthenticatedClient(request).fetchOnce(
+      "https://civic.example/api/v1/account/2fa/enable",
+      { method: "POST", body: JSON.stringify({ code: "123456" }) },
+    );
+
+    expect(response.status).toBe(204);
+    expect(request.mock.calls.map(([input]) => new URL((input as Request).url).pathname)).toEqual([
+      "/api/v1/auth/me",
+      "/api/v1/auth/refresh",
+      "/api/v1/account/2fa/enable",
+    ]);
+  });
+
   it("does not rotate a fresh access token during a resource preflight", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ subject: "user-1" }));
 

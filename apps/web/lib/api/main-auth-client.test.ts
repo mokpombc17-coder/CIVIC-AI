@@ -144,6 +144,27 @@ describe("Main/Auth BFF", () => {
     expect(cookies).toBe("civic_ai_refresh_token=opaque-refresh");
   });
 
+  it("rejects duplicate Auth cookies before contacting Main/Auth", async () => {
+    const requestBackend = vi.fn<typeof fetch>();
+    const proxy = createMainAuthProxy({
+      browserOrigin: "https://civic.example",
+      mainAuthUrl: new URL("http://main-auth.internal:8080"),
+      requestBackend,
+    });
+    const response = await proxy(
+      new NextRequest("https://civic.example/api/v1/account/profile", {
+        headers: {
+          cookie:
+            "civic_ai_access_token=first.payload.signature; civic_ai_access_token=second.payload.signature",
+        },
+      }),
+      "/api/v1/account/profile",
+    );
+    expect(response.status).toBe(401);
+    expect(await response.json()).toMatchObject({ code: "CREDENTIAL_MISMATCH" });
+    expect(requestBackend).not.toHaveBeenCalled();
+  });
+
   it("blocks cross-origin mutations before contacting Main/Auth", async () => {
     const requestBackend = vi.fn<typeof fetch>();
     const proxy = createMainAuthProxy({
