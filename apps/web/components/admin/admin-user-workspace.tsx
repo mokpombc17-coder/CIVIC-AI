@@ -56,6 +56,7 @@ import {
   type UserVoteScanResult,
 } from "@/lib/admin/user-activity";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { koreanMessage } from "@/lib/user-facing-message";
 
 export type UserWorkspaceTab = "overview" | "roles" | "audit" | "activity";
 
@@ -332,11 +333,16 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
             current.map((user) => (user.user_id === latest.user_id ? latest : user)),
           );
           setSelected(latest);
-          setMessage(problem.detail ?? "다른 관리자가 변경한 최신 권한 상태를 불러왔습니다.");
+          setMessage(
+            koreanMessage(problem.detail, "다른 관리자가 변경한 최신 권한 상태를 불러왔습니다."),
+          );
           return;
         }
         setMessage(
-          problem.detail ?? "권한 변경을 저장하지 못했습니다. 최신 상태를 다시 확인해 주세요.",
+          koreanMessage(
+            problem.detail,
+            "권한 변경을 저장하지 못했습니다. 최신 상태를 다시 확인해 주세요.",
+          ),
         );
         return;
       }

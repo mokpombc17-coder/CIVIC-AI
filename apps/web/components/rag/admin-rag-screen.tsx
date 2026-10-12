@@ -36,6 +36,7 @@ import { AdminRagSpreadsheetPreview } from "./admin-rag-spreadsheet-preview";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
 import { AuthenticatedResourceFrame } from "@/components/auth/authenticated-resource-frame";
+import { errorMessage } from "@/lib/user-facing-message";
 
 export type Folder = Readonly<{
   folder_id: string;
@@ -2204,9 +2205,7 @@ function UploadPanel({
       onMessage(
         resolution.action === "UPLOAD_NEW_VERSION"
           ? ragUploadFailureMessage(file.name, error)
-          : error instanceof Error
-            ? error.message
-            : `${file.name}: 기존 문서를 다시 처리하지 못했습니다.`,
+          : errorMessage(error, `${file.name}: 기존 문서를 다시 처리하지 못했습니다.`),
       );
     } finally {
       setBusy(false);

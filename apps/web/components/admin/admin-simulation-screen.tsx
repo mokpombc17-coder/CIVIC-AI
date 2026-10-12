@@ -35,7 +35,8 @@ import {
   type SimulationResultComparison,
   type SimulationResultDimension,
 } from "@/components/admin/simulation-result-explorer";
-import { formatAdminProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { formatSimulationProblem, readAdminProblem } from "@/lib/admin/domain-contracts";
+import { errorMessage } from "@/lib/user-facing-message";
 import {
   readSimulationPreview,
   readWalletSummary,
@@ -290,7 +291,7 @@ export function SimulationSetup({
       ])
         .then(async ([nextTarget, optionsResponse]) => {
           if (!optionsResponse.ok)
-            throw new Error(formatAdminProblem(await readAdminProblem(optionsResponse)));
+            throw new Error(formatSimulationProblem(await readAdminProblem(optionsResponse)));
           const nextOptions = readSimulationOptions(await optionsResponse.json());
           if (!nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
           setTarget(nextTarget);
@@ -306,7 +307,7 @@ export function SimulationSetup({
           setMessage("");
         })
         .catch((error: unknown) =>
-          setMessage(error instanceof Error ? error.message : "설정 정보를 불러오지 못했습니다."),
+          setMessage(errorMessage(error, "설정 정보를 불러오지 못했습니다.")),
         );
     }, 0);
     return () => window.clearTimeout(timer);
@@ -448,7 +449,7 @@ function SimulationStatus({
         { cache: "no-store" },
       );
       if (!response.ok) {
-        setMessage(formatAdminProblem(await readAdminProblem(response)));
+        setMessage(formatSimulationProblem(await readAdminProblem(response)));
         return null;
       }
       const next = readSimulationView(await response.json());
@@ -493,7 +494,8 @@ function SimulationStatus({
         `/api/v1/admin/simulations/${encodeURIComponent(simulationId ?? "")}/cancel`,
         { method: "POST" },
       );
-      if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+      if (!response.ok)
+        return setMessage(formatSimulationProblem(await readAdminProblem(response)));
       const next = readSimulationView(await response.json());
       if (next) {
         setView(next);
@@ -628,7 +630,7 @@ function SimulationRetrySection({
         },
       );
       if (!response.ok) {
-        setActionMessage(formatAdminProblem(await readAdminProblem(response)));
+        setActionMessage(formatSimulationProblem(await readAdminProblem(response)));
         return;
       }
       const next = readSimulationView(await response.json());
@@ -803,7 +805,8 @@ export function useSimulationResponses(
         { cache: "no-store" },
       )
         .then(async (response) => {
-          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          if (!response.ok)
+            throw new Error(formatSimulationProblem(await readAdminProblem(response)));
           const page = readSimulationResponsePage(await response.json());
           if (!page) throw new Error("서버의 응답 목록 형식을 확인해야 합니다.");
           if (!disposed) setState({ message: "", page, signature });
@@ -811,7 +814,7 @@ export function useSimulationResponses(
         .catch((error: unknown) => {
           if (!disposed)
             setState((current) => ({
-              message: error instanceof Error ? error.message : "응답 목록을 불러오지 못했습니다.",
+              message: errorMessage(error, "응답 목록을 불러오지 못했습니다."),
               page: current?.page ?? null,
               signature,
             }));
@@ -861,7 +864,8 @@ function useStartSimulation(taskId: string | null, onStarted?: (view: Simulation
           pricingFingerprint,
           requestRef.current.key,
         );
-        if (!response.ok) return setMessage(formatAdminProblem(await readAdminProblem(response)));
+        if (!response.ok)
+          return setMessage(formatSimulationProblem(await readAdminProblem(response)));
         const created = readSimulationView(await response.json());
         if (!created) return setMessage("서버의 실행 요청 응답 형식을 확인해야 합니다.");
         requestRef.current = null;
@@ -911,16 +915,14 @@ function useSimulationCapacity(input: CapacityInput | null) {
         body: signature,
       })
         .then(async (response) => {
-          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          if (!response.ok)
+            throw new Error(formatSimulationProblem(await readAdminProblem(response)));
           const capacity = readSimulationCapacity(await response.json());
           if (!capacity) throw new Error("서버의 페르소나 수용량 응답 형식을 확인해야 합니다.");
           if (!disposed) setResult({ capacity, signature });
         })
         .catch((error: unknown) => {
-          if (!disposed)
-            setMessage(
-              error instanceof Error ? error.message : "페르소나 수용량을 확인하지 못했습니다.",
-            );
+          if (!disposed) setMessage(errorMessage(error, "페르소나 수용량을 확인하지 못했습니다."));
         })
         .finally(() => {
           if (!disposed) setPending(false);
@@ -963,10 +965,10 @@ function useSimulationPreview(taskId: string | null, input: RunInput | null) {
         }),
       ]);
       if (!previewResponse.ok) {
-        return setMessage(formatAdminProblem(await readAdminProblem(previewResponse)));
+        return setMessage(formatSimulationProblem(await readAdminProblem(previewResponse)));
       }
       if (!walletResponse.ok) {
-        return setMessage(formatAdminProblem(await readAdminProblem(walletResponse)));
+        return setMessage(formatSimulationProblem(await readAdminProblem(walletResponse)));
       }
       const preview = readSimulationPreview(await previewResponse.json());
       const wallet = readWalletSummary(await walletResponse.json());
@@ -1067,7 +1069,8 @@ function useSimulationResult(simulationId: string | null) {
         { cache: "no-store" },
       )
         .then(async (response) => {
-          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          if (!response.ok)
+            throw new Error(formatSimulationProblem(await readAdminProblem(response)));
           const next = readSimulationResult(await response.json());
           if (!next) throw new Error("서버의 집계 결과 응답 형식을 확인해야 합니다.");
           if (!disposed) {
@@ -1078,7 +1081,7 @@ function useSimulationResult(simulationId: string | null) {
         .catch((error: unknown) => {
           if (!disposed) {
             setResult(null);
-            setMessage(error instanceof Error ? error.message : "집계 결과를 불러오지 못했습니다.");
+            setMessage(errorMessage(error, "집계 결과를 불러오지 못했습니다."));
             setSettledSimulationId(simulationId);
           }
         })
@@ -1137,7 +1140,8 @@ export function useSimulationResultComparisons(
             `/api/v1/admin/simulations/${encodeURIComponent(simulationId)}/results?${search.toString()}`,
             { cache: "no-store" },
           );
-          if (!response.ok) throw new Error(formatAdminProblem(await readAdminProblem(response)));
+          if (!response.ok)
+            throw new Error(formatSimulationProblem(await readAdminProblem(response)));
           const comparison = readSimulationResult(await response.json());
           if (!comparison) throw new Error("서버의 집단별 결과 응답 형식을 확인해야 합니다.");
           return { label: value, result: comparison };

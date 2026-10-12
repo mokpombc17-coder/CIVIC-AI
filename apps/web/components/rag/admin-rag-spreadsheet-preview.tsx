@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
+import { errorMessage } from "@/lib/user-facing-message";
 
 type SpreadsheetColumn = Readonly<{
   column_index: number;
@@ -91,7 +92,7 @@ export function AdminRagSpreadsheetPreview({
         })
         .catch((error: unknown) => {
           if (!controller.signal.aborted) {
-            setMessage(error instanceof Error ? error.message : "표 데이터를 불러오지 못했습니다.");
+            setMessage(errorMessage(error, "표 데이터를 불러오지 못했습니다."));
           }
         });
     }, 0);
@@ -118,9 +119,7 @@ export function AdminRagSpreadsheetPreview({
                 setSelectedSheetId(sheetId);
                 setMessage("표 데이터를 불러오고 있습니다.");
                 void loadRows(sheetId, 1).catch((error: unknown) =>
-                  setMessage(
-                    error instanceof Error ? error.message : "표 데이터를 불러오지 못했습니다.",
-                  ),
+                  setMessage(errorMessage(error, "표 데이터를 불러오지 못했습니다.")),
                 );
               }}
               value={selectedSheetId}

@@ -44,6 +44,7 @@ import {
 import { canViewTaskResults, loadTaskResults, type TaskResults } from "@/lib/admin/task-results";
 import { authenticatedFetch } from "@/lib/auth/authenticated-fetch";
 import type { ScreenDefinition } from "@/lib/screens/registry";
+import { koreanMessage } from "@/lib/user-facing-message";
 
 type DraftOption = Readonly<{ id: string | null; content: string }>;
 type LifecycleAction = "schedule" | "reschedule" | "open-now" | "start-now" | "deadline" | "cancel";
@@ -1125,7 +1126,12 @@ export function TaskPreparationPanel({
       {preparation?.lastError ? (
         <details className="civic-preparation-error">
           <summary>오류 상세 보기</summary>
-          <p>{preparation.lastError.detail}</p>
+          <p>
+            {koreanMessage(
+              preparation.lastError.detail,
+              "AI 답변 준비 중 오류가 발생했습니다. 오류 코드를 확인해 주세요.",
+            )}
+          </p>
           <code>{preparation.lastError.code}</code>
         </details>
       ) : null}
