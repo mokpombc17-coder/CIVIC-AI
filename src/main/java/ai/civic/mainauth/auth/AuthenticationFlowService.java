@@ -33,6 +33,7 @@ public class AuthenticationFlowService {
     private static final String RESET_NOT_VERIFIED = "PASSWORD_RESET_NOT_VERIFIED";
     private static final String RESEND_COOLDOWN = "PASSWORD_RESET_RESEND_COOLDOWN";
     private static final String RESEND_LIMIT = "PASSWORD_RESET_RESEND_LIMIT";
+    private static final String TWO_FACTOR_ENABLE_EXPIRED = "TWO_FACTOR_ENABLE_EXPIRED";
     private static final int MAX_CODE_ATTEMPTS = 5;
     private static final Duration CHALLENGE_TTL = Duration.ofMinutes(10);
     private static final Duration SEND_INTERVAL = Duration.ofSeconds(60);
@@ -178,6 +179,9 @@ public class AuthenticationFlowService {
 
     @Transactional(noRollbackFor = AuthenticationException.class)
     public void enableTwoFactor(UUID userId, UUID flowId, String code) {
+        // A submitted code needs the flow its send step created. Sending a fresh code here
+        // instead would let the client read the send response as a completed enable.
+        if (flowId == null) throw new AuthenticationException(CODE_FAILURE, TWO_FACTOR_ENABLE_EXPIRED);
         var lockedUserId = lockChallengeUser(flowId, "TWO_FACTOR_ENABLE");
         if (!userId.equals(lockedUserId)) {
             throw new AuthenticationException("Authentication flow subject mismatch");
