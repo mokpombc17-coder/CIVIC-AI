@@ -1641,6 +1641,11 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain('class="wf-screen-heading-copy" data-nosnippet=""');
     expect(html.match(/class="wf-card wf-action-card"/g)).toHaveLength(3);
     expect(html).toContain('class="wf-card wf-home-welcome"');
+    expect(html).toContain('aria-label="개발 지원"');
+    expect(html).toContain("개발지원 :");
+    expect(html).toContain('alt="한국언론진흥재단"');
+    expect(html).toContain('loading="lazy"');
+    expect(html).toContain("support-logo.png");
     expect(html).toContain('data-nosnippet=""');
     expect(html).not.toContain("data-pwa-install-trigger");
     expect(html).toContain("배우고, 토론하고, 함께 결정합니다.");

@@ -1,4 +1,5 @@
 import type { Route } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { ParticipantHomeLayout } from "@/components/wireflow/participant-layouts";
@@ -46,6 +47,18 @@ export function ParticipantHomeScreen({
       {homeActions ?? (
         <ParticipantHomeActions requiresLoginForProtectedLinks={requiresLoginForProtectedLinks} />
       )}
+      <footer aria-label="개발 지원" className="civic-home-support">
+        <span>개발지원 :</span>
+        <Image
+          alt="한국언론진흥재단"
+          className="civic-home-support-logo"
+          decoding="async"
+          height={68}
+          loading="lazy"
+          src="/assets/home/support-logo.png"
+          width={238}
+        />
+      </footer>
     </ScreenFrame>
   );
 }

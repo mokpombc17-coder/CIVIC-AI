@@ -488,3 +488,29 @@
   background: var(--wf-blue);
   color: #fff;
 }
+
+.civic-home-support {
+  display: flex;
+  min-height: 68px;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  margin: 8px 16px 24px;
+  color: #59616b;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 20px;
+}
+
+.civic-home-support > span {
+  flex: none;
+  white-space: nowrap;
+  transform: translateY(3px);
+}
+
+.civic-home-support-logo {
+  width: min(50%, 140px);
+  height: auto;
+  object-fit: contain;
+  transform: translateY(1px);
+}
