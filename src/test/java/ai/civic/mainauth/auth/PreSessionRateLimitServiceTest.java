@@ -32,7 +32,7 @@ class PreSessionRateLimitServiceTest extends PostgresIntegrationTest {
     @Test
     void accountAndIpWindowPersistsAcrossEmailAndBoundFlowEndpoints() {
         var email = "limited@example.test";
-        for (var attempt = 0; attempt < PreSessionRateLimitService.ATTEMPTS_PER_WINDOW - 1; attempt++) {
+        for (var attempt = 0; attempt < PreSessionRateLimitService.ACCOUNT_ATTEMPTS_PER_WINDOW - 1; attempt++) {
             rateLimits.checkAndRecord(email, "127.0.0.1");
         }
         var flowId = UUID.randomUUID();
@@ -57,7 +57,7 @@ class PreSessionRateLimitServiceTest extends PostgresIntegrationTest {
 
     @Test
     void changingIdentityCannotBypassTheSourceIpWindow() {
-        for (var attempt = 0; attempt < PreSessionRateLimitService.ATTEMPTS_PER_WINDOW; attempt++) {
+        for (var attempt = 0; attempt < PreSessionRateLimitService.SOURCE_IP_ATTEMPTS_PER_WINDOW; attempt++) {
             rateLimits.checkAndRecord("rotated-" + attempt + "@example.test", "127.0.0.3");
         }
 
@@ -66,7 +66,7 @@ class PreSessionRateLimitServiceTest extends PostgresIntegrationTest {
                 .isInstanceOf(RateLimitExceededException.class);
         assertThat(jdbc.queryForObject(
                 "select max(attempt_count) from pre_session_rate_limits where source_ip = '127.0.0.3'",
-                Integer.class)).isEqualTo(21);
+                Integer.class)).isEqualTo(PreSessionRateLimitService.SOURCE_IP_ATTEMPTS_PER_WINDOW + 1);
     }
 
     @Test

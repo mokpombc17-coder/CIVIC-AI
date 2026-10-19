@@ -13,7 +13,8 @@ import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class PreSessionRateLimitService {
-    static final int ATTEMPTS_PER_WINDOW = 20;
+    static final int ACCOUNT_ATTEMPTS_PER_WINDOW = 20;
+    static final int SOURCE_IP_ATTEMPTS_PER_WINDOW = 200;
     private static final String SOURCE_BUCKET_IDENTITY = "<source-ip-bucket>";
     private static final Pattern UUID_TEXT = Pattern.compile(
             "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-5][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$");
@@ -32,13 +33,13 @@ public class PreSessionRateLimitService {
                 delete from pre_session_rate_limits
                 where last_attempt_at < now() - interval '24 hours'
                 """);
-        recordAttempt(SOURCE_BUCKET_IDENTITY, sourceIp);
+        recordAttempt(SOURCE_BUCKET_IDENTITY, sourceIp, SOURCE_IP_ATTEMPTS_PER_WINDOW);
         var identity = resolveAccountIdentity(suppliedIdentity);
         identityLocks.lock(identity);
-        recordAttempt(identity, sourceIp);
+        recordAttempt(identity, sourceIp, ACCOUNT_ATTEMPTS_PER_WINDOW);
     }
 
-    private void recordAttempt(String identity, String sourceIp) {
+    private void recordAttempt(String identity, String sourceIp, int attemptsPerWindow) {
         var result = jdbc.queryForMap("""
                 insert into pre_session_rate_limits(
                     identity_hash, source_ip, attempt_count, window_started_at, last_attempt_at
@@ -61,7 +62,7 @@ public class PreSessionRateLimitService {
                     end,
                     last_attempt_at = now()
                 returning attempt_count, blocked_until
-                """, sha256(identity), sourceIp, ATTEMPTS_PER_WINDOW);
+                """, sha256(identity), sourceIp, attemptsPerWindow);
         var blockedUntil = (Timestamp) result.get("blocked_until");
         if (blockedUntil != null && blockedUntil.toInstant().isAfter(Instant.now())) {
             throw new RateLimitExceededException();
