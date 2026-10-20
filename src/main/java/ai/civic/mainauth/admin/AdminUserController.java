@@ -5,7 +5,11 @@ import ai.civic.mainauth.auth.BrowserRequestRejectedException;
 import ai.civic.mainauth.auth.AuthCookieFactory;
 import ai.civic.mainauth.auth.CsrfService;
 import jakarta.servlet.http.HttpServletRequest;
+import java.nio.charset.StandardCharsets;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
@@ -26,6 +30,8 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/admin/users")
 public class AdminUserController {
+    static final int DEFAULT_PAGE_SIZE = 100;
+    static final int MAX_PAGE_SIZE = 200;
     private final JdbcTemplate jdbc;
     private final AdminAuthorizationService authorization;
     private final AdminRoleService roles;
@@ -48,22 +54,64 @@ public class AdminUserController {
     @GetMapping
     ResponseEntity<UserPage> list(
             @CookieValue(AuthCookieFactory.ACCESS_TOKEN_COOKIE) String accessToken,
-            @RequestParam(value = "query", defaultValue = "") String query) {
+            @RequestParam(value = "query", defaultValue = "") String query,
+            @RequestParam(value = "status", defaultValue = "all") String status,
+            @RequestParam(value = "limit", defaultValue = "" + DEFAULT_PAGE_SIZE) int limit,
+            @RequestParam(value = "cursor", required = false) String cursor) {
         authorization.requireAdmin(accessToken, true);
+        if (limit < 1 || limit > MAX_PAGE_SIZE) {
+            throw new AdminRequestValidationException("limit must be between 1 and " + MAX_PAGE_SIZE);
+        }
         var normalized = query.strip().toLowerCase(java.util.Locale.ROOT);
-        var users = jdbc.query("""
-                select u.id, u.email, u.state, u.row_version, c.must_change_password,
+        var filter = new StringBuilder("(? = '' or u.normalized_email like '%' || ? || '%')")
+                .append(" and ").append(statusCondition(status));
+        var filterArgs = List.<Object>of(normalized, normalized);
+
+        var total = jdbc.queryForObject(
+                "select count(*) from users u where " + filter, Long.class, filterArgs.toArray());
+
+        var pageArgs = new ArrayList<Object>(filterArgs);
+        var pageFilter = new StringBuilder(filter);
+        if (cursor != null && !cursor.isBlank()) {
+            var position = UserCursor.decode(cursor);
+            pageFilter.append(" and (u.created_at, u.id) < (?, ?)");
+            pageArgs.add(position.createdAt().atOffset(ZoneOffset.UTC));
+            pageArgs.add(position.userId());
+        }
+        pageArgs.add(limit + 1);
+        var rows = jdbc.query("""
+                select u.id, u.email, u.state, u.row_version, u.created_at, c.must_change_password,
                        u.email_verified_at, coalesce(max(t.last_used_at), u.updated_at) as last_activity_at
                 from users u join credentials c on c.user_id = u.id
                 left join refresh_tokens t on t.user_id = u.id
-                where ? = '' or u.normalized_email like '%' || ? || '%'
+                where %s
                 group by u.id, c.must_change_password
-                order by u.created_at desc limit 100
-                """, (rs, rowNum) -> view(
-                rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
-                rs.getLong("row_version"), rs.getBoolean("must_change_password"),
-                rs.getTimestamp("email_verified_at"), rs.getTimestamp("last_activity_at")), normalized, normalized);
-        return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(new UserPage(users));
+                order by u.created_at desc, u.id desc limit ?
+                """.formatted(pageFilter), (rs, rowNum) -> new PageRow(
+                new UserCursor(rs.getTimestamp("created_at").toInstant(), rs.getObject("id", UUID.class)),
+                view(rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
+                        rs.getLong("row_version"), rs.getBoolean("must_change_password"),
+                        rs.getTimestamp("email_verified_at"), rs.getTimestamp("last_activity_at"))),
+                pageArgs.toArray());
+        var hasMore = rows.size() > limit;
+        var page = hasMore ? rows.subList(0, limit) : rows;
+        var nextCursor = hasMore ? page.getLast().position().encode() : null;
+        return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(new UserPage(
+                page.stream().map(PageRow::user).toList(), total == null ? 0 : total, nextCursor));
+    }
+
+    private static String statusCondition(String status) {
+        return switch (status) {
+            case "all" -> "true";
+            case "active" -> "u.state = 'ACTIVE'";
+            case "inactive" -> "u.state <> 'ACTIVE'";
+            case "admin" -> """
+                    exists (select 1 from user_roles ur join roles r on r.id = ur.role_id
+                            where ur.user_id = u.id and ur.revoked_at is null
+                              and r.code in ('ADMIN', 'SUPER_ADMIN'))""";
+            default -> throw new AdminRequestValidationException(
+                    "status must be one of all, active, inactive, admin");
+        };
     }
 
     @GetMapping("/{userId}")
@@ -133,7 +181,29 @@ public class AdminUserController {
             long rowVersion,
             String reason,
             boolean impactConfirmed) {}
-    record UserPage(List<AdminUserView> items) {}
+    record UserPage(List<AdminUserView> items, long total, String nextCursor) {}
+
+    private record PageRow(UserCursor position, AdminUserView user) {}
+
+    /** Opaque keyset position: the (created_at, id) of the last row on a page. */
+    record UserCursor(Instant createdAt, UUID userId) {
+        String encode() {
+            var raw = createdAt.toString() + "|" + userId;
+            return Base64.getUrlEncoder().withoutPadding().encodeToString(raw.getBytes(StandardCharsets.UTF_8));
+        }
+
+        static UserCursor decode(String cursor) {
+            try {
+                var raw = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
+                var separator = raw.indexOf('|');
+                if (separator < 0) throw new IllegalArgumentException("missing separator");
+                return new UserCursor(
+                        Instant.parse(raw.substring(0, separator)), UUID.fromString(raw.substring(separator + 1)));
+            } catch (IllegalArgumentException | java.time.format.DateTimeParseException exception) {
+                throw new AdminRequestValidationException("cursor is invalid");
+            }
+        }
+    }
     record AdminUserView(
             UUID userId,
             String email,

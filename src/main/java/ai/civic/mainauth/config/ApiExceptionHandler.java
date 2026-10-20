@@ -1,5 +1,6 @@
 package ai.civic.mainauth.config;
 
+import ai.civic.mainauth.admin.AdminRequestValidationException;
 import ai.civic.mainauth.auth.AccountDeactivatedException;
 import ai.civic.mainauth.auth.AuthenticationException;
 import ai.civic.mainauth.auth.AuthorizationException;
@@ -38,7 +39,8 @@ public class ApiExceptionHandler {
     @ExceptionHandler({
         SignupValidationException.class,
         BrowserRequestRejectedException.class,
-        ConsentAcceptanceValidationException.class
+        ConsentAcceptanceValidationException.class,
+        AdminRequestValidationException.class
     })
     ProblemDetail badRequest(RuntimeException exception) {
         return problem(HttpStatus.BAD_REQUEST, "Request rejected", exception.getMessage());
