@@ -1,5 +1,7 @@
+import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
 import {
+  getLatestCachedRoomParticipationHistory,
   isChatRoomMessageHistoryEnabled,
   isChatRoomRealtimeCoordinatorEnabled,
   isChatRoomRealtimeEnabled,
@@ -27,6 +29,30 @@ describe("ChatRoom realtime experience", () => {
     expect(isChatRoomMessageHistoryEnabled("ACTIVE", true)).toBe(true);
     expect(isChatRoomMessageHistoryEnabled("ACTIVE", false)).toBe(false);
     expect(isChatRoomMessageHistoryEnabled(undefined, false)).toBe(false);
+  });
+
+  it("비활성 generation에서도 같은 방의 최신 participation 캐시를 사용한다", () => {
+    const queryClient = new QueryClient();
+    const previousItems = [{ participationId: "participation-01" }] as never;
+    const latestItems = [{ participationId: "participation-02" }] as never;
+    queryClient.setQueryData(
+      ["chat", "rooms", "participation", "room-01", { generation: 7 }],
+      { items: previousItems },
+      { updatedAt: 100 },
+    );
+    queryClient.setQueryData(
+      ["chat", "rooms", "participation", "room-02", { generation: 8 }],
+      { items: [{ participationId: "other-room" }] },
+      { updatedAt: 300 },
+    );
+    queryClient.setQueryData(
+      ["chat", "rooms", "participation", "room-01", { generation: 9 }],
+      { items: latestItems },
+      { updatedAt: 200 },
+    );
+
+    expect(getLatestCachedRoomParticipationHistory(queryClient, "room-01")).toBe(latestItems);
+    expect(getLatestCachedRoomParticipationHistory(queryClient, "room-03")).toEqual([]);
   });
 
   it("활성 Room의 sequence와 message snapshot이 모두 준비되면 coordinator를 연다", () => {

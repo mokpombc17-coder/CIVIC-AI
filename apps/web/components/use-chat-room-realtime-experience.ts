@@ -1,5 +1,6 @@
 "use client";
 
+import { useQueryClient, type QueryClient } from "@tanstack/react-query";
 import {
   useChatRealtimeConnection,
   useChatRealtimeRoom,
@@ -7,12 +8,13 @@ import {
 import { useChatRealtimeQueryCoordinator } from "@/components/use-chat-realtime-query-coordinator";
 import { useChatRoomMessageHistoryData } from "@/components/use-chat-room-screen-data";
 import {
+  chatRoomQueryKeys,
   DEFAULT_MESSAGE_HISTORY_LIMIT,
   useRoomParticipationsQuery,
   useRoomReadReceiptStateQuery,
   useRoomSystemActivityJournalQuery,
 } from "@/lib/chat/chat-room-queries";
-import type { RoomStatus } from "@/lib/chat/chat-room-contracts";
+import type { RoomParticipationListResponse, RoomStatus } from "@/lib/chat/chat-room-contracts";
 import { isChatRoomSnapshotReadyForRealtimeMerge } from "@/lib/chat/realtime/chat-room-snapshot-readiness";
 import { getChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
@@ -20,6 +22,7 @@ export function useChatRoomRealtimeExperience(
   roomId: string,
   { roomStatus }: Readonly<{ roomStatus?: RoomStatus | undefined }> = {},
 ) {
+  const queryClient = useQueryClient();
   const { reconnect } = useChatRealtimeConnection();
   const realtimeEnabled = isChatRoomRealtimeEnabled(roomStatus);
   const session = useChatRealtimeRoom(roomId, { enabled: realtimeEnabled });
@@ -36,6 +39,7 @@ export function useChatRoomRealtimeExperience(
     generation: session.generation,
   });
   const systemActivityJournalQuery = useRoomSystemActivityJournalQuery(roomId);
+  const participationHistory = getLatestCachedRoomParticipationHistory(queryClient, roomId);
   const coordinatorEnabled = isChatRoomRealtimeCoordinatorEnabled({
     hasMessageHistory: messageHistory.data !== undefined,
     isMessageHistoryRefetching: messageHistory.isRefetching,
@@ -63,7 +67,7 @@ export function useChatRoomRealtimeExperience(
     coordinatorEnabled,
     messageHistory,
     messageHistoryEnabled,
-    participationHistory: participationQuery.data?.items ?? [],
+    participationHistory,
     participationQuery,
     receiptStateQuery,
     reconnect,
@@ -124,4 +128,27 @@ export function isChatRoomRealtimeReady({
   isSynchronized: boolean;
 }>): boolean {
   return coordinatorEnabled && isSynchronized && coordinatorError === null;
+}
+
+export function getLatestCachedRoomParticipationHistory(
+  queryClient: QueryClient,
+  roomId: string,
+): RoomParticipationListResponse["items"] {
+  let latestData: RoomParticipationListResponse | undefined;
+  let latestUpdatedAt = -1;
+
+  for (const query of queryClient.getQueryCache().findAll({
+    queryKey: chatRoomQueryKeys.participationsForRoom(roomId),
+  })) {
+    const data = query.state.data as RoomParticipationListResponse | undefined;
+
+    if (data === undefined || query.state.dataUpdatedAt < latestUpdatedAt) {
+      continue;
+    }
+
+    latestData = data;
+    latestUpdatedAt = query.state.dataUpdatedAt;
+  }
+
+  return latestData?.items ?? [];
 }
