@@ -296,7 +296,7 @@ test("비밀번호 규칙 오류는 계정 정보 단계에서 다음 단계 이
     "1/3계정 정보",
   );
   await expect(page.getByRole("status")).toContainText(
-    "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+    "비밀번호는 8자 이상의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
   );
   expect(signupFlowRequestCount).toBe(requestCountBeforeSubmit);
 });

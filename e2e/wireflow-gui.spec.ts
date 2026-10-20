@@ -880,6 +880,34 @@ test("RAG 대화에서는 메시지 목록만 세로 스크롤을 소유한다",
   expect(dimensions.shellScrollTop).toBe(0);
 });
 
+test("계정 보안 폼을 모두 열면 계정 영역이 세로 스크롤을 소유한다", async ({ context, page }) => {
+  await authenticate(context, "participant.payload.signature");
+  await page.goto("/mypage");
+
+  const shellContent = page.locator('[data-platform-shell-content="true"]');
+  const accountHub = page.locator('[data-wireflow-layout="account-hub"]');
+  await expect(page.locator('[data-wireflow-screen="U-ACCOUNT-001"]')).toBeVisible();
+  await page.getByRole("button", { name: "변경하기" }).click();
+  await page.getByRole("button", { name: "해제하기" }).click();
+
+  await expect(shellContent).toHaveAttribute("data-scroll", "child");
+  await expect(shellContent).toHaveCSS("overflow-y", "hidden");
+  await expect(page.locator("#wf-password-security-form")).toBeVisible();
+  await expect(page.locator("#wf-two-factor-security-form")).toBeVisible();
+
+  const dimensions = await accountHub.evaluate((element) => {
+    element.scrollTop = 200;
+    return {
+      clientHeight: element.clientHeight,
+      scrollHeight: element.scrollHeight,
+      scrollTop: element.scrollTop,
+    };
+  });
+
+  expect(dimensions.scrollHeight).toBeGreaterThan(dimensions.clientHeight);
+  expect(dimensions.scrollTop).toBeGreaterThan(0);
+});
+
 test("RAG와 계정 루트 헤더의 뒤로 가기는 홈으로 이동한다", async ({ context, page }) => {
   await authenticate(context, "participant.payload.signature");
 
