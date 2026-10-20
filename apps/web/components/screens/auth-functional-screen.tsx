@@ -104,6 +104,10 @@ export function signupStepForScreen(screenId: string): 1 | 2 | 3 | null {
   return null;
 }
 
+export function isAccountDeactivationCompleted(search: string): boolean {
+  return new URLSearchParams(search).get("deactivated") === "1";
+}
+
 export function AuthFunctionalScreen({
   screen,
   initialSearch = "",
@@ -135,6 +139,9 @@ export function AuthFunctionalScreen({
     null,
   );
   const [loginDeactivated, setLoginDeactivated] = useState(false);
+  const [accountDeactivationCompleted, setAccountDeactivationCompleted] = useState(
+    () => screen.id === "AUTH-001" && isAccountDeactivationCompleted(initialSearch),
+  );
   const [busy, setBusy] = useState(false);
   const [postLoginReturnTo, setPostLoginReturnTo] = useState<string | null>(() =>
     safeReturnTarget(initialSearch),
@@ -193,6 +200,7 @@ export function AuthFunctionalScreen({
     setMessageKind("info");
     setDuplicateEmailState(null);
     setLoginDeactivated(false);
+    setAccountDeactivationCompleted(false);
     try {
       if (activeId === "AUTH-001") {
         const data = new FormData(event.currentTarget);
@@ -459,7 +467,11 @@ export function AuthFunctionalScreen({
           {activeId === "AUTH-002" && duplicateEmailState ? (
             <SignupDuplicateEmailNotice accountState={duplicateEmailState} />
           ) : null}
-          {activeId === "AUTH-001" && loginDeactivated ? <LoginDeactivatedNotice /> : null}
+          {activeId === "AUTH-001" && accountDeactivationCompleted ? (
+            <AccountDeactivationCompletedNotice />
+          ) : activeId === "AUTH-001" && loginDeactivated ? (
+            <LoginDeactivatedNotice />
+          ) : null}
           {message ? (
             messageKind === "error" ? (
               <div aria-live="polite" className="civic-form-alert" role="status">
@@ -882,27 +894,48 @@ function AuthSupport({
       />
     );
   }
+  if (activeId === "AUTH-009") {
+    return (
+      <p className="civic-password-reset-signup">
+        비밀번호를 잊으셨나요?{" "}
+        <Link data-wireflow-slot="reactivation-password-reset" href={"/password-reset" as Route}>
+          비밀번호 재설정
+        </Link>
+      </p>
+    );
+  }
   if (activeId !== "AUTH-001") return null;
   return (
-    <aside aria-label="로그인 보조 행동" className="civic-auth-support civic-auth-support-compact">
-      <div className="civic-auth-support-row">
-        <WireflowButton
-          dataWireflowSlot="auth-reset"
-          disabled={busy}
-          onClick={onPasswordReset}
-          variant="secondary"
-        >
-          비밀번호 재설정
-        </WireflowButton>
-        <Link
-          className="wf-button wf-button-secondary"
-          data-wireflow-slot="auth-signup"
-          href={"/signup/account" as Route}
-        >
-          회원가입
+    <>
+      <aside
+        aria-label="로그인 보조 행동"
+        className="civic-auth-support civic-auth-support-compact"
+      >
+        <div className="civic-auth-support-row">
+          <WireflowButton
+            dataWireflowSlot="auth-reset"
+            disabled={busy}
+            onClick={onPasswordReset}
+            variant="secondary"
+          >
+            비밀번호 재설정
+          </WireflowButton>
+          <Link
+            className="wf-button wf-button-secondary"
+            data-wireflow-slot="auth-signup"
+            href={"/signup/account" as Route}
+          >
+            회원가입
+          </Link>
+        </div>
+      </aside>
+      <p className="civic-password-reset-signup">
+        계정을 비활성화하셨나요?{" "}
+        <Link data-wireflow-slot="login-reactivate" href={"/reactivate" as Route}>
+          계정 재활성화
         </Link>
-      </div>
-    </aside>
+      </p>
+    </>
   );
 }
 
@@ -949,6 +982,22 @@ export function LoginDeactivatedNotice() {
       <Link
         className="civic-auth-reactivate"
         data-wireflow-slot="login-deactivated-reactivate"
+        href={"/reactivate" as Route}
+      >
+        계정 재활성화
+      </Link>
+    </div>
+  );
+}
+
+export function AccountDeactivationCompletedNotice() {
+  return (
+    <div aria-live="polite" className="civic-form-alert civic-login-deactivated" role="status">
+      <strong>계정 비활성화 완료</strong>
+      <p>계정이 비활성화되었고 모든 기기에서 로그아웃되었습니다.</p>
+      <Link
+        className="civic-auth-reactivate"
+        data-wireflow-slot="deactivation-completed-reactivate"
         href={"/reactivate" as Route}
       >
         계정 재활성화

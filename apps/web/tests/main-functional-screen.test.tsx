@@ -44,6 +44,7 @@ import {
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
 import {
+  accountDeactivationSuccessPath,
   accountMutation,
   accountProblemMessage,
   loadAccountProfile,
@@ -54,6 +55,7 @@ import {
   toggleTwoFactorAccordion,
 } from "@/components/screens/account-functional-screen";
 import {
+  AccountDeactivationCompletedNotice,
   ApiRequestError,
   authErrorMessage,
   authStepAfterPopState,
@@ -62,6 +64,7 @@ import {
   duplicateEmailAccountState,
   evidence,
   isDeactivatedAccountError,
+  isAccountDeactivationCompleted,
   isPasswordResetEmail,
   LegalDocumentLink,
   LoginDeactivatedNotice,
@@ -1285,6 +1288,19 @@ describe("25 functional Main/Auth screens", () => {
     expect(html).toContain("계정 재활성화");
   });
 
+  it("계정 비활성화 성공은 로그인 완료 안내에서 선택적으로 재활성화하도록 한다", () => {
+    expect(accountDeactivationSuccessPath).toBe("/login?deactivated=1");
+    expect(isAccountDeactivationCompleted("?deactivated=1")).toBe(true);
+    expect(isAccountDeactivationCompleted("?deactivated=0")).toBe(false);
+    expect(isAccountDeactivationCompleted("?returnTo=%2Fhome")).toBe(false);
+
+    const html = renderToStaticMarkup(createElement(AccountDeactivationCompletedNotice));
+    expect(html).toContain("계정 비활성화 완료");
+    expect(html).toContain("모든 기기에서 로그아웃되었습니다.");
+    expect(html).toContain('href="/reactivate"');
+    expect(html).toContain("계정 재활성화");
+  });
+
   it("새로고침으로 가입 흐름 메타데이터가 없어진 후속 단계는 계정 입력으로 복구한다", () => {
     expect(signupRecovery("AUTH-003", false)).toEqual({
       screenId: "AUTH-002",
@@ -1411,7 +1427,7 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml).toContain("비밀번호 재설정");
   });
 
-  it("AUTH-001은 기준 GUI의 로그인 카드와 비밀번호 복구·가입 버튼 배치를 유지한다", () => {
+  it("AUTH-001은 기존 로그인 보조 버튼을 유지하고 재활성화 진입을 추가한다", () => {
     const login = mainScreens.find((screen) => screen.id === "AUTH-001");
     if (!login) throw new Error("AUTH-001 wire flow screen missing");
 
@@ -1430,7 +1446,24 @@ describe("25 functional Main/Auth screens", () => {
     expect(loginHtml.indexOf('data-wireflow-slot="auth-signup"')).toBeGreaterThan(
       loginHtml.indexOf('data-wireflow-slot="auth-reset"'),
     );
-    expect(loginHtml).not.toContain("계정 재활성화");
+    expect(loginHtml).toContain("계정을 비활성화하셨나요?");
+    expect(loginHtml).toContain('data-wireflow-slot="login-reactivate"');
+    expect(loginHtml).toContain('href="/reactivate"');
+    expect(loginHtml).toContain("계정 재활성화");
+  });
+
+  it("AUTH-009는 비밀번호를 잊은 사용자를 재설정 화면으로 보낸다", () => {
+    const reactivation = mainScreens.find((screen) => screen.id === "AUTH-009");
+    if (!reactivation) throw new Error("AUTH-009 wire flow screen missing");
+
+    const html = renderToStaticMarkup(
+      createElement(MainFunctionalScreen, { screen: reactivation }),
+    );
+
+    expect(html).toContain("비밀번호를 잊으셨나요?");
+    expect(html).toContain('data-wireflow-slot="reactivation-password-reset"');
+    expect(html).toContain('href="/password-reset"');
+    expect(html).toContain("비밀번호 재설정");
   });
 
   it("AUTH-001의 테스트 로그인 버튼은 개발 호스트에서만 렌더링한다", () => {

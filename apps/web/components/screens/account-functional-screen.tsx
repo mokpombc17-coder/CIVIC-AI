@@ -29,6 +29,8 @@ type Profile = {
 type TwoFactorIntent = "2fa-request" | "2fa-verify" | "2fa-disable";
 type SecurityOperation = "password" | TwoFactorIntent;
 
+export const accountDeactivationSuccessPath = "/login?deactivated=1";
+
 export type SecurityAccordionState = Readonly<{
   passwordOpen: boolean;
   twoFactorIntent: TwoFactorIntent | null;
@@ -163,7 +165,7 @@ export function AccountFunctionalScreen({ screen }: Readonly<{ screen: ScreenDef
         await mutation("/api/v1/account/deactivate", "POST", { password: data.get("password") });
         clearAuthSessionData();
         sendAuthMessage("LOGOUT");
-        location.assign("/reactivate");
+        location.assign(accountDeactivationSuccessPath);
       }
     } catch (error) {
       if (controller.signal.aborted) return;
