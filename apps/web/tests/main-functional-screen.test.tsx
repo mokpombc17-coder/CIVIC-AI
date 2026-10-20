@@ -1557,6 +1557,8 @@ describe("25 functional Main/Auth screens", () => {
     expect(participantHtml).toContain('aria-label="참여자 주요 메뉴"');
     expect(participantHtml).toContain("AI");
     expect(participantRagHtml.match(/data-scroll="child"/g)).toHaveLength(2);
+    expect(participantHtml).toContain('class="civic-platform-participant-body"');
+    expect(participantRagHtml).toContain('class="civic-platform-participant-body h-full"');
     const mypageHtml = renderToStaticMarkup(
       <ParticipantShell activeRoute="/mypage">본문</ParticipantShell>,
     );

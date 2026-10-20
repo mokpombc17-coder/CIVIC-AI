@@ -61,7 +61,7 @@ export function ParticipantShell({
           <span data-nosnippet="">본문 바로가기</span>
         </a>
         <div
-          className="civic-platform-participant-body"
+          className={`civic-platform-participant-body${scroll === "child" ? " h-full" : ""}`}
           data-participant-surface="true"
           id="civic-content"
           style={{ touchAction: "pan-y pinch-zoom" }}
