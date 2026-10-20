@@ -147,7 +147,7 @@ describe("signup password validation", () => {
     ["maximum length", `${"A".repeat(1023)}1!`],
   ])("rejects a password outside the Main/Auth policy: %s", (_case, password) => {
     expect(signupPasswordProblem(password, password)).toBe(
-      "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+      "비밀번호는 8자 이상의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
     );
   });
 
@@ -607,7 +607,7 @@ describe("25 functional Main/Auth screens", () => {
       "/api/v1/account/password",
       401,
       { detail: "New password does not satisfy the password policy" },
-      "비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
+      "비밀번호는 8자 이상의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.",
     ],
     [
       "/api/v1/account/2fa/enable",
@@ -1091,7 +1091,7 @@ describe("25 functional Main/Auth screens", () => {
         new ApiRequestError(401, { code: "PASSWORD_POLICY" }, "Weak password"),
         "PASSWORD_RESET_COMPLETE",
       ),
-    ).toBe("비밀번호는 8~1024자의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
+    ).toBe("비밀번호는 8자 이상의 영문·숫자·특수문자(!@#$%^&*()_+-=) 조합으로 입력해 주세요.");
     expect(
       authErrorMessage(
         new ApiRequestError(401, { code: "PASSWORD_REUSED" }, "Password reused"),
