@@ -23,6 +23,8 @@ import {
   ADMIN_PERMISSION_CODES,
   ADMIN_ROLE_CHOICES,
   adminRoleMutationPath,
+  adminUserListSubtitle,
+  appendAdminUserPage,
   auditEventLabel,
   createLatestAdminUserRequestGate,
   createMutationLock,
@@ -148,6 +150,10 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     userWorkspaceTabForScreen(screen.id, initialSearchTab),
   );
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userTotal, setUserTotal] = useState<number | null>(null);
+  const [userNextCursor, setUserNextCursor] = useState<string | null>(null);
+  const [userQuery, setUserQuery] = useState("");
+  const [usersLoadingMore, setUsersLoadingMore] = useState(false);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
@@ -203,17 +209,23 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     };
   }, [selectedUserId]);
 
-  const loadUsers = useCallback(async (query = "") => {
+  const loadUsers = useCallback(async (query = "", status: UserStatusFilter = "all") => {
     const isCurrent = userLoadGate.current.begin();
-    const items = await requestAdminUsers(query);
+    setUsersLoadingMore(false);
+    const page = await requestAdminUsers(query, undefined, status);
     if (!isCurrent()) return;
-    if (items === null) {
+    if (page === null) {
       setUsers([]);
+      setUserTotal(null);
+      setUserNextCursor(null);
       setSelected(null);
       setMessage("사용자 목록을 불러오지 못했습니다.");
       return;
     }
+    const items = page.items;
     setUsers(items);
+    setUserTotal(page.total);
+    setUserNextCursor(page.nextCursor);
     setMessage("");
     const requested =
       typeof window === "undefined"
@@ -276,7 +288,31 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
 
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await loadUsers(String(new FormData(event.currentTarget).get("query") ?? ""));
+    const query = String(new FormData(event.currentTarget).get("query") ?? "");
+    setUserQuery(query);
+    await loadUsers(query, userStatusFilter);
+  }
+
+  function changeUserStatusFilter(status: UserStatusFilter) {
+    setUserStatusFilter(status);
+    void loadUsers(userQuery, status);
+  }
+
+  async function loadMoreUsers() {
+    if (!userNextCursor || usersLoadingMore) return;
+    const isCurrent = userLoadGate.current.begin();
+    setUsersLoadingMore(true);
+    const page = await requestAdminUsers(userQuery, undefined, userStatusFilter, userNextCursor);
+    if (!isCurrent()) return;
+    setUsersLoadingMore(false);
+    if (page === null) {
+      setMessage("사용자 목록을 더 불러오지 못했습니다. 다시 시도해 주세요.");
+      return;
+    }
+    setUsers((current) => appendAdminUserPage(current, page.items));
+    setUserTotal(page.total);
+    setUserNextCursor(page.nextCursor);
+    setMessage("");
   }
 
   function submitRoles(event: FormEvent<HTMLFormElement>) {
@@ -369,7 +405,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     <ConsoleWorkspace layout="admin-user-console">
       <ConsolePane
         ariaLabel="사용자 목록"
-        subtitle={`${filteredUsers.length}명 표시`}
+        subtitle={adminUserListSubtitle(filteredUsers.length, userTotal)}
         title="사용자 검색"
       >
         <form className="console-toolbar" onSubmit={search} role="search">
@@ -391,7 +427,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
             <button
               aria-pressed={userStatusFilter === value}
               key={value}
-              onClick={() => setUserStatusFilter(value)}
+              onClick={() => changeUserStatusFilter(value)}
               type="button"
             >
               {label}
@@ -408,6 +444,16 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
           rowData={filteredUsers}
           selectedRowId={selected?.user_id ?? null}
         />
+        {userNextCursor ? (
+          <button
+            className="wf-button wf-button-secondary civic-load-more"
+            disabled={usersLoadingMore}
+            onClick={() => void loadMoreUsers()}
+            type="button"
+          >
+            더 불러오기
+          </button>
+        ) : null}
         {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
       </ConsolePane>
 

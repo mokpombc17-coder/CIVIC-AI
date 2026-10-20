@@ -99,20 +99,63 @@ export async function loadRoleConflictUser(
   return status === 409 ? loadRequestedAdminUser(userId, request) : null;
 }
 
+export type AdminUserPage = {
+  items: AdminUser[];
+  /** Matching users on the server; null when the server does not report a total. */
+  total: number | null;
+  nextCursor: string | null;
+};
+
+export const ADMIN_USER_PAGE_SIZE = 100;
+
+export function adminUserListPath(
+  query: string,
+  status: UserStatusFilter = "all",
+  cursor: string | null = null,
+): string {
+  const params = new URLSearchParams({ query, status, limit: String(ADMIN_USER_PAGE_SIZE) });
+  if (cursor) params.set("cursor", cursor);
+  return `/api/v1/admin/users?${params.toString()}`;
+}
+
 export async function requestAdminUsers(
   query: string,
   request: typeof fetch = authenticatedFetch,
-): Promise<AdminUser[] | null> {
+  status: UserStatusFilter = "all",
+  cursor: string | null = null,
+): Promise<AdminUserPage | null> {
   try {
-    const response = await request(`/api/v1/admin/users?query=${encodeURIComponent(query)}`, {
+    const response = await request(adminUserListPath(query, status, cursor), {
       cache: "no-store",
     });
     if (!response.ok) return null;
-    const data = (await response.json()) as { items?: unknown };
-    return Array.isArray(data.items) ? (data.items as AdminUser[]) : null;
+    const data = (await response.json()) as {
+      items?: unknown;
+      next_cursor?: unknown;
+      total?: unknown;
+    };
+    if (!Array.isArray(data.items)) return null;
+    return {
+      items: data.items as AdminUser[],
+      total: typeof data.total === "number" ? data.total : null,
+      nextCursor:
+        typeof data.next_cursor === "string" && data.next_cursor ? data.next_cursor : null,
+    };
   } catch {
     return null;
   }
+}
+
+/** Appends the next page without duplicating users already shown. */
+export function appendAdminUserPage(current: AdminUser[], next: AdminUser[]): AdminUser[] {
+  const seen = new Set(current.map((user) => user.user_id));
+  return [...current, ...next.filter((user) => !seen.has(user.user_id))];
+}
+
+export function adminUserListSubtitle(shown: number, total: number | null): string {
+  return total === null || total === shown
+    ? `${shown}명 표시`
+    : `전체 ${total}명 중 ${shown}명 표시`;
 }
 
 export async function requestAdminAudit(
