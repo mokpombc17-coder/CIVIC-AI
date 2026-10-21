@@ -1,5 +1,6 @@
 "use client";
 
+import { listCountLabel } from "@/lib/admin/list-count";
 import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -229,7 +230,7 @@ function AdminTaskWorkspace({
           </button>
         }
         ariaLabel="투표 목록"
-        subtitle={`${filtered.length}건 표시`}
+        subtitle={listCountLabel({ shown: filtered.length, total: items.length })}
         title="투표 목록"
       >
         <form

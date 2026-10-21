@@ -43,7 +43,8 @@ import {
   updateAdminLoadMessage,
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
-import { adminUserListSubtitle, appendAdminUserPage, type AdminUser } from "@/lib/admin/user-admin";
+import { listCountLabel } from "@/lib/admin/list-count";
+import { appendAdminUserPage, type AdminUser } from "@/lib/admin/user-admin";
 import {
   accountDeactivationSuccessPath,
   accountMutation,
@@ -329,9 +330,11 @@ describe("25 functional Main/Auth screens", () => {
     expect(
       appendAdminUserPage([user("1"), user("2")], [user("2"), user("3")]).map((u) => u.user_id),
     ).toEqual(["1", "2", "3"]);
-    expect(adminUserListSubtitle(100, 145)).toBe("전체 145명 중 100명 표시");
-    expect(adminUserListSubtitle(45, 45)).toBe("45명 표시");
-    expect(adminUserListSubtitle(12, null)).toBe("12명 표시");
+    expect(listCountLabel({ shown: 100, total: 145, unit: "명" })).toBe("전체 145명 중 100명 표시");
+    expect(listCountLabel({ shown: 45, total: 45, unit: "명" })).toBe("전체 45명");
+    expect(listCountLabel({ shown: 1200, total: 1200 })).toBe("전체 1,200건");
+    expect(listCountLabel({ shown: 20, hasMore: true })).toBe("20건 표시 · 더 있음");
+    expect(listCountLabel({ shown: 12 })).toBe("12건 표시");
   });
 
   it("관리자 감사 이력의 전송·응답 해석 실패를 안전한 실패로 반환한다", async () => {

@@ -1,5 +1,6 @@
 "use client";
 
+import { listCountLabel } from "@/lib/admin/list-count";
 import {
   useCallback,
   useEffect,
@@ -437,7 +438,7 @@ export function AdminChatInsightsScreen({
         <ConsoleWorkspace layout="admin-chat-insights-console">
           <ConsolePane
             ariaLabel="토론방 목록"
-            subtitle={`${rooms.length.toLocaleString("ko-KR")}건 표시`}
+            subtitle={listCountLabel({ shown: rooms.length, hasMore: hasNext })}
             title="토론방 목록"
           >
             <form className="console-toolbar" onSubmit={searchRooms} role="search">

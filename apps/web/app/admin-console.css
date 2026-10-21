@@ -1557,6 +1557,11 @@
   font-weight: 700;
 }
 
+/* A count followed by an action button sits next to the button, not mid-row. */
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header > span:not(:last-child) {
+  margin-left: auto;
+}
+
 [data-wireflow-shell="admin"] .civic-simulation-scenario-heading {
   display: flex;
   flex-wrap: wrap;

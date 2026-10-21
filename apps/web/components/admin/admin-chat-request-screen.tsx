@@ -1,5 +1,6 @@
 "use client";
 
+import { listCountLabel } from "@/lib/admin/list-count";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
@@ -322,7 +323,7 @@ export function AdminChatRequestScreen({
         <ConsoleWorkspace layout="admin-chat-request-console">
           <ConsolePane
             ariaLabel="개설 신청 목록"
-            subtitle={`${filteredItems.length}건 표시`}
+            subtitle={listCountLabel({ shown: filteredItems.length, hasMore: hasNext })}
             title="개설 신청"
           >
             <form
@@ -374,6 +375,11 @@ export function AdminChatRequestScreen({
               >
                 더 불러오기
               </button>
+            ) : null}
+            {query.trim() && hasNext ? (
+              <ConsoleStatus>
+                불러온 목록 안에서만 검색했습니다. 더 불러오기로 나머지를 확인하세요.
+              </ConsoleStatus>
             ) : null}
             {listLoading ? (
               <ConsoleStatus>최신 신청 목록을 불러오는 중입니다.</ConsoleStatus>

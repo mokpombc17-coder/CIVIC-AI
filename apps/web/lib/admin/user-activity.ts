@@ -40,6 +40,8 @@ export type UserChatScanResult = Readonly<{
   participations: readonly UserChatParticipation[];
   scannedRooms: number;
   totalRooms: number;
+  /** More rooms exist beyond the first page, so totalRooms is a lower bound. */
+  moreRooms: boolean;
   failedRooms: number;
   truncated: boolean;
 }>;
@@ -123,21 +125,41 @@ export const CHAT_SCAN_ROOM_LIMIT = 12;
 export const VOTE_SCAN_TASK_LIMIT = 20;
 const CHAT_SCAN_FALLBACK_CLOCK_SKEW_MS = 60_000;
 
+// The admin endpoint has no requester filter, so follow every page of a status
+// instead of filtering only the first page (which hid older or newer requests).
+const ROOM_REQUEST_PAGE_LIMIT = 100;
+const ROOM_REQUEST_MAX_PAGES = 50;
+
+async function loadAllRoomCreationRequests(
+  status: (typeof REQUEST_STATUSES)[number],
+  request: typeof fetch,
+): Promise<{ items: RoomCreationRequest[] } | "forbidden" | null> {
+  const items: RoomCreationRequest[] = [];
+  let cursor: string | null = null;
+  for (let pageIndex = 0; pageIndex < ROOM_REQUEST_MAX_PAGES; pageIndex += 1) {
+    const query = new URLSearchParams({ status, limit: String(ROOM_REQUEST_PAGE_LIMIT) });
+    if (cursor) query.set("cursor", cursor);
+    const response = await request(`/api/v1/admin/room-creation-requests?${query.toString()}`, {
+      cache: "no-store",
+    });
+    if (response.status === 401 || response.status === 403) return "forbidden";
+    if (!response.ok) return null;
+    const page = readRoomCreationRequestPage(await response.json());
+    if (!page) return null;
+    items.push(...page.items);
+    if (!page.hasNext || !page.nextCursor) break;
+    cursor = page.nextCursor;
+  }
+  return { items };
+}
+
 export async function loadUserRoomRequests(
   userId: string,
   request: typeof fetch = authenticatedFetch,
 ): Promise<UserRoomRequestsState> {
   try {
     const pages = await Promise.all(
-      REQUEST_STATUSES.map(async (status) => {
-        const response = await request(
-          `/api/v1/admin/room-creation-requests?status=${status}&limit=100`,
-          { cache: "no-store" },
-        );
-        if (response.status === 401 || response.status === 403) return "forbidden" as const;
-        if (!response.ok) return null;
-        return readRoomCreationRequestPage(await response.json());
-      }),
+      REQUEST_STATUSES.map((status) => loadAllRoomCreationRequests(status, request)),
     );
     if (pages.some((page) => page === "forbidden")) return { status: "forbidden" };
     const readable = pages.filter(
@@ -188,6 +210,7 @@ export async function scanUserChatParticipation(
     participations,
     scannedRooms: rooms.length,
     totalRooms: page.items.length,
+    moreRooms: page.hasNext,
     failedRooms,
     truncated: page.items.length > rooms.length || page.hasNext,
   };

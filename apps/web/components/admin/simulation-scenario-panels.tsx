@@ -1,5 +1,6 @@
 "use client";
 
+import { listCountLabel } from "@/lib/admin/list-count";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
@@ -243,7 +244,7 @@ export function SimulationLists() {
                 투표를 선택하면 실제 투표와 시뮬레이션 결과를 나란히 보고 바로 실행할 수 있습니다.
               </p>
             </div>
-            <span>{voteRows.length.toLocaleString("ko-KR")}건</span>
+            <span>{listCountLabel({ shown: voteRows.length, total: votes.items.length })}</span>
           </header>
           <ConsoleDataGrid
             ariaLabel="투표 기반 시뮬레이션 목록"
@@ -271,6 +272,9 @@ export function SimulationLists() {
               <h2 id="simulation-list-title">시뮬레이션</h2>
               <p>투표 없이 질문과 선택지를 직접 작성했습니다.</p>
             </div>
+            <span>
+              {listCountLabel({ shown: scenarioRows.length, total: scenarios.items.length })}
+            </span>
             <button
               className="civic-primary-action civic-simulation-create-action"
               onClick={() => router.push("/admin/simulations/setup" as Route)}

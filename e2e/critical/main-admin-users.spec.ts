@@ -164,14 +164,14 @@ test("관리자는 첫 페이지 밖의 사용자를 더 불러오고 상태 필
 
     await page.getByRole("button", { name: "더 불러오기" }).click();
     await expect(page.getByRole("row", { name: /early@example.com/ })).toBeVisible();
-    await expect(list.getByText("3명 표시")).toBeVisible();
+    await expect(list.getByText("전체 3명", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "더 불러오기" })).toHaveCount(0);
 
     await page
       .getByRole("group", { name: "사용자 상태 필터" })
       .getByRole("button", { name: "관리자" })
       .click();
-    await expect(list.getByText("1명 표시")).toBeVisible();
+    await expect(list.getByText("전체 1명", { exact: true })).toBeVisible();
     await expect(page.getByRole("row", { name: /early@example.com/ })).toHaveCount(0);
 
     expect(directoryRequests.map((params) => Object.fromEntries(params))).toEqual([

@@ -152,26 +152,39 @@ export function appendAdminUserPage(current: AdminUser[], next: AdminUser[]): Ad
   return [...current, ...next.filter((user) => !seen.has(user.user_id))];
 }
 
-export function adminUserListSubtitle(shown: number, total: number | null): string {
-  return total === null || total === shown
-    ? `${shown}명 표시`
-    : `전체 ${total}명 중 ${shown}명 표시`;
-}
+/** main-auth returns only this many newest audit events, with no paging. */
+export const ADMIN_AUDIT_SERVER_WINDOW = 100;
 
-export async function requestAdminAudit(
+export type AdminAuditWindow = {
+  items: AuditEvent[];
+  /** The server window was full, so older events (and older subject history) are not included. */
+  windowFull: boolean;
+};
+
+export async function requestAdminAuditWindow(
   subjectId: string | undefined,
   request: typeof fetch = authenticatedFetch,
-): Promise<AuditEvent[] | null> {
+): Promise<AdminAuditWindow | null> {
   try {
     const response = await request("/api/v1/admin/audit", { cache: "no-store" });
     if (!response.ok) return null;
     const data = (await response.json()) as { items?: unknown };
     if (!Array.isArray(data.items)) return null;
     const items = data.items as AuditEvent[];
-    return subjectId ? items.filter((event) => event.subject_id === subjectId) : items;
+    return {
+      items: subjectId ? items.filter((event) => event.subject_id === subjectId) : items,
+      windowFull: items.length >= ADMIN_AUDIT_SERVER_WINDOW,
+    };
   } catch {
     return null;
   }
+}
+
+export async function requestAdminAudit(
+  subjectId: string | undefined,
+  request: typeof fetch = authenticatedFetch,
+): Promise<AuditEvent[] | null> {
+  return (await requestAdminAuditWindow(subjectId, request))?.items ?? null;
 }
 
 export function selectedAdminRole(roles: readonly string[]): AdminRoleChoice {

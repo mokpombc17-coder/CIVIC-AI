@@ -1407,7 +1407,7 @@ export function DocumentWorkspace({
         <span>
           {pageState.total === 0
             ? "표시할 문서 없음"
-            : `${(pageState.page - 1) * pageState.pageSize + 1}-${Math.min(pageState.page * pageState.pageSize, pageState.total)} / ${pageState.total.toLocaleString("ko-KR")}개`}
+            : `${(pageState.page - 1) * pageState.pageSize + 1}-${Math.min(pageState.page * pageState.pageSize, pageState.total)} / 전체 ${pageState.total.toLocaleString("ko-KR")}개`}
         </span>
         <button
           disabled={pageState.page <= 1}
