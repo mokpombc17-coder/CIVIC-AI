@@ -46,6 +46,11 @@ import {
   type ChatRealtimeEventBufferSnapshot,
 } from "./chat-realtime-event-buffer";
 import { ChatStompSubscriptionManager } from "./chat-stomp-subscription-manager";
+import {
+  ChatConnectionAttemptDiagnostics,
+  sanitizeDiagnosticText,
+  type ConnectionAttemptTrigger,
+} from "./diagnostics/chat-connection-attempt-diagnostics";
 import { ChatRealtimeDiagnosticStore } from "./diagnostics/chat-realtime-diagnostic-store";
 import {
   CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
@@ -115,19 +120,10 @@ type RealtimeDeliverySession = Readonly<{
   generation: number;
 }>;
 
-type ConnectionAttemptTrigger =
-  | "initial-attach"
-  | "transport-reconnect"
-  | "authentication-succeeded"
-  | "deactivation-completed"
-  | "manual";
-
 export class DirectStompTransport implements ChatRealtimeTransport {
   private attachmentCount = 0;
-  private connectionAttemptId: string | null = null;
-  private connectionAttemptStartedAt = 0;
+  private readonly connectionAttempts: ChatConnectionAttemptDiagnostics;
   private connectionRestart: Promise<void> | null = null;
-  private diagnosticIdSequence = 0;
   private readonly listeners = new Set<() => void>();
   private principalGeneration = 0;
   private readonly principalGenerationListeners = new Set<() => void>();
@@ -164,9 +160,14 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     private readonly diagnostics = new ChatRealtimeDiagnosticStore({
       runtimeInstanceId,
     }),
-    private readonly createDiagnosticId = () => crypto.randomUUID(),
-    private readonly monotonicNow = () => performance.now(),
+    createDiagnosticId = () => crypto.randomUUID(),
+    monotonicNow = () => performance.now(),
   ) {
+    this.connectionAttempts = new ChatConnectionAttemptDiagnostics(
+      this.diagnostics,
+      createDiagnosticId,
+      monotonicNow,
+    );
     this.diagnostics.emit({
       event: "runtime.started",
       transportKind: "direct",
@@ -204,8 +205,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       },
     });
     this.client.beforeConnect = () => {
-      if (!this.connectionAttemptId) {
-        this.beginConnectionAttempt(this.pendingConnectionTrigger ?? "transport-reconnect");
+      if (!this.connectionAttempts.currentAttemptId) {
+        this.connectionAttempts.beginAttempt(
+          this.pendingConnectionTrigger ?? "transport-reconnect",
+          this.snapshot.status,
+        );
       }
       this.pendingConnectionTrigger = null;
     };
@@ -214,11 +218,11 @@ export class DirectStompTransport implements ChatRealtimeTransport {
         return;
       }
 
-      if (this.connectionAttemptId) {
+      if (this.connectionAttempts.currentAttemptId) {
         this.diagnostics.emit({
           event: "stomp.connected",
-          connectionAttemptId: this.connectionAttemptId,
-          connectionDurationMs: this.getConnectionDurationMs(),
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
+          connectionDurationMs: this.connectionAttempts.getConnectionDurationMs(),
         });
       }
 
@@ -256,7 +260,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       const stompErrorCode = stompError?.code ?? frame.headers.message?.trim() ?? null;
       this.diagnostics.emit({
         event: "stomp.error",
-        connectionAttemptId: this.connectionAttemptId,
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
         code: stompErrorCode ? sanitizeDiagnosticText(stompErrorCode) : null,
         retryable: stompError?.retryable ?? null,
       });
@@ -264,7 +268,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       if (stompError?.code === "AUTHENTICATION_REQUIRED") {
         this.diagnostics.emit({
           event: "authentication.required",
-          connectionAttemptId: this.connectionAttemptId,
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
         });
         this.stopAuthenticationRequiredReconnect();
         return;
@@ -285,7 +289,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.client.onWebSocketError = () => {
       this.diagnostics.emit({
         event: "websocket.error",
-        connectionAttemptId: this.connectionAttemptId,
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
       });
       if (this.snapshot.status === "authentication-required") {
         return;
@@ -305,35 +309,39 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (this.snapshot.status === "authentication-required") {
-        this.recordWebSocketClose(event, statusBefore, "authentication-state-preserved");
+        this.connectionAttempts.recordWebSocketClose(
+          event,
+          statusBefore,
+          "authentication-state-preserved",
+        );
         return;
       }
 
       if (isChatConnectionReplacedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "connection-replaced");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "connection-replaced");
         this.stopConnectionReplacedReconnect();
         return;
       }
 
       if (isChatRoomAccessRevokedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "room-access-revoked");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-access-revoked");
         this.restartAfterRoomAccessRevoked();
         return;
       }
 
       if (isChatRoomClosedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "room-closed");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-closed");
         this.restartAfterRoomClosed();
         return;
       }
 
       if (this.connectionRestart) {
-        this.recordWebSocketClose(event, statusBefore, "disconnected");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "disconnected");
         return;
       }
 
       if (this.attachmentCount === 0 || !this.client.active) {
-        this.recordWebSocketClose(event, statusBefore, "disconnected");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "disconnected");
         this.setSnapshot("disconnected", null);
         return;
       }
@@ -354,7 +362,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           error: null,
         });
       }
-      this.recordWebSocketClose(event, statusBefore, "reconnecting");
+      this.connectionAttempts.recordWebSocketClose(event, statusBefore, "reconnecting");
       this.setSnapshot("reconnecting", error);
     };
   }
@@ -363,7 +371,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     this.attachmentCount += 1;
 
     if (this.attachmentCount === 1) {
-      this.beginConnectionAttempt("initial-attach");
+      this.connectionAttempts.beginAttempt("initial-attach", this.snapshot.status);
       this.pendingConnectionTrigger = null;
       this.setSnapshot("connecting", null);
       this.client.activate();
@@ -522,7 +530,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       watermarkSequence: null,
       error: null,
     };
-    const claimRequestId = this.nextDiagnosticId();
+    const claimRequestId = this.connectionAttempts.nextDiagnosticId();
     this.roomClaimRequestId = claimRequestId;
     this.diagnostics.emit({
       event: "room.claim.requested",
@@ -588,7 +596,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       });
       this.diagnostics.emit({
         event: "room.released",
-        requestId: this.nextDiagnosticId(),
+        requestId: this.connectionAttempts.nextDiagnosticId(),
         roomId,
         generation: releasedGeneration,
       });
@@ -750,7 +758,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       this.principalGeneration += 1;
       this.principalGenerationListeners.forEach((listener) => listener());
       if (this.snapshot.status === "authentication-required" && this.attachmentCount > 0) {
-        this.beginConnectionAttempt("authentication-succeeded");
+        this.connectionAttempts.beginAttempt("authentication-succeeded", this.snapshot.status);
         this.pendingConnectionTrigger = null;
         this.setSnapshot("connecting", null);
         this.client.activate();
@@ -789,7 +797,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
       return;
     }
 
-    this.beginConnectionAttempt("manual");
+    this.connectionAttempts.beginAttempt("manual", this.snapshot.status);
     this.pendingConnectionTrigger = null;
     this.setSnapshot("connecting", null);
     this.client.activate();
@@ -798,65 +806,6 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   readonly confirmRoomReadState = (): void => {
     // Direct transport has no same-browser peer. The local provider already applies success.
   };
-
-  private beginConnectionAttempt(trigger: ConnectionAttemptTrigger): void {
-    this.connectionAttemptId = this.nextDiagnosticId();
-
-    try {
-      this.connectionAttemptStartedAt = this.monotonicNow();
-    } catch {
-      this.connectionAttemptStartedAt = 0;
-    }
-    this.diagnostics.emit({
-      event: "connection.requested",
-      connectionAttemptId: this.connectionAttemptId,
-      trigger,
-      statusBefore: this.snapshot.status,
-    });
-  }
-
-  private nextDiagnosticId(): string {
-    this.diagnosticIdSequence += 1;
-
-    try {
-      const value = this.createDiagnosticId().trim();
-      return value && value.length <= 128 ? value : `diagnostic-${this.diagnosticIdSequence}`;
-    } catch {
-      return `diagnostic-${this.diagnosticIdSequence}`;
-    }
-  }
-
-  private getConnectionDurationMs(): number {
-    try {
-      return Math.max(0, this.monotonicNow() - this.connectionAttemptStartedAt);
-    } catch {
-      return 0;
-    }
-  }
-
-  private recordWebSocketClose(
-    event: CloseEvent,
-    statusBefore: ChatConnectionStatus,
-    reconnectDecision:
-      | "authentication-state-preserved"
-      | "connection-replaced"
-      | "room-access-revoked"
-      | "room-closed"
-      | "reconnecting"
-      | "disconnected",
-  ): void {
-    this.diagnostics.emit({
-      event: "websocket.closed",
-      connectionAttemptId: this.connectionAttemptId,
-      closeCode: event.code,
-      closeReason: sanitizeDiagnosticText(event.reason),
-      wasClean: event.wasClean,
-      statusBefore,
-      reconnectDecision,
-    });
-    this.connectionAttemptId = null;
-    this.connectionAttemptStartedAt = 0;
-  }
 
   private detach(): void {
     this.attachmentCount -= 1;
@@ -1037,7 +986,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
           return;
         }
 
-        this.beginConnectionAttempt("deactivation-completed");
+        this.connectionAttempts.beginAttempt("deactivation-completed", this.snapshot.status);
         this.pendingConnectionTrigger = null;
         this.client.activate();
       },
@@ -1065,6 +1014,8 @@ export class DirectStompTransport implements ChatRealtimeTransport {
     const roomId = this.roomSnapshot.roomId;
 
     if (roomId) {
+      // 정상 흐름에서는 이 시점에 해당 방의 진행 중인 전송이 남아 있지 않음
+      // 예외적으로 남은 전송이 있으면 함께 정리함
       this.cancelMessageDeliveriesForRoom(roomId, "SUBSCRIPTION_SETUP_FAILED");
       try {
         this.subscriptions.releaseRoom(roomId);
@@ -1619,11 +1570,4 @@ export class DirectStompTransport implements ChatRealtimeTransport {
 
 function getSubscriptionErrorMessage(cause: unknown, fallback: string): string {
   return cause instanceof Error && cause.message.trim() ? cause.message : fallback;
-}
-
-function sanitizeDiagnosticText(value: string): string {
-  return value
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
-    .trim()
-    .slice(0, 256);
 }

@@ -60,6 +60,11 @@ import {
   type ChatSharedWorkerCommand,
   type ChatSharedWorkerEvent,
 } from "../chat-shared-worker-protocol";
+import {
+  ChatConnectionAttemptDiagnostics,
+  sanitizeDiagnosticText,
+  type ConnectionAttemptTrigger,
+} from "../diagnostics/chat-connection-attempt-diagnostics";
 import { ChatRealtimeDiagnosticStore } from "../diagnostics/chat-realtime-diagnostic-store";
 
 export type ChatSharedWorkerStompClient = Pick<
@@ -134,19 +139,11 @@ const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
 const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
 
 type ChatRealtimeRuntimeKind = "shared-worker" | "leader-tab";
-type ConnectionAttemptTrigger =
-  | "initial-attach"
-  | "transport-reconnect"
-  | "authentication-succeeded"
-  | "deactivation-completed"
-  | "manual";
 
 export class ChatSharedWorkerRuntime {
   private activeRoomLease: ActiveRoomLease | null = null;
-  private connectionAttemptId: string | null = null;
-  private connectionAttemptStartedAt = 0;
+  private readonly connectionAttempts: ChatConnectionAttemptDiagnostics;
   private deactivation: Promise<void> | null = null;
-  private diagnosticIdSequence = 0;
   private generation = 0;
   private principalGeneration = 0;
   private readonly messageDeliveries: ChatMessageDeliveryScheduler;
@@ -170,9 +167,14 @@ export class ChatSharedWorkerRuntime {
     private readonly diagnostics = new ChatRealtimeDiagnosticStore({
       runtimeInstanceId: workerInstanceId,
     }),
-    private readonly createDiagnosticId = () => crypto.randomUUID(),
-    private readonly monotonicNow = () => performance.now(),
+    createDiagnosticId = () => crypto.randomUUID(),
+    monotonicNow = () => performance.now(),
   ) {
+    this.connectionAttempts = new ChatConnectionAttemptDiagnostics(
+      this.diagnostics,
+      createDiagnosticId,
+      monotonicNow,
+    );
     this.diagnostics.emit({
       event: "runtime.started",
       transportKind: this.runtimeKind,
@@ -216,17 +218,20 @@ export class ChatSharedWorkerRuntime {
       },
     });
     this.client.beforeConnect = () => {
-      if (!this.connectionAttemptId) {
-        this.beginConnectionAttempt(this.pendingConnectionTrigger ?? "transport-reconnect");
+      if (!this.connectionAttempts.currentAttemptId) {
+        this.connectionAttempts.beginAttempt(
+          this.pendingConnectionTrigger ?? "transport-reconnect",
+          this.snapshot.status,
+        );
       }
       this.pendingConnectionTrigger = null;
     };
     this.client.onConnect = () => {
-      if (this.connectionAttemptId) {
+      if (this.connectionAttempts.currentAttemptId) {
         this.diagnostics.emit({
           event: "stomp.connected",
-          connectionAttemptId: this.connectionAttemptId,
-          connectionDurationMs: this.getConnectionDurationMs(),
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
+          connectionDurationMs: this.connectionAttempts.getConnectionDurationMs(),
         });
       }
       this.handleConnected();
@@ -240,7 +245,7 @@ export class ChatSharedWorkerRuntime {
       const stompErrorCode = stompError?.code ?? frame.headers.message?.trim() ?? null;
       this.diagnostics.emit({
         event: "stomp.error",
-        connectionAttemptId: this.connectionAttemptId,
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
         code: stompErrorCode ? sanitizeDiagnosticText(stompErrorCode) : null,
         retryable: stompError?.retryable ?? null,
       });
@@ -248,7 +253,7 @@ export class ChatSharedWorkerRuntime {
       if (stompError?.code === "AUTHENTICATION_REQUIRED") {
         this.diagnostics.emit({
           event: "authentication.required",
-          connectionAttemptId: this.connectionAttemptId,
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
         });
         this.stopAuthenticationRequiredReconnect();
         return;
@@ -266,7 +271,7 @@ export class ChatSharedWorkerRuntime {
     this.client.onWebSocketError = () => {
       this.diagnostics.emit({
         event: "websocket.error",
-        connectionAttemptId: this.connectionAttemptId,
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
       });
       if (this.getAttachedPortCount() > 0 && this.snapshot.status !== "authentication-required") {
         this.setSnapshot("error", {
@@ -284,30 +289,34 @@ export class ChatSharedWorkerRuntime {
       this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
 
       if (this.snapshot.status === "authentication-required") {
-        this.recordWebSocketClose(event, statusBefore, "authentication-state-preserved");
+        this.connectionAttempts.recordWebSocketClose(
+          event,
+          statusBefore,
+          "authentication-state-preserved",
+        );
         return;
       }
 
       if (isChatConnectionReplacedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "connection-replaced");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "connection-replaced");
         this.stopConnectionReplacedReconnect();
         return;
       }
 
       if (isChatRoomAccessRevokedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "room-access-revoked");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-access-revoked");
         this.restartAfterRoomAccessRevoked();
         return;
       }
 
       if (isChatRoomClosedCloseEvent(event)) {
-        this.recordWebSocketClose(event, statusBefore, "room-closed");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-closed");
         this.restartAfterRoomClosed();
         return;
       }
 
       if (this.getAttachedPortCount() === 0 || this.deactivation || !this.client.active) {
-        this.recordWebSocketClose(event, statusBefore, "disconnected");
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "disconnected");
         this.snapshot = {
           status: "disconnected",
           error: null,
@@ -315,7 +324,7 @@ export class ChatSharedWorkerRuntime {
         return;
       }
 
-      this.recordWebSocketClose(event, statusBefore, "reconnecting");
+      this.connectionAttempts.recordWebSocketClose(event, statusBefore, "reconnecting");
       const error = event.reason.trim()
         ? {
             source: "websocket" as const,
@@ -505,7 +514,7 @@ export class ChatSharedWorkerRuntime {
       return;
     }
 
-    this.beginConnectionAttempt(trigger);
+    this.connectionAttempts.beginAttempt(trigger, this.snapshot.status);
     this.pendingConnectionTrigger = null;
     this.setSnapshot("connecting", null);
     this.client.activate();
@@ -617,65 +626,6 @@ export class ChatSharedWorkerRuntime {
     this.startConnection("manual");
   }
 
-  private beginConnectionAttempt(trigger: ConnectionAttemptTrigger): void {
-    this.connectionAttemptId = this.nextDiagnosticId();
-
-    try {
-      this.connectionAttemptStartedAt = this.monotonicNow();
-    } catch {
-      this.connectionAttemptStartedAt = 0;
-    }
-    this.diagnostics.emit({
-      event: "connection.requested",
-      connectionAttemptId: this.connectionAttemptId,
-      trigger,
-      statusBefore: this.snapshot.status,
-    });
-  }
-
-  private nextDiagnosticId(): string {
-    this.diagnosticIdSequence += 1;
-
-    try {
-      const value = this.createDiagnosticId().trim();
-      return value && value.length <= 128 ? value : `diagnostic-${this.diagnosticIdSequence}`;
-    } catch {
-      return `diagnostic-${this.diagnosticIdSequence}`;
-    }
-  }
-
-  private getConnectionDurationMs(): number {
-    try {
-      return Math.max(0, this.monotonicNow() - this.connectionAttemptStartedAt);
-    } catch {
-      return 0;
-    }
-  }
-
-  private recordWebSocketClose(
-    event: CloseEvent,
-    statusBefore: ChatConnectionStatus,
-    reconnectDecision:
-      | "authentication-state-preserved"
-      | "connection-replaced"
-      | "room-access-revoked"
-      | "room-closed"
-      | "reconnecting"
-      | "disconnected",
-  ): void {
-    this.diagnostics.emit({
-      event: "websocket.closed",
-      connectionAttemptId: this.connectionAttemptId,
-      closeCode: event.code,
-      closeReason: sanitizeDiagnosticText(event.reason),
-      wasClean: event.wasClean,
-      statusBefore,
-      reconnectDecision,
-    });
-    this.connectionAttemptId = null;
-    this.connectionAttemptStartedAt = 0;
-  }
-
   private stopAuthenticationRequiredReconnect(): void {
     this.messageDeliveries.cancelAll("AUTHENTICATION_REQUIRED");
     this.messageMutations.cancelAll("AUTHENTICATION_REQUIRED");
@@ -748,7 +698,9 @@ export class ChatSharedWorkerRuntime {
     const lease = this.activeRoomLease;
 
     if (lease) {
-      this.cancelMessageDeliveriesForLease(lease, "SUBSCRIPTION_SETUP_FAILED");
+      // onWebSocketClose에서 이미 WEBSOCKET_CLOSED로 모두 취소됨
+      // 방 종료 정리를 이 함수만으로 완결하기 위해 취소 호출을 유지함
+      this.cancelMessageDeliveriesForLease(lease, "ROOM_CLOSED");
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
       this.generation = lease.generation + 1;
@@ -1362,6 +1314,9 @@ export class ChatSharedWorkerRuntime {
     const lease = this.activeRoomLease;
 
     if (lease) {
+      // 전송 취소 생략함
+      // 호출 시점에는 WebSocket close, lease 교체 또는 stale 복구에서
+      // 이 lease의 전송이 이미 취소됐거나, 아직 시작된 전송이 없음
       this.tryReleaseRoom(lease.roomId);
       this.realtimeBuffer.clear(lease.roomId, lease.generation);
     }
@@ -1927,11 +1882,4 @@ function getStompErrorMessage(frame: IFrame): string {
   return (
     frame.headers.message?.trim() || frame.body.trim() || "STOMP 서버가 연결 오류를 반환했습니다."
   );
-}
-
-function sanitizeDiagnosticText(value: string): string {
-  return value
-    .replace(/[\u0000-\u001F\u007F]/g, " ")
-    .trim()
-    .slice(0, 256);
 }
