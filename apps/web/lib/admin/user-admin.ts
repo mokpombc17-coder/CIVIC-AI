@@ -99,17 +99,82 @@ export async function loadRoleConflictUser(
   return status === 409 ? loadRequestedAdminUser(userId, request) : null;
 }
 
+export type AdminUserPage = {
+  items: AdminUser[];
+  /** Matching users on the server; null when the server does not report a total. */
+  total: number | null;
+  nextCursor: string | null;
+};
+
+export const ADMIN_USER_PAGE_SIZE = 100;
+
+export function adminUserListPath(
+  query: string,
+  status: UserStatusFilter = "all",
+  cursor: string | null = null,
+): string {
+  const params = new URLSearchParams({ query, status, limit: String(ADMIN_USER_PAGE_SIZE) });
+  if (cursor) params.set("cursor", cursor);
+  return `/api/v1/admin/users?${params.toString()}`;
+}
+
 export async function requestAdminUsers(
   query: string,
   request: typeof fetch = authenticatedFetch,
-): Promise<AdminUser[] | null> {
+  status: UserStatusFilter = "all",
+  cursor: string | null = null,
+): Promise<AdminUserPage | null> {
   try {
-    const response = await request(`/api/v1/admin/users?query=${encodeURIComponent(query)}`, {
+    const response = await request(adminUserListPath(query, status, cursor), {
       cache: "no-store",
     });
     if (!response.ok) return null;
+    const data = (await response.json()) as {
+      items?: unknown;
+      next_cursor?: unknown;
+      total?: unknown;
+    };
+    if (!Array.isArray(data.items)) return null;
+    return {
+      items: data.items as AdminUser[],
+      total: typeof data.total === "number" ? data.total : null,
+      nextCursor:
+        typeof data.next_cursor === "string" && data.next_cursor ? data.next_cursor : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+/** Appends the next page without duplicating users already shown. */
+export function appendAdminUserPage(current: AdminUser[], next: AdminUser[]): AdminUser[] {
+  const seen = new Set(current.map((user) => user.user_id));
+  return [...current, ...next.filter((user) => !seen.has(user.user_id))];
+}
+
+/** main-auth returns only this many newest audit events, with no paging. */
+export const ADMIN_AUDIT_SERVER_WINDOW = 100;
+
+export type AdminAuditWindow = {
+  items: AuditEvent[];
+  /** The server window was full, so older events (and older subject history) are not included. */
+  windowFull: boolean;
+};
+
+export async function requestAdminAuditWindow(
+  subjectId: string | undefined,
+  request: typeof fetch = authenticatedFetch,
+): Promise<AdminAuditWindow | null> {
+  try {
+    const response = await request("/api/v1/admin/audit", { cache: "no-store" });
+    if (!response.ok) return null;
     const data = (await response.json()) as { items?: unknown };
-    return Array.isArray(data.items) ? (data.items as AdminUser[]) : null;
+    if (!Array.isArray(data.items)) return null;
+    const items = data.items as AuditEvent[];
+    return {
+      items: subjectId ? items.filter((event) => event.subject_id === subjectId) : items,
+      windowFull: items.length >= ADMIN_AUDIT_SERVER_WINDOW,
+    };
   } catch {
     return null;
   }
@@ -119,16 +184,7 @@ export async function requestAdminAudit(
   subjectId: string | undefined,
   request: typeof fetch = authenticatedFetch,
 ): Promise<AuditEvent[] | null> {
-  try {
-    const response = await request("/api/v1/admin/audit", { cache: "no-store" });
-    if (!response.ok) return null;
-    const data = (await response.json()) as { items?: unknown };
-    if (!Array.isArray(data.items)) return null;
-    const items = data.items as AuditEvent[];
-    return subjectId ? items.filter((event) => event.subject_id === subjectId) : items;
-  } catch {
-    return null;
-  }
+  return (await requestAdminAuditWindow(subjectId, request))?.items ?? null;
 }
 
 export function selectedAdminRole(roles: readonly string[]): AdminRoleChoice {

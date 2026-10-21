@@ -16,6 +16,7 @@ import {
   type ConsoleTabItem,
 } from "@/components/admin/console/console-ui";
 import type { ScreenDefinition } from "@/lib/screens/registry";
+import { listCountLabel } from "@/lib/admin/list-count";
 import { adminUserLabel, requestAdminUserLabels } from "@/lib/admin/user-labels";
 import {
   accessLabels,
@@ -23,6 +24,7 @@ import {
   ADMIN_PERMISSION_CODES,
   ADMIN_ROLE_CHOICES,
   adminRoleMutationPath,
+  appendAdminUserPage,
   auditEventLabel,
   createLatestAdminUserRequestGate,
   createMutationLock,
@@ -34,7 +36,8 @@ import {
   loadRoleConflictUser,
   permissionLabel,
   permissionsForAdminRole,
-  requestAdminAudit,
+  ADMIN_AUDIT_SERVER_WINDOW,
+  requestAdminAuditWindow,
   requestAdminUsers,
   roleFormKey,
   roleLabel,
@@ -148,10 +151,15 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     userWorkspaceTabForScreen(screen.id, initialSearchTab),
   );
   const [users, setUsers] = useState<AdminUser[]>([]);
+  const [userTotal, setUserTotal] = useState<number | null>(null);
+  const [userNextCursor, setUserNextCursor] = useState<string | null>(null);
+  const [userQuery, setUserQuery] = useState("");
+  const [usersLoadingMore, setUsersLoadingMore] = useState(false);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
   const [audits, setAudits] = useState<AuditEvent[]>([]);
+  const [auditWindowFull, setAuditWindowFull] = useState(false);
   const [auditUserLabels, setAuditUserLabels] = useState<Map<string, string>>(new Map());
   const [auditMessage, setAuditMessage] = useState("");
   const [roleMutationPending, setRoleMutationPending] = useState(false);
@@ -203,17 +211,23 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     };
   }, [selectedUserId]);
 
-  const loadUsers = useCallback(async (query = "") => {
+  const loadUsers = useCallback(async (query = "", status: UserStatusFilter = "all") => {
     const isCurrent = userLoadGate.current.begin();
-    const items = await requestAdminUsers(query);
+    setUsersLoadingMore(false);
+    const page = await requestAdminUsers(query, undefined, status);
     if (!isCurrent()) return;
-    if (items === null) {
+    if (page === null) {
       setUsers([]);
+      setUserTotal(null);
+      setUserNextCursor(null);
       setSelected(null);
       setMessage("사용자 목록을 불러오지 못했습니다.");
       return;
     }
+    const items = page.items;
     setUsers(items);
+    setUserTotal(page.total);
+    setUserNextCursor(page.nextCursor);
     setMessage("");
     const requested =
       typeof window === "undefined"
@@ -243,13 +257,16 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   }, [loadUsers]);
 
   const loadAudit = useCallback(async (subjectId: string | undefined) => {
-    const items = await requestAdminAudit(subjectId);
-    if (items === null) {
+    const auditWindow = await requestAdminAuditWindow(subjectId);
+    if (auditWindow === null) {
       setAudits([]);
+      setAuditWindowFull(false);
       setAuditMessage("감사 이력을 불러오지 못했습니다. 다시 시도해 주세요.");
       return;
     }
+    const items = auditWindow.items;
     setAudits(items);
+    setAuditWindowFull(auditWindow.windowFull);
     const labels = await requestAdminUserLabels(
       items.flatMap((event) => [event.actor_id, event.subject_id].filter(Boolean) as string[]),
     );
@@ -276,7 +293,31 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
 
   async function search(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    await loadUsers(String(new FormData(event.currentTarget).get("query") ?? ""));
+    const query = String(new FormData(event.currentTarget).get("query") ?? "");
+    setUserQuery(query);
+    await loadUsers(query, userStatusFilter);
+  }
+
+  function changeUserStatusFilter(status: UserStatusFilter) {
+    setUserStatusFilter(status);
+    void loadUsers(userQuery, status);
+  }
+
+  async function loadMoreUsers() {
+    if (!userNextCursor || usersLoadingMore) return;
+    const isCurrent = userLoadGate.current.begin();
+    setUsersLoadingMore(true);
+    const page = await requestAdminUsers(userQuery, undefined, userStatusFilter, userNextCursor);
+    if (!isCurrent()) return;
+    setUsersLoadingMore(false);
+    if (page === null) {
+      setMessage("사용자 목록을 더 불러오지 못했습니다. 다시 시도해 주세요.");
+      return;
+    }
+    setUsers((current) => appendAdminUserPage(current, page.items));
+    setUserTotal(page.total);
+    setUserNextCursor(page.nextCursor);
+    setMessage("");
   }
 
   function submitRoles(event: FormEvent<HTMLFormElement>) {
@@ -369,7 +410,12 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     <ConsoleWorkspace layout="admin-user-console">
       <ConsolePane
         ariaLabel="사용자 목록"
-        subtitle={`${filteredUsers.length}명 표시`}
+        subtitle={listCountLabel({
+          shown: filteredUsers.length,
+          total: userTotal,
+          hasMore: userNextCursor !== null,
+          unit: "명",
+        })}
         title="사용자 검색"
       >
         <form className="console-toolbar" onSubmit={search} role="search">
@@ -391,7 +437,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
             <button
               aria-pressed={userStatusFilter === value}
               key={value}
-              onClick={() => setUserStatusFilter(value)}
+              onClick={() => changeUserStatusFilter(value)}
               type="button"
             >
               {label}
@@ -408,6 +454,16 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
           rowData={filteredUsers}
           selectedRowId={selected?.user_id ?? null}
         />
+        {userNextCursor ? (
+          <button
+            className="wf-button wf-button-secondary civic-load-more"
+            disabled={usersLoadingMore}
+            onClick={() => void loadMoreUsers()}
+            type="button"
+          >
+            더 불러오기
+          </button>
+        ) : null}
         {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
       </ConsolePane>
 
@@ -424,6 +480,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
         />
         {tab === "overview" ? (
           <UserOverviewTab
+            auditWindowFull={auditWindowFull}
             audits={audits}
             onOpenAudit={() => switchTab("audit")}
             onOpenRoles={() => switchTab("roles")}
@@ -444,11 +501,20 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
             <ConsoleDataGrid
               ariaLabel="감사 이력 표"
               columnDefs={AUDIT_GRID_COLUMNS}
-              emptyText="선택한 사용자의 권한 변경 이력이 없습니다."
+              emptyText={
+                auditWindowFull
+                  ? `최근 ${ADMIN_AUDIT_SERVER_WINDOW}건 안에는 선택한 사용자의 권한 변경 이력이 없습니다.`
+                  : "선택한 사용자의 권한 변경 이력이 없습니다."
+              }
               getRowId={(row) => row.eventId}
               height={420}
               rowData={audits.map((event) => auditRowFromEvent(event, auditUserLabels))}
             />
+            {auditWindowFull ? (
+              <ConsoleStatus>
+                {`최근 감사 이력 ${ADMIN_AUDIT_SERVER_WINDOW}건 기준으로 표시합니다. 그보다 오래된 이력은 이 화면에서 볼 수 없습니다.`}
+              </ConsoleStatus>
+            ) : null}
             {auditMessage ? <ConsoleStatus error>{auditMessage}</ConsoleStatus> : null}
           </>
         ) : null}
@@ -530,12 +596,14 @@ export function ragSummaryValue(state: UserRagUsageState): string {
 function UserOverviewTab({
   selected,
   audits,
+  auditWindowFull,
   userLabels,
   onOpenRoles,
   onOpenAudit,
 }: Readonly<{
   selected: AdminUser | null;
   audits: readonly AuditEvent[];
+  auditWindowFull: boolean;
   userLabels: ReadonlyMap<string, string>;
   onOpenRoles: () => void;
   onOpenAudit: () => void;
@@ -580,7 +648,11 @@ function UserOverviewTab({
       <section className="console-section">
         <h4>최근 권한 변경 이력</h4>
         {recent.length === 0 ? (
-          <ConsoleStatus>이 사용자에 대한 권한 변경 이력이 없습니다.</ConsoleStatus>
+          <ConsoleStatus>
+            {auditWindowFull
+              ? `최근 ${ADMIN_AUDIT_SERVER_WINDOW}건 안에는 이 사용자에 대한 권한 변경 이력이 없습니다.`
+              : "이 사용자에 대한 권한 변경 이력이 없습니다."}
+          </ConsoleStatus>
         ) : (
           <ul className="console-metrics console-field-grid is-stacked">
             {recent.map((event) => {
@@ -966,7 +1038,7 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
       {result.truncated || result.failedRooms > 0 ? (
         <ConsoleStatus>
           {result.truncated
-            ? `전체 ${result.totalRooms}개 중 최근 ${result.scannedRooms}개 토론방만 확인했습니다. `
+            ? `${result.moreRooms ? `${result.totalRooms}개 이상` : `전체 ${result.totalRooms}개`} 중 최근 ${result.scannedRooms}개 토론방만 확인했습니다. `
             : ""}
           {result.failedRooms > 0 ? `${result.failedRooms}개 방은 내보내기에 실패했습니다.` : ""}
         </ConsoleStatus>

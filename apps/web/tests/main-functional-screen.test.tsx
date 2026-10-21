@@ -43,6 +43,8 @@ import {
   updateAdminLoadMessage,
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
+import { listCountLabel } from "@/lib/admin/list-count";
+import { appendAdminUserPage, type AdminUser } from "@/lib/admin/user-admin";
 import {
   accountDeactivationSuccessPath,
   accountMutation,
@@ -294,9 +296,45 @@ describe("25 functional Main/Auth screens", () => {
 
     await expect(requestAdminUsers("admin", unavailable as typeof fetch)).resolves.toBeNull();
     await expect(requestAdminUsers("admin", malformed as typeof fetch)).resolves.toBeNull();
-    expect(unavailable).toHaveBeenCalledWith("/api/v1/admin/users?query=admin", {
-      cache: "no-store",
+    expect(unavailable).toHaveBeenCalledWith(
+      "/api/v1/admin/users?query=admin&status=all&limit=100",
+      { cache: "no-store" },
+    );
+  });
+
+  it("관리자 사용자 조회는 상태·커서를 서버에 보내고 전체 수와 다음 커서를 해석한다", async () => {
+    const paged = vi.fn(async () =>
+      Response.json({ items: [{ user_id: "u-101" }], total: 145, next_cursor: "c2" }),
+    );
+    const legacy = vi.fn(async () => Response.json({ items: [] }));
+
+    await expect(requestAdminUsers("", paged as typeof fetch, "admin", "c1")).resolves.toEqual({
+      items: [{ user_id: "u-101" }],
+      total: 145,
+      nextCursor: "c2",
     });
+    expect(paged).toHaveBeenCalledWith(
+      "/api/v1/admin/users?query=&status=admin&limit=100&cursor=c1",
+      { cache: "no-store" },
+    );
+    await expect(requestAdminUsers("", legacy as typeof fetch)).resolves.toEqual({
+      items: [],
+      total: null,
+      nextCursor: null,
+    });
+  });
+
+  it("관리자 사용자 다음 페이지는 중복 없이 이어 붙이고 전체 수를 함께 표시한다", () => {
+    const user = (user_id: string) => ({ user_id }) as AdminUser;
+
+    expect(
+      appendAdminUserPage([user("1"), user("2")], [user("2"), user("3")]).map((u) => u.user_id),
+    ).toEqual(["1", "2", "3"]);
+    expect(listCountLabel({ shown: 100, total: 145, unit: "명" })).toBe("전체 145명 중 100명 표시");
+    expect(listCountLabel({ shown: 45, total: 45, unit: "명" })).toBe("전체 45명");
+    expect(listCountLabel({ shown: 1200, total: 1200 })).toBe("전체 1,200건");
+    expect(listCountLabel({ shown: 20, hasMore: true })).toBe("20건 표시 · 더 있음");
+    expect(listCountLabel({ shown: 12 })).toBe("12건 표시");
   });
 
   it("관리자 감사 이력의 전송·응답 해석 실패를 안전한 실패로 반환한다", async () => {

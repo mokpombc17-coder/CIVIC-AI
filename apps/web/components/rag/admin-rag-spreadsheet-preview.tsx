@@ -50,6 +50,7 @@ export function AdminRagSpreadsheetPreview({
   const [rows, setRows] = useState<SpreadsheetRow[]>([]);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
+  const [totalRows, setTotalRows] = useState<number | null>(null);
   const [message, setMessage] = useState("표 구조를 불러오고 있습니다.");
 
   const loadRows = useCallback(
@@ -59,11 +60,16 @@ export function AdminRagSpreadsheetPreview({
         { cache: "no-store" },
       );
       if (!response.ok) throw new Error("표 데이터를 불러오지 못했습니다.");
-      const body = (await response.json()) as { items?: unknown; total_pages?: unknown };
+      const body = (await response.json()) as {
+        items?: unknown;
+        total?: unknown;
+        total_pages?: unknown;
+      };
       if (!Array.isArray(body.items)) throw new Error("표 데이터 형식이 올바르지 않습니다.");
       setRows(body.items as SpreadsheetRow[]);
       setPage(nextPage);
       setTotalPages(typeof body.total_pages === "number" ? body.total_pages : 0);
+      setTotalRows(typeof body.total === "number" ? body.total : null);
       setMessage("");
     },
     [documentId, versionId],
@@ -173,6 +179,7 @@ export function AdminRagSpreadsheetPreview({
             이전
           </button>
           <span>
+            {totalRows === null ? "" : `전체 ${totalRows.toLocaleString("ko-KR")}행 · `}
             {page} / {totalPages}
           </span>
           <button

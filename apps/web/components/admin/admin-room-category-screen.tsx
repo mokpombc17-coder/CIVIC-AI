@@ -1,5 +1,6 @@
 "use client";
 
+import { listCountLabel } from "@/lib/admin/list-count";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ScreenFrame } from "@/components/screens/screen-frame";
@@ -399,7 +400,11 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         <ConsoleWorkspace layout="room-category-admin-console">
           <ConsolePane
             ariaLabel="카테고리 목록"
-            subtitle={`${categories.length.toLocaleString("ko-KR")}개`}
+            subtitle={listCountLabel({
+              shown: categories.length,
+              total: categories.length,
+              unit: "개",
+            })}
             title="카테고리 목록"
           >
             <form className="civic-category-create" onSubmit={createCategory}>
@@ -437,7 +442,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
           <ConsolePane
             ariaLabel="토론방 카테고리 교체"
-            subtitle={`${visibleListedRooms.length.toLocaleString("ko-KR")}건 표시`}
+            subtitle={listCountLabel({ shown: visibleListedRooms.length, hasMore: roomHasNext })}
             title="토론방 카테고리 교체"
           >
             <form

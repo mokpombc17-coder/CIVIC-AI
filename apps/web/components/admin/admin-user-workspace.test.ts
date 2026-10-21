@@ -67,6 +67,7 @@ function chatResult(
     participations: overrides.participations ?? [],
     scannedRooms: 4,
     totalRooms: 4,
+    moreRooms: false,
     failedRooms: overrides.failedRooms ?? 0,
     truncated: overrides.truncated ?? false,
   };

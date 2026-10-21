@@ -9,6 +9,8 @@ const ACCESS_COOKIE = "civic_ai_access_token";
 let server: Server;
 let roleUpdate: { body: Record<string, unknown>; csrf?: string } | null = null;
 let adminEndpointCalls = 0;
+let pagedDirectory = false;
+let directoryRequests: URLSearchParams[] = [];
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -35,6 +37,19 @@ test.beforeAll(async () => {
           { status: 403, code: "FORBIDDEN", detail: "관리자 권한이 필요합니다." },
           403,
         );
+      }
+      if (pagedDirectory) {
+        directoryRequests.push(url.searchParams);
+        if (url.searchParams.get("status") === "admin") {
+          return json(response, { items: [adminUser], total: 1, next_cursor: null });
+        }
+        return url.searchParams.get("cursor") === "page-2"
+          ? json(response, { items: [olderUser], total: 3, next_cursor: null })
+          : json(response, {
+              items: [adminUser, participantUser],
+              total: 3,
+              next_cursor: "page-2",
+            });
       }
       return json(response, { items: [adminUser, participantUser] });
     }
@@ -130,6 +145,43 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await expect(page.getByRole("region", { name: "감사 이력 표" })).toBeVisible();
   await expect(page.getByRole("gridcell", { name: "문서 운영 담당자 배정" })).toBeVisible();
   await expect(page.getByText(/사용자 비활성화|개인정보 삭제 실행/)).toHaveCount(0);
+});
+
+test("관리자는 첫 페이지 밖의 사용자를 더 불러오고 상태 필터를 서버에 조회한다", async ({
+  context,
+  page,
+}) => {
+  pagedDirectory = true;
+  directoryRequests = [];
+  try {
+    await authenticate(context, "admin.payload.signature");
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/admin/users");
+
+    const list = page.getByRole("region", { name: "사용자 목록" });
+    await expect(list.getByText("전체 3명 중 2명 표시")).toBeVisible();
+    await expect(page.getByRole("row", { name: /early@example.com/ })).toHaveCount(0);
+
+    await page.getByRole("button", { name: "더 불러오기" }).click();
+    await expect(page.getByRole("row", { name: /early@example.com/ })).toBeVisible();
+    await expect(list.getByText("전체 3명", { exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "더 불러오기" })).toHaveCount(0);
+
+    await page
+      .getByRole("group", { name: "사용자 상태 필터" })
+      .getByRole("button", { name: "관리자" })
+      .click();
+    await expect(list.getByText("전체 1명", { exact: true })).toBeVisible();
+    await expect(page.getByRole("row", { name: /early@example.com/ })).toHaveCount(0);
+
+    expect(directoryRequests.map((params) => Object.fromEntries(params))).toEqual([
+      { query: "", status: "all", limit: "100" },
+      { query: "", status: "all", limit: "100", cursor: "page-2" },
+      { query: "", status: "admin", limit: "100" },
+    ]);
+  } finally {
+    pagedDirectory = false;
+  }
 });
 
 test("터치로 사용자 행을 연속 선택해도 이전 행의 선택 배경이 남지 않는다", async ({ browser }) => {
@@ -251,6 +303,18 @@ const participantUser = {
   must_change_password: false,
   email_verified_at: "2026-08-02T00:00:00Z",
   last_activity_at: "2026-08-12T02:00:00Z",
+};
+
+const olderUser = {
+  user_id: "00000000-0000-4000-8000-000000000003",
+  email: "early@example.com",
+  account_state: "ACTIVE",
+  roles: ["PARTICIPANT"],
+  permissions: [],
+  row_version: 1,
+  must_change_password: false,
+  email_verified_at: "2026-01-02T00:00:00Z",
+  last_activity_at: "2026-02-12T02:00:00Z",
 };
 
 const auditEvent = {
