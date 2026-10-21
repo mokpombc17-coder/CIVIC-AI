@@ -1070,7 +1070,6 @@ delivery를 ACK한다. 실제 Chat Resource Server에서 멀티탭·재연결·�
 - `apps/web/lib/chat/realtime/leader-tab-worker.ts`
 - `apps/web/lib/chat/realtime/create-chat-realtime-transport.ts`
 - `apps/web/components/chat/chat-realtime-provider.tsx`
-- `apps/web/components/chat-connection-status.tsx`
 - `docs/architecture/chat-message-admission-control.md`
 - `docs/contracts/platform-auth.md`
 - `docs/architecture/react-component-tree.md`

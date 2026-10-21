@@ -3,7 +3,7 @@
 하나의 Next.js 애플리케이션을 데스크톱/모바일 브라우저와 Expo WebView에서 함께 사용하는 템플릿이다.
 React Native는 별도의 제품 UI를 다시 구현하지 않고, WebView와 모바일 운영체제 기능을 연결하는 얇은 셸로 유지한다.
 
-기준 시점: **2026-07-27**
+기준 시점: **2026-10-21**
 
 ## 구성
 
@@ -19,6 +19,7 @@ Expo native shell                    ▼
 ```text
 apps/web
   Next.js App Router, Server Components, Server Actions, Route Handlers
+  제품 도메인: chat(토론방·실시간 메시지), vote(투표 Task), survey(설문 응답)
 
 apps/mobile
   Expo development build, WebView, app lifecycle, deep links, native bridge
@@ -35,7 +36,8 @@ packages/typescript-config
 - **pnpm workspace 모노레포**: 웹과 모바일이 브리지 계약을 같은 커밋에서 변경한다.
 - **Turborepo 미사용**: 앱 2개와 공유 패키지 2개 수준에서는 pnpm filter만으로 충분하다.
 - **Expo Router 미사용**: 네이티브 화면은 WebView 하나이므로 라우팅 소유자는 Next.js다.
-- **TanStack Query 미포함**: 페이지 초기 조회는 Server Component를 기본으로 하고, 클라이언트가 서버 상태를 소유해야 할 화면에서만 추가한다.
+- **TanStack Query는 클라이언트 서버 상태에만 사용**: 페이지 초기 조회는 Server Component를 기본으로 한다. 클라이언트가 서버 상태를 소유하는 chat, vote, survey 화면에서만 TanStack Query를 사용하고, 긴 메시지 목록은 TanStack Virtual로 렌더링한다.
+- **채팅 실시간 통신은 STOMP over WebSocket**: 브라우저와 WebView가 Chat Resource Server에 직접 연결한다. 탭 간 연결 공유는 SharedWorker → leader tab → 탭별 직접 연결 순서로 fallback한다. 자세한 내용은 [채팅 실시간 세션](./docs/architecture/chat-realtime-session.md)을 참고한다.
 - **Tailwind CSS 포함**: 웹의 기본 스타일링 도구로 Tailwind CSS를 사용한다.
 - **운영 DB 직접 접근 없음**: Next.js는 Spring Boot API를 호출하는 웹 프레젠테이션 서버/BFF다.
 - **브리지 최소화**: 일반 HTTP와 WebSocket은 WebView의 Next.js가 직접 처리하고, 공유·푸시·딥링크 같은 네이티브 경계만 브리지를 사용한다.
@@ -104,6 +106,26 @@ pnpm --filter @app/mobile run ios
 로컬 WebView 주소, Development Build, OAuth, 딥링크, 다운로드, 푸시, 권한 및 스토어 배포
 설정은 [`apps/mobile/README.md`](./apps/mobile/README.md)를 참고한다.
 
+## 테스트
+
+```bash
+# 단위 테스트 (Vitest). pnpm check에 포함된다.
+pnpm test
+
+# 채팅 E2E (Playwright). 로컬 Next.js와 Chat Resource Server가 필요하다.
+pnpm test:e2e
+
+# 설문 E2E
+pnpm test:e2e:survey
+
+# 브라우저를 띄워 확인하거나 디버깅할 때
+pnpm test:e2e:headed
+pnpm test:e2e:debug
+```
+
+E2E 실행 조건과 로컬 인증 fixture는 [채팅 E2E](./docs/testing/chat-e2e.md)와
+[Local E2E 인증 fixture](./docs/contracts/local-e2e-auth-fixture.md)를 참고한다. E2E는 CI에서 실행하지 않는다.
+
 ## 운영 배포
 
 ```text
@@ -115,13 +137,19 @@ Internet :443
 
 ## 실제 서비스 연결 시 수정할 부분
 
-```text
-1. 채팅 Resource Server 주소
-    NEXT_PUBLIC_CHAT_API_URL=https://chat-api.example.com
+웹 환경 변수 전체 목록과 설명은 `apps/web/.env.example`에 있다.
 
-2. 모바일 식별자, OAuth, 딥링크, 푸시 및 스토어 설정
-    apps/mobile/README.md
-```
+| 구분                                               | 환경 변수                                                                                                   |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| 서버 내부 API (`NEXT_PUBLIC_*`로 노출하지 않음)    | `OPERATIONS_API_URL`                                                                                        |
+| 브라우저·WebView가 직접 연결하는 Resource Server   | `NEXT_PUBLIC_CHAT_API_URL`, `NEXT_PUBLIC_VOTE_API_URL`                                                      |
+| 로컬 화면 확인용 mock 전환 (선택)                  | `NEXT_PUBLIC_VOTE_TASK_API_MODE`, `NEXT_PUBLIC_VOTE_COMPLETED_API_MODE`                                     |
+| 앱 설치 배너와 강제 업데이트 (선택)                | `IOS_APP_STORE_URL`, `ANDROID_PLAY_STORE_URL`, `IOS_MINIMUM_BUILD_VERSION`, `ANDROID_MINIMUM_BUILD_VERSION` |
+| Universal Link·App Link 검증 (선택)                | `APPLE_TEAM_ID`, `IOS_BUNDLE_IDENTIFIER`, `ANDROID_PACKAGE_NAME`, `ANDROID_SHA256_CERT_FINGERPRINTS`        |
+| 푸시 토큰 저장 upstream (선택)                     | `PUSH_TOKEN_UPSTREAM_URL`                                                                                   |
+| 모바일 앱 scheme (`EXPO_PUBLIC_APP_SCHEME`과 일치) | `MOBILE_APP_SCHEME`                                                                                         |
+
+모바일 식별자, OAuth, 딥링크, 푸시 및 스토어 설정은 [`apps/mobile/README.md`](./apps/mobile/README.md)를 참고한다.
 
 `apps/web/next.config.ts`는 `output: "standalone"`을 사용한다. Nginx document root에 `.next`를 복사하는 방식이 아니라,
 Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 제공한다.
@@ -129,12 +157,30 @@ Next.js Node 프로세스가 `.next` 결과를 사용해 HTML/RSC/JS/CSS/API를 
 
 ## 아키텍처 문서
 
+공통
+
 - [WebView bridge](./docs/architecture/webview-bridge.md)
+- [Platform shell 사용법](./docs/architecture/platform-shell-usage.md)
 - [apps/web React component tree](./docs/architecture/react-component-tree.md)
+
+채팅
+
+- [REST client와 계약](./docs/architecture/chat-rest-client.md)
+- [실시간 세션](./docs/architecture/chat-realtime-session.md)
+- [메시지 admission control](./docs/architecture/chat-message-admission-control.md)
+- [메시지 publishing](./docs/architecture/chat-publishing.md)
+- [Room inbox](./docs/architecture/chat-room-inbox.md)
+
+계약과 테스트
+
+- [Platform 인증 계약](./docs/contracts/platform-auth.md)
+- [채팅방 export 계약](./docs/contracts/chat-room-export.md)
+- [Local E2E 인증 fixture](./docs/contracts/local-e2e-auth-fixture.md)
+- [채팅 E2E](./docs/testing/chat-e2e.md)
 
 ## CI
 
-GitHub Actions는 `main` 대상 pull request와 `main` push에서 다음 검증을 수행한다.
+GitHub Actions는 기본 브랜치인 `dev` 대상 pull request와 `dev` push에서 다음 검증을 수행한다.
 
 ```text
 pnpm install --frozen-lockfile
