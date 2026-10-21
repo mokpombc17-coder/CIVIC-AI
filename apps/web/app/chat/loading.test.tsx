@@ -4,10 +4,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const navigation = vi.hoisted(() => ({ pathname: "/chat" }));
 
 vi.mock("next/navigation", () => ({ usePathname: () => navigation.pathname }));
-vi.mock("@/components/chat-room-list-screen", () => ({
+vi.mock("@/components/chat/chat-room-list-screen", () => ({
   ChatRoomListScreen: () => <div data-loading-kind="list" />,
 }));
-vi.mock("@/components/chat-room-screen-loading", () => ({
+vi.mock("@/components/chat/chat-room-screen-loading", () => ({
   ChatRoomScreenLoading: () => <div data-loading-kind="room" />,
 }));
 

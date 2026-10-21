@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { RoomCreationRequestScreen } from "@/components/room-creation-request-screen";
+import { RoomCreationRequestScreen } from "@/components/chat/room-creation-request-screen";
 import { roomCreationRequestIdSchema } from "@/lib/chat/chat-room-contracts";
 
 type RoomCreationRequestPageProps = {

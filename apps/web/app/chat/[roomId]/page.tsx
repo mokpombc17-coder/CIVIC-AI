@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { ChatRoomScreen } from "@/components/chat-room-screen";
+import { ChatRoomScreen } from "@/components/chat/chat-room-screen";
 import { roomIdSchema } from "@/lib/chat/chat-room-contracts";
 
 type ChatRoomPageProps = {

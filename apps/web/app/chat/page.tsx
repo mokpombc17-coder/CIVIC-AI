@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
-import { ChatRoomListScreen } from "@/components/chat-room-list-screen";
-import { parseChatRoomInboxFilter } from "@/components/chat-room-inbox-filter";
+import { ChatRoomListScreen } from "@/components/chat/chat-room-list-screen";
+import { parseChatRoomInboxFilter } from "@/components/chat/chat-room-inbox-filter";
 
 export const metadata: Metadata = {
   title: "채팅",

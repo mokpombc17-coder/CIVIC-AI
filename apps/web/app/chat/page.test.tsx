@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import ChatPage from "./page";
 
-vi.mock("@/components/chat-room-list-screen", () => ({
+vi.mock("@/components/chat/chat-room-list-screen", () => ({
   ChatRoomListScreen: ({
     initialParticipatingRoomFilter,
   }: {

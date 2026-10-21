@@ -235,64 +235,64 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
         └── AuthenticationLifecycleBoundary [Client] [Boundary] (apps/web/components/authentication-lifecycle-boundary.tsx)
             └── children [slot: App Router가 route child를 제공]
               └── ChatLayout [Server] [Route] (apps/web/app/chat/layout.tsx)
-                └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat-query-provider.tsx)
-                    └── ChatAuthenticationBoundary [Client] [Boundary] (apps/web/components/chat-authentication-boundary.tsx)
-                        ├── [eligibility loading via ServiceEligibilityGuard] ChatRoomListLoading [Server-compatible] [View] (apps/web/components/chat-room-list-loading.tsx)
-                        ├── [authentication valid] ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat-realtime-provider.tsx)
-                        │   ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat-room-read-state-provider.tsx)
+                └── ChatQueryProvider [Client] [Provider] (apps/web/components/chat/chat-query-provider.tsx)
+                    └── ChatAuthenticationBoundary [Client] [Boundary] (apps/web/components/chat/chat-authentication-boundary.tsx)
+                        ├── [eligibility loading via ServiceEligibilityGuard] ChatRoomListLoading [Server-compatible] [View] (apps/web/components/chat/chat-room-list-loading.tsx)
+                        ├── [authentication valid] ChatRealtimeProvider [Client] [Provider] (apps/web/components/chat/chat-realtime-provider.tsx)
+                        │   ├── ChatRoomReadStateProvider [Client] [Provider] (apps/web/components/chat/chat-room-read-state-provider.tsx)
                         │   │   └── children [slot: nested page를 제공]
                         │   │       ├── [route segment loading] ChatLoading [Client] [Route] [pathname-aware] (apps/web/app/chat/loading.tsx)
                         │   │       │   ├── [list/non-room path] ChatRoomListScreen [Client] [Container] [cache-aware fallback]
                         │   │       │   └── [room detail path] ChatRoomScreenLoading [Server-compatible] [View]
                         │   │       ├── route /chat: ChatPage [Server] [Route] [filter searchParams] (apps/web/app/chat/page.tsx)
-                        │   │       │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat-room-list-screen.tsx)
-                        │   │       │       └── ChatRoomListView [Client] [View] (apps/web/components/chat-room-list-view.tsx)
+                        │   │       │   └── ChatRoomListScreen [Client] [Container] (apps/web/components/chat/chat-room-list-screen.tsx)
+                        │   │       │       └── ChatRoomListView [Client] [View] (apps/web/components/chat/chat-room-list-view.tsx)
                         │   │       │           └── PlatformShell [Server-compatible] [View] [scroll: self] (apps/web/components/platform-shell/platform-shell.tsx)
                         │   │       │               ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                        │   │       │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/public-room-search-form.tsx)
-                        │   │       │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/create-chat-room-form.tsx)
-                        │   │       │               │   └── RoomCreationRequestListContent [Client] [View] [request history view] (apps/web/components/room-creation-request-list-view.tsx)
-                        │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat-room-list-detail-dialog.tsx)
-                        │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/join-chat-room-control.tsx)
+                        │   │       │               ├── PublicRoomSearchForm [Client] [Feature] (apps/web/components/chat/public-room-search-form.tsx)
+                        │   │       │               ├── CreateChatRoomForm [Client] [Feature] [conditional, overlay] (apps/web/components/chat/create-chat-room-form.tsx)
+                        │   │       │               │   └── RoomCreationRequestListContent [Client] [View] [request history view] (apps/web/components/chat/room-creation-request-list-view.tsx)
+                        │   │       │               ├── ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay] (apps/web/components/chat/chat-room-list-detail-dialog.tsx)
+                        │   │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/chat/join-chat-room-control.tsx)
                         │   │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                          │   │       │                   ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │       │                   └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │       │                       └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                         │   │       ├── route /chat/creation-requests: LegacyRoomCreationRequestsPage [Server] [Redirect → /chat] (apps/web/app/chat/creation-requests/page.tsx)
                         │   │       ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
-                        │   │       │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/room-creation-request-screen.tsx)
-                        │   │       │       └── RoomCreationRequestView [Client] [View] (apps/web/components/room-creation-request-view.tsx)
+                        │   │       │   └── RoomCreationRequestScreen [Client] [Container] (apps/web/components/chat/room-creation-request-screen.tsx)
+                        │   │       │       └── RoomCreationRequestView [Client] [View] (apps/web/components/chat/room-creation-request-view.tsx)
                         │   │       └── route /chat/[roomId]: ChatRoomPage [Server] [Route] (apps/web/app/chat/[roomId]/page.tsx)
                         │   │           ├── [route segment loading] ChatRoomLoading [Server] [Route] (apps/web/app/chat/[roomId]/loading.tsx)
                         │   │           │   └── ChatRoomScreenLoading [Server-compatible] [View]
-                        │   │           └── ChatRoomScreen [Client] [Container] (apps/web/components/chat-room-screen.tsx)
-                        │   │               ├── ChatRoomView [Client] [View] (apps/web/components/chat-room-view.tsx)
+                        │   │           └── ChatRoomScreen [Client] [Container] (apps/web/components/chat/chat-room-screen.tsx)
+                        │   │               ├── ChatRoomView [Client] [View] (apps/web/components/chat/chat-room-view.tsx)
                         │   │               │   └── PlatformShell [Server-compatible] [View] [scroll: child] (apps/web/components/platform-shell/platform-shell.tsx)
                         │   │               │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
-                        │   │               │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat-room-entry-error.tsx)
-                        │   │               │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat-message-viewport.tsx)
+                        │   │               │       ├── ChatRoomEntryError [Server-compatible] [View] [conditional] (apps/web/components/chat/chat-room-entry-error.tsx)
+                        │   │               │       ├── ChatMessageViewport [Client] [Feature] (apps/web/components/chat/chat-message-viewport.tsx)
                         │   │               │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                          │   │               │           ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
                         │   │               │           └── PlatformNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                         │   │               │               └── PlatformBottomNavigation [Server-compatible] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
-                        │   │               ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat-room-session-status.tsx)
-                        │   │               ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat-realtime-sync-status.tsx)
-                        │   │               ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat-room-session-controls.tsx)
-                        │   │               │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat-message-composer.tsx)
-                        │   │               ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat-room-screen-overlays.tsx)
-                        │   │               ├── ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline] (apps/web/components/chat-room-screen-overlays.tsx)
-                        │   │               │   └── ChatRoomMessageSearchPanel [Client] [Feature] (apps/web/components/chat-room-message-search-dialog.tsx)
-                        │   │               └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat-room-screen-overlays.tsx)
-                        │   │                   ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat-message-actions-bottom-sheet.tsx)
-                        │   │                   └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat-room-membership-dialog.tsx)
-                        │   │                       └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat-room-membership-panel.tsx)
-                        │   │                           └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat-room-membership-panel.tsx)
-                        │   │                               └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat-room-settings-control.tsx)
-                        │   │                                   └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat-room-settings-control.tsx)
-                        │   │                                       └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat-room-settings-control.tsx)
-                        │   ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat-room-inbox-runtime.tsx)
-                        │   │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat-room-inbox-toast-list.tsx)
-                        │   └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat-realtime-diagnostics-panel.tsx)
+                        │   │               ├── ChatRoomSessionNotice [Client] [Feature] [conditional] (apps/web/components/chat/chat-room-session-status.tsx)
+                        │   │               ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] (apps/web/components/chat/chat-realtime-sync-status.tsx)
+                        │   │               ├── ChatRoomSessionControls [Client] [Feature] (apps/web/components/chat/chat-room-session-controls.tsx)
+                        │   │               │   └── ChatMessageComposer [Client] [Feature] (apps/web/components/chat/chat-message-composer.tsx)
+                        │   │               ├── ChatRoomScreenHeaderActions [Client] [View] (apps/web/components/chat/chat-room-screen-overlays.tsx)
+                        │   │               ├── ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline] (apps/web/components/chat/chat-room-screen-overlays.tsx)
+                        │   │               │   └── ChatRoomMessageSearchPanel [Client] [Feature] (apps/web/components/chat/chat-room-message-search-dialog.tsx)
+                        │   │               └── ChatRoomScreenOverlay [Client] [View] [conditional, single] (apps/web/components/chat/chat-room-screen-overlays.tsx)
+                        │   │                   ├── ChatMessageActionsBottomSheet [Client] [Feature] [conditional] (apps/web/components/chat/chat-message-actions-bottom-sheet.tsx)
+                        │   │                   └── ChatRoomMembershipDialog [Client] [Feature] [conditional] (apps/web/components/chat/chat-room-membership-dialog.tsx)
+                        │   │                       └── ChatRoomMembershipPanel [Client] [Container] (apps/web/components/chat/chat-room-membership-panel.tsx)
+                        │   │                           └── ChatRoomMembershipPanelView [Client] [View] (apps/web/components/chat/chat-room-membership-panel.tsx)
+                        │   │                               └── ChatRoomInformationSection [Client] [Feature] (apps/web/components/chat/chat-room-settings-control.tsx)
+                        │   │                                   └── ChatRoomSettingsControl [Client] [Container] [conditional, OWNER] (apps/web/components/chat/chat-room-settings-control.tsx)
+                        │   │                                       └── ChatRoomSettingsControlView [Client] [View] (apps/web/components/chat/chat-room-settings-control.tsx)
+                        │   ├── ChatRoomInboxRuntime [Client] [Runtime] (apps/web/components/chat/chat-room-inbox-runtime.tsx)
+                        │   │   └── ChatRoomInboxToastList [Client] [View] [conditional] (apps/web/components/chat/chat-room-inbox-toast-list.tsx)
+                        │   └── ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development] (apps/web/components/chat/chat-realtime-diagnostics-panel.tsx)
                         └── [HTTP 401] PlatformPageShell [Server-compatible] [View] (apps/web/components/platform-page-shell.tsx)
 ```
 
@@ -608,21 +608,21 @@ flowchart TD
     PlatformShellVisualViewportBoundary["PlatformShellVisualViewportBoundary [Client] [Runtime]<br/>apps/web/components/platform-shell/platform-shell-visual-viewport-boundary.tsx"]
 
     ChatLayout["ChatLayout [Server] [Route]<br/>apps/web/app/chat/layout.tsx"]
-    ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat-query-provider.tsx"]
-    ChatRealtimeProvider["ChatRealtimeProvider [Client] [Provider]<br/>apps/web/components/chat-realtime-provider.tsx"]
-    ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat-room-read-state-provider.tsx"]
-    ChatAuthenticationBoundary["ChatAuthenticationBoundary [Client] [Boundary]<br/>apps/web/components/chat-authentication-boundary.tsx"]
+    ChatQueryProvider["ChatQueryProvider [Client] [Provider]<br/>apps/web/components/chat/chat-query-provider.tsx"]
+    ChatRealtimeProvider["ChatRealtimeProvider [Client] [Provider]<br/>apps/web/components/chat/chat-realtime-provider.tsx"]
+    ChatRoomReadStateProvider["ChatRoomReadStateProvider [Client] [Provider]<br/>apps/web/components/chat/chat-room-read-state-provider.tsx"]
+    ChatAuthenticationBoundary["ChatAuthenticationBoundary [Client] [Boundary]<br/>apps/web/components/chat/chat-authentication-boundary.tsx"]
     ServiceEligibilityGuard["ServiceEligibilityGuard [Client] [Boundary]<br/>apps/web/components/service-eligibility-guard.tsx"]
     ChatLoading["ChatLoading [Client] [Route] [pathname-aware]<br/>apps/web/app/chat/loading.tsx"]
-    ChatRoomListLoading["ChatRoomListLoading [Server-compatible] [View]<br/>apps/web/components/chat-room-list-loading.tsx"]
-    ChatRoomScreenLoading["ChatRoomScreenLoading [Server-compatible] [View]<br/>apps/web/components/chat-room-screen-loading.tsx"]
-    ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat-realtime-diagnostics-panel.tsx"]
-    ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat-room-inbox-runtime.tsx"]
-    ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat-room-inbox-toast-list.tsx"]
+    ChatRoomListLoading["ChatRoomListLoading [Server-compatible] [View]<br/>apps/web/components/chat/chat-room-list-loading.tsx"]
+    ChatRoomScreenLoading["ChatRoomScreenLoading [Server-compatible] [View]<br/>apps/web/components/chat/chat-room-screen-loading.tsx"]
+    ChatRealtimeDiagnosticsPanel["ChatRealtimeDiagnosticsPanel [Client] [Feature] [conditional, development]<br/>apps/web/components/chat/chat-realtime-diagnostics-panel.tsx"]
+    ChatRoomInboxRuntime["ChatRoomInboxRuntime [Client] [Runtime]<br/>apps/web/components/chat/chat-room-inbox-runtime.tsx"]
+    ChatRoomInboxToastList["ChatRoomInboxToastList [Client] [View] [conditional]<br/>apps/web/components/chat/chat-room-inbox-toast-list.tsx"]
     ChatChildrenSlot["chat children slot<br/>nested page를 제공"]
     ChatPage["ChatPage [Server] [Route] [filter searchParams]<br/>apps/web/app/chat/page.tsx"]
-    ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat-room-list-screen.tsx"]
-    ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat-room-list-view.tsx"]
+    ChatRoomListScreen["ChatRoomListScreen [Client] [Container]<br/>apps/web/components/chat/chat-room-list-screen.tsx"]
+    ChatRoomListView["ChatRoomListView [Client] [View]<br/>apps/web/components/chat/chat-room-list-view.tsx"]
     ChatListPlatformShell["PlatformShell [Server-compatible] [View] [scroll: self]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
     ChatRoomPlatformShell["PlatformShell [Server-compatible] [View] [scroll: child]<br/>apps/web/components/platform-shell/platform-shell.tsx"]
     PlatformHeader["PlatformHeader [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-header.tsx"]
@@ -630,35 +630,35 @@ flowchart TD
     ParticipantSwipeNavigationController["ParticipantSwipeNavigationController [Client] [Adapter]<br/>apps/web/components/participant-swipe-navigation-controller.tsx"]
     PlatformNavigation["PlatformNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
     PlatformBottomNavigation["PlatformBottomNavigation [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
-    ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat-room-list-detail-dialog.tsx"]
-    PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/public-room-search-form.tsx"]
-    CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/create-chat-room-form.tsx"]
-    RoomCreationRequestListContent["RoomCreationRequestListContent [Client] [View]<br/>apps/web/components/room-creation-request-list-view.tsx"]
-    JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/join-chat-room-control.tsx"]
+    ChatRoomListDetailDialog["ChatRoomListDetailDialog [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat/chat-room-list-detail-dialog.tsx"]
+    PublicRoomSearchForm["PublicRoomSearchForm [Client] [Feature]<br/>apps/web/components/chat/public-room-search-form.tsx"]
+    CreateChatRoomForm["CreateChatRoomForm [Client] [Feature] [conditional, overlay]<br/>apps/web/components/chat/create-chat-room-form.tsx"]
+    RoomCreationRequestListContent["RoomCreationRequestListContent [Client] [View]<br/>apps/web/components/chat/room-creation-request-list-view.tsx"]
+    JoinChatRoomControl["JoinChatRoomControl [Client] [Feature] [repeated]<br/>apps/web/components/chat/join-chat-room-control.tsx"]
     LegacyRoomCreationRequestsPage["LegacyRoomCreationRequestsPage [Server] [Redirect → /chat]<br/>apps/web/app/chat/creation-requests/page.tsx"]
     RoomCreationRequestPage["RoomCreationRequestPage [Server] [Route]<br/>apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx"]
-    RoomCreationRequestScreen["RoomCreationRequestScreen [Client] [Container]<br/>apps/web/components/room-creation-request-screen.tsx"]
-    RoomCreationRequestView["RoomCreationRequestView [Client] [View]<br/>apps/web/components/room-creation-request-view.tsx"]
+    RoomCreationRequestScreen["RoomCreationRequestScreen [Client] [Container]<br/>apps/web/components/chat/room-creation-request-screen.tsx"]
+    RoomCreationRequestView["RoomCreationRequestView [Client] [View]<br/>apps/web/components/chat/room-creation-request-view.tsx"]
     ChatRoomPage["ChatRoomPage [Server] [Route]<br/>apps/web/app/chat/[roomId]/page.tsx"]
-    ChatRoomScreen["ChatRoomScreen [Client] [Container]<br/>apps/web/components/chat-room-screen.tsx"]
-    ChatRoomView["ChatRoomView [Client] [View]<br/>apps/web/components/chat-room-view.tsx"]
-    ChatRoomEntryError["ChatRoomEntryError [Server-compatible] [View] [conditional]<br/>apps/web/components/chat-room-entry-error.tsx"]
-    ChatMessageViewport["ChatMessageViewport [Client] [Feature]<br/>apps/web/components/chat-message-viewport.tsx"]
-    ChatRoomScreenHeaderActions["ChatRoomScreenHeaderActions [Client] [View]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
-    ChatRoomScreenMessageSearchPanel["ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
-    ChatRoomScreenOverlay["ChatRoomScreenOverlay [Client] [View] [conditional, single]<br/>apps/web/components/chat-room-screen-overlays.tsx"]
-    ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single]<br/>apps/web/components/chat-message-actions-bottom-sheet.tsx"]
-    ChatRoomMessageSearchPanel["ChatRoomMessageSearchPanel [Client] [Feature] [conditional, inline]<br/>apps/web/components/chat-room-message-search-dialog.tsx"]
-    ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-membership-dialog.tsx"]
-    ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat-room-membership-panel.tsx"]
-    ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat-room-membership-panel.tsx"]
-    ChatRoomInformationSection["ChatRoomInformationSection [Client] [Feature]<br/>apps/web/components/chat-room-settings-control.tsx"]
-    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional, OWNER]<br/>apps/web/components/chat-room-settings-control.tsx"]
-    ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat-room-settings-control.tsx"]
-    ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat-realtime-sync-status.tsx"]
-    ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat-room-session-controls.tsx"]
-    ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [Feature] [conditional]<br/>apps/web/components/chat-room-session-status.tsx"]
-    ChatMessageComposer["ChatMessageComposer [Client] [Feature]<br/>apps/web/components/chat-message-composer.tsx"]
+    ChatRoomScreen["ChatRoomScreen [Client] [Container]<br/>apps/web/components/chat/chat-room-screen.tsx"]
+    ChatRoomView["ChatRoomView [Client] [View]<br/>apps/web/components/chat/chat-room-view.tsx"]
+    ChatRoomEntryError["ChatRoomEntryError [Server-compatible] [View] [conditional]<br/>apps/web/components/chat/chat-room-entry-error.tsx"]
+    ChatMessageViewport["ChatMessageViewport [Client] [Feature]<br/>apps/web/components/chat/chat-message-viewport.tsx"]
+    ChatRoomScreenHeaderActions["ChatRoomScreenHeaderActions [Client] [View]<br/>apps/web/components/chat/chat-room-screen-overlays.tsx"]
+    ChatRoomScreenMessageSearchPanel["ChatRoomScreenMessageSearchPanel [Client] [View] [conditional, inline]<br/>apps/web/components/chat/chat-room-screen-overlays.tsx"]
+    ChatRoomScreenOverlay["ChatRoomScreenOverlay [Client] [View] [conditional, single]<br/>apps/web/components/chat/chat-room-screen-overlays.tsx"]
+    ChatMessageActionsBottomSheet["ChatMessageActionsBottomSheet [Client] [Feature] [conditional, single]<br/>apps/web/components/chat/chat-message-actions-bottom-sheet.tsx"]
+    ChatRoomMessageSearchPanel["ChatRoomMessageSearchPanel [Client] [Feature] [conditional, inline]<br/>apps/web/components/chat/chat-room-message-search-dialog.tsx"]
+    ChatRoomMembershipDialog["ChatRoomMembershipDialog [Client] [Feature] [conditional]<br/>apps/web/components/chat/chat-room-membership-dialog.tsx"]
+    ChatRoomMembershipPanel["ChatRoomMembershipPanel [Client] [Container]<br/>apps/web/components/chat/chat-room-membership-panel.tsx"]
+    ChatRoomMembershipPanelView["ChatRoomMembershipPanelView [Client] [View]<br/>apps/web/components/chat/chat-room-membership-panel.tsx"]
+    ChatRoomInformationSection["ChatRoomInformationSection [Client] [Feature]<br/>apps/web/components/chat/chat-room-settings-control.tsx"]
+    ChatRoomSettingsControl["ChatRoomSettingsControl [Client] [Container] [conditional, OWNER]<br/>apps/web/components/chat/chat-room-settings-control.tsx"]
+    ChatRoomSettingsControlView["ChatRoomSettingsControlView [Client] [View]<br/>apps/web/components/chat/chat-room-settings-control.tsx"]
+    ChatRealtimeSyncStatus["ChatRealtimeSyncStatus [Client] [Feature] [conditional]<br/>apps/web/components/chat/chat-realtime-sync-status.tsx"]
+    ChatRoomSessionControls["ChatRoomSessionControls [Client] [Feature]<br/>apps/web/components/chat/chat-room-session-controls.tsx"]
+    ChatRoomSessionNotice["ChatRoomSessionNotice [Client] [Feature] [conditional]<br/>apps/web/components/chat/chat-room-session-status.tsx"]
+    ChatMessageComposer["ChatMessageComposer [Client] [Feature]<br/>apps/web/components/chat/chat-message-composer.tsx"]
 
     VoteLayout["VoteLayout [Server] [Route]<br/>apps/web/app/vote/layout.tsx"]
     VoteQueryProvider["VoteQueryProvider [Client] [Provider]<br/>apps/web/components/vote/vote-query-provider.tsx"]

@@ -1,8 +1,8 @@
 "use client";
 
 import { usePathname } from "next/navigation";
-import { ChatRoomListScreen } from "@/components/chat-room-list-screen";
-import { ChatRoomScreenLoading } from "@/components/chat-room-screen-loading";
+import { ChatRoomListScreen } from "@/components/chat/chat-room-list-screen";
+import { ChatRoomScreenLoading } from "@/components/chat/chat-room-screen-loading";
 
 export default function ChatLoading() {
   const pathname = usePathname();
