@@ -37,6 +37,13 @@ const consoleGridTheme = themeQuartz.withParams({
 
 export type ConsoleColumn<T> = ColDef<T>;
 
+// AG Grid keeps an already-visible template overlay as is, so a string template
+// would stay on its first text (e.g. a loading message). A component overlay is
+// refreshed with new params whenever emptyText changes.
+function ConsoleEmptyOverlay({ text }: Readonly<{ text: string }>) {
+  return <span className="console-status">{text}</span>;
+}
+
 export function ConsoleDataGrid<T>({
   rowData,
   columnDefs,
@@ -79,6 +86,7 @@ export function ConsoleDataGrid<T>({
     }),
     [],
   );
+  const emptyOverlayParams = useMemo(() => ({ text: emptyText }), [emptyText]);
   const rowClassRules = useMemo<RowClassRules<T>>(
     () => ({
       "is-console-selected": (params) =>
@@ -105,7 +113,8 @@ export function ConsoleDataGrid<T>({
         onRowClicked={(event: RowClickedEvent<T>) => {
           if (event.data && onRowClicked) onRowClicked(event.data);
         }}
-        overlayNoRowsTemplate={`<span class="console-status">${emptyText}</span>`}
+        noRowsOverlayComponent={ConsoleEmptyOverlay}
+        noRowsOverlayComponentParams={emptyOverlayParams}
         rowClassRules={rowClassRules}
         rowData={rowData as T[]}
         rowHeight={44}
