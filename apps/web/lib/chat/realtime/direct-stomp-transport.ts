@@ -1061,7 +1061,7 @@ export class DirectStompTransport implements ChatRealtimeTransport {
   }
 
   private handleSubscriptionSetupFailure(cause: unknown): void {
-    const message = getSubscriptionErrorMessage(cause, "채팅 STOMP 구독을 설정하지 못했습니다.");
+    const message = getSubscriptionErrorMessage(cause, "토론방 STOMP 구독을 설정하지 못했습니다.");
     const roomId = this.roomSnapshot.roomId;
 
     if (roomId) {

@@ -1104,6 +1104,35 @@ describe("DirectStompTransport", () => {
     ).toThrow("현재 탭의 토론방 동기화가 완료되지 않아");
   });
 
+  it("Direct fallback 방 구독 설정 실패 기본 문구는 SharedWorker와 같은 토론방 문구를 사용한다", () => {
+    const client = createFakeClient();
+    const transport = new DirectStompTransport(client);
+    const expectedMessage = "토론방 STOMP 구독을 설정하지 못했습니다.";
+
+    transport.attach();
+    client.onConnect({} as IFrame);
+    vi.mocked(client.subscribe).mockImplementationOnce(() => {
+      throw new Error("");
+    });
+    transport.claimRoom("room-01");
+
+    expect(transport.getRoomSnapshot()).toMatchObject({
+      status: "error",
+      roomId: "room-01",
+      error: {
+        code: "SUBSCRIPTION_SETUP_FAILED",
+        message: expectedMessage,
+      },
+    });
+    expect(transport.getSnapshot()).toMatchObject({
+      status: "error",
+      error: {
+        source: "stomp",
+        message: expectedMessage,
+      },
+    });
+  });
+
   it("유효하지 않은 roomId는 Direct fallback에서도 로컬 오류로 거절한다", () => {
     const transport = new DirectStompTransport(createFakeClient());
 
