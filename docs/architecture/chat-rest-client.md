@@ -38,7 +38,7 @@ TanStack Query hook
 
 ### REST 계약
 
-`chat-room-contracts.ts`가 다음 계약을 한 곳에서 소유한다.
+`chat-room-contracts.ts`가 다음 계약의 단일 import 경로를 제공한다.
 
 - 방·멤버십 공통 enum
 - 방 생성 및 target user 요청
@@ -46,6 +46,17 @@ TanStack Query hook
 - cursor pagination 응답
 - 방 Command 성공 응답 code와 version
 - 채팅 메시지와 최신·과거·복구 이력 응답
+
+실제 schema는 `lib/chat/contracts/`에서 도메인별로 정의하고 `chat-room-contracts.ts`가 다시
+export한다. 의존 방향은 primitives → membership → room core → room creation request이며,
+message와 read state는 primitives에만 의존한다.
+
+- `chat-contract-primitives.ts`: ID, version, Instant, sequence, cursor page와 Command 응답 공통 필드
+- `chat-membership-contracts.ts`: 멤버십, 참여 이력, 멤버십 Command 응답
+- `chat-room-core-contracts.ts`: 방 설정·카테고리, 목록·상세·inbox, 방 설정·종료 Command 응답
+- `chat-room-creation-request-contracts.ts`: 방 생성 요청 상태와 응답
+- `chat-message-contracts.ts`: 메시지 content, 메시지 snapshot, 검색·context·이력 응답
+- `chat-read-state-contracts.ts`: 읽음 위치 갱신과 Read Receipt 상태
 
 서버가 반환하는 `Instant`는 timezone offset이 있는 ISO-8601 문자열로 검증한다. cursor는
 해석하지 않는 opaque 문자열이며 다음 요청에 URL encoding하여 그대로 전달한다.
