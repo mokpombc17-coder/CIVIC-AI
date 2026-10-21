@@ -44,7 +44,8 @@ describe("admin chat conversation insights", () => {
     );
     expect(html).toContain('aria-label="분석 기간"');
     expect(html).toContain('aria-pressed="true"');
-    expect(html).toContain(">전체 기간</button>");
+    expect(html).toContain(">최근 한 달</button>");
+    expect(html).not.toContain(">전체 기간</button>");
     expect(html).not.toContain("개설 이후의 전체 대화를 자동으로 표시합니다");
     expect(html).not.toContain('href="/admin/chat/export"');
     expect(html).not.toContain("Export 요청·분석");
@@ -114,17 +115,32 @@ describe("admin chat conversation insights", () => {
     expect(html).toContain("alpha@civic.test");
   });
 
-  it("전체 기간은 토론방 개설 시각부터 현재까지로 계산한다", () => {
+  it("최근 한 달은 현재 기준 30일 전부터 현재까지로 계산한다", () => {
     const range = resolveConversationAnalysisRange({
-      createdAt: "2026-08-01T00:00:00.000Z",
+      createdAt: "2026-06-01T00:00:00.000Z",
       fromLocal: "",
       now: new Date("2026-08-30T09:00:00.000Z"),
-      period: "all",
+      period: "recentMonth",
       toLocal: "",
     });
 
     expect(range).toEqual({
-      fromInclusive: "2026-08-01T00:00:00.000Z",
+      fromInclusive: "2026-07-31T09:00:00.000Z",
+      toExclusive: "2026-08-30T09:00:00.000Z",
+    });
+  });
+
+  it("개설 30일 이내 토론방의 최근 한 달은 개설 시각부터 계산한다", () => {
+    const range = resolveConversationAnalysisRange({
+      createdAt: "2026-08-20T00:00:00.000Z",
+      fromLocal: "",
+      now: new Date("2026-08-30T09:00:00.000Z"),
+      period: "recentMonth",
+      toLocal: "",
+    });
+
+    expect(range).toEqual({
+      fromInclusive: "2026-08-20T00:00:00.000Z",
       toExclusive: "2026-08-30T09:00:00.000Z",
     });
   });

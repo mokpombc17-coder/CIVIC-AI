@@ -50,7 +50,7 @@ import { fetchConversationExportWithRetry } from "@/lib/chat/conversation-export
 import type { ScreenDefinition } from "@/lib/screens/registry";
 import styles from "./admin-chat-insights.module.css";
 
-export type AnalysisPeriod = "all" | "custom";
+export type AnalysisPeriod = "recentMonth" | "custom";
 export type ChatInsightsTab = "analysis" | "statistics";
 
 export function chatInsightsTabForScreen(screenId: string): ChatInsightsTab {
@@ -111,7 +111,7 @@ export function AdminChatInsightsScreen({
   } | null>(null);
   const [roomToClose, setRoomToClose] = useState<AdminRoom | null>(null);
   const [closingRoom, setClosingRoom] = useState(false);
-  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod>("all");
+  const [analysisPeriod, setAnalysisPeriod] = useState<AnalysisPeriod>("recentMonth");
   const [fromLocal, setFromLocal] = useState("");
   const [toLocal, setToLocal] = useState("");
   const [analysis, setAnalysis] = useState<ConversationExportAnalysis | null>(null);
@@ -274,7 +274,7 @@ export function AdminChatInsightsScreen({
     if (!selectedRoomId || !analysisRange) return;
     const timer = window.setTimeout(
       () => void loadAnalysis(selectedRoomId, analysisRange),
-      analysisPeriod === "all" ? 0 : 400,
+      analysisPeriod === "recentMonth" ? 0 : 400,
     );
     return () => {
       window.clearTimeout(timer);
@@ -551,8 +551,8 @@ export function AdminChatInsightsScreen({
               <p aria-live="polite" className={styles.statusMessage} role="status">
                 {analysisRetryCount > 0
                   ? `대화 내역을 불러오는 서버의 응답을 기다리며 자동 재시도하고 있습니다. (${analysisRetryCount}번째)`
-                  : analysisPeriod === "all"
-                    ? "전체 기간의 대화 내역을 불러오고 있습니다."
+                  : analysisPeriod === "recentMonth"
+                    ? "최근 한 달의 대화 내역을 불러오고 있습니다."
                     : "선택한 기간의 대화 내역을 불러오고 있습니다."}
               </p>
             ) : null}
@@ -631,12 +631,12 @@ function AnalysisRangeControls({
         <div className={styles.rangeActions}>
           <div aria-label="분석 기간" className={styles.periodPicker} role="group">
             <button
-              aria-pressed={period === "all"}
+              aria-pressed={period === "recentMonth"}
               disabled={!selectedRoom || closingRoom}
-              onClick={() => onPeriodChange("all")}
+              onClick={() => onPeriodChange("recentMonth")}
               type="button"
             >
-              전체 기간
+              최근 한 달
             </button>
             <button
               aria-pressed={period === "custom"}
@@ -928,7 +928,7 @@ function EmptyAnalysis({ selected }: Readonly<{ selected: boolean }>) {
       <h2>{selected ? "대화 내역을 준비하고 있습니다" : "목록에서 토론방을 선택하세요."}</h2>
       <p>
         {selected
-          ? "전체 기간 대화를 불러와 분석 결과를 자동으로 표시합니다."
+          ? "최근 한 달 대화를 불러와 분석 결과를 자동으로 표시합니다."
           : "토론방을 선택하면 대화 내역을 불러옵니다."}
       </p>
     </section>
@@ -945,6 +945,8 @@ function screenTitle(screenId: string): string {
   if (screenId === "A-CHAT-008") return "채팅 통계";
   return "토론방 운영";
 }
+
+const RECENT_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 function defaultCustomLocalRange(roomCreatedAt?: string): Readonly<{ from: string; to: string }> {
   const to = new Date();
@@ -982,9 +984,12 @@ export function resolveConversationAnalysisRange({
   toLocal: string;
 }>) {
   if (period === "custom") return utcRange(fromLocal, toLocal);
-  const from = new Date(createdAt);
-  if (!Number.isFinite(from.getTime()) || !Number.isFinite(now.getTime()) || from >= now)
+  const created = new Date(createdAt);
+  if (!Number.isFinite(created.getTime()) || !Number.isFinite(now.getTime()) || created >= now)
     return null;
+  // Chat export rejects ranges longer than its configured limit (31 days by default).
+  const recent = new Date(now.getTime() - RECENT_MONTH_MS);
+  const from = created > recent ? created : recent;
   return { fromInclusive: from.toISOString(), toExclusive: now.toISOString() };
 }
 
