@@ -190,6 +190,41 @@ class AdminUserControllerTest extends PostgresIntegrationTest {
     }
 
     @Test
+    void userDirectoryServesNumberedPagesWithTotalPages() throws Exception {
+        var credential = bootstrapAdministratorCredential();
+        var marker = "numbered-" + UUID.randomUUID().toString().substring(0, 8);
+        var inserted = new java.util.HashSet<String>();
+        for (var index = 0; index < 45; index++) inserted.add(insertUser(marker + "-" + index + "@example.test", "ACTIVE"));
+
+        var seen = new java.util.ArrayList<String>();
+        for (var page = 1; page <= 3; page++) {
+            var body = json.readTree(mvc.perform(get("/api/v1/admin/users")
+                            .param("query", marker)
+                            .param("page", String.valueOf(page))
+                            .param("page_size", "20")
+                            .cookie(new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken())))
+                    .andExpect(status().isOk())
+                    .andReturn().getResponse().getContentAsString());
+            assertThat(body.get("total").asLong()).isEqualTo(45);
+            assertThat(body.get("page").asInt()).isEqualTo(page);
+            assertThat(body.get("page_size").asInt()).isEqualTo(20);
+            assertThat(body.get("total_pages").asInt()).isEqualTo(3);
+            assertThat(body.get("next_cursor").isNull()).isTrue();
+            assertThat(body.get("items")).hasSize(page < 3 ? 20 : 5);
+            body.get("items").forEach(item -> seen.add(item.get("user_id").asText()));
+        }
+        assertThat(seen).doesNotHaveDuplicates();
+        assertThat(new java.util.HashSet<>(seen)).isEqualTo(inserted);
+
+        var cookie = new Cookie(AuthCookieFactory.ACCESS_TOKEN_COOKIE, credential.accessToken());
+        mvc.perform(get("/api/v1/admin/users").param("page", "0").cookie(cookie)).andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/admin/users").param("page", "1").param("page_size", "201").cookie(cookie))
+                .andExpect(status().isBadRequest());
+        mvc.perform(get("/api/v1/admin/users").param("page", "1").param("cursor", "abc").cookie(cookie))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     void userDirectoryFiltersByStatusOnTheServer() throws Exception {
         var credential = bootstrapAdministratorCredential();
         var marker = "status-" + UUID.randomUUID().toString().substring(0, 8);

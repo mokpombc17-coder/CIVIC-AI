@@ -57,10 +57,22 @@ public class AdminUserController {
             @RequestParam(value = "query", defaultValue = "") String query,
             @RequestParam(value = "status", defaultValue = "all") String status,
             @RequestParam(value = "limit", defaultValue = "" + DEFAULT_PAGE_SIZE) int limit,
-            @RequestParam(value = "cursor", required = false) String cursor) {
+            @RequestParam(value = "cursor", required = false) String cursor,
+            @RequestParam(value = "page", required = false) Integer pageNumber,
+            @RequestParam(value = "page_size", required = false) Integer pageSize) {
         authorization.requireAdmin(accessToken, true);
+        // Page mode (page/page_size, offset) serves numbered paging; cursor mode (limit/cursor) is kept
+        // for clients that append pages.
+        var pageMode = pageNumber != null;
+        if (pageMode && cursor != null && !cursor.isBlank()) {
+            throw new AdminRequestValidationException("page and cursor cannot be combined");
+        }
+        if (pageMode && pageNumber < 1) {
+            throw new AdminRequestValidationException("page must be 1 or greater");
+        }
+        if (pageMode) limit = pageSize == null ? DEFAULT_PAGE_SIZE : pageSize;
         if (limit < 1 || limit > MAX_PAGE_SIZE) {
-            throw new AdminRequestValidationException("limit must be between 1 and " + MAX_PAGE_SIZE);
+            throw new AdminRequestValidationException("page size must be between 1 and " + MAX_PAGE_SIZE);
         }
         var normalized = query.strip().toLowerCase(java.util.Locale.ROOT);
         var filter = new StringBuilder("(? = '' or u.normalized_email like '%' || ? || '%')")
@@ -79,6 +91,7 @@ public class AdminUserController {
             pageArgs.add(position.userId());
         }
         pageArgs.add(limit + 1);
+        pageArgs.add(pageMode ? (long) (pageNumber - 1) * limit : 0L);
         var rows = jdbc.query("""
                 select u.id, u.email, u.state, u.row_version, u.created_at, c.must_change_password,
                        u.email_verified_at, coalesce(max(t.last_used_at), u.updated_at) as last_activity_at
@@ -86,7 +99,7 @@ public class AdminUserController {
                 left join refresh_tokens t on t.user_id = u.id
                 where %s
                 group by u.id, c.must_change_password
-                order by u.created_at desc, u.id desc limit ?
+                order by u.created_at desc, u.id desc limit ? offset ?
                 """.formatted(pageFilter), (rs, rowNum) -> new PageRow(
                 new UserCursor(rs.getTimestamp("created_at").toInstant(), rs.getObject("id", UUID.class)),
                 view(rs.getObject("id", UUID.class), rs.getString("email"), rs.getString("state"),
@@ -95,9 +108,15 @@ public class AdminUserController {
                 pageArgs.toArray());
         var hasMore = rows.size() > limit;
         var page = hasMore ? rows.subList(0, limit) : rows;
-        var nextCursor = hasMore ? page.getLast().position().encode() : null;
+        var nextCursor = hasMore && !pageMode ? page.getLast().position().encode() : null;
+        var totalCount = total == null ? 0 : total;
         return ResponseEntity.ok().cacheControl(CacheControl.noStore().cachePrivate()).body(new UserPage(
-                page.stream().map(PageRow::user).toList(), total == null ? 0 : total, nextCursor));
+                page.stream().map(PageRow::user).toList(),
+                totalCount,
+                nextCursor,
+                pageMode ? pageNumber : null,
+                pageMode ? limit : null,
+                pageMode ? (int) ((totalCount + limit - 1) / limit) : null));
     }
 
     private static String statusCondition(String status) {
@@ -181,7 +200,13 @@ public class AdminUserController {
             long rowVersion,
             String reason,
             boolean impactConfirmed) {}
-    record UserPage(List<AdminUserView> items, long total, String nextCursor) {}
+    record UserPage(
+            List<AdminUserView> items,
+            long total,
+            String nextCursor,
+            Integer page,
+            Integer pageSize,
+            Integer totalPages) {}
 
     private record PageRow(UserCursor position, AdminUserView user) {}
 
