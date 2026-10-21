@@ -70,12 +70,6 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
   const [headerBackAction, setHeaderBackAction] = useState<PlatformHeaderBackAction | null>(null);
   const [headerProgress, setHeaderProgress] = useState<SurveyHeaderProgressState | null>(null);
   const [submissionResult, setSubmissionResult] = useState<SubmissionResponse | null>(null);
-  const updateHeaderBackAction = useCallback((action: PlatformHeaderBackAction | null) => {
-    setHeaderBackAction(action);
-  }, []);
-  const updateHeaderProgress = useCallback((progress: SurveyHeaderProgressState | null) => {
-    setHeaderProgress(progress);
-  }, []);
   const handleSubmitted = useCallback((result: SubmissionResponse) => {
     setHeaderBackAction(null);
     setHeaderProgress(null);
@@ -186,8 +180,8 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
                 contentVersionId={surveyQuery.data.contentVersionId}
                 failureAnalytics={failureAnalytics}
                 key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
-                onHeaderBackActionChange={updateHeaderBackAction}
-                onHeaderProgressChange={updateHeaderProgress}
+                onHeaderBackActionChange={setHeaderBackAction}
+                onHeaderProgressChange={setHeaderProgress}
                 onRefresh={() => void surveyQuery.refetch()}
                 onSubmitted={handleSubmitted}
                 roundId={surveyQuery.data.roundId}
@@ -302,6 +296,7 @@ export function SurveyForm({
     );
     headerProgressVisibleRef.current = false;
     onHeaderProgressChange(null);
+    // header 진행도는 totalSteps를 담고 있어 단계 구성이 바뀌면 함께 초기화함
   }, [currentStep, goToPreviousStep, onHeaderBackActionChange, onHeaderProgressChange, totalSteps]);
 
   useEffect(
