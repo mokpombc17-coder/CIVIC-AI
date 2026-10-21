@@ -6,6 +6,13 @@ import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operati
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { RoomCategorySelector } from "@/components/admin/room-category-selector";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import {
+  ConsolePager,
+  DEFAULT_CONSOLE_PAGE_SIZE,
+  useConsoleClientPage,
+  useConsoleCursorPages,
+  type ConsolePageSize,
+} from "@/components/admin/console/console-pager";
 import { ConsoleModal } from "@/components/admin/console/console-modal";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -36,7 +43,12 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   const [listedRooms, setListedRooms] = useState<readonly ListedRoom[]>([]);
   const [newName, setNewName] = useState("");
   const [roomQuery, setRoomQuery] = useState("");
-  const [roomNextCursor, setRoomNextCursor] = useState<string | null>(null);
+  const roomPaging = useConsoleCursorPages();
+  const commitListedRoomPage = roomPaging.commit;
+  const listedRoomPageSize = useRef<ConsolePageSize>(roomPaging.pageSize);
+  useEffect(() => {
+    listedRoomPageSize.current = roomPaging.pageSize;
+  }, [roomPaging.pageSize]);
   const [roomHasNext, setRoomHasNext] = useState(false);
   const [room, setRoom] = useState<RoomDetailCategorySnapshot | null>(null);
   const [selectedRoomName, setSelectedRoomName] = useState("");
@@ -91,15 +103,20 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   }, []);
 
   const loadListedRooms = useCallback(
-    async (query = "", cursor: string | null = null, append = false) => {
+    async (
+      query = "",
+      cursor: string | null = null,
+      target: Readonly<{ page: number; pageSize: ConsolePageSize }> = {
+        page: 1,
+        pageSize: DEFAULT_CONSOLE_PAGE_SIZE,
+      },
+    ) => {
       const currentGeneration = ++roomListGeneration.current;
+      const append = cursor !== null;
       setRoomsLoading(true);
       setRoomListMessage("");
-      if (!append) {
-        setRoomNextCursor(null);
-        setRoomHasNext(false);
-      }
-      const parameters = new URLSearchParams({ limit: "50" });
+      if (!append) setRoomHasNext(false);
+      const parameters = new URLSearchParams({ limit: String(target.pageSize) });
       const normalizedQuery = query.trim();
       if (normalizedQuery) parameters.set("query", normalizedQuery);
       if (cursor) parameters.set("cursor", cursor);
@@ -123,9 +140,9 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
           setRoomListMessage("서버의 토론방 목록 응답 형식을 확인해야 합니다.");
           return;
         }
-        setListedRooms((current) => (append ? mergeListedRooms(current, page.items) : page.items));
-        setRoomNextCursor(page.nextCursor);
+        setListedRooms(page.items);
         setRoomHasNext(page.hasNext);
+        commitListedRoomPage(target.page, target.pageSize, page.hasNext ? page.nextCursor : null);
       } catch {
         if (currentGeneration === roomListGeneration.current) {
           if (!append) setListedRooms([]);
@@ -135,7 +152,7 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
         if (currentGeneration === roomListGeneration.current) setRoomsLoading(false);
       }
     },
-    [],
+    [commitListedRoomPage],
   );
 
   useEffect(() => {
@@ -146,7 +163,11 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
   useEffect(() => {
     const normalizedQuery = roomQuery.trim();
     const timer = window.setTimeout(
-      () => void loadListedRooms(normalizedQuery),
+      () =>
+        void loadListedRooms(normalizedQuery, null, {
+          page: 1,
+          pageSize: listedRoomPageSize.current,
+        }),
       normalizedQuery ? 200 : 0,
     );
     return () => {
@@ -442,7 +463,10 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
 
           <ConsolePane
             ariaLabel="토론방 카테고리 교체"
-            subtitle={listCountLabel({ shown: visibleListedRooms.length, hasMore: roomHasNext })}
+            subtitle={listCountLabel({
+              shown: visibleListedRooms.length,
+              hasMore: roomHasNext || roomPaging.page > 1,
+            })}
             title="토론방 카테고리 교체"
           >
             <form
@@ -457,7 +481,6 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
                 onChange={(value) => {
                   roomListGeneration.current += 1;
                   setRoomQuery(value);
-                  setRoomNextCursor(null);
                   setRoomHasNext(false);
                   setRoomsLoading(true);
                 }}
@@ -473,16 +496,24 @@ export function AdminRoomCategoryScreen({ screen }: Readonly<{ screen: ScreenDef
               onSelect={selectListedRoom}
               selectedRoomId={room?.roomId ?? null}
             />
-            {roomHasNext && roomNextCursor ? (
-              <button
-                className="wf-button wf-button-secondary civic-load-more"
-                disabled={roomsLoading || pending}
-                onClick={() => void loadListedRooms(roomQuery.trim(), roomNextCursor, true)}
-                type="button"
-              >
-                더 불러오기
-              </button>
-            ) : null}
+            <ConsolePager
+              ariaLabel="토론방 카테고리 교체 목록 페이지 이동"
+              disabled={roomsLoading || pending}
+              hasNext={roomHasNext}
+              onPageChange={(page) =>
+                void loadListedRooms(roomQuery.trim(), roomPaging.cursorForPage(page), {
+                  page,
+                  pageSize: roomPaging.pageSize,
+                })
+              }
+              onPageSizeChange={(pageSize) =>
+                void loadListedRooms(roomQuery.trim(), null, { page: 1, pageSize })
+              }
+              page={roomPaging.page}
+              pageSize={roomPaging.pageSize}
+              shown={listedRooms.length}
+              total={null}
+            />
             {roomsLoading ? <ConsoleStatus>토론방 목록을 불러오는 중입니다.</ConsoleStatus> : null}
             {roomListMessage ? (
               <p aria-live="polite" className="civic-form-message" role="status">
@@ -741,23 +772,18 @@ function CategoryGrid({
     ],
     [onDelete, onEdit, pending],
   );
+  const categoryPage = useConsoleClientPage(categories);
   return (
-    <ConsoleDataGrid
-      ariaLabel="카테고리 목록 표"
-      columnDefs={columns}
-      emptyText="등록된 카테고리가 없습니다."
-      getRowId={(category) => category.categoryId}
-      height={460}
-      rowData={categories}
-    />
+    <>
+      <ConsoleDataGrid
+        ariaLabel="카테고리 목록 표"
+        columnDefs={columns}
+        emptyText="등록된 카테고리가 없습니다."
+        getRowId={(category) => category.categoryId}
+        height={460}
+        rowData={categoryPage.pageItems}
+      />
+      <ConsolePager ariaLabel="카테고리 목록 페이지 이동" unit="개" {...categoryPage.pagerProps} />
+    </>
   );
-}
-
-function mergeListedRooms(
-  current: readonly ListedRoom[],
-  incoming: readonly ListedRoom[],
-): readonly ListedRoom[] {
-  const merged = new Map(current.map((room) => [room.roomId, room]));
-  for (const room of incoming) merged.set(room.roomId, room);
-  return [...merged.values()];
 }

@@ -21,6 +21,8 @@ let replacedRoomBody: Record<string, unknown> | null = null;
 let removeCategoryOnNextPatch = false;
 let listedRoomQueries: string[] = [];
 let adminRooms = adminRoomFixtures();
+let pagedAdminRooms = false;
+let adminRoomRequests: URLSearchParams[] = [];
 let closeRoomIdempotencyKey: string | null = null;
 let closeRoomBody = "";
 let createdTaskIdempotencyKey: string | null = null;
@@ -108,6 +110,16 @@ test.beforeAll(async () => {
         ],
         nextCursor: null,
         hasNext: false,
+      });
+    }
+    if (url.pathname === "/api/v1/admin/rooms" && request.method === "GET" && pagedAdminRooms) {
+      // One room per page: the second page is only reachable through the cursor.
+      adminRoomRequests.push(url.searchParams);
+      const second = url.searchParams.get("cursor") === "rooms-page-2";
+      return json(response, {
+        items: [adminRooms[second ? 1 : 0]],
+        nextCursor: second ? null : "rooms-page-2",
+        hasNext: !second,
       });
     }
     if (url.pathname === "/api/v1/admin/rooms" && request.method === "GET") {
@@ -493,6 +505,45 @@ test("채팅 관리자는 일반 방 목록의 수정 버튼으로 현재 versio
     categoryIds: [policyCategoryId, "category-local"],
     expectedVersion: 7,
   });
+});
+
+test("토론방 목록은 커서 응답을 이전·다음 페이지로 이동한다", async ({ context, page }) => {
+  pagedAdminRooms = true;
+  adminRoomRequests = [];
+  try {
+    await authenticate(context);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.goto("/admin/chat");
+
+    const pager = page.getByRole("group", { name: "토론방 목록 페이지 이동" });
+    const first = page.getByRole("row", { name: /시민 정책 토론방/ });
+    const second = page.getByRole("row", { name: /지난 정책 기록방/ });
+    await expect(first).toBeVisible();
+    await expect(second).toHaveCount(0);
+    await expect(pager).toContainText("1-1건");
+    await expect(pager).toContainText("1페이지");
+    await expect(pager.getByRole("button", { name: "이전 페이지" })).toBeDisabled();
+    await expect(page.getByRole("button", { name: "더 불러오기" })).toHaveCount(0);
+
+    await pager.getByRole("button", { name: "다음 페이지" }).click();
+    await expect(second).toBeVisible();
+    await expect(first).toHaveCount(0);
+    await expect(pager).toContainText("2페이지");
+    await expect(pager.getByRole("button", { name: "다음 페이지" })).toBeDisabled();
+
+    await pager.getByRole("button", { name: "이전 페이지" }).click();
+    await expect(first).toBeVisible();
+    await expect(second).toHaveCount(0);
+    await expect(pager).toContainText("1페이지");
+
+    expect(adminRoomRequests.map((params) => Object.fromEntries(params))).toEqual([
+      { limit: "20" },
+      { limit: "20", cursor: "rooms-page-2" },
+      { limit: "20" },
+    ]);
+  } finally {
+    pagedAdminRooms = false;
+  }
 });
 
 test("토론방·투표의 목록과 상세 구분선은 같은 높이에서 시작하고 페이지를 늘리지 않는다", async ({

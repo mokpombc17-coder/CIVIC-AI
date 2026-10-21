@@ -12,6 +12,12 @@ import {
 } from "react";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import {
+  ConsolePager,
+  DEFAULT_CONSOLE_PAGE_SIZE,
+  useConsoleCursorPages,
+  type ConsolePageSize,
+} from "@/components/admin/console/console-pager";
 import { ScreenFrame } from "@/components/screens/screen-frame";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import {
@@ -94,7 +100,8 @@ export function AdminChatInsightsScreen({
   const [roomStatus, setRoomStatus] = useState<AdminRoomStatus | "">("");
   const [activeRoomQuery, setActiveRoomQuery] = useState("");
   const [activeRoomStatus, setActiveRoomStatus] = useState<AdminRoomStatus | "">("");
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const roomPaging = useConsoleCursorPages();
+  const commitRoomPage = roomPaging.commit;
   const [hasNext, setHasNext] = useState(false);
   const [roomsLoading, setRoomsLoading] = useState(true);
   const [roomMessage, setRoomMessage] = useState("");
@@ -122,10 +129,14 @@ export function AdminChatInsightsScreen({
       query = "",
       status: AdminRoomStatus | "" = "",
       cursor: string | null = null,
+      target: Readonly<{ page: number; pageSize: ConsolePageSize }> = {
+        page: 1,
+        pageSize: DEFAULT_CONSOLE_PAGE_SIZE,
+      },
     ): Promise<AdminRoomPage | null> => {
       setRoomsLoading(true);
       setRoomMessage("");
-      const parameters = adminRoomParameters(query, status, cursor);
+      const parameters = adminRoomParameters(query, status, cursor, target.pageSize);
       try {
         const response = await authenticatedFetch(`/api/v1/admin/rooms?${parameters.toString()}`, {
           cache: "no-store",
@@ -141,12 +152,12 @@ export function AdminChatInsightsScreen({
           setRoomMessage("서버의 관리자 토론방 목록 응답 형식을 확인해야 합니다.");
           return null;
         }
-        setRooms((current) => (cursor ? mergeRooms(current, page.items) : page.items));
+        setRooms(page.items);
         setSelectedRoom((current) =>
           current ? (page.items.find((item) => item.roomId === current.roomId) ?? current) : null,
         );
-        setNextCursor(page.nextCursor);
         setHasNext(page.hasNext);
+        commitRoomPage(target.page, target.pageSize, page.hasNext ? page.nextCursor : null);
         return page;
       } catch {
         if (!cursor) setRooms([]);
@@ -156,7 +167,7 @@ export function AdminChatInsightsScreen({
         setRoomsLoading(false);
       }
     },
-    [],
+    [commitRoomPage],
   );
 
   const loadAnalysis = useCallback(
@@ -296,7 +307,7 @@ export function AdminChatInsightsScreen({
     const query = roomQuery.trim();
     setActiveRoomQuery(query);
     setActiveRoomStatus(roomStatus);
-    void loadRooms(query, roomStatus);
+    void loadRooms(query, roomStatus, null, { page: 1, pageSize: roomPaging.pageSize });
   }
 
   function filterRooms(status: AdminRoomStatus | "") {
@@ -311,7 +322,7 @@ export function AdminChatInsightsScreen({
     const query = roomQuery.trim();
     setActiveRoomQuery(query);
     setActiveRoomStatus(status);
-    void loadRooms(query, status);
+    void loadRooms(query, status, null, { page: 1, pageSize: roomPaging.pageSize });
   }
 
   function selectRoom(room: AdminRoom) {
@@ -438,7 +449,10 @@ export function AdminChatInsightsScreen({
         <ConsoleWorkspace layout="admin-chat-insights-console">
           <ConsolePane
             ariaLabel="토론방 목록"
-            subtitle={listCountLabel({ shown: rooms.length, hasMore: hasNext })}
+            subtitle={listCountLabel({
+              shown: rooms.length,
+              hasMore: hasNext || roomPaging.page > 1,
+            })}
             title="토론방 목록"
           >
             <form className="console-toolbar" onSubmit={searchRooms} role="search">
@@ -479,16 +493,24 @@ export function AdminChatInsightsScreen({
               rowData={rooms}
               selectedRowId={selectedRoom?.roomId ?? null}
             />
-            {hasNext && nextCursor ? (
-              <button
-                className="wf-button wf-button-secondary"
-                disabled={roomsLoading || closingRoom}
-                onClick={() => void loadRooms(activeRoomQuery, activeRoomStatus, nextCursor)}
-                type="button"
-              >
-                더 불러오기
-              </button>
-            ) : null}
+            <ConsolePager
+              ariaLabel="토론방 목록 페이지 이동"
+              disabled={roomsLoading || closingRoom}
+              hasNext={hasNext}
+              onPageChange={(page) =>
+                void loadRooms(activeRoomQuery, activeRoomStatus, roomPaging.cursorForPage(page), {
+                  page,
+                  pageSize: roomPaging.pageSize,
+                })
+              }
+              onPageSizeChange={(pageSize) =>
+                void loadRooms(activeRoomQuery, activeRoomStatus, null, { page: 1, pageSize })
+              }
+              page={roomPaging.page}
+              pageSize={roomPaging.pageSize}
+              shown={rooms.length}
+              total={null}
+            />
             {roomMessage ? (
               <p aria-live="polite" className={styles.problem} role="status">
                 {roomMessage}
@@ -995,16 +1017,13 @@ export function conversationAuthorBuckets(
     .map(([userId, count]) => ({ key: userId, label: labels.get(userId) ?? userId, count }));
 }
 
-function mergeRooms(current: readonly AdminRoom[], next: readonly AdminRoom[]) {
-  return [...new Map([...current, ...next].map((room) => [room.roomId, room])).values()];
-}
-
 function adminRoomParameters(
   query: string,
   status: AdminRoomStatus | "",
   cursor: string | null = null,
+  limit = 50,
 ): URLSearchParams {
-  const parameters = new URLSearchParams({ limit: "50" });
+  const parameters = new URLSearchParams({ limit: String(limit) });
   if (query.trim()) parameters.set("query", query.trim());
   if (status) parameters.set("status", status);
   if (cursor) parameters.set("cursor", cursor);
