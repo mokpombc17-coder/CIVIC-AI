@@ -139,13 +139,17 @@ runtime은 편집 가능한 요소에 포커스가 있는 동안 모바일 visua
 `SurveyPage`는 검증한 `returnTo`를 `SurveyScreen`의 취소·제출 후 복귀 목적지로 전달한다. 절대 URL,
 프로토콜 상대 URL, `/survey` 및 인증 재귀 경로는 `/home`으로 대체한다. `SurveyScreen`은 Current
 Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API가 제공한 Section을 순서대로
-단계로 조립한 뒤 민감정보 수집·이용 동의를 확인하는 필수 확인 단계를 마지막에 추가한다. 전체 단계 수는
+단계로 조립한 뒤 마지막 확인 단계를 항상 추가한다. 전체 단계 수는
 `sections.length + 1`이며 Section·Question 개수는 코드에 고정되어 있지 않다. 동의 문서 코드와 버전은
 `survey-screen.tsx`의 `SENSITIVE_INFORMATION_CONSENT` 상수로 고정되어 있고, 동의 문서를 조회하는 API는
 없다. 설문 조회가 실패하면 401·403·진행 중 회차 없음(`SURVEY_ACTIVE_ROUND_UNAVAILABLE`)을 구분한
 안내와 다시 시도 action을 표시하며, 진행 중 회차 없음은 failure analytics에 기록하지 않는다. Section 이동
-전에 일반 Question과 행렬 Item을 검증한다. 최종 제출은 운영 서버에 동의 증적을 먼저 저장하고 받은
-`consentReceiptId`를 answer payload와 함께 Survey API mutation에 전달한다. 영구 저장
+전에 일반 Question과 행렬 Item을 검증하며, `required=false`인 선택 문항은 제목 오른쪽에
+`선택 문항` 라벨을 표시하고 비워 둘 수 있다. 선택 문항에
+하나라도 답하면 마지막 단계는 민감정보 수집·이용 동의 checkbox를 표시하고, 최종 제출은 운영 서버에 동의
+증적을 먼저 저장해 받은 `consentReceiptId`를 answer payload와 함께 Survey API mutation에 전달한다. 선택
+문항에 모두 답하지 않으면 마지막 단계는 동의가 필요하지 않다는 안내만 표시하고, 동의 절차 없이
+`consentReceiptId`를 뺀 payload를 제출한다. 답하지 않은 선택 문항은 payload의 answers에서 생략한다. 영구 저장
 제출 후에는 Survey 제출 mutation이 eligibility 캐시를 무효화하고, 완료 화면이 강제로 재조회해 `eligible=true`일 때만 검증된 `returnTo`로
 전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인 action을 제공한다.
 로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태를 유지한다. 답변과 현재 단계는 현재 인증
@@ -155,7 +159,9 @@ Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장
 유지한다. `survey-submission-recovery.ts`의 `classifySubmissionFailure`는 동의·설문 제출 오류를 사용자
 메시지, 필드 오류, 최신 설문 재조회, 새 멱등 시도 여부와 함께 실패 단계(`consent | survey`)와 failure
 analytics 기록 방식(`failure | recovered | none`)으로 분류한다. 이미 제출된 설문 오류는 복구로, 응답
-검증 실패는 기록하지 않음으로 분류한다. `SurveyForm`은 이 결과에 따라 failure analytics 기록, 폼 상태
+검증 실패는 기록하지 않음으로 분류한다. 단, 응답 검증 실패 중 동의 receipt 불일치
+(`SURVEY_CONSENT_RECEIPT_REQUIRED`, `SURVEY_CONSENT_RECEIPT_NOT_ALLOWED`)는 실패로 기록하고 동의 상태
+안내와 새 시도로 분류한다. `SurveyForm`은 이 결과에 따라 failure analytics 기록, 폼 상태
 전이, 설문 재조회와 제출 coordinator 초기화만 수행하고, 첫 필드 오류가 속한 Section은
 `findFirstInvalidSurveySectionIndex`로 찾는다. 제출 성공 또는
 `SUBMITTED` 재진입 시 임시 답변을 삭제한다. Section 단계의 `SurveyStepActions`는 카드 다음에 배치하고,
@@ -204,7 +210,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                         │   │   │   │   └── SurveyDropdownSurface [Client] [View] (apps/web/components/survey/survey-dropdown.tsx) — 공유 menu surface
                                         │   │   │   └── ResidenceAddressField [Client] [Feature] [conditional: demographics.residence] (apps/web/components/survey/residence-address-field.tsx)
                                         │   │   │       └── KakaoPostcodeDialog [Client] [Feature] [conditional] (apps/web/components/survey/kakao-postcode-dialog.tsx)
-                                        │   │   └── SurveyConfirmation [Client] [View] [conditional: 확인 단계] (apps/web/components/survey/survey-screen.tsx)
+                                        │   │   └── SurveyConfirmation [Client] [View] [conditional: 확인 단계] (apps/web/components/survey/survey-screen.tsx) — 선택 문항 응답 시 동의 checkbox, 미응답 시 안내
                                         │   │       └── SurveyStepActions [Client graph] [View] (apps/web/components/survey/survey-flow.tsx) — 카드 내부
                                         │   └── SurveyStepActions [Client graph] [View] [conditional: Section 단계] (apps/web/components/survey/survey-flow.tsx) — 카드 다음
                                         └── SurveySubmissionCompletion [Client graph] [Feature] [conditional: 제출 결과 있음] (apps/web/components/survey/survey-submission-completion.tsx) — 제출 후 eligibility 재확인
@@ -215,8 +221,9 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 `consent-contracts.ts`, `consent-api.ts`, `consent-queries.ts`는 민감정보 동의 증적 저장 요청·응답
 계약·transport·mutation을 담당한다. `consent-submission.ts`는 동의 요청 snapshot, 최초 보조 클릭 시각,
 idempotency key와 발급된 receipt를 Survey 제출 재시도 동안 유지한다.
-`survey-answer-state.ts`는 Question type별 draft, 행렬 Item 상태, 화면 이동용 검증과 answer 제출
-payload 변환을 담당한다. `survey-submission.ts`는 같은 payload를 다시 제출하면 이전 idempotency key를
+`survey-answer-state.ts`는 Question type별 draft, 행렬 Item 상태, 화면 이동용 검증, 선택 문항 응답 여부
+판단과 answer 제출 payload 변환을 담당한다. payload 변환은 선택 문항 응답 여부와 동의 receipt 유무가
+어긋나면 요청을 만들지 않는다. `survey-submission.ts`는 같은 payload를 다시 제출하면 이전 idempotency key를
 재사용하고, payload가 바뀌면 새 key를 만든다. `survey-completion.ts`는 영구 저장된 제출이고 eligibility가
 `eligible=true`일 때만 복귀를 허용한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,
