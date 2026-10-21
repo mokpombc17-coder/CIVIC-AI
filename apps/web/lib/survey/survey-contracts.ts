@@ -20,7 +20,7 @@ const questionBaseShape = {
   questionKey: z.string().min(1),
   title: z.string().min(1),
   prompt: z.string().min(1),
-  required: z.literal(true),
+  required: z.boolean(),
 };
 
 const surveyQuestionVariantSchema = z.discriminatedUnion("type", [
@@ -225,7 +225,7 @@ export const surveyAnswerSchema = z.discriminatedUnion("type", [
 
 export const submitSurveyRequestSchema = z.object({
   roundId: uuidSchema,
-  consentReceiptId: uuidSchema,
+  consentReceiptId: uuidSchema.optional(),
   answers: z.array(surveyAnswerSchema),
 });
 

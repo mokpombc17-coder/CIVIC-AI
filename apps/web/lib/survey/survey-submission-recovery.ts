@@ -61,6 +61,8 @@ function getSurveySubmissionFailureAnalytics(error: unknown): SubmissionFailureA
   if (!(error instanceof VoteApiError)) return "failure";
   // 이미 제출된 설문은 실패가 아닌 복구로 기록함
   if (error.code === "CURRENT_SURVEY_ALREADY_SUBMITTED") return "recovered";
+  // 동의 receipt 불일치는 화면과 서버 규칙이 어긋난 것이라 실패로 기록함
+  if (hasConsentReceiptViolation(error)) return "failure";
   // 응답 검증 실패는 사용자 입력 문제라 실패로 기록하지 않음
   if (error.code === "SURVEY_RESPONSE_VALIDATION_FAILED") return "none";
   return "failure";
@@ -141,6 +143,15 @@ export function classifySurveySubmissionError(error: unknown): SurveySubmissionR
     };
   }
 
+  if (hasConsentReceiptViolation(error)) {
+    return {
+      fieldErrors,
+      message: "민감정보 동의 상태가 바뀌었습니다. 동의 항목을 확인한 뒤 다시 제출해 주세요.",
+      newAttempt: true,
+      refresh: false,
+    };
+  }
+
   if (error.code === "IDEMPOTENCY_CONFLICT" || error.code === "INVALID_IDEMPOTENCY_KEY") {
     return {
       fieldErrors,
@@ -159,4 +170,18 @@ export function classifySurveySubmissionError(error: unknown): SurveySubmissionR
     newAttempt: false,
     refresh: false,
   };
+}
+
+const CONSENT_RECEIPT_VIOLATION_CODES = new Set([
+  "SURVEY_CONSENT_RECEIPT_REQUIRED",
+  "SURVEY_CONSENT_RECEIPT_NOT_ALLOWED",
+]);
+
+function hasConsentReceiptViolation(error: VoteApiError): boolean {
+  return (
+    error.code === "SURVEY_RESPONSE_VALIDATION_FAILED" &&
+    (error.problem?.violations ?? []).some((violation) =>
+      CONSENT_RECEIPT_VIOLATION_CODES.has(violation.code),
+    )
+  );
 }

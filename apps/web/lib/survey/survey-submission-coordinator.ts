@@ -7,7 +7,11 @@ import {
   prepareConsentAcceptance,
   type PendingConsentAcceptance,
 } from "@/lib/consent/consent-submission";
-import { buildSubmitSurveyRequest, type SurveyAnswerState } from "./survey-answer-state";
+import {
+  buildSubmitSurveyRequest,
+  hasAnsweredOptionalQuestion,
+  type SurveyAnswerState,
+} from "./survey-answer-state";
 import type { SubmissionResponse, SubmitSurveyRequest, SurveySection } from "./survey-contracts";
 import { prepareSurveySubmission, type PendingSurveySubmission } from "./survey-submission";
 
@@ -42,12 +46,35 @@ export class SurveySubmissionCoordinator {
     sections,
   }: {
     answers: SurveyAnswerState;
-    clientClickedAt: string;
+    clientClickedAt: string | null;
     document: ConsentDocumentReference;
     ports: SurveySubmissionPorts;
     roundId: string;
     sections: readonly SurveySection[];
   }): Promise<SubmissionResponse> {
+    const consentReceiptId = hasAnsweredOptionalQuestion(sections, answers)
+      ? await this.acceptConsent(document, roundId, clientClickedAt, ports)
+      : null;
+    const payload = buildSubmitSurveyRequest(roundId, consentReceiptId, sections, answers);
+    const prepared = prepareSurveySubmission(
+      payload,
+      this.pendingSubmission,
+      this.createIdempotencyKey,
+    );
+    this.pendingSubmission = prepared;
+    return ports.submitSurvey(prepared.payload, prepared.idempotencyKey);
+  }
+
+  private async acceptConsent(
+    document: ConsentDocumentReference,
+    roundId: string,
+    clientClickedAt: string | null,
+    ports: SurveySubmissionPorts,
+  ): Promise<string> {
+    if (clientClickedAt === null) {
+      throw new Error("선택 문항에 응답한 제출에는 민감정보 동의 시각이 필요합니다.");
+    }
+
     let pendingConsent = prepareConsentAcceptance(
       document,
       roundId,
@@ -64,14 +91,7 @@ export class SurveySubmissionCoordinator {
       this.pendingConsentAcceptance = pendingConsent;
     }
 
-    const payload = buildSubmitSurveyRequest(roundId, receipt.consentReceiptId, sections, answers);
-    const prepared = prepareSurveySubmission(
-      payload,
-      this.pendingSubmission,
-      this.createIdempotencyKey,
-    );
-    this.pendingSubmission = prepared;
-    return ports.submitSurvey(prepared.payload, prepared.idempotencyKey);
+    return receipt.consentReceiptId;
   }
 
   reset(): void {

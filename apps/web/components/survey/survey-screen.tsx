@@ -21,6 +21,7 @@ import {
 } from "@/lib/analytics/feature-failure-analytics";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import {
+  hasAnsweredOptionalQuestion,
   validateSurvey,
   validateSurveySection,
   type SurveyAnswerDraft,
@@ -239,6 +240,7 @@ export function SurveyForm({
   const submitMutation = useSubmitSurveyMutation();
   const isSubmitting = acceptConsentMutation.isPending || submitMutation.isPending;
   const isRequiredConfirmationChecked = requiredConsentClickedAt !== null;
+  const requiresSensitiveConsent = hasAnsweredOptionalQuestion(sections, answers);
   const currentSection = sections[currentStep - 1];
   const currentStepId = isConfirmationStep
     ? "confirmation"
@@ -357,7 +359,7 @@ export function SurveyForm({
   }
 
   async function submitSurvey() {
-    if (!requiredConsentClickedAt || isSubmitting) return;
+    if (isSubmitting || (requiresSensitiveConsent && !requiredConsentClickedAt)) return;
     const validationErrors = validateSurvey(sections, answers);
     if (Object.keys(validationErrors).length > 0) {
       dispatchForm({
@@ -375,7 +377,7 @@ export function SurveyForm({
     try {
       const result = await submissionCoordinator.submit({
         answers,
-        clientClickedAt: requiredConsentClickedAt,
+        clientClickedAt: requiresSensitiveConsent ? requiredConsentClickedAt : null,
         document: SENSITIVE_INFORMATION_CONSENT,
         ports: {
           acceptConsent: (command, idempotencyKey) =>
@@ -431,7 +433,7 @@ export function SurveyForm({
       onNext={goToNextStep}
       onPrevious={goToPreviousStep}
       onSubmit={() => void submitSurvey()}
-      submitDisabled={!isRequiredConfirmationChecked}
+      submitDisabled={requiresSensitiveConsent && !isRequiredConfirmationChecked}
       totalSteps={totalSteps}
     />
   );
@@ -465,6 +467,7 @@ export function SurveyForm({
               <SurveyConfirmation
                 actions={actions}
                 checked={isRequiredConfirmationChecked}
+                consentRequired={requiresSensitiveConsent}
                 onChange={updateRequiredConsent}
               />
             ) : currentSection ? (
@@ -491,12 +494,23 @@ export function SurveyForm({
 function SurveyConfirmation({
   actions,
   checked,
+  consentRequired,
   onChange,
 }: {
   actions: ReactNode;
   checked: boolean;
+  consentRequired: boolean;
   onChange: (checked: boolean) => void;
 }) {
+  if (!consentRequired) {
+    return (
+      <section className={styles.confirmation}>
+        <p>민감정보 문항에 응답하지 않아 별도 동의가 필요하지 않습니다.</p>
+        {actions}
+      </section>
+    );
+  }
+
   return (
     <section className={styles.confirmation}>
       <label className={styles.confirmationCheck}>

@@ -42,4 +42,33 @@ describe("SurveySectionFields", () => {
     expect(html.match(/data-selected="true"/g)).toHaveLength(1);
     expect(html).toMatch(/<label[^>]*data-selected="true"[^>]*><input[^>]*checked=""/);
   });
+
+  it("shows the 선택 문항 label only for optional questions", () => {
+    const optionalSection: SurveySection = {
+      ...section,
+      questions: [
+        section.questions[0]!,
+        {
+          questionId: "66666666-6666-4666-8666-666666666666",
+          questionKey: "optional",
+          title: "종교",
+          prompt: "골라 주세요",
+          required: false,
+          type: "SINGLE_CHOICE",
+          options: [{ optionId: "77777777-7777-4777-8777-777777777777", label: "예" }],
+        },
+      ],
+    };
+    const html = renderToStaticMarkup(
+      <SurveySectionFields
+        answers={{}}
+        errors={{}}
+        onAnswerChange={() => undefined}
+        section={optionalSection}
+      />,
+    );
+
+    expect(html).toContain("<h3>행렬 척도</h3>");
+    expect(html).toMatch(/<h3>종교 <span[^>]*>선택 문항<\/span><\/h3>/);
+  });
 });

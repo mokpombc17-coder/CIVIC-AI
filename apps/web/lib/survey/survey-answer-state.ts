@@ -61,23 +61,60 @@ export function validateSurvey(
   return validateQuestions(getSurveyQuestions(sections), answers);
 }
 
+export function hasAnsweredOptionalQuestion(
+  sections: readonly SurveySection[],
+  answers: SurveyAnswerState,
+): boolean {
+  return getSurveyQuestions(sections).some(
+    (question) => !question.required && isSurveyAnswerProvided(answers[question.questionId]),
+  );
+}
+
 export function buildSubmitSurveyRequest(
   roundId: string,
-  consentReceiptId: string,
+  consentReceiptId: string | null,
   sections: readonly SurveySection[],
   answers: SurveyAnswerState,
 ): SubmitSurveyRequest {
   if (Object.keys(validateSurvey(sections, answers)).length > 0) {
     throw new Error("유효하지 않은 설문 답변으로 제출 payload를 만들 수 없습니다.");
   }
+  if (hasAnsweredOptionalQuestion(sections, answers) !== (consentReceiptId !== null)) {
+    throw new Error("선택 문항 응답 여부와 동의 receipt 유무가 일치해야 합니다.");
+  }
 
   return {
     roundId,
-    consentReceiptId,
-    answers: getSurveyQuestions(sections).map((question) =>
-      toSurveyAnswerInput(question, answers[question.questionId]!),
-    ),
+    ...(consentReceiptId === null ? {} : { consentReceiptId }),
+    answers: getSurveyQuestions(sections)
+      .filter(
+        (question) => question.required || isSurveyAnswerProvided(answers[question.questionId]),
+      )
+      .map((question) => toSurveyAnswerInput(question, answers[question.questionId]!)),
   };
+}
+
+function isSurveyAnswerProvided(answer: SurveyAnswerDraft | undefined): boolean {
+  if (!answer) return false;
+
+  switch (answer.type) {
+    case "SINGLE_CHOICE":
+      return answer.selection !== null;
+    case "MULTIPLE_CHOICE":
+      return answer.selections.length > 0;
+    case "SHORT_TEXT":
+    case "LONG_TEXT":
+      return answer.text.trim().length > 0;
+    case "NUMBER":
+      return answer.number !== null;
+    case "SCALE":
+      return answer.scale !== null;
+    case "MATRIX_SINGLE_CHOICE":
+    case "MATRIX_SCALE":
+      return Object.values(answer.itemAnswers).some(
+        (value) => value !== null && value !== undefined,
+      );
+  }
 }
 
 function createEmptyAnswer(question: SurveyQuestion): SurveyAnswerDraft {

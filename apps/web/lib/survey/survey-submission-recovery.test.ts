@@ -185,6 +185,26 @@ describe("survey submission recovery", () => {
     });
   });
 
+  it.each(["SURVEY_CONSENT_RECEIPT_REQUIRED", "SURVEY_CONSENT_RECEIPT_NOT_ALLOWED"])(
+    "%s 위반은 동의 상태 안내와 새 시도로 분류하고 실패로 기록한다",
+    (violationCode) => {
+      expect(
+        classifySubmissionFailure(
+          createVoteApiError("SURVEY_RESPONSE_VALIDATION_FAILED", [
+            { code: violationCode, path: "consentReceiptId" },
+          ]),
+        ),
+      ).toEqual({
+        analytics: "failure",
+        fieldErrors: {},
+        message: "민감정보 동의 상태가 바뀌었습니다. 동의 항목을 확인한 뒤 다시 제출해 주세요.",
+        newAttempt: true,
+        refresh: false,
+        stage: "survey",
+      });
+    },
+  );
+
   it("Vote API가 아닌 설문 제출 오류는 survey 단계 실패로 기록한다", () => {
     expect(classifySubmissionFailure(new Error("network unavailable"))).toMatchObject({
       analytics: "failure",

@@ -47,12 +47,12 @@ describe("survey v4 contracts", () => {
     ).toBe(false);
   });
 
-  it("모든 문항이 필수라는 1회차 계약을 강제한다", () => {
+  it("선택 문항(required: false)을 허용한다", () => {
     expect(
       currentSurveyResponseSchema.safeParse(
         createPendingResponse([{ ...VALID_QUESTION, required: false }]),
       ).success,
-    ).toBe(false);
+    ).toBe(true);
   });
 
   it("화면 상태를 덮어쓰는 중복 Question 식별자를 거부한다", () => {
@@ -152,10 +152,20 @@ describe("survey v4 contracts", () => {
     ).not.toHaveProperty("responseId");
   });
 
-  it("동의 receipt가 없는 설문 제출 payload를 거부한다", () => {
+  it("선택 문항에 답하지 않은 제출은 동의 receipt 없이 허용한다", () => {
     expect(
       submitSurveyRequestSchema.safeParse({
         roundId: ROUND_ID,
+        answers: [],
+      }).success,
+    ).toBe(true);
+  });
+
+  it("동의 receipt가 있으면 UUID 형식만 허용한다", () => {
+    expect(
+      submitSurveyRequestSchema.safeParse({
+        roundId: ROUND_ID,
+        consentReceiptId: "not-a-uuid",
         answers: [],
       }).success,
     ).toBe(false);

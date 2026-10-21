@@ -111,7 +111,7 @@ const SECTIONS: readonly SurveySection[] = [
         prompt: "두 번째 답변",
         questionId: SECOND_QUESTION_ID,
         questionKey: "test.second",
-        required: true,
+        required: false,
         title: "두 번째 질문",
         type: "SHORT_TEXT",
       },
@@ -307,6 +307,31 @@ describe("SurveyForm", () => {
     expect(submissionHarness.clearDraft).toHaveBeenCalledOnce();
     expect(submissionHarness.trackSubmissionAttempted).toHaveBeenCalledOnce();
     expect(submissionHarness.trackStepExited).toHaveBeenCalledWith("submit");
+  });
+
+  it("선택 문항을 비우면 동의 없이 안내 문구와 함께 제출한다", async () => {
+    renderSurveyForm();
+    fireEvent.change(screen.getByLabelText("첫 번째 답변"), {
+      target: { value: "첫 번째 입력값" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "다음으로" }));
+    fireEvent.click(screen.getByRole("button", { name: "다음으로" }));
+
+    expect(screen.queryByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ })).toBeNull();
+    expect(
+      screen.getByText("민감정보 문항에 응답하지 않아 별도 동의가 필요하지 않습니다."),
+    ).toBeTruthy();
+    const submit = screen.getByRole("button", { name: "제출하기" });
+    expect((submit as HTMLButtonElement).disabled).toBe(false);
+
+    fireEvent.click(submit);
+
+    await waitFor(() => {
+      expect(submissionHarness.onSubmitted).toHaveBeenCalledWith(SUBMISSION_RESULT);
+    });
+    expect(submissionHarness.coordinatorSubmit).toHaveBeenCalledWith(
+      expect.objectContaining({ clientClickedAt: null }),
+    );
   });
 
   it("동의 저장 오류를 제출 오류와 analytics로 연결하고 새 시도를 준비한다", async () => {

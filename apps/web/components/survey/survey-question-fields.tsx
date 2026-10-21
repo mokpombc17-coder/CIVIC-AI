@@ -43,7 +43,15 @@ export function SurveySectionFields({
                 helperText && question.questionKey !== RESIDENCE_KEY ? "field" : undefined
               }
             >
-              <h3>{presentation?.title ?? question.title}</h3>
+              <h3>
+                {presentation?.title ?? question.title}
+                {question.required ? null : (
+                  <>
+                    {" "}
+                    <span className={styles.questionOptionalLabel}>선택 문항</span>
+                  </>
+                )}
+              </h3>
               {helperText ? <p>{helperText}</p> : null}
             </div>
             <div className={styles.questionList}>
