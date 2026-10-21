@@ -71,6 +71,8 @@ vote:
   survey:
     preview:
       user-ids: ${VOTE_SURVEY_PREVIEW_USER_IDS:local-user-1}
+    eligibility-bypass:
+      subject-prefixes: ${VOTE_SURVEY_ELIGIBILITY_BYPASS_SUBJECT_PREFIXES:e2e-}
     round-activation:
       enabled: ${VOTE_SURVEY_ROUND_ACTIVATION_ENABLED:true}
       fixed-delay: ${VOTE_SURVEY_ROUND_ACTIVATION_FIXED_DELAY:5s}

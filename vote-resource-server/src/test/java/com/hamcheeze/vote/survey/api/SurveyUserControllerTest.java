@@ -14,6 +14,7 @@ import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyRoundId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.eligibility.ServiceEligibilityDecision;
+import com.hamcheeze.vote.survey.domain.eligibility.SurveyRequirement;
 import com.hamcheeze.vote.survey.domain.response.SurveyResponse;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
 import org.junit.jupiter.api.BeforeEach;
@@ -28,6 +29,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
+import static org.hamcrest.Matchers.nullValue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -73,7 +75,7 @@ class SurveyUserControllerTest {
                         contents,
                         previewMode,
                         Optional.of(new LocalSurveyEligibilityFixture(
-                                previewMode))))
+                                previewMode, "e2e-"))))
                 .setControllerAdvice(new SurveyApiExceptionHandler())
                 .build();
     }
@@ -191,6 +193,51 @@ class SurveyUserControllerTest {
                 .andExpect(jsonPath("$.capabilities.length()").value(1))
                 .andExpect(jsonPath("$.capabilities[0]")
                         .value("USE_GENERAL_SERVICE"));
+    }
+
+    @Test
+    void localE2eSubjectBypassesSurveyRequirement() throws Exception {
+        SurveyUserId userId = new SurveyUserId("e2e-chat-1");
+        ServiceEligibilityDecision decision =
+                mock(ServiceEligibilityDecision.class);
+        when(userIds.resolve(authentication)).thenReturn(userId.value());
+        when(eligibility.evaluate(userId)).thenReturn(decision);
+        when(decision.evaluatedAt()).thenReturn(
+                Instant.parse("2026-09-07T00:00:00Z"));
+
+        mockMvc.perform(get("/api/v1/me/service-eligibility")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligible").value(true))
+                .andExpect(jsonPath("$.surveyRequirement").value(
+                        nullValue()))
+                .andExpect(jsonPath("$.reason").value(
+                        nullValue()))
+                .andExpect(jsonPath("$.nextAction").value(
+                        nullValue()))
+                .andExpect(jsonPath("$.activeRoundId").value(
+                        nullValue()))
+                .andExpect(jsonPath("$.evaluatedAt")
+                        .value("2026-09-07T00:00:00Z"))
+                .andExpect(jsonPath("$.capabilities.length()").value(0));
+    }
+
+    @Test
+    void nonE2eSubjectStillRequiresSurvey() throws Exception {
+        SurveyUserId userId = new SurveyUserId("user-a");
+        ServiceEligibilityDecision decision =
+                mock(ServiceEligibilityDecision.class);
+        when(eligibility.evaluate(userId)).thenReturn(decision);
+        when(decision.eligible()).thenReturn(false);
+        when(decision.surveyRequirement()).thenReturn(
+                SurveyRequirement.REQUIRED);
+
+        mockMvc.perform(get("/api/v1/me/service-eligibility")
+                        .principal(authentication))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.eligible").value(false))
+                .andExpect(jsonPath("$.surveyRequirement")
+                        .value("REQUIRED"));
     }
 
     @Test
