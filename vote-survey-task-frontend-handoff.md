@@ -243,7 +243,7 @@ type SurveyQuestion = {
   prompt: string;
   description: string | null;
   displayOrder: number;
-  required: true;
+  required: boolean;
   rule: SurveyRule;
   allowOther: boolean;
   options: SurveyOption[];
@@ -295,11 +295,16 @@ Survey를 완료하지 않은 정상 상태가 아니라 Backend 운영 오류�
 ```ts
 type SubmitSurveyResponseRequest = {
   roundId: string;
+  // 선택 문항(required=false)에 하나 이상 답했을 때만 포함
+  consentReceiptId?: string;
   answers: SurveyAnswerRequest[];
 };
 ```
 
 각 answer는 현재 Survey 응답에 받은 `question.id`를 그대로 사용한다.
+`required=false`인 선택 문항에 답하지 않으면 answer를 생략한다. 선택 문항은
+민감정보 동의 대상이므로, 하나라도 답했을 때만 운영 서버 동의 receipt를 함께
+보낸다.
 
 ### SINGLE_CHOICE
 
@@ -444,7 +449,7 @@ type SurveyResponseSummary = {
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED` | 이미 최종 제출됨 | current/latest 재조회 후 완료 처리 |
 | `409` | `SURVEY_SUBMISSION_ROUND_CHANGED` | 화면을 연 뒤 활성 회차 변경 | draft 폐기 확인 후 current 재조회 |
 | `409` | `SURVEY_RESPONSE_CONTENT_UNAVAILABLE` | 과거 응답 content 불일치 | 일반 오류 + trace/log |
-| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 문항 규칙 위반 | `violations[].path` 기준 field 오류 표시 |
+| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 문항 규칙 위반 | `violations[].path` 기준 field 오류 표시. `path=consentReceiptId`이면 동의 처리 오류 |
 | `503` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 활성 회차 운영 불변식 오류 | 사용자 미완료로 처리하지 말고 재시도 가능한 장애 화면 |
 
 ## 5.7 Survey 호출 상태 전이

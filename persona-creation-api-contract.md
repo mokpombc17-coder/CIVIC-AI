@@ -3,7 +3,7 @@
 > 전달 대상: Persona Runtime Server 구현 담당자
 > 호출자: `vote-resource-server`
 > 제공자: Persona Runtime Server
-> 계약 버전: `schemaVersion = 2`
+> 계약 버전: `schemaVersion = 3`
 
 ## 1. 목적과 처리 방식
 
@@ -48,7 +48,7 @@ Authorization: Bearer <ai-runtime-shared-token>
 ```json
 {
   "generationId": "41b10f99-f7c3-49b3-8578-4e573e2c75e0",
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "survey": {
     "responseId": "231590b2-9e19-43bb-aad4-cf7cbda0d9d3",
     "roundId": "cb14f869-8d62-44a6-9cc1-33ca0d75fa42",
@@ -134,12 +134,17 @@ Authorization: Bearer <ai-runtime-shared-token>
 | 필드 | 타입 | 필수 | 계약 |
 |---|---|---|---|
 | `generationId` | UUID string | O | 리소스 서버가 발급한 생성 요청 및 멱등성 식별자 |
-| `schemaVersion` | positive integer | O | 현재 값은 `2` |
+| `schemaVersion` | positive integer | O | 현재 값은 `3` |
 | `survey` | object | O | Persona의 원천이 되는 불변 Survey 응답 snapshot |
 
 `schemaVersion=1`은 이전 평면형 Survey 구조의 계약이며 현재 호출자는 사용하지 않는다.
-Persona Runtime Server는 `schemaVersion=2`를 지원해야 하며, 지원하지 않는 버전은
-`400 INVALID_REQUEST`로 거절해야 한다.
+`schemaVersion=3`은 `schemaVersion=2`와 구조가 같고, 선택 문항 미응답을 `value: null`로
+전달하는 것만 다르다. v2에서는 `value`가 항상 존재한다.
+
+호출자는 생성 요청 snapshot을 처음 만들 때의 버전으로 고정해 재전달한다. 따라서 v3
+전환 직후에도 이미 만들어진 v2 snapshot의 재시도가 들어올 수 있다. Persona Runtime
+Server는 `schemaVersion=2`와 `schemaVersion=3`을 모두 지원해야 하며, 지원하지 않는
+버전은 `400 INVALID_REQUEST`로 거절해야 한다.
 
 ### 3.3 `survey` 필드
 
@@ -151,7 +156,7 @@ Persona Runtime Server는 `schemaVersion=2`를 지원해야 하며, 지원하지
 | `contentVersionId` | UUID string | O | 응답이 참조하는 불변 내용 버전 식별자 |
 | `contentVersionNumber` | positive integer | O | 발행 내용 버전 번호 |
 | `submittedAt` | ISO-8601 UTC string | O | Survey 최종 제출 시각 |
-| `answers` | array | O | 표시 순서대로 정렬된 Question별 응답 |
+| `answers` | array | O | 표시 순서대로 정렬된 내용 버전의 모든 Question. 답하지 않은 선택 문항도 포함한다 |
 
 ### 3.4 `answers[]` 필드
 
@@ -164,7 +169,7 @@ Persona Runtime Server는 `schemaVersion=2`를 지원해야 하며, 지원하지
 | `description` | string 또는 null | O | 원본 보조 설명 |
 | `displayOrder` | positive integer | O | Question 표시 순서 |
 | `items` | array | O | Matrix Question의 행 정보. 일반 Question은 `[]` |
-| `value` | object | O | 타입별 실제 사용자 응답 |
+| `value` | object 또는 null | O | 타입별 실제 사용자 응답. 선택 문항에 답하지 않았으면 `null` |
 
 `questionType`은 다음 값 중 하나다.
 
@@ -194,7 +199,24 @@ MATRIX_SCALE
 
 ### 3.6 `value` 필드
 
-`value`는 모든 필드를 항상 포함한다. 사용하지 않는 scalar 필드는 `null`, 사용하지
+`value`가 `null`이면 사용자가 해당 선택 문항에 답하지 않은 것이다. 필수 문항의
+`value`는 항상 존재한다. 1회차의 선택 문항은 건강 상태, 종교, 정치 성향, 지지정당
+4개다. 미응답 문항은 Question 정보를 그대로 유지한다.
+
+```json
+{
+  "questionId": "0c2f6a8e-6b2e-4f53-9e0a-3b1d7e9a4c21",
+  "questionLineageId": "7d4b1e2a-91c3-4d8f-a6b5-2e9f0c3d8a17",
+  "questionType": "SINGLE_CHOICE",
+  "prompt": "귀하께서 믿고 계신 종교는 무엇입니까?",
+  "description": "[1개 선택]",
+  "displayOrder": 12,
+  "items": [],
+  "value": null
+}
+```
+
+`value`가 존재하면 모든 필드를 항상 포함한다. 사용하지 않는 scalar 필드는 `null`, 사용하지
 않는 배열은 `[]`로 전달한다.
 
 | 필드 | 타입 | 필수 | 계약 |
@@ -373,7 +395,8 @@ Persona Runtime Server 구현자는 다음 항목을 확인한다.
 
 - [ ] `POST /v1/personas`를 제공한다.
 - [ ] `Authorization: Bearer <ai-runtime-shared-token>`을 검증한다.
-- [ ] `schemaVersion=2`를 지원한다.
+- [ ] `schemaVersion=2`와 `schemaVersion=3`을 모두 지원한다.
+- [ ] v3의 `value: null`을 선택 문항 미응답으로 처리한다.
 - [ ] 29개 Question과 Matrix Item 구조를 파싱한다.
 - [ ] `MATRIX_SINGLE_CHOICE`의 `itemValues[].selectedOption`을 처리한다.
 - [ ] `MATRIX_SCALE`의 `itemValues[].scaleValue`를 처리한다.

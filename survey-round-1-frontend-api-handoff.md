@@ -20,7 +20,8 @@
 - 사용자 API의 Option과 Selection에는 `kind`, `inputText`를 포함하지 않는다.
 - 사용자 Read API는 PDF `description`, `sourceNumber`, lineage ID와 표시 순서를 노출하지 않는다.
 - 배열은 백엔드가 표시 순서대로 정렬해 반환한다.
-- Figma의 필수 동의·확인 페이지는 운영 서버 책임이며 Survey Question과 제출 payload에 포함하지 않는다.
+- Figma의 동의·확인 페이지는 운영 서버 책임이며 Survey Question에 포함하지 않는다. 제출 payload에는 운영 서버가 발급한 `consentReceiptId`만 포함한다.
+- 11 건강 상태, 12 종교, 14 정치 성향, 15 지지정당은 선택 문항(`required=false`)이다. 민감정보이므로 이 중 하나라도 답한 경우에만 동의 절차를 진행한다.
 
 ## 2. 접속 및 인증
 
@@ -327,6 +328,9 @@ Content-Type: application/json
 ```ts
 type SubmitSurveyRequest = {
   roundId: UUID;
+  // 선택 문항(required=false)에 하나 이상 답했을 때만 포함
+  consentReceiptId?: UUID;
+  // 답하지 않은 선택 문항은 생략
   answers: SurveyAnswerInput[];
 };
 
@@ -419,11 +423,14 @@ Option은 사용자 API에서 지원하지 않으며, 필요해지면 계약 버
 }
 ```
 
-실제 1회차 제출에서는 모든 29개 Question과 모든 행렬 Item을 포함해야 한다.
+실제 1회차 제출에서는 모든 필수 Question(25개)과 모든 행렬 Item을 포함해야 한다.
+선택 문항 4개는 답하지 않으면 answer를 생략한다. `selection: null`처럼 값을
+비운 answer는 보내지 않는다.
 
 백엔드는 다음을 검증한다.
 
 - 모든 필수 Question의 `questionId`가 정확히 한 번 존재
+- 선택 문항 답변 여부와 `consentReceiptId` 유무의 일치
 - Question 타입과 Answer 타입 일치
 - 선택한 `optionId`가 해당 Question에 소속
 - 행렬의 모든 `itemId`가 정확히 한 번 존재
@@ -604,7 +611,7 @@ type SurveyProblem = {
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED` | 입력 화면을 닫고 최신 응답 조회 |
 | `409` | `IDEMPOTENCY_CONFLICT` | 새로운 UUID key로 새 제출 요청 |
 | `409` | `SURVEY_SUBMISSION_ROUND_CHANGED` | Current Survey 재조회 |
-| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | `questionId`, `itemId` 기준 오류 연결 |
+| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | `questionId`, `itemId` 기준 오류 연결. violation `SURVEY_CONSENT_RECEIPT_REQUIRED`/`SURVEY_CONSENT_RECEIPT_NOT_ALLOWED`는 동의 처리 오류 |
 
 ## 12. 권장 화면 흐름
 
@@ -613,9 +620,10 @@ type SurveyProblem = {
 3. `status=PENDING`이면 `sections` 배열 순서대로 렌더링한다.
 4. `questionKey`로 Figma presentation을 연결한다.
 5. 일반 문항은 `questionId`, 행렬 문항은 `questionId + itemId`로 form state를 관리한다.
-6. 클라이언트 사전 검증 후 새로운 `Idempotency-Key`로 최종 제출한다.
-7. `SUBMITTED`이면 Current/Latest query를 갱신한다.
-8. `PREVIEW_VALIDATED`이면 현재 화면에서만 완료 상태를 표시한다.
+6. 클라이언트 사전 검증 후, 선택 문항에 하나 이상 답했으면 운영 서버 동의 절차로 `consentReceiptId`를 받는다. 선택 문항을 모두 비웠으면 동의 절차 없이 receipt 없이 제출한다.
+7. 새로운 `Idempotency-Key`로 최종 제출한다.
+8. `SUBMITTED`이면 Current/Latest query를 갱신한다.
+9. `PREVIEW_VALIDATED`이면 현재 화면에서만 완료 상태를 표시한다.
 
 ## 13. 백엔드 패치 범위
 

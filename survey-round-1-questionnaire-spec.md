@@ -10,7 +10,8 @@ Survey 회차: 1
 화면 Section 수: 7개
 화면·정책 문항 수: 29개 Group
 저장·제출 문항 수: 42개 Question
-모든 Question 필수 응답: true
+필수 응답: 아래 4개 선택 문항을 제외한 모든 Question
+선택 문항: 11 건강 상태, 12 종교, 14 정치 성향, 15 지지정당 (민감정보, 동의 대상)
 제출 정책: 1인 1회 제출, 제출 후 수정 불가, 서버 임시 저장 미지원
 ```
 
@@ -901,7 +902,11 @@ Answer가 가리키는 불변 ContentVersion의 Option 행에서 역추적한다
 
 1. 제출 `roundId`가 잠근 현재 ACTIVE 1회차와 일치한다.
 2. Response와 Round가 같은 `contentVersionId`를 사용한다.
-3. 42개 Question에 정확히 하나씩 Answer가 존재한다.
+3. 필수 Question에 정확히 하나씩 Answer가 존재한다. 선택 문항
+   (`wellbeing.health-status`(11), `demographics.religion`(12), `politics.ideology`(14), `politics.supported-party`(15))은 생략할 수 있으며, 어느 Question에도 Answer가 두 개 이상
+   존재하지 않는다.
+   선택 문항에 하나 이상 답했으면 `consentReceiptId`가 있어야 하고, 하나도 답하지
+   않았으면 없어야 한다.
 4. 알 수 없는 `questionId`와 중복 `questionId`를 거부한다.
 5. Question type과 Answer type이 일치한다.
 6. 선택형 `optionId`가 해당 Question과 ContentVersion에 속한다.

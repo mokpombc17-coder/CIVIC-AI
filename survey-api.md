@@ -32,7 +32,8 @@
 Question, 16개 Matrix Item을 반환한다. 배열은 DB의 표시 순서대로 정렬하지만
 사용자 API에는 `displayOrder`를 노출하지 않는다. Section은 `sectionKey`,
 `title`, `questions`만 가진다. Question 공통 필드는 `questionId`, `questionKey`,
-`title`, `prompt`, `required`, `type`이다. 타입별 추가 필드는 다음과 같다.
+`title`, `prompt`, `required`, `type`이다. `required=false`인 Question은 선택
+문항이며 민감정보를 수집하는 동의 대상 문항이다. 타입별 추가 필드는 다음과 같다.
 
 | type | 추가 필드 |
 |---|---|
@@ -61,6 +62,18 @@ Vote 서버는 `consentReceiptId`를 운영 서버의 불투명한 외부 참조
 현재 단계에서는 receipt의 존재, 소유 사용자, 회차 또는 문서 버전을 동기 검증하지
 않으며, 설문 응답과 함께 보존해 추후 운영 서버 증적과 대조할 수 있게 한다.
 
+동의는 선택 문항(`required=false`)에 하나 이상 답한 경우에만 받는다. Vote 서버는
+제출 시 다음 규칙만 검증한다.
+
+| 선택 문항 답변 | `consentReceiptId` | 결과 |
+|---|---|---|
+| 1개 이상 | 있음 | 저장 |
+| 1개 이상 | 없음 | `422`, violation `SURVEY_CONSENT_RECEIPT_REQUIRED` |
+| 모두 생략 | 없음 | 저장 (receipt 없음) |
+| 모두 생략 | 있음 | `422`, violation `SURVEY_CONSENT_RECEIPT_NOT_ALLOWED` |
+
+동의를 받은 뒤 선택 문항 답변을 모두 지웠다면 receipt를 빼고 제출한다.
+
 ### 최종 제출
 
 `Idempotency-Key` 헤더에 클라이언트가 생성한 UUID를 필수로 전달한다. 같은 사용자·동작·key와 같은 canonical request는 최초 결과를 그대로 재생하고, 응답의 `replayed=true`로 표시한다. 같은 key를 다른 요청에 재사용하면 `409 IDEMPOTENCY_CONFLICT`다.
@@ -86,6 +99,11 @@ Vote 서버는 `consentReceiptId`를 운영 서버의 불투명한 외부 참조
 }
 ```
 
+필수 Question(`required=true`)은 정확히 한 번 포함해야 한다. 선택
+Question(`required=false`)에 답하지 않으면 해당 answer를 배열에서 **생략**한다.
+값을 `null`로 채운 answer는 미응답으로 처리하지 않고 거절한다(선택형은
+`400 INVALID_REQUEST`, 텍스트·숫자·척도형은 `422`). 선택 문항에 하나 이상 답했을 때만 `consentReceiptId`를 포함한다.
+
 답변 유형별 값은 다음 필드를 사용한다.
 
 | type | 값 필드 |
@@ -104,8 +122,11 @@ Vote 서버는 `consentReceiptId`를 운영 서버의 불투명한 외부 참조
 `replayed=true`를 반환한다.
 
 정상 제출된 `survey_responses`는 `consentReceiptId` 값을 저장하지만 Vote의 로컬
-동의 테이블과 외래키로 연결하지 않는다. 기존 마이그레이션 이전 응답은 호환을 위해
-연결 값이 `NULL`일 수 있지만 신규 HTTP 제출에는 receipt UUID가 필수다.
+동의 테이블과 외래키로 연결하지 않는다. 선택 문항에 답하지 않은 응답과 마이그레이션
+이전 응답은 연결 값이 `NULL`이다.
+
+본인 응답 조회의 `answers`에는 답한 Question만 포함된다. 선택 문항 미응답은
+함께 반환되는 `sections`의 Question 중 `answers`에 없는 것으로 판단한다.
 
 ### 로컬 preview 사용자
 
@@ -149,7 +170,7 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `GET` | `/api/v1/admin/survey-content-versions` | 내용 버전 목록 |
 | `GET` | `/api/v1/admin/survey-content-versions/{id}` | 내용 버전 상세 |
 
-생성·교체 body는 `name`, `description`, `questions[]`를 가진다. 모든 질문은 필수이므로 question의 `required`는 생략하면 `true`로 처리하며, 호환 입력으로 명시할 때도 `true`만 허용한다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 관리자 호환 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 이 내부 확장 구조는 1회차에서 사용하지 않는다. 직접 입력형 Option을 실제 회차에 적용하려면 사용자 API 계약을 먼저 확장해야 한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
+생성·교체 body는 `name`, `description`, `questions[]`를 가진다. question의 `required`는 생략하면 `true`로 처리한다. `false`로 지정한 질문은 선택 문항이자 동의 대상 문항이다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 관리자 호환 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 이 내부 확장 구조는 1회차에서 사용하지 않는다. 직접 입력형 Option을 실제 회차에 적용하려면 사용자 API 계약을 먼저 확장해야 한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
 
 ### 회차
 
@@ -176,5 +197,5 @@ Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
 | `404` | `SURVEY_CONTENT_NOT_FOUND`, `SURVEY_ROUND_NOT_FOUND`, `SURVEY_RESPONSE_NOT_FOUND` | 소유권 범위를 포함해 리소스를 찾을 수 없음 |
 | `409` | `IDEMPOTENCY_CONFLICT` | 같은 key를 다른 요청에 재사용 |
 | `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED`, `SURVEY_SUBMISSION_ROUND_CHANGED` | 제출 상태 충돌 |
-| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 질문 규칙에 맞지 않는 답변 |
+| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 질문 규칙에 맞지 않는 답변. 필수 답변 누락은 `SURVEY_REQUIRED_ANSWER_MISSING`, 동의 receipt 불일치는 `SURVEY_CONSENT_RECEIPT_REQUIRED`/`SURVEY_CONSENT_RECEIPT_NOT_ALLOWED` violation으로 표시 |
 | `404` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 조회할 활성 회차가 없음 |
