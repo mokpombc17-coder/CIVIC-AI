@@ -66,6 +66,37 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
                 .contains("\"submittedAt\":\"2026-08-20T02:00:00Z\"");
     }
 
+    @Test
+    void serializesUnansweredQuestionAsNullValueWithSchemaVersionThree() {
+        var standard = new PersonaSurveySource.PersonaSurveyOption(
+                uuid(101), uuid(102),
+                PersonaSurveySource.OptionKind.STANDARD,
+                "표준", 1, Optional.empty());
+        PersonaSurveySource source = new PersonaSurveySource(
+                new PersonaSourceId(uuid(2)),
+                new PersonaUserId("user-a"),
+                uuid(3), 7, uuid(4), 9,
+                Instant.parse("2026-08-20T02:00:00Z"),
+                List.of(
+                        answer(10, PersonaSurveySource.QuestionType
+                                        .SINGLE_CHOICE,
+                                new PersonaSurveySource.SingleChoiceValue(
+                                        standard), Optional.empty()),
+                        answer(20, PersonaSurveySource.QuestionType
+                                        .SINGLE_CHOICE,
+                                null, Optional.empty())));
+
+        PersonaGenerationInputSnapshot snapshot = factory.create(
+                new PersonaGenerationId(uuid(1)), source, CREATED_AT);
+
+        assertThat(snapshot.requestSchemaVersion()).isEqualTo(3);
+        assertThat(snapshot.requestPayload())
+                .contains("\"schemaVersion\":3")
+                .containsSubsequence(
+                        "\"questionId\":\"" + uuid(20) + "\"",
+                        "\"value\":null");
+    }
+
     private static PersonaSurveySource source() {
         var standard = new PersonaSurveySource.PersonaSurveyOption(
                 uuid(101), uuid(102),
@@ -146,7 +177,7 @@ class PersonaGenerationInputSnapshotFactoryAdapterTest {
                 new PersonaSurveySource.PersonaSurveyQuestion(
                         uuid(id), uuid(id + 1), type,
                         "질문-" + id, description, (int) (id / 10), items),
-                value);
+                Optional.ofNullable(value));
     }
 
     private static UUID uuid(long suffix) {

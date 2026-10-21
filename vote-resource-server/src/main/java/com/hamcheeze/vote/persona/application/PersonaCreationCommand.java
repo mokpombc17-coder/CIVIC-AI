@@ -11,7 +11,7 @@ public record PersonaCreationCommand(
         String requestFingerprint
 ) {
 
-    public static final int CURRENT_SCHEMA_VERSION = 2;
+    public static final int CURRENT_SCHEMA_VERSION = 3;
 
     public PersonaCreationCommand {
         Objects.requireNonNull(generationId, "generationId");

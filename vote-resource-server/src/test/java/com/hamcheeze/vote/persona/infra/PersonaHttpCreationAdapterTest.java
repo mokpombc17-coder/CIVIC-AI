@@ -226,8 +226,8 @@ class PersonaHttpCreationAdapterTest {
                 Instant.parse("2026-08-14T00:00:00Z"),
                 List.of(new PersonaSurveySource.PersonaSurveyAnswer(
                         question,
-                        new PersonaSurveySource.MultipleChoiceValue(
-                                List.of(other)))));
+                        Optional.of(new PersonaSurveySource.MultipleChoiceValue(
+                                List.of(other))))));
         PersonaGenerationId generationId =
                 new PersonaGenerationId(UUID.randomUUID());
         var input = new PersonaGenerationInputSnapshotFactoryAdapter(

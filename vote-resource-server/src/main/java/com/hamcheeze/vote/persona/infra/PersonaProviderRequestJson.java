@@ -83,7 +83,7 @@ final class PersonaProviderRequestJson {
                     question.items().stream()
                             .map(QuestionItemPayload::from)
                             .toList(),
-                    ValuePayload.from(answer.value()));
+                    answer.value().map(ValuePayload::from).orElse(null));
         }
     }
 

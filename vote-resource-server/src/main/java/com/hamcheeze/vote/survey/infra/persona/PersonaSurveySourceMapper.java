@@ -72,7 +72,7 @@ public final class PersonaSurveySourceMapper {
         content.questions().forEach(question ->
                 questions.put(question.id(), question));
 
-        List<PersonaSurveyAnswer> answers = new ArrayList<>();
+        Map<SurveyQuestionId, SurveyAnswer> answersByQuestion = new HashMap<>();
         for (SurveyAnswer answer : response.answers()) {
             SurveyQuestion question = questions.get(answer.questionId());
             if (question == null) {
@@ -85,9 +85,21 @@ public final class PersonaSurveySourceMapper {
                         "answer type does not match question type: "
                                 + answer.questionId());
             }
+            answersByQuestion.put(question.id(), answer);
+        }
+
+        List<PersonaSurveyAnswer> answers = new ArrayList<>();
+        for (SurveyQuestion question : content.questions()) {
+            SurveyAnswer answer = answersByQuestion.get(question.id());
+            if (answer == null && question.required()) {
+                throw violation(response,
+                        "required question has no answer: " + question.id());
+            }
             answers.add(new PersonaSurveyAnswer(
                     toQuestion(question),
-                    toValue(response, question, answer)));
+                    Optional.ofNullable(answer)
+                            .map(value -> toValue(
+                                    response, question, value))));
         }
         answers.sort(Comparator.comparingInt(
                 answer -> answer.question().displayOrder()));

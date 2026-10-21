@@ -5,6 +5,7 @@ import com.hamcheeze.vote.persona.application.PersonaSurveySourceErrorCode;
 import com.hamcheeze.vote.persona.application.PersonaSurveySourceException;
 import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
 import com.hamcheeze.vote.survey.application.bootstrap.LocalSurveyFixture;
+import com.hamcheeze.vote.survey.application.bootstrap.RoundOneSurveyFixture;
 import com.hamcheeze.vote.survey.domain.common.SurveyActorId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
@@ -91,7 +92,7 @@ class PersonaSurveySourceMapperTest {
                 .containsExactly(1, 2, 3, 4, 5);
         assertThat(source.answers())
                 .extracting(answer ->
-                        answer.value().getClass().getSimpleName())
+                        answer.value().orElseThrow().getClass().getSimpleName())
                 .containsExactly(
                         SingleChoiceValue.class.getSimpleName(),
                         MultipleChoiceValue.class.getSimpleName(),
@@ -100,7 +101,7 @@ class PersonaSurveySourceMapperTest {
                         ScaleValue.class.getSimpleName());
 
         MultipleChoiceValue multiple = (MultipleChoiceValue)
-                source.answers().get(1).value();
+                source.answers().get(1).value().orElseThrow();
         assertThat(multiple.selectedOptions())
                 .extracting(PersonaSurveySource.PersonaSurveyOption::label)
                 .containsExactly("분석", "기타");
@@ -108,52 +109,31 @@ class PersonaSurveySourceMapperTest {
                 .contains("창작");
         assertThat(source.answers().get(2).question().description())
                 .contains("정규화된 텍스트");
-        assertThat(((TextValue) source.answers().get(2).value()).value())
+        assertThat(((TextValue) source.answers().get(2).value().orElseThrow()).value())
                 .isEqualTo("차분함");
     }
 
     @Test
     void mapsCanonicalRoundOneWithoutLosingMatrixItemValues() {
         SurveyContentVersion content = LocalSurveyFixture.publishedContent();
-        SurveyRound round = SurveyRound.rehydrate(
-                LocalSurveyFixture.ROUND_ID,
-                LocalSurveyFixture.ROUND_NUMBER,
-                LocalSurveyFixture.CONTENT_VERSION_ID,
-                SurveyRoundStatus.ACTIVE,
-                SurveyRoundEnforcementMode.REQUIRED,
-                null,
-                LocalSurveyFixture.CREATED_AT,
-                null,
-                null,
-                null,
-                LocalSurveyFixture.ACTOR,
-                LocalSurveyFixture.CREATED_AT,
-                0);
         List<SurveyAnswer> answers = content.questions().stream()
                 .map(PersonaSurveySourceMapperTest::validRoundOneAnswer)
                 .toList();
-        SurveyResponse response = SurveyResponse.rehydrate(
-                RESPONSE_ID,
-                new SurveyUserId("round-one-user"),
-                LocalSurveyFixture.ROUND_ID,
-                LocalSurveyFixture.ROUND_NUMBER,
-                LocalSurveyFixture.CONTENT_VERSION_ID,
-                LocalSurveyFixture.CREATED_AT.plusSeconds(1),
-                answers);
 
-        PersonaSurveySource source = mapper.map(response, round, content);
+        PersonaSurveySource source = mapper.map(
+                roundOneResponse(answers), roundOneRound(), content);
 
         assertThat(source.answers()).hasSize(29);
         assertThat(source.answers().stream()
                 .flatMap(answer -> answer.question().items().stream()))
                 .hasSize(16);
         assertThat(source.answers().stream()
-                .filter(answer -> answer.value()
+                .filter(answer -> answer.value().orElseThrow()
                         instanceof MatrixSingleChoiceValue))
                 .hasSize(2)
                 .allSatisfy(answer -> {
                     MatrixSingleChoiceValue value =
-                            (MatrixSingleChoiceValue) answer.value();
+                            (MatrixSingleChoiceValue) answer.value().orElseThrow();
                     assertThat(value.itemValues())
                             .extracting(item -> item.itemId())
                             .containsExactlyElementsOf(answer.question().items()
@@ -166,11 +146,11 @@ class PersonaSurveySourceMapperTest {
                                     .isNotBlank());
                 });
         assertThat(source.answers().stream()
-                .filter(answer -> answer.value() instanceof MatrixScaleValue))
+                .filter(answer -> answer.value().orElseThrow() instanceof MatrixScaleValue))
                 .singleElement()
                 .satisfies(answer -> {
                     MatrixScaleValue value =
-                            (MatrixScaleValue) answer.value();
+                            (MatrixScaleValue) answer.value().orElseThrow();
                     assertThat(value.itemValues())
                             .extracting(item -> item.itemId())
                             .containsExactlyElementsOf(answer.question().items()
@@ -179,7 +159,7 @@ class PersonaSurveySourceMapperTest {
                                     .toList());
                 });
         long expandedValueCount = source.answers().stream()
-                .mapToLong(answer -> switch (answer.value()) {
+                .mapToLong(answer -> switch (answer.value().orElseThrow()) {
                     case MatrixSingleChoiceValue matrix ->
                             matrix.itemValues().size();
                     case MatrixScaleValue matrix -> matrix.itemValues().size();
@@ -187,6 +167,44 @@ class PersonaSurveySourceMapperTest {
                 })
                 .sum();
         assertThat(expandedValueCount).isEqualTo(42);
+    }
+
+    @Test
+    void mapsSkippedOptionalQuestionsAsEmptyValues() {
+        SurveyContentVersion content = LocalSurveyFixture.publishedContent();
+        List<SurveyAnswer> answers = content.questions().stream()
+                .filter(SurveyQuestion::required)
+                .map(PersonaSurveySourceMapperTest::validRoundOneAnswer)
+                .toList();
+
+        PersonaSurveySource source = mapper.map(
+                roundOneResponse(answers), roundOneRound(), content);
+
+        assertThat(source.answers())
+                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
+        assertThat(source.answers())
+                .extracting(answer -> answer.question().displayOrder())
+                .isSorted();
+        assertThat(source.answers())
+                .filteredOn(answer -> answer.value().isEmpty())
+                .extracting(answer -> answer.question().questionId())
+                .containsExactlyInAnyOrderElementsOf(content.questions()
+                        .stream()
+                        .filter(question -> !question.required())
+                        .map(question -> question.id().value())
+                        .toList());
+    }
+
+    @Test
+    void rejectsMissingRequiredAnswer() {
+        SurveyContentVersion content = LocalSurveyFixture.publishedContent();
+        List<SurveyAnswer> answers = content.questions().stream()
+                .skip(1)
+                .map(PersonaSurveySourceMapperTest::validRoundOneAnswer)
+                .toList();
+
+        assertIntegrityViolation(() -> mapper.map(
+                roundOneResponse(answers), roundOneRound(), content));
     }
 
     @Test
@@ -230,6 +248,36 @@ class PersonaSurveySourceMapperTest {
 
         assertIntegrityViolation(() -> mapper.map(
                 response, fixture.round(), fixture.content()));
+    }
+
+    private static SurveyRound roundOneRound() {
+        return SurveyRound.rehydrate(
+                LocalSurveyFixture.ROUND_ID,
+                LocalSurveyFixture.ROUND_NUMBER,
+                LocalSurveyFixture.CONTENT_VERSION_ID,
+                SurveyRoundStatus.ACTIVE,
+                SurveyRoundEnforcementMode.REQUIRED,
+                null,
+                LocalSurveyFixture.CREATED_AT,
+                null,
+                null,
+                null,
+                LocalSurveyFixture.ACTOR,
+                LocalSurveyFixture.CREATED_AT,
+                0);
+    }
+
+    private static SurveyResponse roundOneResponse(
+            List<SurveyAnswer> answers
+    ) {
+        return SurveyResponse.rehydrate(
+                RESPONSE_ID,
+                new SurveyUserId("round-one-user"),
+                LocalSurveyFixture.ROUND_ID,
+                LocalSurveyFixture.ROUND_NUMBER,
+                LocalSurveyFixture.CONTENT_VERSION_ID,
+                LocalSurveyFixture.CREATED_AT.plusSeconds(1),
+                answers);
     }
 
     private static void assertIntegrityViolation(Runnable action) {

@@ -40,7 +40,7 @@ public record PersonaSurveySource(
 
     public record PersonaSurveyAnswer(
             PersonaSurveyQuestion question,
-            PersonaSurveyAnswerValue value
+            Optional<PersonaSurveyAnswerValue> value
     ) {
 
         public PersonaSurveyAnswer {

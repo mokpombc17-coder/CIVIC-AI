@@ -284,7 +284,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(restoredFirst.answers().getFirst().question().prompt())
                 .isEqualTo("자신을 한 문장으로 표현해주세요.");
         assertThat(restoredFirst.answers().getFirst().value())
-                .isInstanceOf(com.hamcheeze.vote.persona.application
+                .containsInstanceOf(com.hamcheeze.vote.persona.application
                         .PersonaSurveySource.TextValue.class);
     }
 
