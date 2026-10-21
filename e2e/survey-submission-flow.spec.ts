@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import type {
   PendingSurveyResponse,
   SubmitSurveyRequest,
@@ -8,7 +8,14 @@ import type {
 
 const ROUND_ID = uuid(1);
 const CONTENT_VERSION_ID = uuid(2);
+// 실제 1회차처럼 정치 성향 영역의 단일 선택 문항 일부를 선택 문항으로 둠
+const OPTIONAL_GENERAL_QUESTION_INDEXES = new Set([12, 18]);
 const SURVEY_RESPONSE = createSurveyResponse();
+const CONSENT_RECEIPT_ID = uuid(4);
+const CONSENT_ACCEPTANCES_PATH = "/api/v1/me/consent-acceptances";
+const OPTIONAL_QUESTION_TITLES = new Set(
+  [...OPTIONAL_GENERAL_QUESTION_INDEXES].map((index) => `문항 ${index}`),
+);
 
 test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한다", async ({ page }) => {
   let submittedCommand: SubmitSurveyRequest | null = null;
@@ -36,6 +43,9 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
     }
     if (requestUrl.pathname === "/api/v1/me/surveys/current" && request.method() === "GET") {
       await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
+      return;
+    }
+    if (await fulfillConsentAcceptance(route, requestUrl, corsHeaders)) {
       return;
     }
     if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
@@ -105,6 +115,7 @@ test("필수 답변 42개를 검증하고 29개 Question을 한 번만 제출한
 
   expect(submittedCommand).not.toBeNull();
   expect(submittedCommand!.roundId).toBe(ROUND_ID);
+  expect(submittedCommand!.consentReceiptId).toBe(CONSENT_RECEIPT_ID);
   expect(submittedCommand!.answers).toHaveLength(29);
   expect(countAnswerValues(submittedCommand!)).toBe(42);
   expect(new Set(submittedCommand!.answers.map((answer) => answer.questionId)).size).toBe(29);
@@ -151,6 +162,9 @@ test("제출 401이면 토큰 갱신 후 같은 payload와 멱등성 키로 한 
     }
     if (requestUrl.pathname === "/api/v1/me/surveys/current" && request.method() === "GET") {
       await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
+      return;
+    }
+    if (await fulfillConsentAcceptance(route, requestUrl, corsHeaders)) {
       return;
     }
     if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
@@ -244,6 +258,9 @@ test("미완료 사용자를 설문으로 보내고 영구 제출 후 원래 경
       await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
       return;
     }
+    if (await fulfillConsentAcceptance(route, requestUrl, corsHeaders)) {
+      return;
+    }
     if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
       submitted = true;
       await route.fulfill({
@@ -287,16 +304,128 @@ test("미완료 사용자를 설문으로 보내고 영구 제출 후 원래 경
   expect(eligibilityResults.filter(Boolean).length).toBeGreaterThanOrEqual(1);
 });
 
+test("선택 문항을 비우면 동의 없이 receipt와 선택 문항 answer를 빼고 제출한다", async ({
+  page,
+}) => {
+  let submittedCommand: SubmitSurveyRequest | null = null;
+  let consentRequestCount = 0;
+
+  await page.route("**/api/v1/auth/me", async (route) => {
+    await route.fulfill({ json: { subject: "survey-optional-e2e-user" } });
+  });
+  await page.route("https://t1.kakaocdn.net/**", async (route) => {
+    await route.abort("failed");
+  });
+  await page.route("**/api/v1/me/**", async (route) => {
+    const request = route.request();
+    const requestUrl = new URL(request.url());
+    const corsHeaders = createCorsHeaders(page);
+
+    if (request.method() === "OPTIONS") {
+      await route.fulfill({ status: 204, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/surveys/current" && request.method() === "GET") {
+      await route.fulfill({ json: SURVEY_RESPONSE, headers: corsHeaders });
+      return;
+    }
+    if (requestUrl.pathname === CONSENT_ACCEPTANCES_PATH) {
+      consentRequestCount += 1;
+    }
+    if (await fulfillConsentAcceptance(route, requestUrl, corsHeaders)) {
+      return;
+    }
+    if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
+      submittedCommand = request.postDataJSON() as SubmitSurveyRequest;
+      await route.fulfill({
+        status: 200,
+        headers: corsHeaders,
+        json: {
+          status: "PREVIEW_VALIDATED",
+          persisted: false,
+          roundId: ROUND_ID,
+          contentVersionId: CONTENT_VERSION_ID,
+          validatedAt: "2026-09-02T00:00:00Z",
+        },
+      });
+      return;
+    }
+
+    await route.abort("failed");
+  });
+
+  await page.goto("/survey");
+  await expect(
+    page.getByRole("heading", { name: "문항 1", exact: true }),
+    "필수 문항에는 선택 문항 표시를 붙이지 않아야 합니다.",
+  ).toBeVisible();
+  await answerVisibleSurveyToConfirmation(page, OPTIONAL_QUESTION_TITLES, async (title) => {
+    await expect(
+      page.getByRole("heading", { name: `${title} 선택 문항`, exact: true }),
+    ).toBeVisible();
+  });
+
+  await expect(page.getByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ })).toHaveCount(
+    0,
+  );
+  await expect(
+    page.getByText("민감정보 문항에 응답하지 않아 별도 동의가 필요하지 않습니다.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  const submitButton = page.getByRole("button", { name: "제출하기", exact: true });
+  await expect(submitButton).toBeEnabled();
+
+  await submitButton.click();
+  await expect(page.getByRole("heading", { name: "설문 응답 검증을 완료했습니다." })).toBeVisible();
+
+  expect(consentRequestCount).toBe(0);
+  expect(submittedCommand).not.toBeNull();
+  expect(submittedCommand).not.toHaveProperty("consentReceiptId");
+  expect(submittedCommand!.answers).toHaveLength(29 - OPTIONAL_GENERAL_QUESTION_INDEXES.size);
+  const submittedQuestionIds = new Set(
+    submittedCommand!.answers.map((answer) => answer.questionId),
+  );
+  for (const index of OPTIONAL_GENERAL_QUESTION_INDEXES) {
+    expect(submittedQuestionIds.has(uuid(100 + index))).toBe(false);
+  }
+});
+
+async function fulfillConsentAcceptance(
+  route: Route,
+  requestUrl: URL,
+  corsHeaders: Record<string, string>,
+): Promise<boolean> {
+  if (requestUrl.pathname !== CONSENT_ACCEPTANCES_PATH || route.request().method() !== "POST") {
+    return false;
+  }
+
+  await route.fulfill({
+    status: 201,
+    headers: corsHeaders,
+    json: { consentReceiptId: CONSENT_RECEIPT_ID, acceptedAt: "2026-09-02T00:00:00Z" },
+  });
+  return true;
+}
+
 async function advanceAnsweredSurveyToConfirmation(page: Page): Promise<void> {
   await page.goto("/survey");
   await answerVisibleSurveyToConfirmation(page);
 }
 
-async function answerVisibleSurveyToConfirmation(page: Page): Promise<void> {
+async function answerVisibleSurveyToConfirmation(
+  page: Page,
+  skippedQuestionTitles: ReadonlySet<string> = new Set(),
+  onSkippedQuestionVisible?: (title: string) => Promise<void>,
+): Promise<void> {
   const form = page.locator("[data-survey-step]");
   for (let step = 1; step <= 7; step += 1) {
     await expect(form).toHaveAttribute("data-survey-step", String(step));
-    await answerCurrentSection(page);
+    for (const title of skippedQuestionTitles) {
+      const heading = form.getByRole("heading", { name: new RegExp(`^${title}( |$)`) });
+      if ((await heading.count()) > 0) await onSkippedQuestionVisible?.(title);
+    }
+    await answerCurrentSection(page, skippedQuestionTitles);
     await page.getByRole("button", { name: "다음으로", exact: true }).click();
   }
   await expect(form).toHaveAttribute("data-survey-step", "8");
@@ -311,8 +440,18 @@ function createCorsHeaders(page: Page): Record<string, string> {
   };
 }
 
-async function answerCurrentSection(page: Page): Promise<void> {
+async function answerCurrentSection(
+  page: Page,
+  skippedQuestionTitles: ReadonlySet<string> = new Set(),
+): Promise<void> {
   const form = page.locator("[data-survey-step]");
+  const isSkipped = async (control: Locator) =>
+    skippedQuestionTitles.has(
+      await control.evaluate(
+        (element) =>
+          element.closest("section")?.querySelector("h3")?.firstChild?.textContent?.trim() ?? "",
+      ),
+    );
 
   for (const input of await form.locator('input[type="text"]').all()) {
     await input.fill("테스트 답변");
@@ -334,6 +473,7 @@ async function answerCurrentSection(page: Page): Promise<void> {
     await textarea.fill("테스트 장문 답변");
   }
   for (const combobox of await form.getByRole("combobox").all()) {
+    if (await isSkipped(combobox)) continue;
     await combobox.click();
     await page.getByRole("option").first().click();
   }
@@ -347,14 +487,20 @@ async function answerCurrentSection(page: Page): Promise<void> {
     await trigger.click();
   }
 
-  await form.locator('input[type="radio"]').evaluateAll((inputs) => {
-    const answeredGroups = new Set<string>();
-    for (const input of inputs) {
-      if (!(input instanceof HTMLInputElement) || answeredGroups.has(input.name)) continue;
-      input.click();
-      answeredGroups.add(input.name);
-    }
-  });
+  await form.locator('input[type="radio"]').evaluateAll(
+    (inputs, skippedTitles) => {
+      const answeredGroups = new Set<string>();
+      for (const input of inputs) {
+        if (!(input instanceof HTMLInputElement) || answeredGroups.has(input.name)) continue;
+        const title =
+          input.closest("section")?.querySelector("h3")?.firstChild?.textContent?.trim() ?? "";
+        if (skippedTitles.includes(title)) continue;
+        input.click();
+        answeredGroups.add(input.name);
+      }
+    },
+    [...skippedQuestionTitles],
+  );
 }
 
 function countAnswerValues(command: SubmitSurveyRequest): number {
@@ -415,7 +561,7 @@ function createGeneralQuestion(index: number): SurveyQuestion {
     questionKey: index === 2 ? "demographics.residence" : `e2e.question-${index}`,
     title: `문항 ${index}`,
     prompt: `문항 ${index} 답변`,
-    required: true,
+    required: !OPTIONAL_GENERAL_QUESTION_INDEXES.has(index),
   } as const;
 
   switch (index % 6) {
