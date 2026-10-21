@@ -677,7 +677,7 @@ flowchart TD
     SurveyLoadingStatus["SurveyLoadingStatus [Server-compatible] [View]<br/>apps/web/components/survey/survey-loading.tsx"]
     SurveyPage["SurveyPage [Server] [Route]<br/>apps/web/app/survey/page.tsx"]
     SurveyScreen["SurveyScreen [Client] [Screen]<br/>apps/web/components/survey/survey-screen.tsx"]
-    SurveySubmissionCompletion["SurveySubmissionCompletion [Client graph] [Feature]<br/>apps/web/components/survey/survey-screen.tsx"]
+    SurveySubmissionCompletion["SurveySubmissionCompletion [Client graph] [Feature]<br/>apps/web/components/survey/survey-submission-completion.tsx"]
     SurveySectionFields["SurveySectionFields [Client graph] [Feature]<br/>apps/web/components/survey/survey-question-fields.tsx"]
     SurveySelect["SurveySelect [Client] [Control]<br/>apps/web/components/survey/survey-select.tsx"]
     SurveyMultiSelect["SurveyMultiSelect [Client] [Control]<br/>apps/web/components/survey/survey-multi-select.tsx"]
