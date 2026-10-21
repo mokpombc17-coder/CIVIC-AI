@@ -610,7 +610,7 @@ function expectRoomSummary(
 }
 
 function getParticipatingRoomList(page: Page): Locator {
-  return page.getByRole("list", { name: "참여 중인 채팅방" });
+  return page.getByRole("list", { name: "참여 중인 토론방" });
 }
 
 function getRoomCard(page: Page, roomId: string): Locator {

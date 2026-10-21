@@ -42,11 +42,11 @@ test("차단된 채팅방 진입은 메시지 화면 대신 목록 복귀 안내
   await page.goto(`/chat/${roomId}`);
 
   const alert = page.getByRole("alert").filter({
-    has: page.getByRole("heading", { name: "채팅방에 참여할 수 없습니다." }),
+    has: page.getByRole("heading", { name: "토론방에 참여할 수 없습니다." }),
   });
 
   await expect(alert).toBeVisible();
-  await expect(alert).toContainText("방장에 의해 채팅방에서 퇴장되었습니다.");
+  await expect(alert).toContainText("방장에 의해 토론방에서 퇴장되었습니다.");
   await expect(alert.getByRole("link", { name: "채팅방 목록" })).toHaveAttribute("href", "/chat");
   await expect(page.getByRole("log", { name: `${roomId} 메시지` })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "메시지" })).toHaveCount(0);

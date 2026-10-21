@@ -138,7 +138,7 @@ test("재참여자는 이전 참여 구간과 퇴장 중 메시지를 볼 수 �
 
     await test.step("참여자가 방을 나가면 4002 이후 공통 연결을 새로 준비한다", async () => {
       memberPage.once("dialog", (dialog) => dialog.accept());
-      await memberPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
+      await memberPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
       await memberPage.getByRole("button", { name: "방 나가기", exact: true }).click();
 
       await expect(memberPage).toHaveURL(/\/chat$/);

@@ -14,7 +14,7 @@ const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
 const ACTIVE_ROOM_LIMIT = Number.parseInt(process.env.CHAT_E2E_USER_ACTIVE_ROOM_LIMIT ?? "20", 10);
 const USER_ACTIVE_ROOM_LIMIT_MESSAGE =
-  "참여 가능한 채팅방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
+  "참여 가능한 토론방 수를 모두 사용했어요. 다른 참여 방에서 나간 뒤 다시 시도해 주세요.";
 
 test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 operation은 새 key를 사용한다", async ({
   browser,

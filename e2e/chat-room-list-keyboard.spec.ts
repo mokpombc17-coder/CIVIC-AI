@@ -64,7 +64,7 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
   await createRoomAndEnter(page, roomName);
   await page.goto("/chat");
 
-  const roomList = page.getByRole("list", { name: "참여 중인 채팅방" });
+  const roomList = page.getByRole("list", { name: "참여 중인 토론방" });
 
   await expect(roomList).toBeVisible();
   await expect(roomList).toHaveAttribute("tabindex", "0");

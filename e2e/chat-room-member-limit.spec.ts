@@ -16,7 +16,7 @@ import {
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
 const ACTIVE_MEMBER_LIMIT = 50;
-const ROOM_MEMBER_LIMIT_MESSAGE = "참여 인원이 가득 찬 채팅방입니다.";
+const ROOM_MEMBER_LIMIT_MESSAGE = "참여 인원이 가득 찬 토론방입니다.";
 
 test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Idempotency-Key를 사용한다", async ({
   browser,

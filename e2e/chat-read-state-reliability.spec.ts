@@ -103,7 +103,7 @@ test("채팅 화면 unmount 뒤에도 최종 실패한 read-state를 focus에서
     await expect.poll(() => failedRequestCount, { timeout: 15_000 }).toBeGreaterThanOrEqual(4);
 
     await fixture.memberPage
-      .getByRole("link", { name: "채팅방 목록으로 돌아가기", exact: true })
+      .getByRole("link", { name: "토론방 목록으로 돌아가기", exact: true })
       .click();
     await expect(fixture.memberPage).toHaveURL(/\/chat$/);
     await expect(getParticipatingRoomCard(fixture.memberPage, fixture.roomName)).toBeVisible();
@@ -133,8 +133,8 @@ test("채팅방 메뉴 overlay가 열린 동안에는 새 read-state를 보고�
   try {
     await fixture.memberPage.bringToFront();
     await expect.poll(() => fixture.memberPage.evaluate(() => document.hasFocus())).toBe(true);
-    await fixture.memberPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
-    const dialog = fixture.memberPage.getByRole("dialog", { name: "채팅방 메뉴" });
+    await fixture.memberPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
+    const dialog = fixture.memberPage.getByRole("dialog", { name: "토론방 메뉴" });
     await expect(dialog).toBeVisible();
 
     await sendMessage(fixture.ownerPage, message);
@@ -147,7 +147,7 @@ test("채팅방 메뉴 overlay가 열린 동안에는 새 read-state를 보고�
     await expectNoReadStateRequest(fixture.memberPage, fixture.roomId);
 
     const readStateResponse = waitForReadState(fixture.memberPage, fixture.roomId);
-    await dialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
+    await dialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
     await expect(dialog).toBeHidden();
 
     expect(
@@ -227,7 +227,7 @@ async function setDocumentFocusState(page: Page, focused: boolean): Promise<void
 
 function getParticipatingRoomCard(page: Page, roomName: string): Locator {
   return page
-    .getByRole("list", { name: "참여 중인 채팅방" })
+    .getByRole("list", { name: "참여 중인 토론방" })
     .getByRole("article")
     .filter({ hasText: roomName });
 }

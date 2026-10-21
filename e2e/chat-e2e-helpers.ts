@@ -135,10 +135,10 @@ export async function joinPublicRoomAndEnter(
 
 export async function findPublicRoomCard(page: Page, roomName: string): Promise<Locator> {
   const searchForm = page.getByRole("search", {
-    name: "공개 채팅방 검색",
+    name: "공개 토론방 검색",
   });
   const searchInput = searchForm.getByRole("searchbox", {
-    name: "채팅방 이름 검색",
+    name: "토론방 이름 검색",
   });
   const roomCard = page.getByRole("article").filter({
     hasText: roomName,

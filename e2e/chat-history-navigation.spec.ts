@@ -18,7 +18,7 @@ test("채팅방 조회 중 browser history back은 진행 중인 요청을 오�
   await authenticateLocalE2EUserAs(page, context, `e2e-history-back-member-${uniqueId}`);
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
-  const roomCard = page.getByRole("list", { name: "공개 채팅방" }).getByRole("article").first();
+  const roomCard = page.getByRole("list", { name: "공개 토론방" }).getByRole("article").first();
   await expect(roomCard).toBeVisible();
   const roomId = await roomCard.getAttribute("data-room-id");
   if (!roomId) {
@@ -65,7 +65,7 @@ test("채팅방 조회 중 browser history back은 진행 중인 요청을 오�
   await expect(page.locator('[data-chat-room-list-state="error"]')).toHaveCount(0);
   await expect(page.locator('[data-chat-message-history-state="sync-error"]')).toHaveCount(0);
   await expect(
-    page.getByRole("heading", { name: "채팅방 정보를 불러오지 못했습니다." }),
+    page.getByRole("heading", { name: "토론방 정보를 불러오지 못했습니다." }),
   ).toHaveCount(0);
 });
 
@@ -78,7 +78,7 @@ test("활성 채팅방의 browser history back은 세션 복구 안내를 잠깐
   await authenticateLocalE2EUserAs(page, context, `e2e-history-back-active-${uniqueId}`);
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
-  const roomCard = page.getByRole("list", { name: "공개 채팅방" }).getByRole("article").first();
+  const roomCard = page.getByRole("list", { name: "공개 토론방" }).getByRole("article").first();
   await expect(roomCard).toBeVisible();
   const roomId = await roomCard.getAttribute("data-room-id");
   if (!roomId) {
@@ -116,7 +116,7 @@ async function startTransientChatAlertRecorder(page: Page): Promise<void> {
       for (const alert of document.querySelectorAll('[role="alert"]')) {
         const text = alert.textContent?.trim() ?? "";
         if (
-          text.includes("채팅방 정보를 불러오지 못했습니다.") ||
+          text.includes("토론방 정보를 불러오지 못했습니다.") ||
           text.includes("메시지 이력을 불러오지 못했습니다.") ||
           text.includes("참여 중인 방을 불러오지 못했습니다.")
         ) {

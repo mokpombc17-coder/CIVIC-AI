@@ -98,7 +98,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(firstPage.nextCursor).toEqual(expect.any(String));
 
       const publicRoomItems = observerPage
-        .getByRole("list", { name: "공개 채팅방" })
+        .getByRole("list", { name: "공개 토론방" })
         .getByRole("listitem");
       await expect(publicRoomItems).toHaveCount(20);
 
@@ -220,7 +220,7 @@ function expectPublicRoomCriteria(
 
 async function readRenderedRoomIds(page: Page): Promise<string[]> {
   return page
-    .getByRole("list", { name: "공개 채팅방" })
+    .getByRole("list", { name: "공개 토론방" })
     .getByRole("article")
     .evaluateAll((cards) =>
       cards.map((card) => {

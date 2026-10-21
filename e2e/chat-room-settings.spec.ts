@@ -27,15 +27,15 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
         description: initialDescription,
       });
 
-      const roomInfoTrigger = ownerPage.getByRole("button", { name: "채팅방 메뉴", exact: true });
+      const roomInfoTrigger = ownerPage.getByRole("button", { name: "토론방 메뉴", exact: true });
       await roomInfoTrigger.click();
 
-      const membershipDialog = ownerPage.getByRole("dialog", { name: "채팅방 메뉴" });
+      const membershipDialog = ownerPage.getByRole("dialog", { name: "토론방 메뉴" });
       await expect(membershipDialog).toBeVisible();
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
       await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("정책");
       await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toBeVisible();
-      await membershipDialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
+      await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
       await expect(membershipDialog).toHaveCount(0);
       await expect(roomInfoTrigger).toBeFocused();
     });
@@ -57,17 +57,17 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("정책");
       await joinPublicRoomAndEnter(memberPage, roomId!, initialName, { navigate: false });
 
-      await memberPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
+      await memberPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
 
-      const membershipDialog = memberPage.getByRole("dialog", { name: "채팅방 메뉴" });
+      const membershipDialog = memberPage.getByRole("dialog", { name: "토론방 메뉴" });
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
       await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toHaveCount(0);
-      await membershipDialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
+      await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
     });
 
     await test.step("방장이 채팅방 메뉴 안에서 방 이름과 설명을 수정한다", async () => {
-      await ownerPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
-      const membershipDialog = ownerPage.getByRole("dialog", { name: "채팅방 메뉴" });
+      await ownerPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
+      const membershipDialog = ownerPage.getByRole("dialog", { name: "토론방 메뉴" });
 
       const form = membershipDialog.getByRole("form", { name: "방 정보 수정" });
 
@@ -106,19 +106,19 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
 
       await expect(form.getByRole("textbox", { name: "방 이름" })).toHaveValue(updatedName);
       await form.getByRole("button", { name: "되돌리기", exact: true }).click();
-      await membershipDialog.getByRole("button", { name: "채팅방 메뉴 닫기", exact: true }).click();
+      await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
     });
 
     await test.step("방장과 참여자 화면이 최신 설정 snapshot으로 수렴한다", async () => {
       for (const page of [ownerPage, memberPage]) {
         await expect(page.getByRole("heading", { name: updatedName, exact: true })).toBeVisible();
-        await page.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
+        await page.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
 
-        const membershipDialog = page.getByRole("dialog", { name: "채팅방 메뉴" });
+        const membershipDialog = page.getByRole("dialog", { name: "토론방 메뉴" });
         await expect(membershipDialog.getByText(updatedDescription, { exact: true })).toBeVisible();
         await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("지역 현안");
         await membershipDialog
-          .getByRole("button", { name: "채팅방 메뉴 닫기", exact: true })
+          .getByRole("button", { name: "토론방 메뉴 닫기", exact: true })
           .click();
       }
 
@@ -129,11 +129,11 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       await ownerPage.goto("/chat");
 
       const myRoomCard = ownerPage
-        .getByRole("list", { name: "참여 중인 채팅방" })
+        .getByRole("list", { name: "참여 중인 토론방" })
         .getByRole("article")
         .filter({ hasText: updatedName });
       const publicRoomCard = ownerPage
-        .getByRole("list", { name: "공개 채팅방" })
+        .getByRole("list", { name: "공개 토론방" })
         .getByRole("article")
         .filter({ hasText: updatedName });
 

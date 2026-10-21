@@ -3,7 +3,7 @@ import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpe
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const REPLACED_ROOM_LABEL = "다른 탭에서 채팅방을 사용 중입니다.";
-const CLOSED_ROOM_LABEL = "종료된 채팅방입니다.";
+const CLOSED_ROOM_LABEL = "종료된 토론방입니다.";
 
 test("종료된 방은 실시간 구독 없이 지난 대화를 읽기 전용으로 표시한다", async ({
   browser,
@@ -43,7 +43,7 @@ test("종료된 방은 실시간 구독 없이 지난 대화를 읽기 전용으
 
     await test.step("비활성 탭에서 방장이 실제 방 종료 Command를 실행한다", async () => {
       commandPage.once("dialog", (dialog) => dialog.accept());
-      await commandPage.getByRole("button", { name: "채팅방 메뉴", exact: true }).click();
+      await commandPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
       await commandPage.getByRole("button", { name: "방 종료", exact: true }).click();
 
       await expect(commandPage).toHaveURL(/\/chat$/);
