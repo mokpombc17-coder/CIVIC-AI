@@ -17,9 +17,9 @@ describe("admin console pager", () => {
   });
 
   it("전체 수가 없는 커서 목록은 범위와 다음 페이지 여부만 보여준다", () => {
-    expect(
-      consolePagerRangeLabel({ page: 2, pageSize: 20, shown: 20, total: null, hasNext: true }),
-    ).toBe("21-40건 · 다음 페이지 있음");
+    expect(consolePagerRangeLabel({ page: 2, pageSize: 20, shown: 20, total: null })).toBe(
+      "21-40건",
+    );
     expect(consolePagerRangeLabel({ page: 3, pageSize: 20, shown: 7, total: null })).toBe(
       "41-47건",
     );

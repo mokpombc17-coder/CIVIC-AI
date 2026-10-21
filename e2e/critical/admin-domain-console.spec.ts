@@ -520,7 +520,7 @@ test("토론방 목록은 커서 응답을 이전·다음 페이지로 이동한
     const second = page.getByRole("row", { name: /지난 정책 기록방/ });
     await expect(first).toBeVisible();
     await expect(second).toHaveCount(0);
-    await expect(pager).toContainText("1-1건 · 다음 페이지 있음");
+    await expect(pager).toContainText("1-1건");
     await expect(pager).toContainText("1페이지");
     await expect(pager.getByRole("button", { name: "이전 페이지" })).toBeDisabled();
     await expect(page.getByRole("button", { name: "더 불러오기" })).toHaveCount(0);

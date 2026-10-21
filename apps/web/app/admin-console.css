@@ -1704,9 +1704,12 @@
 
 .console-pager .console-pager-size span {
   margin-right: 0;
+  white-space: nowrap;
 }
 
-.console-pager select {
+/* Outranks form-wide rules such as `.civic-domain-console select { width: 100% }`. */
+[data-wireflow-shell="admin"] .civic-ledger-pagination.console-pager select {
+  width: auto;
   min-height: 34px;
   border: 1px solid #cbd5e1;
   border-radius: 6px;

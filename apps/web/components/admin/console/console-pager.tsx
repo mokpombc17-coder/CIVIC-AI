@@ -24,14 +24,12 @@ export function consolePagerRangeLabel({
   pageSize,
   shown,
   total,
-  hasNext = false,
   unit = "건",
 }: Readonly<{
   page: number;
   pageSize: number;
   shown: number;
   total: number | null;
-  hasNext?: boolean;
   unit?: string;
 }>): string {
   const start = (page - 1) * pageSize + 1;
@@ -41,8 +39,8 @@ export function consolePagerRangeLabel({
     return `${start.toLocaleString("ko-KR")}-${end.toLocaleString("ko-KR")} / 전체 ${total.toLocaleString("ko-KR")}${unit}`;
   }
   if (shown === 0) return "표시할 항목 없음";
-  const range = `${start.toLocaleString("ko-KR")}-${(start + shown - 1).toLocaleString("ko-KR")}${unit}`;
-  return hasNext ? `${range} · 다음 페이지 있음` : range;
+  // Whether a next page exists is shown by the enabled "다음 페이지" button.
+  return `${start.toLocaleString("ko-KR")}-${(start + shown - 1).toLocaleString("ko-KR")}${unit}`;
 }
 
 export function ConsolePager({
@@ -74,7 +72,7 @@ export function ConsolePager({
   const canGoNext = totalPages === null ? hasNext : page < totalPages;
   return (
     <div aria-label={ariaLabel} className="civic-ledger-pagination console-pager" role="group">
-      <span>{consolePagerRangeLabel({ page, pageSize, shown, total, hasNext, unit })}</span>
+      <span>{consolePagerRangeLabel({ page, pageSize, shown, total, unit })}</span>
       <button disabled={disabled || page <= 1} onClick={() => onPageChange(page - 1)} type="button">
         이전 페이지
       </button>
