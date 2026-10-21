@@ -33,6 +33,8 @@ let progressSubmissionCount = 3;
 let progressRequests = 0;
 let preparationStatus: "PROCESSING" | "READY" | "FAILED" | null = null;
 let preparationRequests = 0;
+let scenarioListEmpty = false;
+let scenarioListDelayMs = 0;
 
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
@@ -195,7 +197,9 @@ test.beforeAll(async () => {
       );
     }
     if (url.pathname === "/api/v1/admin/simulation-scenarios" && request.method === "GET") {
-      return json(response, [scenarioFixture()]);
+      if (scenarioListDelayMs)
+        await new Promise((resolve) => setTimeout(resolve, scenarioListDelayMs));
+      return json(response, scenarioListEmpty ? [] : [scenarioFixture()]);
     }
     if (
       url.pathname === `/api/v1/admin/simulations/${simulationId}/results/responses` &&
@@ -855,6 +859,33 @@ test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을
   expect(voteSideBox!.x + voteSideBox!.width).toBeLessThanOrEqual(simulationSideBox!.x);
   expect(voteSideBox!.y).toBeLessThan(900);
   await expect(page.getByRole("heading", { name: "다시 실행" })).toBeVisible();
+});
+
+test("빈 시뮬레이션 목록은 불러오기가 끝나면 로딩 문구 대신 빈 목록 안내를 보여준다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  task = taskFixture("OPEN", "교통 정책 투표");
+  scenarioListEmpty = true;
+  scenarioListDelayMs = 800;
+  try {
+    await page.goto("/admin/simulations");
+    const section = page.getByRole("region", { name: "시뮬레이션", exact: true });
+    const scenarioList = page.getByRole("region", { name: "시뮬레이션 목록", exact: true });
+    await expect(scenarioList.getByText("시뮬레이션을 불러오는 중입니다.")).toBeVisible();
+    await expect(section.getByText("불러오는 중", { exact: true })).toBeVisible();
+
+    await expect(
+      scenarioList.getByText("아직 만든 시뮬레이션이 없습니다. 새 시뮬레이션을 만들어 주세요."),
+    ).toBeVisible();
+    await expect(scenarioList.getByText("시뮬레이션을 불러오는 중입니다.")).toHaveCount(0);
+    await expect(section.getByText("전체 0건", { exact: true })).toBeVisible();
+  } finally {
+    scenarioListEmpty = false;
+    scenarioListDelayMs = 0;
+  }
 });
 
 test("관리 홈에서 처음 연 시뮬레이션 표는 즉시 스타일이 적용된다", async ({ context, page }) => {
