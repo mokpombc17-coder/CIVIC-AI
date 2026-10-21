@@ -1689,3 +1689,30 @@
   color: var(--wf-muted);
   font-size: 13px;
 }
+
+/* Shared admin list pager (ConsolePager); extends the RAG ledger pager look. */
+.console-pager {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.console-pager .console-pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.console-pager .console-pager-size span {
+  margin-right: 0;
+}
+
+.console-pager select {
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 8px;
+  color: #234b83;
+  font: inherit;
+  font-weight: 750;
+}

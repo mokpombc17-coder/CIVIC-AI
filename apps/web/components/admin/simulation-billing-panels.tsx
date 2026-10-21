@@ -4,6 +4,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import { ConsolePager, useConsoleClientPage } from "@/components/admin/console/console-pager";
 import { ConsoleMetricStrip, type ConsoleMetricItem } from "@/components/admin/console/console-ui";
 import { formatKrw } from "@/lib/admin/format";
 import {
@@ -236,6 +237,8 @@ function UsagePanel() {
     setMessage(next.length === 0 ? "선택한 기간에 정산된 사용량이 없습니다." : "");
   }, [end, start]);
   useInitialLoad(load, setMessage);
+  const usageRows = useMemo(() => usageGridRows(rows), [rows]);
+  const usagePage = useConsoleClientPage(usageRows, `${start}|${end}`);
   const totals = rows.reduce(
     (sum, row) => ({
       charged: sum.charged + row.chargedKrw,
@@ -286,8 +289,9 @@ function UsagePanel() {
         emptyText="선택한 기간에 정산된 사용량이 없습니다."
         getRowId={(row) => row.rowId}
         height={420}
-        rowData={usageGridRows(rows)}
+        rowData={usagePage.pageItems}
       />
+      <ConsolePager ariaLabel="시뮬레이션 사용량 페이지 이동" {...usagePage.pagerProps} />
       <PanelMessage>{message}</PanelMessage>
     </div>
   );
