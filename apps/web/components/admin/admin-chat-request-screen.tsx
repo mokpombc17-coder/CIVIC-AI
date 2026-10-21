@@ -6,6 +6,12 @@ import { ScreenFrame } from "@/components/screens/screen-frame";
 import { AdminChatOperationsLayout } from "@/components/admin/admin-chat-operations-layout";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
+  ConsolePager,
+  DEFAULT_CONSOLE_PAGE_SIZE,
+  useConsoleCursorPages,
+  type ConsolePageSize,
+} from "@/components/admin/console/console-pager";
+import {
   ConsoleEmpty,
   ConsolePane,
   ConsoleSearchControl,
@@ -90,7 +96,12 @@ export function AdminChatRequestScreen({
   const [labels, setLabels] = useState<ReadonlyMap<string, string>>(new Map());
   const [categories, setCategories] = useState<readonly RoomCategory[]>([]);
   const [selectedCategoryIds, setSelectedCategoryIds] = useState<readonly string[]>([]);
-  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const requestPaging = useConsoleCursorPages();
+  const commitRequestPage = requestPaging.commit;
+  const requestPageSize = useRef<ConsolePageSize>(requestPaging.pageSize);
+  useEffect(() => {
+    requestPageSize.current = requestPaging.pageSize;
+  }, [requestPaging.pageSize]);
   const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
   const [notice, setNotice] = useState<Readonly<{ text: string; error: boolean }>>({
@@ -107,10 +118,20 @@ export function AdminChatRequestScreen({
   const detailGeneration = useRef(0);
 
   const loadList = useCallback(
-    async (nextStatus: RoomCreationStatus, cursor?: string) => {
+    async (
+      nextStatus: RoomCreationStatus,
+      cursor: string | null = null,
+      target: Readonly<{ page: number; pageSize: ConsolePageSize }> = {
+        page: 1,
+        pageSize: DEFAULT_CONSOLE_PAGE_SIZE,
+      },
+    ) => {
       const currentGeneration = ++listGeneration.current;
       setListLoading(true);
-      const parameters = new URLSearchParams({ status: nextStatus, limit: "20" });
+      const parameters = new URLSearchParams({
+        status: nextStatus,
+        limit: String(target.pageSize),
+      });
       if (cursor) parameters.set("cursor", cursor);
       try {
         const response = await authenticatedFetch(
@@ -130,9 +151,9 @@ export function AdminChatRequestScreen({
           if (!cursor) setItems([]);
           return;
         }
-        setItems((current) => (cursor ? [...current, ...page.items] : page.items));
-        setNextCursor(page.nextCursor);
+        setItems(page.items);
         setHasNext(page.hasNext);
+        commitRequestPage(target.page, target.pageSize, page.hasNext ? page.nextCursor : null);
         setMessage("");
         const nextLabels = await requestAdminUserLabels(
           page.items.map((item) => item.requesterUserId),
@@ -149,7 +170,7 @@ export function AdminChatRequestScreen({
         if (currentGeneration === listGeneration.current) setListLoading(false);
       }
     },
-    [setMessage],
+    [commitRequestPage, setMessage],
   );
 
   const loadDetail = useCallback(
@@ -216,7 +237,7 @@ export function AdminChatRequestScreen({
 
   useEffect(() => {
     const timer = window.setTimeout(() => {
-      void loadList(status);
+      void loadList(status, null, { page: 1, pageSize: requestPageSize.current });
     }, 0);
     return () => {
       window.clearTimeout(timer);
@@ -323,7 +344,10 @@ export function AdminChatRequestScreen({
         <ConsoleWorkspace layout="admin-chat-request-console">
           <ConsolePane
             ariaLabel="개설 신청 목록"
-            subtitle={listCountLabel({ shown: filteredItems.length, hasMore: hasNext })}
+            subtitle={listCountLabel({
+              shown: filteredItems.length,
+              hasMore: hasNext || requestPaging.page > 1,
+            })}
             title="개설 신청"
           >
             <form
@@ -347,7 +371,6 @@ export function AdminChatRequestScreen({
                   onClick={() => {
                     setStatus(option.value);
                     setItems([]);
-                    setNextCursor(null);
                     setHasNext(false);
                   }}
                   type="button"
@@ -366,19 +389,25 @@ export function AdminChatRequestScreen({
               rowData={rows}
               selectedRowId={selectedRequestId}
             />
-            {hasNext && nextCursor ? (
-              <button
-                className="wf-button wf-button-secondary civic-load-more"
-                disabled={listLoading}
-                onClick={() => void loadList(status, nextCursor)}
-                type="button"
-              >
-                더 불러오기
-              </button>
-            ) : null}
-            {query.trim() && hasNext ? (
+            <ConsolePager
+              ariaLabel="개설 신청 목록 페이지 이동"
+              disabled={listLoading}
+              hasNext={hasNext}
+              onPageChange={(page) =>
+                void loadList(status, requestPaging.cursorForPage(page), {
+                  page,
+                  pageSize: requestPaging.pageSize,
+                })
+              }
+              onPageSizeChange={(pageSize) => void loadList(status, null, { page: 1, pageSize })}
+              page={requestPaging.page}
+              pageSize={requestPaging.pageSize}
+              shown={items.length}
+              total={null}
+            />
+            {query.trim() && (hasNext || requestPaging.page > 1) ? (
               <ConsoleStatus>
-                불러온 목록 안에서만 검색했습니다. 더 불러오기로 나머지를 확인하세요.
+                현재 페이지 안에서만 검색했습니다. 다른 페이지에서 나머지를 확인하세요.
               </ConsoleStatus>
             ) : null}
             {listLoading ? (

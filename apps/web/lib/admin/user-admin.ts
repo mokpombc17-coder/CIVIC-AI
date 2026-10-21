@@ -103,18 +103,22 @@ export type AdminUserPage = {
   items: AdminUser[];
   /** Matching users on the server; null when the server does not report a total. */
   total: number | null;
-  nextCursor: string | null;
+  page: number;
+  pageSize: number;
 };
-
-export const ADMIN_USER_PAGE_SIZE = 100;
 
 export function adminUserListPath(
   query: string,
   status: UserStatusFilter = "all",
-  cursor: string | null = null,
+  page = 1,
+  pageSize = 20,
 ): string {
-  const params = new URLSearchParams({ query, status, limit: String(ADMIN_USER_PAGE_SIZE) });
-  if (cursor) params.set("cursor", cursor);
+  const params = new URLSearchParams({
+    query,
+    status,
+    page: String(page),
+    page_size: String(pageSize),
+  });
   return `/api/v1/admin/users?${params.toString()}`;
 }
 
@@ -122,34 +126,25 @@ export async function requestAdminUsers(
   query: string,
   request: typeof fetch = authenticatedFetch,
   status: UserStatusFilter = "all",
-  cursor: string | null = null,
+  page = 1,
+  pageSize = 20,
 ): Promise<AdminUserPage | null> {
   try {
-    const response = await request(adminUserListPath(query, status, cursor), {
+    const response = await request(adminUserListPath(query, status, page, pageSize), {
       cache: "no-store",
     });
     if (!response.ok) return null;
-    const data = (await response.json()) as {
-      items?: unknown;
-      next_cursor?: unknown;
-      total?: unknown;
-    };
+    const data = (await response.json()) as { items?: unknown; total?: unknown };
     if (!Array.isArray(data.items)) return null;
     return {
       items: data.items as AdminUser[],
       total: typeof data.total === "number" ? data.total : null,
-      nextCursor:
-        typeof data.next_cursor === "string" && data.next_cursor ? data.next_cursor : null,
+      page,
+      pageSize,
     };
   } catch {
     return null;
   }
-}
-
-/** Appends the next page without duplicating users already shown. */
-export function appendAdminUserPage(current: AdminUser[], next: AdminUser[]): AdminUser[] {
-  const seen = new Set(current.map((user) => user.user_id));
-  return [...current, ...next.filter((user) => !seen.has(user.user_id))];
 }
 
 /** main-auth returns only this many newest audit events, with no paging. */

@@ -44,7 +44,6 @@ import {
   userBackHref,
 } from "@/components/screens/admin-functional-screen";
 import { listCountLabel } from "@/lib/admin/list-count";
-import { appendAdminUserPage, type AdminUser } from "@/lib/admin/user-admin";
 import {
   accountDeactivationSuccessPath,
   accountMutation,
@@ -297,39 +296,36 @@ describe("25 functional Main/Auth screens", () => {
     await expect(requestAdminUsers("admin", unavailable as typeof fetch)).resolves.toBeNull();
     await expect(requestAdminUsers("admin", malformed as typeof fetch)).resolves.toBeNull();
     expect(unavailable).toHaveBeenCalledWith(
-      "/api/v1/admin/users?query=admin&status=all&limit=100",
+      "/api/v1/admin/users?query=admin&status=all&page=1&page_size=20",
       { cache: "no-store" },
     );
   });
 
-  it("관리자 사용자 조회는 상태·커서를 서버에 보내고 전체 수와 다음 커서를 해석한다", async () => {
+  it("관리자 사용자 조회는 상태·페이지·페이지 크기를 서버에 보내고 전체 수를 해석한다", async () => {
     const paged = vi.fn(async () =>
-      Response.json({ items: [{ user_id: "u-101" }], total: 145, next_cursor: "c2" }),
+      Response.json({ items: [{ user_id: "u-21" }], total: 145, page: 2, total_pages: 3 }),
     );
     const legacy = vi.fn(async () => Response.json({ items: [] }));
 
-    await expect(requestAdminUsers("", paged as typeof fetch, "admin", "c1")).resolves.toEqual({
-      items: [{ user_id: "u-101" }],
+    await expect(requestAdminUsers("", paged as typeof fetch, "admin", 2, 50)).resolves.toEqual({
+      items: [{ user_id: "u-21" }],
       total: 145,
-      nextCursor: "c2",
+      page: 2,
+      pageSize: 50,
     });
     expect(paged).toHaveBeenCalledWith(
-      "/api/v1/admin/users?query=&status=admin&limit=100&cursor=c1",
+      "/api/v1/admin/users?query=&status=admin&page=2&page_size=50",
       { cache: "no-store" },
     );
     await expect(requestAdminUsers("", legacy as typeof fetch)).resolves.toEqual({
       items: [],
       total: null,
-      nextCursor: null,
+      page: 1,
+      pageSize: 20,
     });
   });
 
-  it("관리자 사용자 다음 페이지는 중복 없이 이어 붙이고 전체 수를 함께 표시한다", () => {
-    const user = (user_id: string) => ({ user_id }) as AdminUser;
-
-    expect(
-      appendAdminUserPage([user("1"), user("2")], [user("2"), user("3")]).map((u) => u.user_id),
-    ).toEqual(["1", "2", "3"]);
+  it("관리자 목록 건수 문구는 전체 대비 표시 건수를 보여준다", () => {
     expect(listCountLabel({ shown: 100, total: 145, unit: "명" })).toBe("전체 145명 중 100명 표시");
     expect(listCountLabel({ shown: 45, total: 45, unit: "명" })).toBe("전체 45명");
     expect(listCountLabel({ shown: 1200, total: 1200 })).toBe("전체 1,200건");
@@ -1824,7 +1820,10 @@ describe("25 functional Main/Auth screens", () => {
     }
     expect(roles).not.toContain("RAG 관리");
     expect(roles).not.toContain("권한 회수 영향 확인");
-    expect(roles.match(/disabled=""/g)).toHaveLength(9);
+    // The list pager's prev/next/page-size controls are also disabled while loading;
+    // count only the role editor.
+    const roleEditor = roles.replace(/<div[^>]*console-pager[\s\S]*?<\/div>/u, "");
+    expect(roleEditor.match(/disabled=""/g)).toHaveLength(9);
 
     const audit = renderAdmin("A-USER-005");
     expect(audit).toContain('aria-label="감사 이력 표"');

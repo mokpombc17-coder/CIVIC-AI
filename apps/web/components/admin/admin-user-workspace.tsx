@@ -6,6 +6,12 @@ import Link from "next/link";
 import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
 import {
+  ConsolePager,
+  DEFAULT_CONSOLE_PAGE_SIZE,
+  useConsoleClientPage,
+  type ConsolePageSize,
+} from "@/components/admin/console/console-pager";
+import {
   ConsoleBadge,
   ConsoleEmpty,
   ConsolePane,
@@ -24,7 +30,6 @@ import {
   ADMIN_PERMISSION_CODES,
   ADMIN_ROLE_CHOICES,
   adminRoleMutationPath,
-  appendAdminUserPage,
   auditEventLabel,
   createLatestAdminUserRequestGate,
   createMutationLock,
@@ -152,9 +157,10 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   );
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [userTotal, setUserTotal] = useState<number | null>(null);
-  const [userNextCursor, setUserNextCursor] = useState<string | null>(null);
+  const [userPage, setUserPage] = useState(1);
+  const [userPageSize, setUserPageSize] = useState<ConsolePageSize>(DEFAULT_CONSOLE_PAGE_SIZE);
   const [userQuery, setUserQuery] = useState("");
-  const [usersLoadingMore, setUsersLoadingMore] = useState(false);
+  const [usersLoading, setUsersLoading] = useState(true);
   const [selected, setSelected] = useState<AdminUser | null>(null);
   const [message, setMessage] = useState("");
   const [userStatusFilter, setUserStatusFilter] = useState<UserStatusFilter>("all");
@@ -211,41 +217,52 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     };
   }, [selectedUserId]);
 
-  const loadUsers = useCallback(async (query = "", status: UserStatusFilter = "all") => {
-    const isCurrent = userLoadGate.current.begin();
-    setUsersLoadingMore(false);
-    const page = await requestAdminUsers(query, undefined, status);
-    if (!isCurrent()) return;
-    if (page === null) {
-      setUsers([]);
-      setUserTotal(null);
-      setUserNextCursor(null);
-      setSelected(null);
-      setMessage("사용자 목록을 불러오지 못했습니다.");
-      return;
-    }
-    const items = page.items;
-    setUsers(items);
-    setUserTotal(page.total);
-    setUserNextCursor(page.nextCursor);
-    setMessage("");
-    const requested =
-      typeof window === "undefined"
-        ? null
-        : new URLSearchParams(window.location.search).get("userId");
-    if (requested) {
-      const requestedUser = await loadRequestedAdminUser(requested);
+  const loadUsers = useCallback(
+    async (
+      query = "",
+      status: UserStatusFilter = "all",
+      pageNumber = 1,
+      pageSize: ConsolePageSize = DEFAULT_CONSOLE_PAGE_SIZE,
+      keepSelection = false,
+    ) => {
+      const isCurrent = userLoadGate.current.begin();
+      setUsersLoading(true);
+      const page = await requestAdminUsers(query, undefined, status, pageNumber, pageSize);
       if (!isCurrent()) return;
-      if (!requestedUser) {
-        setSelected(null);
-        setMessage("요청한 사용자를 불러오지 못했습니다.");
+      setUsersLoading(false);
+      if (page === null) {
+        setUsers([]);
+        setUserTotal(null);
+        if (!keepSelection) setSelected(null);
+        setMessage("사용자 목록을 불러오지 못했습니다.");
         return;
       }
-      setSelected(requestedUser);
-      return;
-    }
-    setSelected(items[0] ?? null);
-  }, []);
+      const items = page.items;
+      setUsers(items);
+      setUserTotal(page.total);
+      setUserPage(page.page);
+      setUserPageSize(pageSize);
+      setMessage("");
+      if (keepSelection) return;
+      const requested =
+        typeof window === "undefined"
+          ? null
+          : new URLSearchParams(window.location.search).get("userId");
+      if (requested) {
+        const requestedUser = await loadRequestedAdminUser(requested);
+        if (!isCurrent()) return;
+        if (!requestedUser) {
+          setSelected(null);
+          setMessage("요청한 사용자를 불러오지 못했습니다.");
+          return;
+        }
+        setSelected(requestedUser);
+        return;
+      }
+      setSelected(items[0] ?? null);
+    },
+    [],
+  );
 
   useEffect(() => {
     const activeGate = userLoadGate.current;
@@ -295,29 +312,12 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
     event.preventDefault();
     const query = String(new FormData(event.currentTarget).get("query") ?? "");
     setUserQuery(query);
-    await loadUsers(query, userStatusFilter);
+    await loadUsers(query, userStatusFilter, 1, userPageSize);
   }
 
   function changeUserStatusFilter(status: UserStatusFilter) {
     setUserStatusFilter(status);
-    void loadUsers(userQuery, status);
-  }
-
-  async function loadMoreUsers() {
-    if (!userNextCursor || usersLoadingMore) return;
-    const isCurrent = userLoadGate.current.begin();
-    setUsersLoadingMore(true);
-    const page = await requestAdminUsers(userQuery, undefined, userStatusFilter, userNextCursor);
-    if (!isCurrent()) return;
-    setUsersLoadingMore(false);
-    if (page === null) {
-      setMessage("사용자 목록을 더 불러오지 못했습니다. 다시 시도해 주세요.");
-      return;
-    }
-    setUsers((current) => appendAdminUserPage(current, page.items));
-    setUserTotal(page.total);
-    setUserNextCursor(page.nextCursor);
-    setMessage("");
+    void loadUsers(userQuery, status, 1, userPageSize);
   }
 
   function submitRoles(event: FormEvent<HTMLFormElement>) {
@@ -400,6 +400,7 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
   }
 
   const filteredUsers = filterAdminUsers(users, userStatusFilter);
+  const auditPage = useConsoleClientPage(audits, selected?.user_id ?? "");
   const tabs: readonly ConsoleTabItem[] = [
     { id: "overview", label: "개요" },
     { id: "roles", label: "권한 편집" },
@@ -411,9 +412,8 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
       <ConsolePane
         ariaLabel="사용자 목록"
         subtitle={listCountLabel({
-          shown: filteredUsers.length,
+          shown: userTotal ?? filteredUsers.length,
           total: userTotal,
-          hasMore: userNextCursor !== null,
           unit: "명",
         })}
         title="사용자 검색"
@@ -454,16 +454,21 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
           rowData={filteredUsers}
           selectedRowId={selected?.user_id ?? null}
         />
-        {userNextCursor ? (
-          <button
-            className="wf-button wf-button-secondary civic-load-more"
-            disabled={usersLoadingMore}
-            onClick={() => void loadMoreUsers()}
-            type="button"
-          >
-            더 불러오기
-          </button>
-        ) : null}
+        <ConsolePager
+          ariaLabel="사용자 목록 페이지 이동"
+          disabled={usersLoading}
+          onPageChange={(page) =>
+            void loadUsers(userQuery, userStatusFilter, page, userPageSize, true)
+          }
+          onPageSizeChange={(pageSize) =>
+            void loadUsers(userQuery, userStatusFilter, 1, pageSize, true)
+          }
+          page={userPage}
+          pageSize={userPageSize}
+          shown={filteredUsers.length}
+          total={userTotal}
+          unit="명"
+        />
         {message ? <ConsoleStatus>{message}</ConsoleStatus> : null}
       </ConsolePane>
 
@@ -508,8 +513,11 @@ export function AdminUserWorkspace({ screen }: Readonly<{ screen: ScreenDefiniti
               }
               getRowId={(row) => row.eventId}
               height={420}
-              rowData={audits.map((event) => auditRowFromEvent(event, auditUserLabels))}
+              rowData={auditPage.pageItems.map((event) =>
+                auditRowFromEvent(event, auditUserLabels),
+              )}
             />
+            <ConsolePager ariaLabel="권한 이력 페이지 이동" {...auditPage.pagerProps} />
             {auditWindowFull ? (
               <ConsoleStatus>
                 {`최근 감사 이력 ${ADMIN_AUDIT_SERVER_WINDOW}건 기준으로 표시합니다. 그보다 오래된 이력은 이 화면에서 볼 수 없습니다.`}

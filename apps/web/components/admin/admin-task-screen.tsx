@@ -9,6 +9,7 @@ import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-downl
 import { OpinionMapReviewPanel } from "@/components/admin/opinion-map-review-panel";
 import { VoteSimulationComparison } from "@/components/admin/vote-simulation-comparison";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import { ConsolePager, useConsoleClientPage } from "@/components/admin/console/console-pager";
 import {
   ConsoleEmpty,
   ConsolePane,
@@ -174,6 +175,7 @@ function AdminTaskWorkspace({
         (!normalized || item.title.toLocaleLowerCase("ko-KR").includes(normalized)),
     );
   }, [items, keyword, statusFilter]);
+  const taskPage = useConsoleClientPage(filtered, `${keyword}|${statusFilter}`);
 
   const selectedSummary = selectedTaskId
     ? (items.find((item) => item.taskId === selectedTaskId) ?? null)
@@ -265,9 +267,10 @@ function AdminTaskWorkspace({
           getRowId={(task) => task.taskId}
           height={460}
           onRowClicked={selectTask}
-          rowData={filtered}
+          rowData={taskPage.pageItems}
           selectedRowId={editing ? (editorTaskId ?? null) : (selectedTaskId ?? null)}
         />
+        <ConsolePager ariaLabel="투표 목록 페이지 이동" {...taskPage.pagerProps} />
         {listMessage ? <ConsoleStatus error>{listMessage}</ConsoleStatus> : null}
       </ConsolePane>
 

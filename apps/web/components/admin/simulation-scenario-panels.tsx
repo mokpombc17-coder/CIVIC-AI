@@ -5,6 +5,7 @@ import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
+import { ConsolePager, useConsoleClientPage } from "@/components/admin/console/console-pager";
 import { ConsoleModal } from "@/components/admin/console/console-modal";
 import { ConsoleBadge, ConsoleSearchControl } from "@/components/admin/console/console-ui";
 import {
@@ -212,6 +213,8 @@ export function SimulationLists() {
     () => scenarios.items.filter((item) => matches(item.title, search)).map(scenarioRow),
     [scenarios.items, search],
   );
+  const votePage = useConsoleClientPage(voteRows, search);
+  const scenarioPage = useConsoleClientPage(scenarioRows, search);
 
   return (
     <>
@@ -261,7 +264,11 @@ export function SimulationLists() {
             getRowId={(row) => row.taskId}
             height={420}
             onRowClicked={(row) => router.push(row.href as Route)}
-            rowData={voteRows}
+            rowData={votePage.pageItems}
+          />
+          <ConsolePager
+            ariaLabel="투표 기반 시뮬레이션 목록 페이지 이동"
+            {...votePage.pagerProps}
           />
           {votes.message ? (
             <p aria-live="polite" className="civic-domain-empty" role="status">
@@ -300,8 +307,9 @@ export function SimulationLists() {
             getRowId={(row) => row.scenarioId}
             height={420}
             onRowClicked={(row) => router.push(row.href as Route)}
-            rowData={scenarioRows}
+            rowData={scenarioPage.pageItems}
           />
+          <ConsolePager ariaLabel="시뮬레이션 목록 페이지 이동" {...scenarioPage.pagerProps} />
           {scenarios.message ? (
             <p aria-live="polite" className="civic-domain-empty" role="status">
               {scenarios.message}
@@ -583,6 +591,7 @@ function VoteImportDialog({
       (item) => !normalized || item.title.toLocaleLowerCase("ko-KR").includes(normalized),
     );
   }, [items, search]);
+  const importPage = useConsoleClientPage(rows, search);
 
   return (
     <ConsoleModal ariaLabel="투표에서 불러오기" onClose={onClose} open={open}>
@@ -604,8 +613,9 @@ function VoteImportDialog({
           getRowId={(task) => task.taskId}
           height={320}
           onRowClicked={onSelect}
-          rowData={rows}
+          rowData={importPage.pageItems}
         />
+        <ConsolePager ariaLabel="불러올 투표 목록 페이지 이동" {...importPage.pagerProps} />
         {message ? (
           <p aria-live="polite" className="civic-form-message" role="status">
             {message}

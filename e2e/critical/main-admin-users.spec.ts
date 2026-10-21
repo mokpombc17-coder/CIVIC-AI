@@ -41,14 +41,15 @@ test.beforeAll(async () => {
       if (pagedDirectory) {
         directoryRequests.push(url.searchParams);
         if (url.searchParams.get("status") === "admin") {
-          return json(response, { items: [adminUser], total: 1, next_cursor: null });
+          return json(response, { items: [adminUser], total: 1, page: 1, total_pages: 1 });
         }
-        return url.searchParams.get("cursor") === "page-2"
-          ? json(response, { items: [olderUser], total: 3, next_cursor: null })
+        return url.searchParams.get("page") === "2"
+          ? json(response, { items: [olderUser], total: 23, page: 2, total_pages: 2 })
           : json(response, {
               items: [adminUser, participantUser],
-              total: 3,
-              next_cursor: "page-2",
+              total: 23,
+              page: 1,
+              total_pages: 2,
             });
       }
       return json(response, { items: [adminUser, participantUser] });
@@ -147,7 +148,7 @@ test("관리자는 사용자 조회부터 문서 권한 변경과 감사 이력�
   await expect(page.getByText(/사용자 비활성화|개인정보 삭제 실행/)).toHaveCount(0);
 });
 
-test("관리자는 첫 페이지 밖의 사용자를 더 불러오고 상태 필터를 서버에 조회한다", async ({
+test("관리자는 사용자 목록을 페이지로 이동하고 상태 필터·페이지 크기를 서버에 조회한다", async ({
   context,
   page,
 }) => {
@@ -159,25 +160,34 @@ test("관리자는 첫 페이지 밖의 사용자를 더 불러오고 상태 필
     await page.goto("/admin/users");
 
     const list = page.getByRole("region", { name: "사용자 목록" });
-    await expect(list.getByText("전체 3명 중 2명 표시")).toBeVisible();
+    const pager = page.getByRole("group", { name: "사용자 목록 페이지 이동" });
+    await expect(list.getByText("전체 23명", { exact: true })).toBeVisible();
+    await expect(pager).toContainText("1-2 / 전체 23명");
+    await expect(pager).toContainText("1 / 2");
     await expect(page.getByRole("row", { name: /early@example.com/ })).toHaveCount(0);
-
-    await page.getByRole("button", { name: "더 불러오기" }).click();
-    await expect(page.getByRole("row", { name: /early@example.com/ })).toBeVisible();
-    await expect(list.getByText("전체 3명", { exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "더 불러오기" })).toHaveCount(0);
+
+    await pager.getByRole("button", { name: "다음 페이지" }).click();
+    await expect(page.getByRole("row", { name: /early@example.com/ })).toBeVisible();
+    await expect(page.getByRole("row", { name: /citizen@example.com/ })).toHaveCount(0);
+    await expect(pager).toContainText("2 / 2");
+    await expect(pager.getByRole("button", { name: "다음 페이지" })).toBeDisabled();
 
     await page
       .getByRole("group", { name: "사용자 상태 필터" })
       .getByRole("button", { name: "관리자" })
       .click();
     await expect(list.getByText("전체 1명", { exact: true })).toBeVisible();
-    await expect(page.getByRole("row", { name: /early@example.com/ })).toHaveCount(0);
+    await expect(pager).toContainText("1 / 1");
+
+    await pager.getByLabel("사용자 목록 페이지 이동 페이지당 표시 개수").selectOption("50");
+    await expect.poll(() => directoryRequests.length).toBe(4);
 
     expect(directoryRequests.map((params) => Object.fromEntries(params))).toEqual([
-      { query: "", status: "all", limit: "100" },
-      { query: "", status: "all", limit: "100", cursor: "page-2" },
-      { query: "", status: "admin", limit: "100" },
+      { query: "", status: "all", page: "1", page_size: "20" },
+      { query: "", status: "all", page: "2", page_size: "20" },
+      { query: "", status: "admin", page: "1", page_size: "20" },
+      { query: "", status: "admin", page: "1", page_size: "50" },
     ]);
   } finally {
     pagedDirectory = false;
