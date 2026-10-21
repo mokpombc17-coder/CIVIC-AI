@@ -130,11 +130,7 @@ final class SurveyApiModels {
         }
 
         private boolean requiredOrDefault() {
-            if (Boolean.FALSE.equals(required)) {
-                throw new IllegalArgumentException(
-                        "required must be true for every survey question");
-            }
-            return true;
+            return !Boolean.FALSE.equals(required);
         }
     }
 
@@ -205,7 +201,7 @@ final class SurveyApiModels {
 
     record SubmitResponseRequest(
             @NotNull UUID roundId,
-            @NotNull UUID consentReceiptId,
+            UUID consentReceiptId,
             @NotNull List<@Valid AnswerRequest> answers
     ) {
         List<SurveyAnswer> toAnswers() {

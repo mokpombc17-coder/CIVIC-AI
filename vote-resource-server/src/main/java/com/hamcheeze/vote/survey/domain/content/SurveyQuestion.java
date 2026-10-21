@@ -189,13 +189,7 @@ public final class SurveyQuestion {
                     "question displayOrder must be positive");
         }
         this.displayOrder = displayOrder;
-        if (!required) {
-            throw SurveyDomainException.invariant(
-                    "SURVEY_QUESTION_MUST_BE_REQUIRED",
-                    "question.required",
-                    "all survey questions must be required");
-        }
-        this.required = true;
+        this.required = required;
         this.rule = Objects.requireNonNull(rule, "rule");
         if (rule.questionType() != type) {
             throw SurveyDomainException.invariant(
@@ -319,6 +313,14 @@ public final class SurveyQuestion {
 
     public boolean required() {
         return required;
+    }
+
+    /**
+     * Optional questions collect sensitive information, so answering any of
+     * them requires a consent receipt.
+     */
+    public boolean requiresConsent() {
+        return !required;
     }
 
     public QuestionRule rule() {

@@ -29,6 +29,7 @@ import java.util.Optional;
 import java.util.UUID;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
@@ -223,6 +224,36 @@ class SurveyUserControllerTest {
                 .andExpect(jsonPath("$.replayed").value(true))
                 .andExpect(jsonPath("$.responseId")
                         .value(responseId.toString()));
+    }
+
+    @Test
+    void submissionWithoutConsentReceiptPassesNoReceipt() throws Exception {
+        UUID roundId = UUID.randomUUID();
+        SurveySubmissionOutcome outcome = new SurveySubmissionOutcome(
+                201,
+                "SURVEY_RESPONSE_SUBMITTED",
+                new SurveyResponseId(UUID.randomUUID()),
+                new SurveyRoundId(roundId),
+                new SurveyContentVersionId(UUID.randomUUID()),
+                Instant.parse("2026-10-21T00:00:00Z"),
+                List.of());
+        when(submissions.submit(any(), eq("request-key"), any()))
+                .thenReturn(new SurveyResponseSubmissionService
+                        .SubmissionExecution(outcome, false));
+
+        mockMvc.perform(post("/api/v1/me/survey-responses")
+                        .principal(authentication)
+                        .header("Idempotency-Key", "request-key")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("""
+                                {"roundId":"%s","answers":[]}
+                                """.formatted(roundId)))
+                .andExpect(status().isCreated());
+
+        verify(submissions).submit(
+                any(),
+                eq("request-key"),
+                argThat(command -> command.consentReceiptId() == null));
     }
 
     @Test

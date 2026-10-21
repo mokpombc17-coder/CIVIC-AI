@@ -206,7 +206,7 @@ class SurveySchemaConstraintIntegrationTest {
     }
 
     @Test
-    void requiresEverySurveyQuestionAtTheDatabaseBoundary() {
+    void defaultsQuestionsToRequiredAndAllowsOptionalQuestions() {
         UUID contentId = insertPublishedContent(1);
         UUID defaultedQuestionId = UUID.randomUUID();
         UUID firstSectionId = insertQuestionSection(contentId, 1);
@@ -232,7 +232,7 @@ class SurveySchemaConstraintIntegrationTest {
 
         UUID secondSectionId = insertQuestionSection(contentId, 2);
         UUID secondQuestionId = UUID.randomUUID();
-        assertThatThrownBy(() -> jdbcTemplate.update("""
+        jdbcTemplate.update("""
                 INSERT INTO survey_questions (
                     question_id, content_version_id, question_lineage_id,
                     section_id, question_key, source_number, title,
@@ -241,11 +241,15 @@ class SurveySchemaConstraintIntegrationTest {
                 VALUES (?, ?, ?, ?, ?, '2', '질문',
                     'SHORT_TEXT', '질문', 2, false, 200)
                 """, secondQuestionId, contentId, UUID.randomUUID(),
-                secondSectionId, "test.question." + secondQuestionId))
-                .isInstanceOf(DataIntegrityViolationException.class)
-                .hasMessageContaining("ck_survey_question_required");
+                secondSectionId, "test.question." + secondQuestionId);
+        Boolean optionalRequired = jdbcTemplate.queryForObject("""
+                SELECT is_required
+                FROM survey_questions
+                WHERE question_id = ?
+                """, Boolean.class, secondQuestionId);
 
         assertThat(defaultedRequired).isTrue();
+        assertThat(optionalRequired).isFalse();
         assertThat(migrationCount).isEqualTo(1);
     }
 

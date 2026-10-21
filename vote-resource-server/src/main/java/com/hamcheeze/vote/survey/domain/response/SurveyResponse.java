@@ -74,6 +74,7 @@ public final class SurveyResponse {
             SurveyRoundId roundId,
             SurveyRoundNumber roundNumber,
             SurveyContentVersionId contentVersionId,
+            ConsentReceiptId consentReceiptId,
             Instant submittedAt,
             List<SurveyAnswer> answers
     ) {
@@ -83,7 +84,7 @@ public final class SurveyResponse {
                 roundId,
                 roundNumber,
                 contentVersionId,
-                null,
+                consentReceiptId,
                 submittedAt,
                 answers);
     }
@@ -125,20 +126,6 @@ public final class SurveyResponse {
                 roundNumber,
                 contentVersionId,
                 consentReceiptId,
-                submittedAt,
-                answers);
-    }
-
-    public SurveyResponse withConsentReceipt(
-            ConsentReceiptId receiptId
-    ) {
-        return new SurveyResponse(
-                id,
-                userId,
-                roundId,
-                roundNumber,
-                contentVersionId,
-                Objects.requireNonNull(receiptId, "receiptId"),
                 submittedAt,
                 answers);
     }

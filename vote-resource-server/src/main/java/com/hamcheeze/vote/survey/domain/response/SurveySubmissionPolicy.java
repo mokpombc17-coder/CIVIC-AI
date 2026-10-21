@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.domain.response;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
 import com.hamcheeze.vote.survey.domain.common.SurveyOptionId;
@@ -49,6 +50,7 @@ public final class SurveySubmissionPolicy {
             SurveyContentVersion contentVersion,
             boolean existingFinalResponse,
             List<SurveyAnswer> submittedAnswers,
+            ConsentReceiptId consentReceiptId,
             Instant submittedAt
     ) {
         Objects.requireNonNull(responseId, "responseId");
@@ -66,13 +68,15 @@ public final class SurveySubmissionPolicy {
 
         List<SurveyAnswer> normalizedAnswers = validateAndNormalizeAnswers(
                 contentVersion,
-                Objects.requireNonNull(submittedAnswers, "submittedAnswers"));
+                Objects.requireNonNull(submittedAnswers, "submittedAnswers"),
+                consentReceiptId != null);
         SurveyResponse response = SurveyResponse.createValidated(
                 responseId,
                 userId,
                 lockedActiveRound.id(),
                 lockedActiveRound.roundNumber(),
                 contentVersion.id(),
+                consentReceiptId,
                 submittedAt,
                 normalizedAnswers);
         SurveyResponseSubmitted event = new SurveyResponseSubmitted(
@@ -133,7 +137,8 @@ public final class SurveySubmissionPolicy {
 
     private static List<SurveyAnswer> validateAndNormalizeAnswers(
             SurveyContentVersion contentVersion,
-            List<SurveyAnswer> answers
+            List<SurveyAnswer> answers,
+            boolean consentReceiptProvided
     ) {
         if (answers.stream().anyMatch(Objects::isNull)) {
             throw new IllegalArgumentException(
@@ -175,7 +180,8 @@ public final class SurveySubmissionPolicy {
             }
         }
         for (SurveyQuestion question : contentVersion.questions()) {
-            if (!answersByQuestion.containsKey(question.id())) {
+            if (question.required()
+                    && !answersByQuestion.containsKey(question.id())) {
                 violations.add(violation(
                         "SURVEY_REQUIRED_ANSWER_MISSING",
                         question.id(),
@@ -183,6 +189,11 @@ public final class SurveySubmissionPolicy {
                         "answer is required"));
             }
         }
+        validateConsentReceipt(
+                contentVersion,
+                answersByQuestion,
+                consentReceiptProvided,
+                violations);
 
         List<NormalizedAnswer> normalized = new ArrayList<>();
         for (SurveyQuestion question : contentVersion.questions()) {
@@ -216,6 +227,32 @@ public final class SurveySubmissionPolicy {
                 .sorted(Comparator.comparingInt(NormalizedAnswer::displayOrder))
                 .map(NormalizedAnswer::answer)
                 .toList();
+    }
+
+    private static void validateConsentReceipt(
+            SurveyContentVersion contentVersion,
+            Map<SurveyQuestionId, List<SurveyAnswer>> answersByQuestion,
+            boolean consentReceiptProvided,
+            List<SurveyViolation> violations
+    ) {
+        boolean consentRequired = contentVersion.questions().stream()
+                .filter(SurveyQuestion::requiresConsent)
+                .anyMatch(question ->
+                        answersByQuestion.containsKey(question.id()));
+        if (consentRequired && !consentReceiptProvided) {
+            violations.add(SurveyViolation.of(
+                    "SURVEY_CONSENT_RECEIPT_REQUIRED",
+                    "consentReceiptId",
+                    "consent receipt is required when answering a "
+                            + "consent-required question"));
+        }
+        if (!consentRequired && consentReceiptProvided) {
+            violations.add(SurveyViolation.of(
+                    "SURVEY_CONSENT_RECEIPT_NOT_ALLOWED",
+                    "consentReceiptId",
+                    "consent receipt must be omitted when no "
+                            + "consent-required question is answered"));
+        }
     }
 
     private static SurveyAnswer normalizeAnswer(

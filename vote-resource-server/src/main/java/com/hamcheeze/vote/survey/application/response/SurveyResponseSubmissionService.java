@@ -6,6 +6,7 @@ import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyComman
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyExecution;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyKey;
 import com.hamcheeze.vote.survey.application.idempotency.SurveyIdempotencyOperation;
+import com.hamcheeze.vote.survey.application.idempotency.SurveyRequestHash;
 import com.hamcheeze.vote.survey.application.idempotency.SurveySubmissionRequestHashFactory;
 import com.hamcheeze.vote.survey.application.port.out.SurveyContentVersionRepository;
 import com.hamcheeze.vote.survey.application.port.out.SurveyResponseRepository;
@@ -102,10 +103,7 @@ public class SurveyResponseSubmissionService {
                         authenticatedUserId,
                         SurveyIdempotencyOperation.SUBMIT_SURVEY_RESPONSE,
                         parsedKey,
-                        requestHashFactory.hash(
-                                command.roundId(),
-                                command.consentReceiptId(),
-                                command.answers()),
+                        submissionRequestHash(command),
                         SurveySubmissionOutcomeCodec.SCHEMA_VERSION);
         SurveyIdempotencyExecution<SurveySubmissionOutcome> execution =
                 idempotency.execute(
@@ -172,6 +170,7 @@ public class SurveyResponseSubmissionService {
                             content,
                             false,
                             command.answers(),
+                            command.consentReceiptId(),
                             persistenceSafeInstant(clock.instant()));
             return SurveySubmissionOutcome.previewAccepted(result.event());
         } catch (SurveyValidationException exception) {
@@ -238,9 +237,9 @@ public class SurveyResponseSubmissionService {
                             content,
                             existing,
                             command.answers(),
+                            command.consentReceiptId(),
                             persistenceSafeInstant(clock.instant()));
-            responses.insert(result.response().withConsentReceipt(
-                    command.consentReceiptId()));
+            responses.insert(result.response());
             submittedEvents.publish(userId, result.event());
             return SurveySubmissionOutcome.submitted(result.event());
         } catch (SurveyValidationException exception) {
@@ -262,6 +261,18 @@ public class SurveyResponseSubmissionService {
                             violation.message(),
                             violation.details()));
         }
+    }
+
+    private SurveyRequestHash submissionRequestHash(
+            SubmitSurveyResponseCommand command
+    ) {
+        return command.consentReceiptId() == null
+                ? requestHashFactory.hash(
+                        command.roundId(), command.answers())
+                : requestHashFactory.hash(
+                        command.roundId(),
+                        command.consentReceiptId(),
+                        command.answers());
     }
 
     static Instant persistenceSafeInstant(Instant instant) {
@@ -300,8 +311,6 @@ public class SurveyResponseSubmissionService {
     ) {
         public SubmitSurveyResponseCommand {
             Objects.requireNonNull(roundId, "roundId");
-            Objects.requireNonNull(
-                    consentReceiptId, "consentReceiptId");
             answers = List.copyOf(Objects.requireNonNull(
                     answers, "answers"));
         }

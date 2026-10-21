@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.application.bootstrap;
 
+import com.hamcheeze.vote.survey.domain.content.SurveyContentVersion;
 import com.hamcheeze.vote.survey.domain.content.SurveyContentVersionStatus;
 import com.hamcheeze.vote.survey.domain.content.SurveyOptionKind;
 import com.hamcheeze.vote.survey.domain.content.SurveyQuestion;
@@ -19,6 +20,9 @@ import com.hamcheeze.vote.survey.domain.response.ShortTextAnswer;
 import com.hamcheeze.vote.survey.domain.response.SingleChoiceAnswer;
 import com.hamcheeze.vote.survey.domain.response.SurveyAnswer;
 import com.hamcheeze.vote.survey.domain.response.SurveySubmissionPolicy;
+import com.hamcheeze.vote.survey.domain.response.SurveySubmissionResult;
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
+import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
 import com.hamcheeze.vote.survey.domain.common.SurveyResponseId;
 import com.hamcheeze.vote.survey.domain.common.SurveyUserId;
 import com.hamcheeze.vote.survey.domain.round.SurveyRound;
@@ -53,7 +57,10 @@ class LocalSurveyFixtureTest {
                         "미디어 · 의견 성향",
                         "사회 · 기관 신뢰",
                         "매체 이용 · 정보 습관");
-        assertThat(first).allMatch(SurveyQuestion::required);
+        assertThat(first)
+                .filteredOn(question -> !RoundOneSurveyFixture
+                        .OPTIONAL_QUESTION_KEYS.contains(question.questionKey()))
+                .allMatch(SurveyQuestion::required);
         assertThat(first)
                 .extracting(SurveyQuestion::displayOrder)
                 .containsExactlyElementsOf(
@@ -160,11 +167,52 @@ class LocalSurveyFixtureTest {
     }
 
     @Test
+    void marksSensitiveQuestionsAsOptional() {
+        assertThat(LocalSurveyFixture.publishedContent().questions().stream()
+                .filter(question -> !question.required())
+                .map(SurveyQuestion::questionKey))
+                .containsExactlyInAnyOrder(
+                        "wellbeing.health-status",
+                        "demographics.religion",
+                        "politics.ideology",
+                        "politics.supported-party");
+    }
+
+    @Test
     void acceptsOneCompleteTwentyNineAnswerSubmission() {
         var content = LocalSurveyFixture.publishedContent();
         List<SurveyAnswer> answers = content.questions().stream()
                 .map(LocalSurveyFixtureTest::validAnswer)
                 .toList();
+
+        var result = submit(
+                content, answers, SurveyConsentTestFixture.externalReceipt());
+
+        assertThat(result.response().answers())
+                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
+    }
+
+    @Test
+    void acceptsSubmissionWithoutOptionalAnswersAndConsentReceipt() {
+        var content = LocalSurveyFixture.publishedContent();
+        List<SurveyAnswer> answers = content.questions().stream()
+                .filter(SurveyQuestion::required)
+                .map(LocalSurveyFixtureTest::validAnswer)
+                .toList();
+
+        var result = submit(content, answers, null);
+
+        assertThat(result.response().answers())
+                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT
+                        - RoundOneSurveyFixture.OPTIONAL_QUESTION_KEYS.size());
+        assertThat(result.response().consentReceiptId()).isEmpty();
+    }
+
+    private static SurveySubmissionResult submit(
+            SurveyContentVersion content,
+            List<SurveyAnswer> answers,
+            ConsentReceiptId consentReceiptId
+    ) {
         SurveyRound round = SurveyRound.rehydrate(
                 LocalSurveyFixture.ROUND_ID,
                 LocalSurveyFixture.ROUND_NUMBER,
@@ -180,7 +228,7 @@ class LocalSurveyFixtureTest {
                 LocalSurveyFixture.CREATED_AT,
                 0);
 
-        var result = new SurveySubmissionPolicy().submitFinalResponse(
+        return new SurveySubmissionPolicy().submitFinalResponse(
                 new SurveyResponseId(UUID.randomUUID()),
                 new SurveyUserId("user-a"),
                 LocalSurveyFixture.ROUND_ID,
@@ -188,10 +236,8 @@ class LocalSurveyFixtureTest {
                 content,
                 false,
                 answers,
+                consentReceiptId,
                 LocalSurveyFixture.CREATED_AT.plusSeconds(1));
-
-        assertThat(result.response().answers())
-                .hasSize(RoundOneSurveyFixture.QUESTION_COUNT);
     }
 
     private static SurveyAnswer validAnswer(SurveyQuestion question) {

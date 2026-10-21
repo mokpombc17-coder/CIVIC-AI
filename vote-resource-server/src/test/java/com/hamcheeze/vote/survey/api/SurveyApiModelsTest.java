@@ -22,7 +22,6 @@ import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.ObjectMapper;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -38,10 +37,10 @@ class SurveyApiModelsTest {
     }
 
     @Test
-    void rejectsExplicitOptionalQuestion() {
-        assertThatThrownBy(() -> questionRequest(false).toDomain())
-                .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("required must be true");
+    void acceptsExplicitOptionalQuestion() {
+        SurveyQuestion question = questionRequest(false).toDomain();
+
+        assertThat(question.required()).isFalse();
     }
 
     @Test

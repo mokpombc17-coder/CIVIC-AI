@@ -1,7 +1,6 @@
 package com.hamcheeze.vote.survey.verification;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
-import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
 import com.hamcheeze.vote.survey.application.port.out.SurveyRoundRepository;
 import com.hamcheeze.vote.survey.application.query.MySurveyResponseQueryService;
@@ -344,7 +343,7 @@ class SurveyConcurrencyIntegrationTest {
         return new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 round.id(),
-                SurveyConsentTestFixture.externalReceipt(),
+                null,
                 List.of(new ShortTextAnswer(
                         content.question().id(), answer)));
     }

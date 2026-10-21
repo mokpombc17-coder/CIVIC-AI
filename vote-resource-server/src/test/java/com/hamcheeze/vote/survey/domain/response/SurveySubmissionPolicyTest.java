@@ -1,5 +1,6 @@
 package com.hamcheeze.vote.survey.domain.response;
 
+import com.hamcheeze.vote.survey.domain.common.ConsentReceiptId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionId;
 import com.hamcheeze.vote.survey.domain.common.SurveyContentVersionNumber;
 import com.hamcheeze.vote.survey.domain.common.SurveyDomainException;
@@ -29,6 +30,7 @@ import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtur
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.ROUND_ID;
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.activeRound;
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.content;
+import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.contentWithOptionalScale;
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.optionId;
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.questionId;
 import static com.hamcheeze.vote.survey.domain.response.SurveyResponseTestFixtures.validAnswers;
@@ -113,6 +115,7 @@ class SurveySubmissionPolicyTest {
                 content(),
                 false,
                 List.of(),
+                null,
                 NOW.plusSeconds(10)))
                 .isInstanceOfSatisfying(
                         SurveyDomainException.class,
@@ -128,6 +131,7 @@ class SurveySubmissionPolicyTest {
                 content(),
                 true,
                 List.of(),
+                null,
                 NOW.plusSeconds(10)))
                 .isInstanceOfSatisfying(
                         SurveyDomainException.class,
@@ -146,6 +150,7 @@ class SurveySubmissionPolicyTest {
                 content(),
                 false,
                 validAnswers(),
+                null,
                 NOW.plusSeconds(10)))
                 .isInstanceOfSatisfying(
                         SurveyDomainException.class,
@@ -161,6 +166,7 @@ class SurveySubmissionPolicyTest {
                 differentContent,
                 false,
                 List.of(),
+                null,
                 NOW.plusSeconds(10)))
                 .isInstanceOfSatisfying(
                         SurveyDomainException.class,
@@ -247,6 +253,91 @@ class SurveySubmissionPolicyTest {
     }
 
     @Test
+    void acceptsOptionalAnswerOmissionWithoutConsentReceipt() {
+        SurveyResponse response = submit(
+                contentWithOptionalScale(),
+                answersWithoutScale(),
+                null).response();
+
+        assertThat(response.answers())
+                .extracting(SurveyAnswer::questionId)
+                .containsExactly(
+                        questionId(1), questionId(2), questionId(3),
+                        questionId(4), questionId(5));
+        assertThat(response.consentReceiptId()).isEmpty();
+    }
+
+    @Test
+    void keepsConsentReceiptWhenOptionalQuestionIsAnswered() {
+        ConsentReceiptId receiptId =
+                new ConsentReceiptId(new UUID(82, 1));
+
+        SurveyResponse response = submit(
+                contentWithOptionalScale(),
+                validAnswers(),
+                receiptId).response();
+
+        assertThat(response.answers()).hasSize(6);
+        assertThat(response.consentReceiptId()).contains(receiptId);
+    }
+
+    @Test
+    void requiresConsentReceiptWhenOptionalQuestionIsAnswered() {
+        assertThatThrownBy(() -> submit(
+                contentWithOptionalScale(),
+                validAnswers(),
+                null))
+                .isInstanceOfSatisfying(
+                        SurveyValidationException.class,
+                        exception -> assertThat(exception.violations())
+                                .extracting(violation -> violation.code())
+                                .containsExactly(
+                                        "SURVEY_CONSENT_RECEIPT_REQUIRED"));
+    }
+
+    @Test
+    void rejectsConsentReceiptWhenNoOptionalQuestionIsAnswered() {
+        ConsentReceiptId receiptId =
+                new ConsentReceiptId(new UUID(82, 1));
+
+        assertThatThrownBy(() -> submit(
+                contentWithOptionalScale(),
+                answersWithoutScale(),
+                receiptId))
+                .isInstanceOfSatisfying(
+                        SurveyValidationException.class,
+                        exception -> assertThat(exception.violations())
+                                .extracting(violation -> violation.code())
+                                .containsExactly(
+                                        "SURVEY_CONSENT_RECEIPT_NOT_ALLOWED"));
+        assertThatThrownBy(() -> submit(content(), validAnswers(), receiptId))
+                .isInstanceOfSatisfying(
+                        SurveyValidationException.class,
+                        exception -> assertThat(exception.violations())
+                                .extracting(violation -> violation.code())
+                                .containsExactly(
+                                        "SURVEY_CONSENT_RECEIPT_NOT_ALLOWED"));
+    }
+
+    @Test
+    void stillRejectsMissingRequiredAnswerWhenOptionalQuestionsExist() {
+        List<SurveyAnswer> missingRequired = answersWithoutScale().stream()
+                .filter(answer -> !answer.questionId().equals(questionId(1)))
+                .toList();
+
+        assertThatThrownBy(() -> submit(
+                contentWithOptionalScale(),
+                missingRequired,
+                null))
+                .isInstanceOfSatisfying(
+                        SurveyValidationException.class,
+                        exception -> assertThat(exception.violations())
+                                .extracting(violation -> violation.code())
+                                .containsExactly(
+                                        "SURVEY_REQUIRED_ANSWER_MISSING"));
+    }
+
+    @Test
     void selectsLatestResponseByRoundNumberNotSubmissionTime() {
         SurveyResponse roundTwoLate = SurveyResponse.rehydrate(
                 new SurveyResponseId(new UUID(95, 2)),
@@ -272,15 +363,30 @@ class SurveySubmissionPolicyTest {
     }
 
     private SurveySubmissionResult submit(List<SurveyAnswer> answers) {
+        return submit(content(), answers, null);
+    }
+
+    private SurveySubmissionResult submit(
+            SurveyContentVersion content,
+            List<SurveyAnswer> answers,
+            ConsentReceiptId consentReceiptId
+    ) {
         return policy.submitFinalResponse(
                 responseId(),
                 new SurveyUserId("user-a"),
                 ROUND_ID,
                 activeRound(),
-                content(),
+                content,
                 false,
                 answers,
+                consentReceiptId,
                 NOW.plusSeconds(10));
+    }
+
+    private static List<SurveyAnswer> answersWithoutScale() {
+        return validAnswers().stream()
+                .filter(answer -> !answer.questionId().equals(questionId(6)))
+                .toList();
     }
 
     private static SurveyResponseId responseId() {

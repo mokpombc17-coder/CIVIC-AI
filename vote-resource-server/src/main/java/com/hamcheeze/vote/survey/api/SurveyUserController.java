@@ -97,7 +97,10 @@ final class SurveyUserController {
                 new SurveyResponseSubmissionService
                         .SubmitSurveyResponseCommand(
                         new SurveyRoundId(request.roundId()),
-                        new ConsentReceiptId(request.consentReceiptId()),
+                        request.consentReceiptId() == null
+                                ? null
+                                : new ConsentReceiptId(
+                                        request.consentReceiptId()),
                         request.toAnswers());
         SurveyResponseSubmissionService.SubmissionExecution execution =
                 previewMode.enabledFor(userId)

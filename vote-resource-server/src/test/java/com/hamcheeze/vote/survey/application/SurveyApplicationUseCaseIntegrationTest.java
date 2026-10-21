@@ -135,7 +135,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         var command = new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 active.id(),
-                SurveyConsentTestFixture.externalReceipt(),
+                null,
                 List.of(new ShortTextAnswer(
                         content.question().id(), "  차분하고 탐구적  ")));
         var submitted = submissionService.submit(
@@ -216,7 +216,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         assertThat(eligibilityQuery.evaluate(USER).surveyRequirement())
                 .isEqualTo(SurveyRequirement.SATISFIED);
         assertThat(myResponseQuery.findLatest(USER).orElseThrow()
-                .consentReceiptId()).contains(command.consentReceiptId());
+                .consentReceiptId()).isEmpty();
         assertThat(myResponseQuery.findHistory(USER)).hasSize(1);
         assertThat(myResponseQuery.findDetail(
                 USER, submitted.outcome().responseId())).isPresent();
@@ -401,7 +401,7 @@ class SurveyApplicationUseCaseIntegrationTest {
         var command = new SurveyResponseSubmissionService
                 .SubmitSurveyResponseCommand(
                 active.id(),
-                SurveyConsentTestFixture.externalReceipt(),
+                null,
                 List.of(new ShortTextAnswer(
                         content.question().id(), "동일한 최종 답변")));
         CountDownLatch start = new CountDownLatch(1);
@@ -473,10 +473,107 @@ class SurveyApplicationUseCaseIntegrationTest {
                         new SurveyResponseSubmissionService
                                 .SubmitSurveyResponseCommand(
                                 round.id(),
-                                SurveyConsentTestFixture.externalReceipt(),
+                                null,
                                 List.of(new ShortTextAnswer(
                                         content.question().id(), "답변"))))
                 .outcome();
+    }
+
+    @Test
+    void storesConsentReceiptWhenOptionalQuestionIsAnswered() {
+        OptionalContent content = publishOptionalContent();
+        SurveyRound active = roundService.startPublishedContentNow(
+                        content.value().id(), null, ADMIN)
+                .targetRound();
+        var receipt = SurveyConsentTestFixture.externalReceipt();
+
+        var submitted = submissionService.submit(
+                USER,
+                UUID.randomUUID().toString(),
+                new SurveyResponseSubmissionService
+                        .SubmitSurveyResponseCommand(
+                        active.id(),
+                        receipt,
+                        List.of(
+                                new ShortTextAnswer(
+                                        content.required().id(), "필수"),
+                                new ShortTextAnswer(
+                                        content.optional().id(), "선택"))));
+
+        assertThat(submitted.outcome().succeeded()).isTrue();
+        var stored = myResponseQuery.findLatest(USER).orElseThrow();
+        assertThat(stored.consentReceiptId()).contains(receipt);
+        assertThat(stored.answers()).hasSize(2);
+    }
+
+    @Test
+    void storesResponseWithoutReceiptWhenOptionalQuestionIsSkipped() {
+        OptionalContent content = publishOptionalContent();
+        SurveyRound active = roundService.startPublishedContentNow(
+                        content.value().id(), null, ADMIN)
+                .targetRound();
+        String idempotencyKey = UUID.randomUUID().toString();
+        var command = new SurveyResponseSubmissionService
+                .SubmitSurveyResponseCommand(
+                active.id(),
+                null,
+                List.of(new ShortTextAnswer(
+                        content.required().id(), "필수")));
+
+        var submitted = submissionService.submit(
+                USER, idempotencyKey, command);
+        var replayed = submissionService.submit(
+                USER, idempotencyKey, command);
+
+        assertThat(submitted.outcome().succeeded()).isTrue();
+        assertThat(replayed.replayed()).isTrue();
+        assertThat(replayed.outcome().responseId())
+                .isEqualTo(submitted.outcome().responseId());
+        var stored = myResponseQuery.findLatest(USER).orElseThrow();
+        assertThat(stored.consentReceiptId()).isEmpty();
+        assertThat(stored.answers())
+                .extracting(answer -> answer.questionId())
+                .containsExactly(content.required().id());
+    }
+
+    @Test
+    void rejectsOptionalAnswerWithoutConsentReceipt() {
+        OptionalContent content = publishOptionalContent();
+        SurveyRound active = roundService.startPublishedContentNow(
+                        content.value().id(), null, ADMIN)
+                .targetRound();
+
+        var rejected = submissionService.submit(
+                USER,
+                UUID.randomUUID().toString(),
+                new SurveyResponseSubmissionService
+                        .SubmitSurveyResponseCommand(
+                        active.id(),
+                        null,
+                        List.of(
+                                new ShortTextAnswer(
+                                        content.required().id(), "필수"),
+                                new ShortTextAnswer(
+                                        content.optional().id(), "선택"))));
+
+        assertThat(rejected.outcome().succeeded()).isFalse();
+        assertThat(rejected.outcome().httpStatus()).isEqualTo(422);
+        assertThat(rejected.outcome().violations())
+                .extracting(violation -> violation.code())
+                .containsExactly("SURVEY_CONSENT_RECEIPT_REQUIRED");
+        assertThat(myResponseQuery.findLatest(USER)).isEmpty();
+    }
+
+    private OptionalContent publishOptionalContent() {
+        SurveyQuestion required = shortTextQuestion("필수 질문", 1, true);
+        SurveyQuestion optional = shortTextQuestion("선택 질문", 2, false);
+        SurveyContentVersion draft = contentService.createDraft(
+                new SurveyContentVersionService.CreateDraftCommand(
+                        "선택 문항 설문", null, List.of(required, optional)),
+                ADMIN);
+        SurveyContentVersion published = contentService.publish(
+                draft.id(), ADMIN).contentVersion();
+        return new OptionalContent(published, required, optional);
     }
 
     private PublishedContent publishContent(String name) {
@@ -492,14 +589,22 @@ class SurveyApplicationUseCaseIntegrationTest {
     }
 
     private static SurveyQuestion shortTextQuestion(String prompt) {
+        return shortTextQuestion(prompt, 1, true);
+    }
+
+    private static SurveyQuestion shortTextQuestion(
+            String prompt,
+            int displayOrder,
+            boolean required
+    ) {
         return new SurveyQuestion(
                 new SurveyQuestionId(UUID.randomUUID()),
                 new SurveyQuestionLineageKey(UUID.randomUUID()),
                 SurveyQuestionType.SHORT_TEXT,
                 prompt,
                 null,
-                1,
-                true,
+                displayOrder,
+                required,
                 ShortTextRule.defaults(),
                 List.of());
     }
@@ -507,6 +612,13 @@ class SurveyApplicationUseCaseIntegrationTest {
     private record PublishedContent(
             SurveyContentVersion value,
             SurveyQuestion question
+    ) {
+    }
+
+    private record OptionalContent(
+            SurveyContentVersion value,
+            SurveyQuestion required,
+            SurveyQuestion optional
     ) {
     }
 }

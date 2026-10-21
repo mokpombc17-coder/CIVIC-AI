@@ -39,6 +39,14 @@ final class SurveyResponseTestFixtures {
     }
 
     static SurveyContentVersion content() {
+        return content(true);
+    }
+
+    static SurveyContentVersion contentWithOptionalScale() {
+        return content(false);
+    }
+
+    private static SurveyContentVersion content(boolean scaleRequired) {
         List<SurveyQuestion> questions = List.of(
                 new SurveyQuestion(
                         questionId(1), lineageId(1),
@@ -80,7 +88,7 @@ final class SurveyResponseTestFixtures {
                 new SurveyQuestion(
                         questionId(6), lineageId(6),
                         SurveyQuestionType.SCALE,
-                        "척도", null, 6, true,
+                        "척도", null, 6, scaleRequired,
                         new ScaleRule(1, 5, null, null),
                         List.of()));
         return SurveyContentVersion.createDraft(

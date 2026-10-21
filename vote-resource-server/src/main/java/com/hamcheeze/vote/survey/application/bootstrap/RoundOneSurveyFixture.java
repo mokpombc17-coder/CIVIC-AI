@@ -25,6 +25,7 @@ import java.math.BigDecimal;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -34,6 +35,11 @@ public final class RoundOneSurveyFixture {
     public static final int QUESTION_COUNT = 29;
     public static final int MATRIX_QUESTION_COUNT = 3;
     public static final int ITEM_COUNT = 16;
+    public static final Set<String> OPTIONAL_QUESTION_KEYS = Set.of(
+            "wellbeing.health-status",
+            "demographics.religion",
+            "politics.ideology",
+            "politics.supported-party");
 
     private RoundOneSurveyFixture() {
     }
@@ -378,6 +384,13 @@ public final class RoundOneSurveyFixture {
             throw new IllegalStateException(
                     "round one fixture must contain 3 matrix questions and 16 items");
         }
+        long optionalQuestions = questions.stream()
+                .filter(question -> !question.required())
+                .count();
+        if (optionalQuestions != OPTIONAL_QUESTION_KEYS.size()) {
+            throw new IllegalStateException(
+                    "round one fixture must contain every optional question");
+        }
     }
 
     private static SurveyQuestion single(
@@ -516,7 +529,7 @@ public final class RoundOneSurveyFixture {
                 prompt,
                 definition.description(),
                 globalOrder,
-                true,
+                !OPTIONAL_QUESTION_KEYS.contains(semanticKey),
                 rule,
                 options,
                 items);

@@ -109,8 +109,8 @@ class SurveyQuestionTest {
     }
 
     @Test
-    void rejectsOptionalQuestion() {
-        assertThatThrownBy(() -> new SurveyQuestion(
+    void optionalQuestionRequiresConsent() {
+        SurveyQuestion optional = new SurveyQuestion(
                 questionId(),
                 questionLineageKey(),
                 SurveyQuestionType.SHORT_TEXT,
@@ -119,9 +119,10 @@ class SurveyQuestionTest {
                 1,
                 false,
                 ShortTextRule.defaults(),
-                List.of()))
-                .isInstanceOf(SurveyDomainException.class)
-                .hasMessageContaining("must be required");
+                List.of());
+
+        assertThat(optional.required()).isFalse();
+        assertThat(optional.requiresConsent()).isTrue();
     }
 
     @Test

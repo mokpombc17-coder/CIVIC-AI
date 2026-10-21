@@ -1,7 +1,6 @@
 package com.hamcheeze.vote.survey.application;
 
 import com.hamcheeze.vote.TestcontainersConfiguration;
-import com.hamcheeze.vote.survey.SurveyConsentTestFixture;
 import com.hamcheeze.vote.shared.infra.integration.outbox.IntegrationOutboxDispatcher;
 import com.hamcheeze.vote.shared.integration.outbox.IntegrationOutboxRepository;
 import com.hamcheeze.vote.survey.application.content.SurveyContentVersionService;
@@ -158,7 +157,7 @@ class SurveySubmissionOutboxAtomicityIntegrationTest {
                 .targetRound();
         return new SurveyResponseSubmissionService.SubmitSurveyResponseCommand(
                 active.id(),
-                SurveyConsentTestFixture.externalReceipt(),
+                null,
                 List.of(new ShortTextAnswer(question.id(), "answer")));
     }
 
