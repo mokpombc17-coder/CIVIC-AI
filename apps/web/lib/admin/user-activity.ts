@@ -5,7 +5,8 @@
 // - Room creation requests: /api/v1/admin/room-creation-requests filtered by
 //   requesterUserId (cheap, loaded eagerly).
 // - Chat participation: on-demand scan — admin room list + conversation
-//   export archives, counting messages authored by the user.
+//   export archives for the most recent month, counting messages authored by
+//   the user.
 // - Vote participation: on-demand scan — admin task list + result-view JSONL,
 //   matching respondent identifier fields defensively.
 
@@ -124,6 +125,7 @@ const REQUEST_STATUSES = ["PENDING", "APPROVED", "REJECTED"] as const;
 export const CHAT_SCAN_ROOM_LIMIT = 12;
 export const VOTE_SCAN_TASK_LIMIT = 20;
 const CHAT_SCAN_FALLBACK_CLOCK_SKEW_MS = 60_000;
+const CHAT_SCAN_RECENT_MONTH_MS = 30 * 24 * 60 * 60 * 1000;
 
 // The admin endpoint has no requester filter, so follow every page of a status
 // instead of filtering only the first page (which hid older or newer requests).
@@ -187,12 +189,15 @@ export async function scanUserChatParticipation(
   if (!page) throw new Error("토론방 목록 응답 형식을 확인하지 못했습니다.");
 
   const rooms = page.items.slice(0, CHAT_SCAN_ROOM_LIMIT);
-  const range = exportRangeForScan(chatScanCutoff(roomsResponse.headers.get("date")));
+  const cutoff = chatScanCutoff(roomsResponse.headers.get("date"));
   const participations: UserChatParticipation[] = [];
   let failedRooms = 0;
   let done = 0;
   for (const room of rooms) {
-    const stats = await countUserMessages(room, userId, range, request);
+    const range = exportRangeForScan(room.createdAt, cutoff);
+    const stats = range
+      ? await countUserMessages(room, userId, range, request)
+      : { count: 0, lastMessageAt: null };
     if (stats === null) failedRooms += 1;
     else if (stats.count > 0) {
       participations.push({
@@ -249,10 +254,19 @@ async function countUserMessages(
   }
 }
 
+// Chat export rejects ranges longer than its configured limit (31 days by
+// default), so the scan covers the most recent month, or the room's whole life
+// when it opened within that month.
 export function exportRangeForScan(
+  roomCreatedAt: string,
   now = new Date(),
-): Readonly<{ fromInclusive: string; toExclusive: string }> {
-  return { fromInclusive: "2020-01-01T00:00:00.000Z", toExclusive: now.toISOString() };
+): Readonly<{ fromInclusive: string; toExclusive: string }> | null {
+  if (!Number.isFinite(now.getTime())) return null;
+  const recent = new Date(now.getTime() - CHAT_SCAN_RECENT_MONTH_MS);
+  const created = new Date(roomCreatedAt);
+  const from = Number.isFinite(created.getTime()) && created > recent ? created : recent;
+  if (from >= now) return null;
+  return { fromInclusive: from.toISOString(), toExclusive: now.toISOString() };
 }
 
 export function chatScanCutoff(responseDate: string | null, fallbackNow = new Date()): Date {

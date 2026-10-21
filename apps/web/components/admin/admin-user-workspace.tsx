@@ -842,7 +842,8 @@ function UserActivityTab({
       <section className="console-section" data-wireflow-layout="admin-user-activity-chat">
         <h4>대화 참여 토론방</h4>
         <p className="console-status">
-          대화 기록을 내려받아 이 사용자가 작성한 메시지를 집계합니다. 시간이 다소 걸릴 수 있습니다.
+          최근 한 달 동안의 대화 기록을 내려받아 이 사용자가 작성한 메시지를 집계합니다. 시간이 다소
+          걸릴 수 있습니다.
         </p>
         <ScanSection
           idleLabel="대화 참여 확인"
@@ -1023,7 +1024,8 @@ function ChatScanResultView({ result }: Readonly<{ result: UserChatScanResult }>
           </ConsoleStatus>
         ) : (
           <ConsoleStatus>
-            조회에 성공한 {successfulRooms}개 토론방에서 이 사용자의 메시지를 찾지 못했습니다.
+            조회에 성공한 {successfulRooms}개 토론방에서 최근 한 달 동안 이 사용자의 메시지를 찾지
+            못했습니다.
           </ConsoleStatus>
         )
       ) : (
