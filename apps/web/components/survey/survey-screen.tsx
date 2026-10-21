@@ -15,7 +15,6 @@ import {
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
-import { ConsentApiError } from "@/lib/consent/consent-api";
 import { useAcceptSensitiveSurveyConsentMutation } from "@/lib/consent/consent-queries";
 import {
   getFeatureFailureDetails,
@@ -32,8 +31,7 @@ import { canReturnAfterSurveySubmission } from "@/lib/survey/survey-completion";
 import { removeSurveyDraft, resolveSurveyDraftOwnerKey } from "@/lib/survey/survey-draft-storage";
 import { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
 import {
-  classifyConsentSubmissionError,
-  classifySurveySubmissionError,
+  classifySubmissionFailure,
   findFirstInvalidSurveySectionIndex,
 } from "@/lib/survey/survey-submission-recovery";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
@@ -399,47 +397,35 @@ export function SurveyForm({
       trackStepExited("submit");
       onSubmitted(result);
     } catch (error) {
-      if (error instanceof ConsentApiError) {
-        const consentError = classifyConsentSubmissionError(error);
-        failureAnalytics.trackFailure({
-          ...getFeatureFailureDetails(error, "api", "consent_submission_failed"),
-          failureStage: "consent",
-          incidentKey: "submission",
-          operation: "submission",
-          step: currentStep,
-          surface: "participation",
-        });
-        dispatchForm({ type: "submissionFailed", message: consentError.message });
-        if (consentError.newAttempt) submissionCoordinator.reset();
-        return;
-      }
-      const apiErrors = classifySurveySubmissionError(error);
-      if (error instanceof VoteApiError && error.code === "CURRENT_SURVEY_ALREADY_SUBMITTED") {
+      const failure = classifySubmissionFailure(error);
+      if (failure.analytics === "recovered") {
         failureAnalytics.trackRecovered("submission");
-      } else if (!(
-        error instanceof VoteApiError && error.code === "SURVEY_RESPONSE_VALIDATION_FAILED"
-      )) {
+      } else if (failure.analytics === "failure") {
         failureAnalytics.trackFailure({
-          ...getFeatureFailureDetails(error, "api", "survey_submission_failed"),
-          failureStage: "survey",
+          ...getFeatureFailureDetails(
+            error,
+            "api",
+            failure.stage === "consent" ? "consent_submission_failed" : "survey_submission_failed",
+          ),
+          failureStage: failure.stage,
           incidentKey: "submission",
           operation: "submission",
           step: currentStep,
           surface: "participation",
         });
       }
-      if (Object.keys(apiErrors.fieldErrors).length > 0) {
+      if (Object.keys(failure.fieldErrors).length > 0) {
         dispatchForm({
           type: "submissionFailedWithFieldErrors",
-          currentStep: findFirstInvalidSurveySectionIndex(sections, apiErrors.fieldErrors) + 1,
-          errors: apiErrors.fieldErrors,
-          message: apiErrors.message,
+          currentStep: findFirstInvalidSurveySectionIndex(sections, failure.fieldErrors) + 1,
+          errors: failure.fieldErrors,
+          message: failure.message,
         });
       } else {
-        dispatchForm({ type: "submissionFailed", message: apiErrors.message });
+        dispatchForm({ type: "submissionFailed", message: failure.message });
       }
-      if (apiErrors.refresh) onRefresh();
-      if (apiErrors.newAttempt) submissionCoordinator.reset();
+      if (failure.refresh) onRefresh();
+      if (failure.newAttempt) submissionCoordinator.reset();
     }
   }
 

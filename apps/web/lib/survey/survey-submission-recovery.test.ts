@@ -1,8 +1,10 @@
 import { describe, expect, it } from "vitest";
+import { ConsentApiError } from "@/lib/consent/consent-api";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import type { SurveySection } from "./survey-contracts";
 import {
   classifyConsentSubmissionError,
+  classifySubmissionFailure,
   classifySurveySubmissionError,
   findFirstInvalidSurveySectionIndex,
 } from "./survey-submission-recovery";
@@ -150,6 +152,43 @@ describe("survey submission recovery", () => {
       message: "제출하지 못했습니다. 같은 내용으로 다시 시도해 주세요.",
       newAttempt: false,
       refresh: false,
+    });
+  });
+
+  it("동의 오류는 consent 단계 실패로 기록하고 새로고침하지 않는다", () => {
+    expect(
+      classifySubmissionFailure(
+        new ConsentApiError(409, "CONSENT_DOCUMENT_CHANGED", "consent document changed"),
+      ),
+    ).toEqual({
+      analytics: "failure",
+      fieldErrors: {},
+      message: "동의 정보가 변경되어 제출할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      newAttempt: true,
+      refresh: false,
+      stage: "consent",
+    });
+  });
+
+  it.each([
+    ["CURRENT_SURVEY_ALREADY_SUBMITTED", "recovered"],
+    ["SURVEY_RESPONSE_VALIDATION_FAILED", "none"],
+    ["SURVEY_SUBMISSION_ROUND_CHANGED", "failure"],
+    ["IDEMPOTENCY_CONFLICT", "failure"],
+  ] as const)("%s 설문 제출 오류의 analytics 기록 방식은 %s이다", (code, analytics) => {
+    const error = createVoteApiError(code);
+
+    expect(classifySubmissionFailure(error)).toEqual({
+      ...classifySurveySubmissionError(error),
+      analytics,
+      stage: "survey",
+    });
+  });
+
+  it("Vote API가 아닌 설문 제출 오류는 survey 단계 실패로 기록한다", () => {
+    expect(classifySubmissionFailure(new Error("network unavailable"))).toMatchObject({
+      analytics: "failure",
+      stage: "survey",
     });
   });
 

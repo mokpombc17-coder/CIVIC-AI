@@ -1,4 +1,4 @@
-import type { ConsentApiError } from "@/lib/consent/consent-api";
+import { ConsentApiError } from "@/lib/consent/consent-api";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { surveyAnswerErrorKey, type SurveyValidationErrors } from "./survey-answer-state";
 import type { SurveySection } from "./survey-contracts";
@@ -15,6 +15,14 @@ export type SurveySubmissionRecovery = Readonly<{
   refresh: boolean;
 }>;
 
+export type SubmissionFailureAnalytics = "failure" | "recovered" | "none";
+
+export type SubmissionFailureRecovery = SurveySubmissionRecovery &
+  Readonly<{
+    analytics: SubmissionFailureAnalytics;
+    stage: "consent" | "survey";
+  }>;
+
 export function findFirstInvalidSurveySectionIndex(
   sections: readonly SurveySection[],
   errors: SurveyValidationErrors,
@@ -29,6 +37,33 @@ export function findFirstInvalidSurveySectionIndex(
   );
 
   return index < 0 ? 0 : index;
+}
+
+export function classifySubmissionFailure(error: unknown): SubmissionFailureRecovery {
+  if (error instanceof ConsentApiError) {
+    return {
+      ...classifyConsentSubmissionError(error),
+      analytics: "failure",
+      fieldErrors: {},
+      refresh: false,
+      stage: "consent",
+    };
+  }
+
+  return {
+    ...classifySurveySubmissionError(error),
+    analytics: getSurveySubmissionFailureAnalytics(error),
+    stage: "survey",
+  };
+}
+
+function getSurveySubmissionFailureAnalytics(error: unknown): SubmissionFailureAnalytics {
+  if (!(error instanceof VoteApiError)) return "failure";
+  // 이미 제출된 설문은 실패가 아닌 복구로 기록함
+  if (error.code === "CURRENT_SURVEY_ALREADY_SUBMITTED") return "recovered";
+  // 응답 검증 실패는 사용자 입력 문제라 실패로 기록하지 않음
+  if (error.code === "SURVEY_RESPONSE_VALIDATION_FAILED") return "none";
+  return "failure";
 }
 
 export function classifyConsentSubmissionError(

@@ -28,7 +28,7 @@ const submissionHarness = vi.hoisted(() => ({
 }));
 
 const recoveryHarness = vi.hoisted(() => ({
-  classifySurveySubmissionError: vi.fn(),
+  classifySubmissionFailure: vi.fn(),
 }));
 
 vi.mock("@/lib/consent/consent-queries", () => ({
@@ -58,7 +58,7 @@ vi.mock("@/lib/survey/survey-submission-recovery", async (importOriginal) => {
 
   return {
     ...actual,
-    classifySurveySubmissionError: recoveryHarness.classifySurveySubmissionError,
+    classifySubmissionFailure: recoveryHarness.classifySubmissionFailure,
   };
 });
 
@@ -134,7 +134,7 @@ describe("SurveyForm", () => {
       submissionHarness.trackRecoveryAttempt,
       submissionHarness.trackStepExited,
       submissionHarness.trackSubmissionAttempted,
-      recoveryHarness.classifySurveySubmissionError,
+      recoveryHarness.classifySubmissionFailure,
     ]) {
       mock.mockReset();
     }
@@ -145,11 +145,13 @@ describe("SurveyForm", () => {
     submissionHarness.trackRecoveryAttempt.mockReturnValue(true);
     submissionHarness.trackStepExited.mockReturnValue(true);
     submissionHarness.trackSubmissionAttempted.mockReturnValue(true);
-    recoveryHarness.classifySurveySubmissionError.mockReturnValue({
+    recoveryHarness.classifySubmissionFailure.mockReturnValue({
+      analytics: "failure",
       fieldErrors: {},
       message: "설문 제출 중 오류가 발생했습니다.",
       newAttempt: true,
       refresh: false,
+      stage: "survey",
     });
     vi.stubGlobal("requestAnimationFrame", vi.fn().mockReturnValue(1));
     vi.stubGlobal("cancelAnimationFrame", vi.fn());
@@ -313,6 +315,12 @@ describe("SurveyForm", () => {
       "CONSENT_DOCUMENT_CHANGED",
       "consent document changed",
     );
+    const actualRecovery = await vi.importActual<
+      typeof import("@/lib/survey/survey-submission-recovery")
+    >("@/lib/survey/survey-submission-recovery");
+    recoveryHarness.classifySubmissionFailure.mockImplementation(
+      actualRecovery.classifySubmissionFailure,
+    );
     submissionHarness.acceptConsent.mockRejectedValue(consentError);
     submissionHarness.coordinatorSubmit.mockImplementation(async (input: SurveySubmissionInput) => {
       await input.ports.acceptConsent(
@@ -360,11 +368,13 @@ describe("SurveyForm", () => {
   it("서버 field 오류를 첫 invalid section으로 이동시키고 제출 오류와 새 시도를 표시한다", async () => {
     const submissionError = new Error("server validation failed");
     submissionHarness.coordinatorSubmit.mockRejectedValue(submissionError);
-    recoveryHarness.classifySurveySubmissionError.mockReturnValue({
+    recoveryHarness.classifySubmissionFailure.mockReturnValue({
+      analytics: "failure",
       fieldErrors: { [FIRST_QUESTION_ID]: "서버가 첫 답변을 거부했습니다." },
       message: "입력값을 다시 확인해 주세요.",
       newAttempt: true,
       refresh: false,
+      stage: "survey",
     });
     const rendered = renderSurveyForm();
     completeSurveyAnswers();
