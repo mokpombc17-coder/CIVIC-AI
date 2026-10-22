@@ -135,7 +135,8 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
 
   function closeCreateRoomForm() {
     setIsCreateRoomOpen(false);
-    createRoomTriggerRef.current?.focus();
+    // sheet가 열린 동안 trigger는 inert surface 안에 있으므로 sheet가 닫힌 다음 frame에 focus를 돌려줌
+    requestAnimationFrame(() => createRoomTriggerRef.current?.focus());
   }
 
   function toggleCreateRoomForm() {
