@@ -116,12 +116,20 @@ export function ChatRealtimeProvider({ children }: { children: ReactNode }) {
   return (
     <ChatRealtimeContext value={realtime}>
       {children}
+      <ChatRealtimeConnectionMarker />
       <ChatRoomInboxRuntime transport={transport} />
       {process.env.NODE_ENV === "development" ? (
         <ChatRealtimeDiagnosticsPanel transport={transport} />
       ) : null}
     </ChatRealtimeContext>
   );
+}
+
+// 화면에는 보이지 않는 연결 상태 표식. e2e가 연결 상태 UI가 없는 화면에서 연결 완료를 기다릴 때 사용함
+function ChatRealtimeConnectionMarker() {
+  const { status } = useChatRealtimeConnection();
+
+  return <span data-chat-connection-status={status} hidden />;
 }
 
 export function useChatRealtimeConnection(): ChatConnectionSnapshot & {
