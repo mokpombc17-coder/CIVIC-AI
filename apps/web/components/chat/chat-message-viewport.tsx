@@ -17,7 +17,11 @@ import {
   ChatMessageViewportVirtualRow,
 } from "@/components/chat/chat-message-viewport-presentation";
 import {
-  type ChatMessageAppendSource,
+  type ChatMessageViewportItemsSnapshot,
+  createChatMessageViewportItemsSnapshot,
+  detectChatMessageViewportAppend,
+} from "@/components/chat/chat-message-viewport-append";
+import {
   type ChatMessageViewportInitialScrollTarget,
   type ChatMessageViewportPosition,
   createChatMessageViewportState,
@@ -527,31 +531,25 @@ export function ChatMessageViewport({
 
   useEffect(() => {
     const previous = previousItemsRef.current;
-    const current = createItemsSnapshot(history.items, viewportContinuityKey);
-    previousItemsRef.current = current;
+    previousItemsRef.current = createChatMessageViewportItemsSnapshot(
+      history.items,
+      viewportContinuityKey,
+    );
 
     if (history.items.length === 0) {
       return;
     }
 
-    const isNewViewport = previous?.viewportContinuityKey !== viewportContinuityKey;
-    const previousLatestIndex =
-      previous?.lastRenderKey === null
-        ? -1
-        : history.items.findIndex((item) => item.renderKey === previous?.lastRenderKey);
-    const appendedItems =
-      !isNewViewport && previousLatestIndex >= 0 && previousLatestIndex < history.items.length - 1
-        ? history.items.slice(previousLatestIndex + 1)
-        : [];
-    const appendedMessages = appendedItems.flatMap((item) =>
-      item.kind === "message" ? [item.item] : [],
-    );
-    const hasAppendedSystemActivity = appendedItems.some((item) => item.kind === "system-activity");
-    const appendSource: ChatMessageAppendSource = appendedMessages.some(
-      (item) => item.isMine && item.deliveryTone !== null,
-    )
-      ? "current-user"
-      : "realtime";
+    const {
+      appendedMessages,
+      hasAppendedSystemActivity,
+      isNewViewport,
+      source: appendSource,
+    } = detectChatMessageViewportAppend({
+      items: history.items,
+      previous,
+      viewportContinuityKey,
+    });
     const isInitializing = isNewViewport || viewportPositionRef.current === "initializing";
     const shouldFollowLatest =
       !isInitializing &&
@@ -788,11 +786,6 @@ export function ChatMessageViewport({
   );
 }
 
-type ChatMessageViewportItemsSnapshot = Readonly<{
-  lastRenderKey: string | null;
-  viewportContinuityKey: string;
-}>;
-
 type ChatMessageArrivalAnnouncement = Readonly<{
   id: number;
   message: string;
@@ -808,16 +801,6 @@ type ChatMessageViewportAnchor = Readonly<{
   renderKey: string;
   viewportKey: string;
 }>;
-
-function createItemsSnapshot(
-  items: readonly ChatMessageViewportItemViewModel[],
-  viewportContinuityKey: string,
-): ChatMessageViewportItemsSnapshot {
-  return {
-    lastRenderKey: items.at(-1)?.renderKey ?? null,
-    viewportContinuityKey,
-  };
-}
 
 function captureViewportAnchor(scrollElement: HTMLDivElement): ChatMessageViewportAnchor | null {
   const viewportBounds = scrollElement.getBoundingClientRect();
