@@ -22,7 +22,7 @@ const RECONNECTING_LABEL = "준비 중";
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
 
-test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 snapshot으로 복구한다", async ({
+test("두 사용자의 read cursor로 내 메시지의 안 읽은 인원을 표시하고 snapshot으로 복구한다", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(120_000);
@@ -31,6 +31,7 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
   const roomName = `e2e-read-receipt-${uniqueId}`;
   const ownerMessage = `방장 Read Receipt ${uniqueId}`;
   const memberMessage = `참여자 Read Receipt ${uniqueId}`;
+  const deletedMessage = `삭제 전 Read Receipt ${uniqueId}`;
   const topologyMessage = `퇴장 전 Read Receipt ${uniqueId}`;
   const browserSession = await browser.newBrowserCDPSession();
   const existingSharedWorkerTargetIds = new Set(
@@ -76,7 +77,7 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
     const ownerMessageLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
     const memberMessageLog = memberPage.getByRole("log", { name: `${roomId} 메시지` });
 
-    await test.step("읽기 전에는 0명 문구를 표시하지 않고 cursor 전진 뒤 1명을 표시한다", async () => {
+    await test.step("내 메시지에 안 읽은 인원을 표시하고 상대가 읽으면 숨긴다", async () => {
       await setDocumentFocusState(memberPage, false);
       await ownerPage.bringToFront();
       await setDocumentFocusState(ownerPage, true);
@@ -87,20 +88,18 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
 
       const ownerRow = getMessageRow(ownerMessageLog, ownerMessage);
       const memberRow = getMessageRow(memberMessageLog, ownerMessage);
-      await expect(ownerRow.locator("[data-read-count]")).toHaveCount(0);
-      await expect(memberRow.locator("[data-read-count]")).toHaveCount(0);
-      await expect(ownerRow.getByText("0명 읽음", { exact: true })).toHaveCount(0);
+      await expectUnreadCount(ownerRow, 1);
+      await expect(memberRow.locator("[data-unread-count]")).toHaveCount(0);
 
       const memberReadStateResponse = waitForReadState(memberPage, roomId);
       await memberPage.bringToFront();
       await setDocumentFocusState(memberPage, true);
       expect((await memberReadStateResponse).ok()).toBe(true);
 
-      await expect(ownerRow.locator('[data-read-count="1"]')).toHaveText("1명 읽음");
-      await expect(memberRow.locator('[data-read-count="1"]')).toHaveText("1명 읽음");
+      await expect(ownerRow.locator("[data-unread-count]")).toHaveCount(0);
     });
 
-    await test.step("다른 참여자가 작성한 메시지도 상대방이 읽으면 1명을 표시한다", async () => {
+    await test.step("상대가 작성한 메시지도 내가 읽으면 상대 화면에서 안 읽은 인원을 숨긴다", async () => {
       await setDocumentFocusState(ownerPage, false);
       await memberPage.bringToFront();
       await setDocumentFocusState(memberPage, true);
@@ -111,25 +110,34 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
 
       const ownerRow = getMessageRow(ownerMessageLog, memberMessage);
       const memberRow = getMessageRow(memberMessageLog, memberMessage);
-      await expect(ownerRow.locator("[data-read-count]")).toHaveCount(0);
-      await expect(memberRow.locator("[data-read-count]")).toHaveCount(0);
+      await expectUnreadCount(memberRow, 1);
+      await expect(ownerRow.locator("[data-unread-count]")).toHaveCount(0);
 
       const ownerReadStateResponse = waitForReadState(ownerPage, roomId);
       await ownerPage.bringToFront();
       await setDocumentFocusState(ownerPage, true);
       expect((await ownerReadStateResponse).ok()).toBe(true);
 
-      await expect(ownerRow.locator('[data-read-count="1"]')).toHaveText("1명 읽음");
-      await expect(memberRow.locator('[data-read-count="1"]')).toHaveText("1명 읽음");
+      await expect(memberRow.locator("[data-unread-count]")).toHaveCount(0);
     });
 
+    // 이후 단계는 참여자가 읽지 않은 상태를 유지해야 안 읽은 인원 변화를 확인할 수 있음
+    await setDocumentFocusState(memberPage, false);
+    await ownerPage.bringToFront();
+    await setDocumentFocusState(ownerPage, true);
+
     const deletedClientMessageId =
-      await test.step("삭제 tombstone에서는 기존 Read Receipt를 숨긴다", async () => {
-        const ownerRow = getMessageRow(ownerMessageLog, ownerMessage);
+      await test.step("안 읽은 메시지를 삭제하면 tombstone에서 안 읽은 인원을 숨긴다", async () => {
+        await sendMessage(ownerPage, deletedMessage);
+        await expectConfirmedMessage(ownerMessageLog, deletedMessage);
+        await expectConfirmedMessage(memberMessageLog, deletedMessage);
+
+        const ownerRow = getMessageRow(ownerMessageLog, deletedMessage);
+        await expectUnreadCount(ownerRow, 1);
         const clientMessageId = await ownerRow.getAttribute("data-client-message-id");
         expect(clientMessageId).not.toBeNull();
 
-        await ownerRow.getByRole("button", { name: ownerMessage, exact: true }).click();
+        await ownerRow.getByRole("button", { name: deletedMessage, exact: true }).click();
         const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
         await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
         await expect(
@@ -141,13 +149,19 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
         for (const messageLog of [ownerMessageLog, memberMessageLog]) {
           const tombstone = messageLog.locator(`li[data-client-message-id="${clientMessageId!}"]`);
           await expect(tombstone.getByText("삭제된 메시지입니다.", { exact: true })).toBeVisible();
-          await expect(tombstone.locator("[data-read-count]")).toHaveCount(0);
+          await expect(tombstone.locator("[data-unread-count]")).toHaveCount(0);
         }
 
         return clientMessageId!;
       });
 
-    await test.step("실시간 연결 복구 후 REST Receipt snapshot으로 count를 복원한다", async () => {
+    await test.step("실시간 연결 복구 후 REST Receipt snapshot으로 안 읽은 인원을 복원한다", async () => {
+      await sendMessage(ownerPage, topologyMessage);
+      await expectConfirmedMessage(ownerMessageLog, topologyMessage);
+      await expectConfirmedMessage(memberMessageLog, topologyMessage);
+      const topologyRow = getMessageRow(ownerMessageLog, topologyMessage);
+      await expectUnreadCount(topologyRow, 1);
+
       await setSharedWorkerOffline(browserSession, ownerWorkerSessionId!, true);
       await expect(ownerPage.getByText(RECONNECTING_LABEL, { exact: true })).toBeVisible();
 
@@ -160,32 +174,19 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
         `Receipt 복구 조회가 성공해야 합니다: ${snapshotResponse.status()}`,
       ).toBe(true);
       await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expectUnreadCount(topologyRow, 1);
       await expect(
-        getMessageRow(ownerMessageLog, memberMessage).locator('[data-read-count="1"]'),
-      ).toHaveText("1명 읽음");
+        getMessageRow(ownerMessageLog, ownerMessage).locator("[data-unread-count]"),
+      ).toHaveCount(0);
       await expect(
         ownerMessageLog
           .locator(`li[data-client-message-id="${deletedClientMessageId}"]`)
-          .locator("[data-read-count]"),
+          .locator("[data-unread-count]"),
       ).toHaveCount(0);
     });
 
-    await test.step("ACTIVE 참여자 퇴장 후 snapshot을 다시 받아 기존 count를 재계산한다", async () => {
-      await setDocumentFocusState(memberPage, false);
-      await ownerPage.bringToFront();
-      await setDocumentFocusState(ownerPage, true);
-      await sendMessage(ownerPage, topologyMessage);
-      await expectConfirmedMessage(ownerMessageLog, topologyMessage);
-      await expectConfirmedMessage(memberMessageLog, topologyMessage);
-
-      const memberReadStateResponse = waitForReadState(memberPage, roomId);
-      await memberPage.bringToFront();
-      await setDocumentFocusState(memberPage, true);
-      expect((await memberReadStateResponse).ok()).toBe(true);
-
+    await test.step("안 읽은 ACTIVE 참여자가 퇴장하면 snapshot을 다시 받아 안 읽은 인원을 재계산한다", async () => {
       const topologyRow = getMessageRow(ownerMessageLog, topologyMessage);
-      await expect(topologyRow.locator('[data-read-count="1"]')).toHaveText("1명 읽음");
-
       const topologySnapshot = waitForReceiptState(ownerPage, roomId);
       const leaveResponse = await memberPage.request.post(
         chatApiUrl(`/rooms/${roomId}/commands/leave`),
@@ -198,7 +199,7 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
         `참여자 퇴장이 성공해야 합니다: ${leaveResponse.status()} ${await leaveResponse.text()}`,
       ).toBe(true);
       await expectActiveMembershipPositions(await topologySnapshot, 1);
-      await expect(topologyRow.locator("[data-read-count]")).toHaveCount(0);
+      await expect(topologyRow.locator("[data-unread-count]")).toHaveCount(0);
     });
   } finally {
     if (ownerWorkerSessionId) {
@@ -212,6 +213,12 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
 
 function getMessageRow(messageLog: Locator, content: string): Locator {
   return messageLog.locator("li").filter({ hasText: content });
+}
+
+async function expectUnreadCount(row: Locator, count: number): Promise<void> {
+  const unreadCount = row.locator(`[data-unread-count="${count}"]`);
+  await expect(unreadCount).toHaveText(String(count));
+  await expect(unreadCount).toHaveAccessibleName(`${count}명 안 읽음`);
 }
 
 async function sendMessage(page: Page, content: string): Promise<void> {
