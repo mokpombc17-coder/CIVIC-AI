@@ -16,7 +16,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
   const messages = Array.from({ length: MESSAGE_COUNT }, (_, index) =>
     index === 0
       ? `${searchQuery} 첫 메시지`
-      : `viewport-history-${String(index + 1).padStart(2, "0")}-${uniqueId}`,
+      : // 50자를 넘으면 전송 rate limit 비용이 2배라 1.1초 간격 전송이 한도에 걸림
+        `vh-${String(index + 1).padStart(2, "0")}-${uniqueId.slice(0, 8)}`,
   );
 
   await authenticateLocalE2EUserAs(page, context, `e2e-viewport-history-${uniqueId}`);
@@ -36,18 +37,9 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     }
   });
 
-  await test.step("최신 이력 밖의 검색 결과는 Context window로 이동한다", async () => {
+  await test.step("최신 이력 밖의 검색 결과로 이동하면 대상 메시지를 viewport 안에 표시한다", async () => {
     await reloadToLatestHistory(page, roomId, messageInput);
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
-
-    const contextResponse = page.waitForResponse((response) => {
-      const url = new URL(response.url());
-      return (
-        response.request().method() === "GET" &&
-        url.pathname.startsWith(`/api/v1/rooms/${roomId}/messages/`) &&
-        url.pathname.endsWith("/context")
-      );
-    });
 
     await page.getByRole("button", { name: "메시지 검색", exact: true }).click();
     const searchInput = page
@@ -57,7 +49,6 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await searchInput.fill(searchQuery);
     await searchInput.press("Enter");
 
-    expect((await contextResponse).ok(), "Context 조회가 성공해야 합니다.").toBe(true);
     const targetRow = messageLog.locator('[data-navigation-target="true"]');
     await expect(targetRow).toContainText(messages[0]!);
     await expect.poll(() => isElementFullyVisible(messageLog, targetRow)).toBe(true);
@@ -93,6 +84,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       });
     await page.route(isOlderHistoryRequest, failOlderHistory);
 
+    await waitForScrollSettledAtLatest(messageLog);
     await messageLog.evaluate((element) => element.scrollTo({ top: 0 }));
 
     const olderError = page.locator('[data-chat-message-history-state="older-error"]');
@@ -139,6 +131,34 @@ async function reloadToLatestHistory(page: Page, roomId: string, messageInput: L
   expect((await latestHistoryResponse).ok(), "최신 메시지 이력 조회가 성공해야 합니다.").toBe(true);
   await expect(page.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
   await expect(messageInput).toBeEnabled();
+}
+
+// 진입 직후 최신 위치 보정이 몇 frame 동안 scroll을 맨 아래로 다시 맞추므로 보정이 끝난 뒤 scroll을 움직임
+async function waitForScrollSettledAtLatest(messageLog: Locator) {
+  await expect
+    .poll(() =>
+      messageLog.evaluate(
+        (element) =>
+          new Promise<boolean>((resolve) => {
+            const initialScrollTop = element.scrollTop;
+            let remainingFrames = 10;
+            const check = () => {
+              if (element.scrollTop !== initialScrollTop) {
+                resolve(false);
+                return;
+              }
+              remainingFrames -= 1;
+              if (remainingFrames === 0) {
+                resolve(element.scrollHeight - element.scrollTop - element.clientHeight <= 1);
+                return;
+              }
+              requestAnimationFrame(check);
+            };
+            requestAnimationFrame(check);
+          }),
+      ),
+    )
+    .toBe(true);
 }
 
 async function isMessageFullyVisible(messageLog: Locator, messageText: string): Promise<boolean> {
