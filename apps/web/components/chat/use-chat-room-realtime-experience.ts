@@ -44,7 +44,8 @@ export function useChatRoomRealtimeExperience(
     hasMessageHistory: messageHistory.data !== undefined,
     isMessageHistoryRefetching: messageHistory.isRefetching,
     isRoomActive: session.isActive,
-    messageHistoryStatus: messageHistory.status,
+    // 과거 이력 page 실패는 최신 snapshot을 무효로 만들지 않으므로 실시간 병합을 멈추지 않음
+    messageHistoryStatus: messageHistory.isFetchNextPageError ? "success" : messageHistory.status,
     messageVisibleAfterSequence: session.messageVisibleAfterSequence,
     watermarkSequence: session.watermarkSequence,
   });
