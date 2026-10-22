@@ -103,6 +103,7 @@ export function ChatMessageViewport({
     settle: null,
   });
   const arrivalAnnouncementSequenceRef = useRef(0);
+  const latestScrollAfterNavigationRef = useRef(false);
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [arrivalAnnouncement, setArrivalAnnouncement] =
     useState<ChatMessageArrivalAnnouncement | null>(null);
@@ -238,6 +239,7 @@ export function ChatMessageViewport({
           }
 
           viewportPositionRef.current = "pinned";
+          latestScrollAfterNavigationRef.current = false;
           dispatch({
             type: "viewport-ready",
             isAtEnd: true,
@@ -256,9 +258,18 @@ export function ChatMessageViewport({
     reportVisibleReadSequence,
     viewportKey,
   ]);
+  const scrollToLatestRef = useRef(scrollToLatest);
+  scrollToLatestRef.current = scrollToLatest;
 
   const scrollToInitialTarget = useCallback(() => {
     if (viewportPositionRef.current !== "initializing" || initialScrollTarget.kind === "pending") {
+      return;
+    }
+
+    // 최신 대화 복귀로 timeline이 다시 초기화되면 진입 시 목표 대신 최신 메시지로 이동함
+    // 정착 전에 effect가 다시 실행돼도 같은 목표를 유지하도록 표시는 정착 완료 시 지움
+    if (latestScrollAfterNavigationRef.current && history.items.length > 0) {
+      scrollToLatest();
       return;
     }
 
@@ -432,6 +443,11 @@ export function ChatMessageViewport({
 
     if (preservesViewport) {
       notifyInitialPositionReady(viewportKey);
+
+      // 최신 대화 복귀로 원래 timeline에 돌아오면 이전 스크롤 위치 대신 최신 메시지로 이동함
+      if (latestScrollAfterNavigationRef.current) {
+        scrollToLatestRef.current();
+      }
       return;
     }
 
@@ -658,6 +674,11 @@ export function ChatMessageViewport({
       return;
     }
 
+    // 목록이 비면서 브라우저가 보정한 scroll이 초기 위치를 확정하지 않도록 초기 위치 이동 전 scroll은 무시함
+    if (viewportPositionRef.current === "initializing" && !initialScrollInFlightRef.current) {
+      return;
+    }
+
     const distanceFromEnd =
       scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
     const isAtEnd = distanceFromEnd <= AT_END_THRESHOLD;
@@ -679,6 +700,8 @@ export function ChatMessageViewport({
 
   function handleJumpToLatest() {
     if (history.onNavigateToLatest) {
+      latestScrollAfterNavigationRef.current = true;
+      dispatch({ type: "jump-to-latest" });
       history.onNavigateToLatest();
       return;
     }

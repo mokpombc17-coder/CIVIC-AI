@@ -118,8 +118,9 @@ export function useChatRoomContentExperience(
               ),
               messageCount: message.messageItems.length,
             }),
+      // Context 목록이 도착하기 전에 대상 메시지를 넘기면 viewport가 빈 목록을 보고 위치를 먼저 확정함
       initialScrollTarget:
-        messageNavigationActive && messageNavigation.targetMessageId
+        messageNavigationActive && messageNavigation.targetMessageId && !messageNavigation.isPending
           ? ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
