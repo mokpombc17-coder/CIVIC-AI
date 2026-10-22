@@ -118,6 +118,9 @@ pnpm test:e2e
 # 설문 E2E
 pnpm test:e2e:survey
 
+# iPhone WebKit CSS fallback smoke. 처음 한 번 pnpm exec playwright install webkit이 필요하다.
+pnpm test:e2e:webkit
+
 # 브라우저를 띄워 확인하거나 디버깅할 때
 pnpm test:e2e:headed
 pnpm test:e2e:debug

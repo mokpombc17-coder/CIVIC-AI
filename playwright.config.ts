@@ -5,6 +5,8 @@ const USE_NATIVE_BROWSER_VIEWPORT = process.env.CHAT_E2E_NATIVE_VIEWPORT === "tr
 
 export default defineConfig({
   testDir: "./e2e",
+  // WebKit CSS smoke는 iPhone WebKit 설정이 필요해 별도 config로 실행함
+  testIgnore: "webkit-css-smoke.spec.ts",
   fullyParallel: false,
   forbidOnly: Boolean(process.env.CI),
   globalSetup: "./e2e/global-setup.ts",

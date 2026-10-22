@@ -19,6 +19,7 @@
     "test": "vitest run",
     "test:e2e": "playwright test",
     "test:e2e:survey": "playwright test --config playwright.survey.config.ts",
+    "test:e2e:webkit": "playwright test --config playwright.webkit.config.ts",
     "test:e2e:headed": "CHAT_E2E_NATIVE_VIEWPORT=true playwright test --headed",
     "test:e2e:chat-demo": "CHAT_E2E_NATIVE_VIEWPORT=true CHAT_E2E_TILE_WINDOWS=true CHAT_E2E_DEMO_DELAY_MS=700 playwright test e2e/chat-multi-user-conversation.spec.ts --headed",
     "test:e2e:debug": "CHAT_E2E_NATIVE_VIEWPORT=true playwright test --debug",
