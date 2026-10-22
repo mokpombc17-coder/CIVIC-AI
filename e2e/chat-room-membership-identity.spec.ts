@@ -54,8 +54,8 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
         await expect(ownerMessageButton).toBeVisible();
         await expect(ownerMessageOnMemberButton).toBeVisible();
         await expect(memberMessageOnOwnerButton).toBeVisible();
-        await expect(getMessageRow(memberLog, ownerMessage)).toContainText("참여자 1");
-        await expect(getMessageRow(ownerLog, memberMessage)).toContainText("참여자 2");
+        await expect(getMessageRow(memberLog, ownerMessage)).toContainText(ownerSubject);
+        await expect(getMessageRow(ownerLog, memberMessage)).toContainText(memberSubject);
 
         await ownerMessageButton.click();
         const ownerActions = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
@@ -77,16 +77,20 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
     await test.step("일반 참여자가 ACTIVE 프로필 목록과 자신의 Room 프로필을 확인한다", async () => {
       const dialog = await openMembershipDialog(memberPage);
-      const ownerRow = dialog.getByText("참여자 1", { exact: true }).locator("xpath=ancestor::li");
-      const memberRow = dialog.getByText("참여자 2", { exact: true }).locator("xpath=ancestor::li");
+      const ownerRow = dialog
+        .getByText(ownerSubject, { exact: true })
+        .locator("xpath=ancestor::li");
+      const memberRow = dialog
+        .getByText(memberSubject, { exact: true })
+        .locator("xpath=ancestor::li");
 
       await expect(ownerRow).toBeVisible();
       await expect(memberRow).toBeVisible();
       await expect(
-        ownerRow.getByRole("img", { name: "참여자 1 기본 프로필 이미지" }),
+        ownerRow.getByRole("img", { name: `${ownerSubject} 기본 프로필 이미지` }),
       ).toBeVisible();
       await expect(
-        memberRow.getByRole("img", { name: "참여자 2 기본 프로필 이미지" }),
+        memberRow.getByRole("img", { name: `${memberSubject} 기본 프로필 이미지` }),
       ).toBeVisible();
       await expect(memberRow.getByText("나", { exact: true })).toBeVisible();
       await expect(ownerRow.getByText("방장", { exact: true })).toBeVisible();
@@ -97,39 +101,37 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
     await test.step("방장이 targetMembershipId로 참여자를 차단한다", async () => {
       const dialog = await openMembershipDialog(ownerPage);
-      await expect(dialog.getByText(ownerSubject, { exact: true })).toHaveCount(0);
-      await expect(dialog.getByText(memberSubject, { exact: true })).toHaveCount(0);
+      await expect(dialog.getByText(ownerSubject, { exact: true })).toBeVisible();
+      await expect(dialog.getByText(memberSubject, { exact: true })).toBeVisible();
 
-      await expect(dialog.getByText("참여자 1", { exact: true })).toBeVisible();
-      await expect(dialog.getByText("참여자 2", { exact: true })).toBeVisible();
-
-      const response = await executeMemberCommand(
+      const command = await executeMemberCommand(
         ownerPage,
-        dialog.getByRole("button", { name: "차단", exact: true }),
+        await openMemberActions(dialog, memberSubject).then((actions) =>
+          actions.getByRole("button", { name: "차단", exact: true }),
+        ),
         `/api/v1/rooms/${roomId}/commands/ban-member`,
       );
-      const requestBody = readTargetMembershipRequest(response);
-      const responseBody = (await response.json()) as { targetMembershipId?: unknown };
+      const requestBody = readTargetMembershipRequest(command.requestBody);
+      const responseBody = (await command.response.json()) as { targetMembershipId?: unknown };
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
       await expect(dialog.getByRole("status")).toContainText("차단했습니다");
       await dialog.getByRole("button", { name: "토론방 메뉴 닫기" }).click();
 
       const ownerLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
-      await expect(getMessageRow(ownerLog, memberMessage)).toContainText("알 수 없는 참여자");
+      await expect(getMessageRow(ownerLog, memberMessage)).toContainText("알 수 없음");
     });
 
     await test.step("방장이 targetMembershipId로 참여자의 차단을 해제한다", async () => {
       const dialog = await openMembershipDialog(ownerPage);
-      await dialog.getByRole("button", { name: "차단됨", exact: true }).click();
 
-      const response = await executeMemberCommand(
+      const command = await executeMemberCommand(
         ownerPage,
         dialog.getByRole("button", { name: "차단 해제", exact: true }),
         `/api/v1/rooms/${roomId}/commands/unban-member`,
       );
-      const requestBody = readTargetMembershipRequest(response);
-      const responseBody = (await response.json()) as { targetMembershipId?: unknown };
+      const requestBody = readTargetMembershipRequest(command.requestBody);
+      const responseBody = (await command.response.json()) as { targetMembershipId?: unknown };
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
       await expect(dialog.getByRole("status")).toContainText("차단을 해제했습니다");
@@ -141,18 +143,20 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
       await joinPublicRoomAndEnter(memberPage, roomId, roomName, { navigate: false });
 
       const participantDialog = await openMembershipDialog(ownerPage);
-      await expect(participantDialog.getByText("참여자 2", { exact: true })).toBeVisible();
+      await expect(participantDialog.getByText(memberSubject, { exact: true })).toBeVisible();
       await participantDialog.getByRole("button", { name: "토론방 메뉴 닫기" }).click();
       const ownerLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
-      await expect(getMessageRow(ownerLog, memberMessage)).toContainText("참여자 2");
+      await expect(getMessageRow(ownerLog, memberMessage)).toContainText(memberSubject);
       const commandDialog = await openMembershipDialog(ownerPage);
-      const response = await executeMemberCommand(
+      const command = await executeMemberCommand(
         ownerPage,
-        commandDialog.getByRole("button", { name: "방장 위임", exact: true }),
+        await openMemberActions(commandDialog, memberSubject).then((actions) =>
+          actions.getByRole("button", { name: "방장 위임", exact: true }),
+        ),
         `/api/v1/rooms/${roomId}/commands/transfer-ownership`,
       );
-      const requestBody = readTargetMembershipRequest(response);
-      const responseBody = (await response.json()) as { newOwnerMembershipId?: unknown };
+      const requestBody = readTargetMembershipRequest(command.requestBody);
+      const responseBody = (await command.response.json()) as { newOwnerMembershipId?: unknown };
 
       expect(responseBody.newOwnerMembershipId).toBe(requestBody.targetMembershipId);
       await expect(commandDialog.getByRole("status")).toContainText("방장을 위임했습니다");
@@ -164,7 +168,9 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 
       await executeMemberCommand(
         memberPage,
-        dialog.getByRole("button", { name: "차단", exact: true }),
+        await openMemberActions(dialog, ownerSubject).then((actions) =>
+          actions.getByRole("button", { name: "차단", exact: true }),
+        ),
         `/api/v1/rooms/${roomId}/commands/ban-member`,
       );
       await expect(dialog.getByRole("status")).toContainText("차단했습니다");
@@ -201,11 +207,27 @@ async function openMembershipDialog(page: Page): Promise<Locator> {
   return dialog;
 }
 
+// 방장 위임과 차단은 참여자 행의 관리 메뉴 안에 있음
+async function openMemberActions(dialog: Locator, displayName: string): Promise<Locator> {
+  const memberRow = dialog.getByRole("listitem").filter({
+    has: dialog.page().getByText(displayName, { exact: true }),
+  });
+  await memberRow.getByLabel(`${displayName} 관리`, { exact: true }).click();
+  return memberRow;
+}
+
 async function executeMemberCommand(
   page: Page,
   button: Locator,
   pathname: string,
-): Promise<Response> {
+): Promise<{ requestBody: unknown; response: Response }> {
+  // Network event의 postDataJSON은 비어 있을 수 있어 route에서 요청 본문을 읽음
+  let requestBody: unknown = null;
+  const isCommandRequest = (url: URL) => url.pathname === pathname;
+  await page.route(isCommandRequest, async (route) => {
+    requestBody = route.request().postDataJSON();
+    await route.continue();
+  });
   const responsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" && new URL(response.url()).pathname === pathname,
@@ -215,12 +237,13 @@ async function executeMemberCommand(
   await button.click();
 
   const response = await responsePromise;
+  await page.unroute(isCommandRequest);
   expect(response.ok(), `${pathname} 요청이 성공해야 합니다: ${response.status()}`).toBe(true);
-  return response;
+  return { requestBody, response };
 }
 
-function readTargetMembershipRequest(response: Response): { targetMembershipId: string } {
-  const body = response.request().postDataJSON() as Record<string, unknown>;
+function readTargetMembershipRequest(requestBody: unknown): { targetMembershipId: string } {
+  const body = requestBody as Record<string, unknown>;
 
   expect(Object.keys(body)).toEqual(["targetMembershipId"]);
   expect(body.targetMembershipId).toEqual(expect.any(String));
