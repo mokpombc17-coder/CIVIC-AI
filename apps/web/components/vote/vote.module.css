@@ -332,14 +332,7 @@
   color: var(--vote-muted);
 }
 
-.emptyState {
-  margin: 48px 0;
-  color: var(--vote-muted);
-  font-size: 14px;
-  text-align: center;
-}
-
-.completedEmptyState {
+.voteEmptyState {
   display: grid;
   justify-items: center;
   gap: 10px;
@@ -347,7 +340,7 @@
   text-align: center;
 }
 
-.completedEmptyStateVisual {
+.voteEmptyStateVisual {
   display: inline-flex;
   width: 40px;
   height: 40px;
@@ -359,25 +352,25 @@
   box-shadow: 0 1px 2px rgb(18 20 23 / 12%);
 }
 
-.completedEmptyStateIcon {
+.voteEmptyStateIcon {
   width: 20px;
   height: 20px;
 }
 
-.completedEmptyStateCopy {
+.voteEmptyStateCopy {
   display: grid;
   gap: 6px;
   margin: 0;
 }
 
-.completedEmptyStateMessage {
+.voteEmptyStateMessage {
   color: var(--vote-text);
   font-size: 16px;
   font-weight: 500;
   line-height: 24px;
 }
 
-.completedEmptyStateDescription {
+.voteEmptyStateDescription {
   color: var(--vote-muted);
   font-size: 14px;
   font-weight: 400;

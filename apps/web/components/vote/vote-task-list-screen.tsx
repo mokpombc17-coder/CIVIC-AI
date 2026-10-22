@@ -326,39 +326,30 @@ export function VoteTaskListScreen({
               ))}
             </ul>
             {tasks.length === 0 ? (
-              !showingSearchResults &&
-              completedTasks.length === 0 &&
-              tab === "completed" &&
-              voteCompletedApiAvailable ? (
-                <div className={styles.completedEmptyState}>
-                  <span aria-hidden="true" className={styles.completedEmptyStateVisual}>
-                    <svg className={styles.completedEmptyStateIcon} fill="none" viewBox="0 0 20 20">
-                      <path
-                        d="M4.5 15.5v-5m5.5 5v-11m5.5 11v-8"
-                        stroke="currentColor"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth="2.2"
-                      />
-                    </svg>
-                  </span>
-                  <p className={styles.completedEmptyStateCopy}>
-                    <span className={styles.completedEmptyStateMessage}>
-                      아직 확인할 수 있는 투표 결과가 없어요
-                    </span>
-                    <span className={styles.completedEmptyStateDescription}>
-                      참여한 투표의 결과만 확인할 수 있어요.
-                    </span>
-                  </p>
-                </div>
+              !showingSearchResults && tab === "completed" && !voteCompletedApiAvailable ? (
+                <VoteTaskListEmptyState
+                  description="준비가 끝나면 여기에서 확인할 수 있어요."
+                  icon="completed"
+                  message="완료한 투표 목록은 아직 준비 중이에요"
+                />
+              ) : showingSearchResults ? (
+                <VoteTaskListEmptyState
+                  description="다른 검색어로 다시 찾아보세요."
+                  icon="search"
+                  message="검색 결과가 없어요"
+                />
+              ) : tab === "active" ? (
+                <VoteTaskListEmptyState
+                  description="새 투표가 열리면 여기에서 참여할 수 있어요."
+                  icon="active"
+                  message="진행 중인 투표가 없어요"
+                />
               ) : (
-                <p className={styles.emptyState}>
-                  {showingSearchResults
-                    ? "검색 결과가 없습니다."
-                    : tab === "active"
-                      ? "진행 중인 투표가 없습니다."
-                      : "완료한 투표 목록은 아직 준비 중입니다."}
-                </p>
+                <VoteTaskListEmptyState
+                  description="참여한 투표의 결과만 확인할 수 있어요."
+                  icon="completed"
+                  message="아직 확인할 수 있는 투표 결과가 없어요"
+                />
               )
             ) : null}
             {!showingSearchResults &&
@@ -407,6 +398,63 @@ export function VoteTaskListScreen({
         ) : null}
       </div>
     </PlatformShell>
+  );
+}
+
+function VoteTaskListEmptyState({
+  description,
+  icon,
+  message,
+}: Readonly<{
+  description: string;
+  icon: "active" | "completed" | "search";
+  message: string;
+}>) {
+  return (
+    <div className={styles.voteEmptyState} data-vote-task-empty-state={icon}>
+      <span aria-hidden="true" className={styles.voteEmptyStateVisual}>
+        <svg className={styles.voteEmptyStateIcon} fill="none" viewBox="0 0 20 20">
+          {icon === "active" ? (
+            <>
+              <rect
+                height="13"
+                rx="2"
+                stroke="currentColor"
+                strokeWidth="1.7"
+                width="13"
+                x="3.5"
+                y="3.5"
+              />
+              <circle cx="7.5" cy="8" r="1" stroke="currentColor" strokeWidth="1.5" />
+              <path
+                d="M10.5 8h3m-6 4h-1m4 0h3"
+                stroke="currentColor"
+                strokeLinecap="round"
+                strokeWidth="1.7"
+              />
+              <circle cx="7.5" cy="12" r="1" stroke="currentColor" strokeWidth="1.5" />
+            </>
+          ) : icon === "completed" ? (
+            <path
+              d="M4.5 15.5v-5m5.5 5v-11m5.5 11v-8"
+              stroke="currentColor"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth="2.2"
+            />
+          ) : (
+            <>
+              <circle cx="8.5" cy="8.5" r="4.5" stroke="currentColor" strokeWidth="1.8" />
+              <path d="m12 12 4 4" stroke="currentColor" strokeLinecap="round" strokeWidth="1.8" />
+            </>
+          )}
+        </svg>
+      </span>
+      <p className={styles.voteEmptyStateCopy}>
+        <span className={styles.voteEmptyStateMessage}>{message}</span>
+        <span className={styles.voteEmptyStateDescription}>{description}</span>
+      </p>
+    </div>
   );
 }
 

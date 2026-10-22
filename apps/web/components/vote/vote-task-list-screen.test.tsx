@@ -52,7 +52,7 @@ describe("VoteTaskListScreen", () => {
 
     expect(html).toContain(">주제 검색</label>");
     expect(html).toContain('placeholder="주제를 검색해 보세요"');
-    expect(html).toContain("진행 중인 투표가 없습니다.");
+    expect(html).toContain("진행 중인 투표가 없어요");
     expect(html).toContain('aria-label="홈으로"');
     expect(html).toContain('data-navigation-mode="document"');
     expect(html).toContain('data-state="enabled"');
@@ -128,8 +128,8 @@ describe("VoteTaskListScreen", () => {
 
     const html = renderToStaticMarkup(<VoteTaskListScreen initialQuery="없는 주제" />);
 
-    expect(html).toContain("검색 결과가 없습니다.");
-    expect(html).not.toContain("진행 중인 투표가 없습니다.");
+    expect(html).toContain("검색 결과가 없어요");
+    expect(html).not.toContain("진행 중인 투표가 없어요");
   });
 
   it("검색어가 없는 검색 결과 탭은 API를 호출하지 않고 빈 상태를 표시한다", () => {
@@ -138,7 +138,7 @@ describe("VoteTaskListScreen", () => {
     expect(useTaskSearchQueryMock).toHaveBeenCalledWith("", 20, false);
     expect(useOpenTasksQueryMock).toHaveBeenCalledWith(false);
     expect(html).toContain('aria-selected="true"');
-    expect(html).toContain("검색 결과가 없습니다.");
+    expect(html).toContain("검색 결과가 없어요");
     expect(html).not.toContain('data-vote-task-list-loading="true"');
   });
 
