@@ -41,6 +41,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
   const initialEntryPending = useChatRoomInitialEntryPending(
     roomId,
     shouldHoldChatRoomInitialEntry({
+      entryNavigationNeedsAction: content.messageHistory.entryNavigation?.kind === "action",
       hasRoomError: content.roomError !== null,
       sessionKind: realtime.sessionView.kind,
       viewportPositioned: positionedViewportKey === viewportKey,
