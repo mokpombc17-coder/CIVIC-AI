@@ -5,7 +5,7 @@ test("현재 Task 제출 조회 계약으로 기존 응답을 표시한다", asy
   await issueLocalE2EAuthenticationSession(page.request, "local-user-1");
   await page.goto("/vote");
 
-  const responseLink = page.getByRole("link", { name: "응답 보기", exact: true }).first();
+  const responseLink = page.getByRole("link", { name: / 응답 보기$/ }).first();
   await expect(responseLink).toBeVisible();
 
   const submissionResponsePromise = page.waitForResponse((response) => {
@@ -40,7 +40,7 @@ test("personaVersionId 없는 Prediction 계약으로 응답 작성을 시작한
   await issueLocalE2EAuthenticationSession(page.request, "local-user-1");
   await page.goto("/vote");
 
-  const participationLink = page.getByRole("link", { name: "참여하기", exact: true }).first();
+  const participationLink = page.getByRole("link", { name: / 참여하기$/ }).first();
   await expect(participationLink).toBeVisible();
 
   const predictionResponsePromise = page.waitForResponse((response) => {
