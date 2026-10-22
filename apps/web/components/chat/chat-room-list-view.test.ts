@@ -92,7 +92,7 @@ describe("chat room list publishing layout", () => {
   it("공개 방 검색 결과가 비면 전체 목록의 빈 상태와 구분해 표시한다", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, "기후");
 
-    expect(html).toContain("검색 결과가 없어요");
+    expect(html).toContain("검색어와 일치하는 토론방이 없어요");
     expect(html).toContain("다른 검색어로 다시 찾아보세요.");
     expect(html).toContain('data-chat-room-list-empty-variant="no-search-results"');
     expect(html).toContain('data-chat-room-list-empty-icon="search"');

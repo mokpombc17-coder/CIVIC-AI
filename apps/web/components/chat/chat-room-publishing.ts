@@ -6,7 +6,7 @@ export const CHAT_ROOM_PUBLISHING_COPY = {
   createRoom: "토론방 생성 요청",
   noAvailableRooms: "현재 참여 가능한 방이 없어요",
   noAvailableRoomsDescription: "원하는 주제로 토론방 생성을 요청해 보세요.",
-  noPublicRoomSearchResults: "검색 결과가 없어요",
+  noPublicRoomSearchResults: "검색어와 일치하는 토론방이 없어요",
 } as const;
 
 /**
