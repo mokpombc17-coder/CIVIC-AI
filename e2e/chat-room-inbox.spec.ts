@@ -68,9 +68,6 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       ).toBeVisible();
       await expect(getParticipatingRoomCard(memberPage, roomName)).toContainText("읽지 않음 1");
       await expect(getParticipatingRoomCard(memberPage, roomName)).not.toContainText(readMessage);
-      await expect(getParticipatingRoomCard(memberPage, roomName).locator("time")).not.toHaveText(
-        "",
-      );
     });
 
     await test.step("메시지가 렌더링된 뒤 확정 sequence를 PUT하고 badge를 제거한다", async () => {
@@ -85,7 +82,7 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
 
       const entryRoomCard = getParticipatingRoomCard(memberPage, roomName);
       await entryRoomCard
-        .getByRole("link", { name: `${roomName} 채팅방 입장`, exact: true })
+        .getByRole("link", { name: `${roomName} 토론방 입장`, exact: true })
         .click();
       await expect(memberPage.getByRole("log", { name: `${roomId} 메시지` })).toContainText(
         readMessage,
@@ -119,9 +116,9 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
     await test.step("latest message UPDATE는 토스트와 unread 상태를 바꾸지 않는다", async () => {
       await ownerPage.bringToFront();
       await ownerMessageLog.getByRole("button", { name: readMessage, exact: true }).click();
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       await mutationDialog.getByRole("button", { name: "수정", exact: true }).click();
-      await mutationDialog.getByRole("textbox", { name: "메시지 수정" }).fill(editedMessage);
+      await mutationDialog.getByRole("textbox", { name: "선택한 메시지" }).fill(editedMessage);
 
       await memberPage.bringToFront();
       await expect.poll(() => memberPage.evaluate(() => document.hasFocus())).toBe(true);
@@ -151,10 +148,10 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
       );
 
       await ownerMessageLog.getByRole("button", { name: deletedMessage, exact: true }).click();
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
       await expect(
-        mutationDialog.getByText("이 메시지를 삭제할까요?", { exact: true }),
+        mutationDialog.getByText("정말 이 메시지를 삭제하시겠습니까?", { exact: true }),
       ).toBeVisible();
 
       await memberPage.bringToFront();

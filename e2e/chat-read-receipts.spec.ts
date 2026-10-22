@@ -130,10 +130,10 @@ test("두 사용자의 read cursor로 메시지 읽은 인원을 표시하고 sn
         expect(clientMessageId).not.toBeNull();
 
         await ownerRow.getByRole("button", { name: ownerMessage, exact: true }).click();
-        const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+        const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
         await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
         await expect(
-          mutationDialog.getByText("이 메시지를 삭제할까요?", { exact: true }),
+          mutationDialog.getByText("정말 이 메시지를 삭제하시겠습니까?", { exact: true }),
         ).toBeVisible();
         await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
         await expect(mutationDialog).toHaveCount(0);

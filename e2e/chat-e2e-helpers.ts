@@ -164,20 +164,28 @@ export async function findPublicRoomCard(page: Page, roomName: string): Promise<
   await expect(searchForm).toBeVisible();
   await searchInput.fill(roomName);
 
-  const searchResponse = page.waitForResponse((response) => {
-    const url = new URL(response.url());
+  // 같은 검색어를 다시 검색하면 Query cache를 쓰므로 응답이 없을 수 있음
+  const searchResponse = page
+    .waitForResponse(
+      (response) => {
+        const url = new URL(response.url());
 
-    return (
-      response.request().method() === "GET" &&
-      url.pathname === "/api/v1/rooms" &&
-      url.searchParams.get("query") === roomName
-    );
-  });
+        return (
+          response.request().method() === "GET" &&
+          url.pathname === "/api/v1/rooms" &&
+          url.searchParams.get("query") === roomName
+        );
+      },
+      { timeout: 5_000 },
+    )
+    .catch(() => null);
 
   await searchForm.getByRole("button", { name: "검색", exact: true }).click();
 
   const response = await searchResponse;
-  expect(response.ok(), `공개 방 검색이 성공해야 합니다: ${response.status()}`).toBe(true);
+  if (response) {
+    expect(response.ok(), `공개 방 검색이 성공해야 합니다: ${response.status()}`).toBe(true);
+  }
 
   await expect(roomCard, `${roomName} 공개 방을 검색 결과에서 찾아야 합니다.`).toBeVisible();
 

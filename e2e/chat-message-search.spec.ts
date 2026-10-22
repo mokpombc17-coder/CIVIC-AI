@@ -112,9 +112,9 @@ async function editMessage(
   nextContent: string,
 ): Promise<void> {
   await messageLog.getByRole("button", { name: currentContent, exact: true }).click();
-  const actions = page.getByRole("dialog", { name: "메시지 작업" });
+  const actions = page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
   await actions.getByRole("button", { name: "수정", exact: true }).click();
-  await actions.getByRole("textbox", { name: "메시지 수정" }).fill(nextContent);
+  await actions.getByRole("textbox", { name: "선택한 메시지" }).fill(nextContent);
   await actions.getByRole("button", { name: "저장", exact: true }).click();
   await expect(actions).toHaveCount(0);
   await expect(messageLog.getByText(nextContent, { exact: true })).toBeVisible();
@@ -122,9 +122,11 @@ async function editMessage(
 
 async function deleteMessage(page: Page, messageLog: Locator, content: string): Promise<void> {
   await messageLog.getByRole("button", { name: content, exact: true }).click();
-  const actions = page.getByRole("dialog", { name: "메시지 작업" });
+  const actions = page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
   await actions.getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(actions.getByText("이 메시지를 삭제할까요?", { exact: true })).toBeVisible();
+  await expect(
+    actions.getByText("정말 이 메시지를 삭제하시겠습니까?", { exact: true }),
+  ).toBeVisible();
   await actions.getByRole("button", { name: "삭제", exact: true }).click();
   await expect(actions).toHaveCount(0);
 }

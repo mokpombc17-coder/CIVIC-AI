@@ -33,8 +33,11 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       const membershipDialog = ownerPage.getByRole("dialog", { name: "토론방 메뉴" });
       await expect(membershipDialog).toBeVisible();
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
-      await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("정책");
-      await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toBeVisible();
+      await expect(membershipDialog.getByLabel("카테고리: 정책")).toBeVisible();
+      await expect(
+        membershipDialog.getByRole("button", { name: "수정", exact: true }),
+      ).toBeVisible();
+      await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toHaveCount(0);
       await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
       await expect(membershipDialog).toHaveCount(0);
       await expect(roomInfoTrigger).toBeFocused();
@@ -54,13 +57,16 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
 
       const publicRoomCard = await findPublicRoomCard(memberPage, initialName);
 
-      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("정책");
+      await expect(publicRoomCard.getByLabel("카테고리: 정책")).toBeVisible();
       await joinPublicRoomAndEnter(memberPage, roomId!, initialName, { navigate: false });
 
       await memberPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
 
       const membershipDialog = memberPage.getByRole("dialog", { name: "토론방 메뉴" });
       await expect(membershipDialog.getByText(initialDescription, { exact: true })).toBeVisible();
+      await expect(membershipDialog.getByRole("button", { name: "수정", exact: true })).toHaveCount(
+        0,
+      );
       await expect(membershipDialog.getByRole("form", { name: "방 정보 수정" })).toHaveCount(0);
       await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
     });
@@ -69,27 +75,39 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       await ownerPage.getByRole("button", { name: "토론방 메뉴", exact: true }).click();
       const membershipDialog = ownerPage.getByRole("dialog", { name: "토론방 메뉴" });
 
+      await membershipDialog.getByRole("button", { name: "수정", exact: true }).click();
       const form = membershipDialog.getByRole("form", { name: "방 정보 수정" });
 
       await expect(form).toBeVisible();
       await expect(form.getByRole("textbox", { name: "방 이름" })).toHaveValue(initialName);
       await expect(form.getByRole("textbox", { name: "방 설명" })).toHaveValue(initialDescription);
-      await expect(form.getByLabel("방 카테고리")).toHaveCount(0);
+      await expect(form.getByLabel("카테고리: 정책")).toBeVisible();
       await expect(form.getByRole("combobox")).toHaveCount(0);
 
       await form.getByRole("textbox", { name: "방 이름" }).fill(updatedName);
       await form.getByRole("textbox", { name: "방 설명" }).fill(updatedDescription);
 
+      const isUpdateSettings = (url: string) =>
+        new URL(url).pathname === `/api/v1/rooms/${roomId}/commands/update-settings`;
+      // Network 이벤트에서는 이 요청의 body가 빠지므로 route 가로채기로 body를 읽음
+      let requestBody: unknown = null;
+      await ownerPage.route(
+        (url) => isUpdateSettings(url.toString()),
+        async (route) => {
+          if (route.request().method() === "POST") {
+            requestBody = route.request().postDataJSON();
+          }
+          await route.continue();
+        },
+      );
       const updateResponse = ownerPage.waitForResponse(
-        (response) =>
-          response.request().method() === "POST" &&
-          new URL(response.url()).pathname === `/api/v1/rooms/${roomId}/commands/update-settings`,
+        (response) => response.request().method() === "POST" && isUpdateSettings(response.url()),
       );
 
       await form.getByRole("button", { name: "저장", exact: true }).click();
 
       const response = await updateResponse;
-      const requestBody = response.request().postDataJSON();
+      await ownerPage.unrouteAll({ behavior: "ignoreErrors" });
 
       expect(response.status()).toBe(200);
       expect(requestBody).toMatchObject({
@@ -105,7 +123,8 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       ).toBeVisible();
 
       await expect(form.getByRole("textbox", { name: "방 이름" })).toHaveValue(updatedName);
-      await form.getByRole("button", { name: "되돌리기", exact: true }).click();
+      await membershipDialog.getByRole("button", { name: "취소", exact: true }).click();
+      await expect(form).toHaveCount(0);
       await membershipDialog.getByRole("button", { name: "토론방 메뉴 닫기", exact: true }).click();
     });
 
@@ -116,7 +135,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
 
         const membershipDialog = page.getByRole("dialog", { name: "토론방 메뉴" });
         await expect(membershipDialog.getByText(updatedDescription, { exact: true })).toBeVisible();
-        await expect(membershipDialog.getByLabel("방 카테고리")).toContainText("지역 현안");
+        await expect(membershipDialog.getByLabel("카테고리: 정책")).toBeVisible();
         await membershipDialog
           .getByRole("button", { name: "토론방 메뉴 닫기", exact: true })
           .click();
@@ -125,7 +144,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
       await expect(memberPage.getByRole("form", { name: "방 정보 수정" })).toHaveCount(0);
     });
 
-    await test.step("카테고리와 공개 상태는 유지되고 목록에는 최신 이름이 반영된다", async () => {
+    await test.step("카테고리는 유지되고 참여 중인 목록에는 최신 이름이 반영된다", async () => {
       await ownerPage.goto("/chat");
 
       const myRoomCard = ownerPage
@@ -138,9 +157,9 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
         .filter({ hasText: updatedName });
 
       await expect(myRoomCard).toBeVisible();
-      await expect(myRoomCard.getByLabel("방 카테고리")).toContainText("지역 현안");
-      await expect(publicRoomCard).toBeVisible();
-      await expect(publicRoomCard.getByLabel("방 카테고리")).toContainText("지역 현안");
+      await expect(myRoomCard.getByLabel("카테고리: 정책")).toBeVisible();
+      // 이미 참여한 방은 공개 토론방 목록에서 제외함
+      await expect(publicRoomCard).toHaveCount(0);
     });
   } finally {
     await Promise.all([ownerContext.close(), memberContext.close()]);

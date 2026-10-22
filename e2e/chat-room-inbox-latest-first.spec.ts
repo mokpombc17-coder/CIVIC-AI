@@ -486,7 +486,7 @@ async function sendMessage(page: Page, content: string): Promise<void> {
 async function editMessage(page: Page, content: string, editedContent: string): Promise<void> {
   const dialog = await prepareEditMessage(page, content, editedContent);
   await dialog.getByRole("button", { name: "저장", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "메시지 작업" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ })).toHaveCount(0);
   await expectConfirmedMessage(page, readRoomId(page.url()), editedContent);
 }
 
@@ -497,24 +497,26 @@ async function prepareEditMessage(
 ): Promise<Locator> {
   const messageLog = page.getByRole("log", { name: `${readRoomId(page.url())} 메시지` });
   await messageLog.getByRole("button", { name: content, exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "메시지 작업" });
+  const dialog = page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
   await dialog.getByRole("button", { name: "수정", exact: true }).click();
-  await dialog.getByRole("textbox", { name: "메시지 수정" }).fill(editedContent);
+  await dialog.getByRole("textbox", { name: "선택한 메시지" }).fill(editedContent);
   return dialog;
 }
 
 async function deleteMessage(page: Page, content: string): Promise<void> {
   const dialog = await prepareDeleteMessage(page, content);
   await dialog.getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "메시지 작업" })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ })).toHaveCount(0);
 }
 
 async function prepareDeleteMessage(page: Page, content: string): Promise<Locator> {
   const messageLog = page.getByRole("log", { name: `${readRoomId(page.url())} 메시지` });
   await messageLog.getByRole("button", { name: content, exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "메시지 작업" });
+  const dialog = page.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
   await dialog.getByRole("button", { name: "삭제", exact: true }).click();
-  await expect(dialog.getByText("이 메시지를 삭제할까요?", { exact: true })).toBeVisible();
+  await expect(
+    dialog.getByText("정말 이 메시지를 삭제하시겠습니까?", { exact: true }),
+  ).toBeVisible();
   return dialog;
 }
 
@@ -643,8 +645,11 @@ async function expectRoomMessageStatus(page: Page, roomId: string): Promise<void
   await expect(getRoomCard(page, roomId)).toContainText(/읽지 않음 \d+\+?|새 메시지 없음/);
 }
 
+// 목록 카드는 마지막 활동 시각을 표시하지 않으므로 inbox API 응답의 timestamp로 확인함
 async function expectRoomActivity(page: Page, roomId: string, activityAt: string): Promise<void> {
-  await expect(getRoomCard(page, roomId).locator("time")).toHaveAttribute("datetime", activityAt);
+  await expect
+    .poll(async () => getRoomItem(await listRoomInbox(page), roomId).lastActivityAt)
+    .toBe(activityAt);
 }
 
 function readRoomId(url: string): string {

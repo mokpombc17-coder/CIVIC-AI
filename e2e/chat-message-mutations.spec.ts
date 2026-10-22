@@ -75,7 +75,9 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         })
         .click();
 
-      const messageActionsDialog = memberPage.getByRole("dialog", { name: "메시지 작업" });
+      const messageActionsDialog = memberPage.getByRole("dialog", {
+        name: /^메시지( 수정| 삭제)?$/,
+      });
       await expect(
         messageActionsDialog.getByRole("button", { name: "복사", exact: true }),
       ).toBeVisible();
@@ -109,24 +111,25 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
       await messageInput.fill(draftMessage);
       await actionTrigger.click();
 
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       const messageActionsSheet = ownerPage.locator('[data-chat-message-actions-sheet="true"]');
       await expect(messageActionsSheet).toHaveCount(1);
       await expect(mutationDialog.getByRole("button", { name: "복사", exact: true })).toBeVisible();
       await expect(messageInput).toHaveValue(draftMessage);
 
-      const [chatRoomBounds, composerBounds, sheetBounds] = await Promise.all([
-        ownerPage.locator('[data-chat-room-view="true"]').boundingBox(),
+      // 모든 bottom sheet는 PlatformShell overlay에서 하단 내비게이션까지 덮으므로 shell 하단에 맞춤
+      const [shellBounds, composerBounds, sheetBounds] = await Promise.all([
+        ownerPage.locator('[data-platform-shell="true"]').boundingBox(),
         ownerPage.locator('form:has(textarea[enterkeyhint="send"])').boundingBox(),
         messageActionsSheet.boundingBox(),
       ]);
 
-      if (!chatRoomBounds || !composerBounds || !sheetBounds) {
-        throw new Error("채팅방, composer와 Bottom Sheet의 화면 위치를 확인할 수 없습니다.");
+      if (!shellBounds || !composerBounds || !sheetBounds) {
+        throw new Error("PlatformShell, composer와 Bottom Sheet의 화면 위치를 확인할 수 없습니다.");
       }
 
       expect(
-        Math.abs(sheetBounds.y + sheetBounds.height - (chatRoomBounds.y + chatRoomBounds.height)),
+        Math.abs(sheetBounds.y + sheetBounds.height - (shellBounds.y + shellBounds.height)),
       ).toBeLessThanOrEqual(2);
       expect(sheetBounds.y).toBeLessThanOrEqual(composerBounds.y);
 
@@ -146,12 +149,12 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         })
         .click();
 
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       await expect(ownerPage.locator('[data-chat-message-actions-sheet="true"]')).toHaveCount(1);
       await expect(mutationDialog).toBeVisible();
       await mutationDialog.getByRole("button", { name: "수정", exact: true }).click();
       await mutationDialog
-        .getByRole("textbox", { name: "메시지 수정" })
+        .getByRole("textbox", { name: "선택한 메시지" })
         .fill(`  ${editedMessage}  `);
       await mutationDialog.getByRole("button", { name: "저장", exact: true }).click();
 
@@ -162,7 +165,7 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
       await expect(memberMessageLog.getByText(originalMessage, { exact: true })).toHaveCount(0);
 
       const editedRow = ownerMessageLog.locator(`li[data-client-message-id="${clientMessageId}"]`);
-      await expect(editedRow.getByText("(수정됨)", { exact: true })).toBeVisible();
+      await expect(editedRow.getByText("수정됨", { exact: true })).toBeVisible();
       await expect(
         memberMessageLog.getByRole("button", {
           name: editedMessage,
@@ -179,9 +182,9 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         })
         .click();
 
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       await mutationDialog.getByRole("button", { name: "수정", exact: true }).click();
-      await expect(mutationDialog.getByRole("textbox", { name: "메시지 수정" })).toHaveValue(
+      await expect(mutationDialog.getByRole("textbox", { name: "선택한 메시지" })).toHaveValue(
         editedMessage,
       );
       await mutationDialog.getByRole("button", { name: "저장", exact: true }).click();
@@ -199,10 +202,10 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
         })
         .click();
 
-      const mutationDialog = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+      const mutationDialog = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
       await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
       await expect(
-        mutationDialog.getByText("이 메시지를 삭제할까요?", { exact: true }),
+        mutationDialog.getByText("정말 이 메시지를 삭제하시겠습니까?", { exact: true }),
       ).toBeVisible();
       await mutationDialog.getByRole("button", { name: "삭제", exact: true }).click();
 

@@ -58,12 +58,12 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
         await expect(getMessageRow(ownerLog, memberMessage)).toContainText("참여자 2");
 
         await ownerMessageButton.click();
-        const ownerActions = ownerPage.getByRole("dialog", { name: "메시지 작업" });
+        const ownerActions = ownerPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
         await expect(ownerActions.getByRole("button", { name: "수정", exact: true })).toBeVisible();
         await ownerActions.getByRole("button", { name: "메시지 작업 닫기" }).click();
 
         await memberLog.getByRole("button", { name: ownerMessage, exact: true }).click();
-        const memberActions = memberPage.getByRole("dialog", { name: "메시지 작업" });
+        const memberActions = memberPage.getByRole("dialog", { name: /^메시지( 수정| 삭제)?$/ });
         await expect(memberActions.getByRole("button", { name: "수정", exact: true })).toHaveCount(
           0,
         );
