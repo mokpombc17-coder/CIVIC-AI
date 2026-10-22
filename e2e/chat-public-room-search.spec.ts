@@ -50,6 +50,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
     ]);
 
     const fixtures: { roomId: string }[] = [];
+    let unfilteredRoomIds: string[] = [];
 
     await test.step("서로 다른 owner로 검색 결과 21개를 준비한다", async () => {
       for (let index = 0; index < 20; index += 1) {
@@ -67,7 +68,12 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
     await test.step("검색 버튼으로 OPEN 첫 페이지 조건을 적용한다", async () => {
       const initialRequest = observerPage.waitForResponse(isPublicRoomListResponse);
       await observerPage.goto("/chat");
-      expect((await initialRequest).ok()).toBe(true);
+      const initialResponse = await initialRequest;
+      expect(initialResponse.ok()).toBe(true);
+      expectPublicRoomCriteria(initialResponse, { query: null, categoryId: null, cursor: null });
+      unfilteredRoomIds = ((await initialResponse.json()) as PublicRoomPage).items
+        .map((room) => room.roomId)
+        .sort();
 
       await observerPage
         .getByRole("searchbox", { name: "토론방 이름 검색" })
@@ -137,31 +143,30 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(new Set(renderedRoomIds).size).toBe(21);
     });
 
-    await test.step("공백 검색어는 query와 categoryId를 생략한다", async () => {
-      await observerPage.getByRole("searchbox", { name: "토론방 이름 검색" }).fill("   ");
-
-      const responsePromise = observerPage.waitForResponse((response) => {
-        if (!isPublicRoomListResponse(response)) {
-          return false;
+    await test.step("검색어를 공백으로 비우면 즉시 검색 조건 없는 목록으로 돌아간다", async () => {
+      const searchRequestUrls: URL[] = [];
+      observerPage.on("request", (request) => {
+        const url = new URL(request.url());
+        if (request.method() === "GET" && url.pathname === "/api/v1/rooms") {
+          searchRequestUrls.push(url);
         }
-
-        const searchParams = new URL(response.url()).searchParams;
-        return (
-          !searchParams.has("query") &&
-          !searchParams.has("categoryId") &&
-          !searchParams.has("cursor")
-        );
       });
+
+      // 검색어를 비우면 검색 버튼 없이 바로 해제되고 같은 조건의 목록은 Query cache를 쓸 수 있음
+      await observerPage.getByRole("searchbox", { name: "토론방 이름 검색" }).fill("   ");
+      await expect
+        .poll(async () => (await readRenderedRoomIds(observerPage)).sort())
+        .toEqual(unfilteredRoomIds);
 
       await observerPage.getByRole("button", { name: "검색", exact: true }).click();
+      await expect
+        .poll(async () => (await readRenderedRoomIds(observerPage)).sort())
+        .toEqual(unfilteredRoomIds);
 
-      const response = await responsePromise;
-      expect(response.ok()).toBe(true);
-      expectPublicRoomCriteria(response, {
-        query: null,
-        categoryId: null,
-        cursor: null,
-      });
+      for (const url of searchRequestUrls) {
+        expect(url.searchParams.has("query")).toBe(false);
+        expect(url.searchParams.has("categoryId")).toBe(false);
+      }
     });
   } finally {
     await Promise.all([
