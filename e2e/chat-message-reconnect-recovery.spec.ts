@@ -123,7 +123,8 @@ test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 
       await expect(ownerPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
       await expect(ownerMessageLog.getByText(firstMissedMessage, { exact: true })).toBeVisible();
       await expect(ownerMessageLog.getByText(secondMissedMessage, { exact: true })).toBeVisible();
-      await expect(ownerMessageLog.getByRole("listitem")).toHaveCount(3);
+      // 입장 안내 같은 system activity 행은 빼고 복구한 메시지가 중복 없이 붙었는지 확인함
+      await expect(ownerMessageLog.locator("li[data-client-message-id]")).toHaveCount(3);
     });
   } finally {
     if (ownerWorkerSessionId) {
