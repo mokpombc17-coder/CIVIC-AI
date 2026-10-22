@@ -17,6 +17,11 @@ import {
   ChatMessageViewportVirtualRow,
 } from "@/components/chat/chat-message-viewport-presentation";
 import {
+  type ChatMessageViewportAnchor,
+  captureChatMessageViewportAnchor,
+  findRenderedChatMessageAnchorElement,
+} from "@/components/chat/chat-message-viewport-anchor";
+import {
   type ChatMessageViewportItemsSnapshot,
   createChatMessageViewportItemsSnapshot,
   detectChatMessageViewportAppend,
@@ -324,7 +329,10 @@ export function ChatMessageViewport({
             return;
           }
 
-          const targetElement = findRenderedAnchorElement(scrollElement, targetRenderKey);
+          const targetElement = findRenderedChatMessageAnchorElement(
+            scrollElement,
+            targetRenderKey,
+          );
 
           if (targetElement) {
             const currentOffset =
@@ -389,7 +397,7 @@ export function ChatMessageViewport({
     }
 
     const scrollElement = scrollElementRef.current;
-    const anchor = scrollElement ? captureViewportAnchor(scrollElement) : null;
+    const anchor = scrollElement ? captureChatMessageViewportAnchor(scrollElement) : null;
 
     if (!anchor) {
       return;
@@ -636,7 +644,10 @@ export function ChatMessageViewport({
             return;
           }
 
-          const anchorElement = findRenderedAnchorElement(scrollElement, anchor.renderKey);
+          const anchorElement = findRenderedChatMessageAnchorElement(
+            scrollElement,
+            anchor.renderKey,
+          );
 
           if (!anchorElement) {
             if (remainingFrames > 1) {
@@ -795,49 +806,6 @@ type ChatMessageViewportScrollFrames = {
   scroll: number | null;
   settle: number | null;
 };
-
-type ChatMessageViewportAnchor = Readonly<{
-  offsetFromViewportTop: number;
-  renderKey: string;
-  viewportKey: string;
-}>;
-
-function captureViewportAnchor(scrollElement: HTMLDivElement): ChatMessageViewportAnchor | null {
-  const viewportBounds = scrollElement.getBoundingClientRect();
-  // 날짜 구분선은 바로 뒤 항목에 따라 render key가 바뀌어 과거 메시지가 앞에 붙으면 다시 찾을 수 없으므로 기준에서 제외함
-  const renderedItems = [
-    ...scrollElement.querySelectorAll<HTMLLIElement>("[data-render-key]:not([data-date-key])"),
-  ];
-  const firstVisibleItem = renderedItems
-    .filter((item) => item.getBoundingClientRect().bottom > viewportBounds.top)
-    .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0];
-  const renderKey = firstVisibleItem?.dataset.renderKey;
-
-  if (!firstVisibleItem || !renderKey) {
-    return null;
-  }
-
-  return {
-    offsetFromViewportTop: firstVisibleItem.getBoundingClientRect().top - viewportBounds.top,
-    renderKey,
-    viewportKey: currentViewportKeyFromElement(scrollElement),
-  };
-}
-
-function findRenderedAnchorElement(
-  scrollElement: HTMLDivElement,
-  renderKey: string,
-): HTMLLIElement | null {
-  return (
-    [...scrollElement.querySelectorAll<HTMLLIElement>("[data-render-key]")].find(
-      (item) => item.dataset.renderKey === renderKey,
-    ) ?? null
-  );
-}
-
-function currentViewportKeyFromElement(scrollElement: HTMLDivElement): string {
-  return scrollElement.dataset.viewportKey ?? "";
-}
 
 function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number): boolean {
   const messageElement = scrollElement.querySelector<HTMLLIElement>(
