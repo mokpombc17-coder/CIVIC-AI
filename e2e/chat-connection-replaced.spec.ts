@@ -13,18 +13,19 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
   const firstContext = await browser.newContext({ baseURL });
   const secondContext = await browser.newContext({ baseURL });
   const firstPage = await firstContext.newPage();
+  const subject = `e2e-connection-replaced-${crypto.randomUUID()}`;
   const secondPage = await secondContext.newPage();
 
   try {
     await test.step("첫 번째 브라우저가 같은 사용자의 활성 WebSocket 연결을 소유한다", async () => {
-      await authenticateLocalE2EUser(firstPage, firstContext);
+      await authenticateLocalE2EUser(firstPage, firstContext, subject);
       await firstPage.goto("/chat");
 
       await expect(firstPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
     });
 
     await test.step("두 번째 브라우저가 연결되면 첫 번째 연결이 4001 상태로 교체된다", async () => {
-      await authenticateLocalE2EUser(secondPage, secondContext);
+      await authenticateLocalE2EUser(secondPage, secondContext, subject);
       await secondPage.goto("/chat");
 
       await expect(secondPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);

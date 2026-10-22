@@ -13,7 +13,7 @@ test("같은 브라우저의 두 탭이 채팅방을 선점하고 다시 활성�
   const preservedDraft = `탭 전환 중 보존할 초안 ${uniqueId}`;
 
   await test.step("첫 번째 탭이 채팅방을 활성화하고 작성 중인 초안을 가진다", async () => {
-    await authenticateLocalE2EUser(firstPage, context);
+    await authenticateLocalE2EUser(firstPage, context, `e2e-tab-${uniqueId}`);
     await createRoomAndEnter(firstPage, roomName);
 
     const firstMessageInput = firstPage.getByRole("textbox", { name: "메시지" });
@@ -71,7 +71,7 @@ test("활성 탭이 종료된 뒤 남은 탭이 수동으로 채팅방을 다시
 }) => {
   const roomName = `e2e-tab-close-${crypto.randomUUID()}`;
 
-  await authenticateLocalE2EUser(firstPage, context);
+  await authenticateLocalE2EUser(firstPage, context, `e2e-tab-close-${crypto.randomUUID()}`);
   await createRoomAndEnter(firstPage, roomName);
   await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
 

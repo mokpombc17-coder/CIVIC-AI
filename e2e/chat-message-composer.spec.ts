@@ -5,7 +5,7 @@ test("Enter 전송, Shift+Enter 줄바꿈, IME 조합 보호 정책을 적용한
   const uniqueId = crypto.randomUUID();
   const roomName = `e2e-composer-${uniqueId}`;
 
-  await authenticateLocalE2EUser(page, context);
+  await authenticateLocalE2EUser(page, context, `e2e-composer-${uniqueId}`);
   const roomId = await createRoomAndEnter(page, roomName);
   const messageInput = page.getByRole("textbox", { name: "메시지" });
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });

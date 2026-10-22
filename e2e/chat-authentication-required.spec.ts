@@ -38,7 +38,11 @@ test("인증 실패는 terminal 상태를 유지하고 로컬 E2E 로그인 성�
 
   try {
     await test.step("유효한 로컬 E2E 로그인으로 채팅방 실시간 연결을 활성화한다", async () => {
-      await authenticateLocalE2EUser(page, context);
+      await authenticateLocalE2EUser(
+        page,
+        context,
+        `e2e-authentication-required-${crypto.randomUUID()}`,
+      );
       await createRoomAndEnter(page, `e2e-authentication-required-${crypto.randomUUID()}`);
 
       await expect(page.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL })).toBeVisible();
