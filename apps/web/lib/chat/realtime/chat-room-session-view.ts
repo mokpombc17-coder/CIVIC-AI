@@ -178,13 +178,13 @@ export function getChatRoomSessionView(
   if (snapshot.status === "replaced" && snapshot.roomId === roomId) {
     return {
       kind: "replaced",
-      title: "다른 토론방에서 채팅 중이에요.",
-      description: "이 토론방의 채팅은 잠시 대기 중이에요.",
+      title: "다른 탭에서 채팅 중이에요.",
+      description: "이 탭의 채팅은 잠시 멈췄어요. 여기서 계속하면 다른 탭의 채팅이 멈춰요.",
       canCompose: false,
       canSend: false,
       canReactivate: true,
       canReconnect: false,
-      indicatorLabel: "다른 토론방 사용 중",
+      indicatorLabel: "다른 탭 사용 중",
       indicatorTone: "pending",
       showNotice: true,
     };

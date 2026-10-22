@@ -15,8 +15,10 @@ describe("ChatRoomSessionNotice", () => {
     );
 
     expect(html).toContain('data-chat-session-notice="replaced"');
-    expect(html).toContain("다른 토론방에서 채팅 중이에요.");
-    expect(html).toContain("이 토론방의 채팅은 잠시 대기 중이에요.");
+    expect(html).toContain("다른 탭에서 채팅 중이에요.");
+    expect(html).toContain(
+      "이 탭의 채팅은 잠시 멈췄어요. 여기서 계속하면 다른 탭의 채팅이 멈춰요.",
+    );
     expect(html).toContain("여기서 계속하기");
     expect(html).toContain("bg-[var(--chat-publishing-color-accent-soft)]");
     expect(html).not.toContain("bg-red-50");
@@ -95,12 +97,12 @@ const REPLACED_VIEW = {
   canSend: false,
   canReactivate: true,
   canReconnect: false,
-  description: "이 토론방의 채팅은 잠시 대기 중이에요.",
-  indicatorLabel: "다른 토론방 사용 중",
+  description: "이 탭의 채팅은 잠시 멈췄어요. 여기서 계속하면 다른 탭의 채팅이 멈춰요.",
+  indicatorLabel: "다른 탭 사용 중",
   indicatorTone: "pending",
   kind: "replaced",
   showNotice: true,
-  title: "다른 토론방에서 채팅 중이에요.",
+  title: "다른 탭에서 채팅 중이에요.",
 } satisfies ChatRoomSessionView;
 
 const ERROR_VIEW = {
