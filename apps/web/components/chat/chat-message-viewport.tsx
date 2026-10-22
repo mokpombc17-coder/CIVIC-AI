@@ -821,7 +821,10 @@ function createItemsSnapshot(
 
 function captureViewportAnchor(scrollElement: HTMLDivElement): ChatMessageViewportAnchor | null {
   const viewportBounds = scrollElement.getBoundingClientRect();
-  const renderedItems = [...scrollElement.querySelectorAll<HTMLLIElement>("[data-render-key]")];
+  // 날짜 구분선은 바로 뒤 항목에 따라 render key가 바뀌어 과거 메시지가 앞에 붙으면 다시 찾을 수 없으므로 기준에서 제외함
+  const renderedItems = [
+    ...scrollElement.querySelectorAll<HTMLLIElement>("[data-render-key]:not([data-date-key])"),
+  ];
   const firstVisibleItem = renderedItems
     .filter((item) => item.getBoundingClientRect().bottom > viewportBounds.top)
     .sort((left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top)[0];
