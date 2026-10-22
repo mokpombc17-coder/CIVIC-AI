@@ -336,13 +336,13 @@ export function VoteTaskListScreen({
                 <VoteTaskListEmptyState
                   description="다른 검색어로 다시 찾아보세요."
                   icon="search"
-                  message="검색 결과가 없어요"
+                  message="검색어와 일치하는 투표가 없어요"
                 />
               ) : tab === "active" ? (
                 <VoteTaskListEmptyState
                   description="새 투표가 열리면 여기에서 참여할 수 있어요."
                   icon="active"
-                  message="진행 중인 투표가 없어요"
+                  message="현재 참여 가능한 투표가 없어요"
                 />
               ) : (
                 <VoteTaskListEmptyState
