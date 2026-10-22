@@ -3,15 +3,12 @@ import {
   createChatMessageViewportState,
   findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
-  shouldFollowLatestMessages,
-  shouldPreserveChatMessageViewport,
 } from "./chat-message-viewport-state";
 
 describe("chat message viewport state", () => {
   it("과거 이력 유무에 맞는 초기 상태를 만든다", () => {
     expect(createChatMessageViewportState(true)).toEqual({
       olderHistory: "idle",
-      position: "initializing",
       unseenMessageCount: 0,
     });
     expect(createChatMessageViewportState(false).olderHistory).toBe("exhausted");
@@ -54,141 +51,40 @@ describe("chat message viewport state", () => {
     ).toBeNull();
   });
 
-  it("사용자가 하단에서 벗어나면 실시간 새 메시지 수를 누적한다", () => {
-    const detached = reduceChatMessageViewportState(createChatMessageViewportState(true), {
-      type: "viewport-ready",
-      isAtEnd: false,
-    });
-    const withNewMessages = reduceChatMessageViewportState(detached, {
-      type: "messages-appended",
+  it("따라가지 않은 새 메시지 수를 누적한다", () => {
+    const once = reduceChatMessageViewportState(createChatMessageViewportState(true), {
+      type: "unseen-messages-added",
       count: 2,
-      source: "realtime",
     });
-
-    expect(withNewMessages).toMatchObject({
-      position: "detached",
-      unseenMessageCount: 2,
-    });
-  });
-
-  it("과거 메시지를 읽는 동안 도착한 실시간 메시지는 현재 위치를 유지한다", () => {
-    expect(shouldFollowLatestMessages("detached", "realtime")).toBe(false);
-  });
-
-  it("하단에 있거나 현재 탭에서 직접 보낸 메시지는 최신 위치를 따라간다", () => {
-    expect(shouldFollowLatestMessages("pinned", "realtime")).toBe(true);
-    expect(shouldFollowLatestMessages("initializing", "realtime")).toBe(true);
-    expect(shouldFollowLatestMessages("detached", "current-user")).toBe(true);
-  });
-
-  it("같은 화면의 연결 generation만 바뀌면 현재 viewport를 유지한다", () => {
-    expect(
-      shouldPreserveChatMessageViewport({
-        currentContinuityKey: "room-01",
-        position: "detached",
-        previousContinuityKey: "room-01",
-      }),
-    ).toBe(true);
-    expect(
-      shouldPreserveChatMessageViewport({
-        currentContinuityKey: "room-01",
-        position: "pinned",
-        previousContinuityKey: "room-01",
-      }),
-    ).toBe(true);
-    expect(
-      shouldPreserveChatMessageViewport({
-        currentContinuityKey: "room-02",
-        position: "detached",
-        previousContinuityKey: "room-01",
-      }),
-    ).toBe(false);
-    expect(
-      shouldPreserveChatMessageViewport({
-        currentContinuityKey: "room-01",
-        position: "initializing",
-        previousContinuityKey: "room-01",
-      }),
-    ).toBe(false);
-  });
-
-  it("하단을 보고 있거나 직접 보낸 메시지는 별도 미확인 수로 쌓지 않는다", () => {
-    const pinned = reduceChatMessageViewportState(createChatMessageViewportState(true), {
-      type: "viewport-ready",
-      isAtEnd: true,
-    });
-    const afterRealtime = reduceChatMessageViewportState(pinned, {
-      type: "messages-appended",
+    const twice = reduceChatMessageViewportState(once, {
+      type: "unseen-messages-added",
       count: 1,
-      source: "realtime",
-    });
-    const detached = reduceChatMessageViewportState(afterRealtime, {
-      type: "scroll-position-changed",
-      isAtEnd: false,
-    });
-    const afterOwnMessage = reduceChatMessageViewportState(detached, {
-      type: "messages-appended",
-      count: 1,
-      source: "current-user",
     });
 
-    expect(afterRealtime).toBe(pinned);
-    expect(afterOwnMessage).toMatchObject({
-      position: "pinned",
-      unseenMessageCount: 0,
-    });
+    expect(twice.unseenMessageCount).toBe(3);
   });
 
-  it("하단으로 돌아오면 새 메시지 수를 초기화한다", () => {
-    const state = reduceChatMessageViewportState(
-      {
-        olderHistory: "idle",
-        position: "detached",
-        unseenMessageCount: 3,
-      },
-      {
-        type: "scroll-position-changed",
-        isAtEnd: true,
-      },
-    );
-
-    expect(state).toMatchObject({
-      position: "pinned",
-      unseenMessageCount: 0,
-    });
-  });
-
-  it("새 메시지 안내에서 최신 위치로 이동하면 미확인 수를 초기화한다", () => {
-    const state = reduceChatMessageViewportState(
-      {
-        olderHistory: "idle",
-        position: "detached",
-        unseenMessageCount: 3,
-      },
-      {
-        type: "jump-to-latest",
-      },
-    );
-
-    expect(state).toMatchObject({
-      position: "pinned",
-      unseenMessageCount: 0,
-    });
-  });
-
-  it("같은 스크롤 구간의 반복 이벤트에는 기존 상태 참조를 유지한다", () => {
+  it("하단에 도달하거나 최신 이동을 요청하면 새 메시지 수를 초기화한다", () => {
     const state = {
       olderHistory: "idle",
-      position: "pinned",
-      unseenMessageCount: 0,
+      unseenMessageCount: 3,
     } as const;
 
-    expect(
-      reduceChatMessageViewportState(state, {
-        type: "scroll-position-changed",
-        isAtEnd: true,
-      }),
-    ).toBe(state);
+    expect(reduceChatMessageViewportState(state, { type: "latest-reached" })).toEqual({
+      olderHistory: "idle",
+      unseenMessageCount: 0,
+    });
+    expect(reduceChatMessageViewportState(state, { type: "jump-to-latest" })).toEqual({
+      olderHistory: "idle",
+      unseenMessageCount: 0,
+    });
+  });
+
+  it("새 메시지 수가 이미 0이면 기존 상태 참조를 유지한다", () => {
+    const state = createChatMessageViewportState(true);
+
+    expect(reduceChatMessageViewportState(state, { type: "latest-reached" })).toBe(state);
+    expect(reduceChatMessageViewportState(state, { type: "jump-to-latest" })).toBe(state);
   });
 
   it("과거 이력 요청의 loading, error, exhausted 상태를 독립적으로 관리한다", () => {
@@ -223,11 +119,10 @@ describe("chat message viewport state", () => {
     expect(available.olderHistory).toBe("idle");
   });
 
-  it("방 세션이 바뀌면 스크롤과 과거 이력 상태를 함께 초기화한다", () => {
+  it("방 세션이 바뀌면 새 메시지 수와 과거 이력 상태를 함께 초기화한다", () => {
     const reset = reduceChatMessageViewportState(
       {
         olderHistory: "error",
-        position: "detached",
         unseenMessageCount: 4,
       },
       {
@@ -242,9 +137,8 @@ describe("chat message viewport state", () => {
   it("추가 메시지 수가 올바르지 않으면 상태 오염을 막는다", () => {
     expect(() =>
       reduceChatMessageViewportState(createChatMessageViewportState(true), {
-        type: "messages-appended",
+        type: "unseen-messages-added",
         count: 0,
-        source: "realtime",
       }),
     ).toThrow(RangeError);
   });

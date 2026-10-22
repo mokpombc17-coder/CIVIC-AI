@@ -1,4 +1,7 @@
-import type { ChatMessageViewportPosition } from "@/components/chat/chat-message-viewport-state";
+import type {
+  ChatMessageViewportPhase,
+  ChatMessageViewportPin,
+} from "@/components/chat/chat-message-viewport-position";
 
 export type ChatMessageReadStatePolicyInput = Readonly<{
   documentHasFocus: boolean;
@@ -6,7 +9,8 @@ export type ChatMessageReadStatePolicyInput = Readonly<{
   isLatestSequenceVisible: boolean;
   readStateEnabled: boolean;
   readStatePaused: boolean;
-  viewportPosition: ChatMessageViewportPosition;
+  viewportPhase: ChatMessageViewportPhase;
+  viewportPin: ChatMessageViewportPin;
 }>;
 
 export function canReportChatMessageReadState({
@@ -15,14 +19,16 @@ export function canReportChatMessageReadState({
   isLatestSequenceVisible,
   readStateEnabled,
   readStatePaused,
-  viewportPosition,
+  viewportPhase,
+  viewportPin,
 }: ChatMessageReadStatePolicyInput): boolean {
   return (
     readStateEnabled &&
     !readStatePaused &&
     documentVisibilityState === "visible" &&
     documentHasFocus &&
-    viewportPosition === "pinned" &&
+    viewportPhase === "settled" &&
+    viewportPin === "pinned" &&
     isLatestSequenceVisible
   );
 }

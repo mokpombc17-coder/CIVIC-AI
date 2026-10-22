@@ -27,13 +27,18 @@ import {
   detectChatMessageViewportAppend,
 } from "@/components/chat/chat-message-viewport-append";
 import {
+  type ChatMessageViewportJob,
+  type ChatMessageViewportPositionEvent,
+  type ChatMessageViewportPositionState,
+  createChatMessageViewportPositionState,
+  reduceChatMessageViewportPosition,
+  shouldCountUnseenChatMessages,
+} from "@/components/chat/chat-message-viewport-position";
+import {
   type ChatMessageViewportInitialScrollTarget,
-  type ChatMessageViewportPosition,
   createChatMessageViewportState,
   findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
-  shouldFollowLatestMessages,
-  shouldPreserveChatMessageViewport,
 } from "@/components/chat/chat-message-viewport-state";
 import type {
   ChatMessageHistoryFeedback,
@@ -105,14 +110,14 @@ export function ChatMessageViewport({
   const currentViewportKeyRef = useRef(history.viewportKey);
   const activeViewportContinuityKeyRef = useRef(history.viewportContinuityKey);
   const positionedViewportKeyRef = useRef<string | null>(null);
-  const viewportPositionRef = useRef<ChatMessageViewportPosition>("initializing");
-  const initialScrollInFlightRef = useRef(false);
-  const latestScrollFramesRef = useRef<ChatMessageViewportScrollFrames>({
+  const positionRef = useRef<ChatMessageViewportPositionState>(
+    createChatMessageViewportPositionState(),
+  );
+  const jobFramesRef = useRef<ChatMessageViewportScrollFrames>({
     scroll: null,
     settle: null,
   });
   const arrivalAnnouncementSequenceRef = useRef(0);
-  const latestScrollAfterNavigationRef = useRef(false);
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
   const [arrivalAnnouncement, setArrivalAnnouncement] =
     useState<ChatMessageArrivalAnnouncement | null>(null);
@@ -158,21 +163,25 @@ export function ChatMessageViewport({
   const virtualItems = virtualizer.getVirtualItems();
   canLoadOlderRef.current = canLoadOlder;
   currentViewportKeyRef.current = viewportKey;
+  // 자동 이동은 여러 frame에 걸쳐 실행되므로 시작 시점이 아니라 실행 시점의 목록과 진입 목표를 읽음
+  const itemsRef = useRef(history.items);
+  itemsRef.current = history.items;
+  const initialScrollTargetRef = useRef(initialScrollTarget);
+  initialScrollTargetRef.current = initialScrollTarget;
+  const onInitialPositionReadyRef = useRef(onInitialPositionReady);
+  onInitialPositionReadyRef.current = onInitialPositionReady;
 
-  const notifyInitialPositionReady = useCallback(
-    (positionedViewportKey: string) => {
-      if (
-        currentViewportKeyRef.current !== positionedViewportKey ||
-        positionedViewportKeyRef.current === positionedViewportKey
-      ) {
-        return;
-      }
+  const notifyInitialPositionReady = useCallback((positionedViewportKey: string) => {
+    if (
+      currentViewportKeyRef.current !== positionedViewportKey ||
+      positionedViewportKeyRef.current === positionedViewportKey
+    ) {
+      return;
+    }
 
-      positionedViewportKeyRef.current = positionedViewportKey;
-      onInitialPositionReady?.(positionedViewportKey);
-    },
-    [onInitialPositionReady],
-  );
+    positionedViewportKeyRef.current = positionedViewportKey;
+    onInitialPositionReadyRef.current?.(positionedViewportKey);
+  }, []);
 
   const reportVisibleReadSequence = useCallback(() => {
     if (latestConfirmedSequence === null) {
@@ -180,6 +189,7 @@ export function ChatMessageViewport({
     }
 
     const scrollElement = scrollElementRef.current;
+    const position = positionRef.current;
 
     if (
       !canReportChatMessageReadState({
@@ -189,7 +199,8 @@ export function ChatMessageViewport({
           scrollElement !== null && isSequenceVisible(scrollElement, latestConfirmedSequence),
         readStateEnabled,
         readStatePaused,
-        viewportPosition: viewportPositionRef.current,
+        viewportPhase: position.phase,
+        viewportPin: position.pin,
       })
     ) {
       return;
@@ -197,9 +208,12 @@ export function ChatMessageViewport({
 
     onReadThroughSequence(latestConfirmedSequence);
   }, [latestConfirmedSequence, onReadThroughSequence, readStateEnabled, readStatePaused]);
+  // 자동 이동이 시작된 뒤 읽음 조건이 바뀔 수 있으므로 이동이 끝나는 시점의 조건으로 읽음을 보고함
+  const reportVisibleReadSequenceRef = useRef(reportVisibleReadSequence);
+  reportVisibleReadSequenceRef.current = reportVisibleReadSequence;
 
-  const cancelLatestScroll = useCallback(() => {
-    const frames = latestScrollFramesRef.current;
+  const cancelJobFrames = useCallback(() => {
+    const frames = jobFramesRef.current;
 
     if (frames.scroll !== null) {
       cancelAnimationFrame(frames.scroll);
@@ -209,181 +223,235 @@ export function ChatMessageViewport({
       cancelAnimationFrame(frames.settle);
     }
 
-    latestScrollFramesRef.current = {
+    jobFramesRef.current = {
       scroll: null,
       settle: null,
     };
-    initialScrollInFlightRef.current = false;
   }, []);
 
-  const scrollToLatest = useCallback(() => {
-    const latestIndex = history.items.length - 1;
+  const startJobRef = useRef<(job: ChatMessageViewportJob) => void>(() => undefined);
 
-    if (latestIndex < 0) {
-      return;
-    }
+  const dispatchPosition = useCallback(
+    (event: ChatMessageViewportPositionEvent): ChatMessageViewportPositionState => {
+      const previous = positionRef.current;
+      const next = reduceChatMessageViewportPosition(previous, event);
+      positionRef.current = next;
 
-    const positionedViewportKey = viewportKey;
-    cancelLatestScroll();
-    latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
-      latestScrollFramesRef.current.scroll = null;
-      virtualizerRef.current.scrollToIndex(latestIndex, {
-        align: "end",
-      });
+      if (next === previous) {
+        return next;
+      }
 
-      const settleAtLatest = (remainingFrames: number) => {
-        latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
-          latestScrollFramesRef.current.settle = null;
-          const scrollElement = scrollElementRef.current;
+      if (next.job !== previous.job) {
+        cancelJobFrames();
 
-          if (!scrollElement) {
-            return;
-          }
+        if (next.job !== null) {
+          startJobRef.current(next.job);
+        }
+      }
 
-          scrollElement.scrollTop = scrollElement.scrollHeight;
+      if (next.phase === "settled" && next.pin === "pinned") {
+        dispatch({ type: "latest-reached" });
+      }
 
-          if (remainingFrames > 1) {
-            settleAtLatest(remainingFrames - 1);
-            return;
-          }
+      if (previous.phase !== "settled" && next.phase === "settled") {
+        notifyInitialPositionReady(currentViewportKeyRef.current);
+      }
 
-          viewportPositionRef.current = "pinned";
-          latestScrollAfterNavigationRef.current = false;
-          dispatch({
-            type: "viewport-ready",
-            isAtEnd: true,
-          });
-          notifyInitialPositionReady(positionedViewportKey);
-          reportVisibleReadSequence();
-        });
-      };
+      return next;
+    },
+    [cancelJobFrames, notifyInitialPositionReady],
+  );
 
-      settleAtLatest(LATEST_SCROLL_SETTLE_FRAMES);
-    });
-  }, [
-    cancelLatestScroll,
-    history.items.length,
-    notifyInitialPositionReady,
-    reportVisibleReadSequence,
-    viewportKey,
-  ]);
-  const scrollToLatestRef = useRef(scrollToLatest);
-  scrollToLatestRef.current = scrollToLatest;
+  startJobRef.current = (job) => {
+    const frames = jobFramesRef.current;
 
-  const scrollToInitialTarget = useCallback(() => {
-    if (viewportPositionRef.current !== "initializing" || initialScrollTarget.kind === "pending") {
-      return;
-    }
-
-    // 최신 대화 복귀로 timeline이 다시 초기화되면 진입 시 목표 대신 최신 메시지로 이동함
-    // 정착 전에 effect가 다시 실행돼도 같은 목표를 유지하도록 표시는 정착 완료 시 지움
-    if (latestScrollAfterNavigationRef.current && history.items.length > 0) {
-      scrollToLatest();
-      return;
-    }
-
-    const targetIndex = findChatMessageInitialScrollIndex(history.items, initialScrollTarget);
-
-    if (targetIndex === null) {
-      const scrollElement = scrollElementRef.current;
-      const isAtEnd =
-        scrollElement === null ||
-        scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <=
-          AT_END_THRESHOLD;
-      viewportPositionRef.current = isAtEnd ? "pinned" : "detached";
-      dispatch({
-        type: "viewport-ready",
+    const settleJob = (isAtEnd: boolean) => {
+      dispatchPosition({
+        type: "job-settled",
         isAtEnd,
+        jobId: job.id,
       });
-      notifyInitialPositionReady(viewportKey);
-      return;
-    }
+      reportVisibleReadSequenceRef.current();
+    };
 
-    if (initialScrollTarget.kind === "latest") {
-      scrollToLatest();
-      return;
-    }
+    const runLatest = () => {
+      frames.scroll = requestAnimationFrame(() => {
+        frames.scroll = null;
+        const latestIndex = itemsRef.current.length - 1;
 
-    const targetRenderKey = history.items[targetIndex]?.renderKey;
-
-    if (!targetRenderKey) {
-      return;
-    }
-
-    cancelLatestScroll();
-    initialScrollInFlightRef.current = true;
-    const positionedViewportKey = viewportKey;
-    latestScrollFramesRef.current.scroll = requestAnimationFrame(() => {
-      latestScrollFramesRef.current.scroll = null;
-      virtualizerRef.current.scrollToIndex(targetIndex, {
-        align: initialScrollTarget.kind === "message" ? "center" : "start",
-      });
-
-      const settleAtTarget = (remainingFrames: number) => {
-        latestScrollFramesRef.current.settle = requestAnimationFrame(() => {
-          latestScrollFramesRef.current.settle = null;
+        if (latestIndex < 0) {
           const scrollElement = scrollElementRef.current;
+          settleJob(scrollElement === null || isScrollElementAtEnd(scrollElement));
+          return;
+        }
 
-          if (!scrollElement) {
-            initialScrollInFlightRef.current = false;
-            return;
-          }
-
-          const targetElement = findRenderedChatMessageAnchorElement(
-            scrollElement,
-            targetRenderKey,
-          );
-
-          if (targetElement) {
-            const currentOffset =
-              targetElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
-            const targetOffset =
-              initialScrollTarget.kind === "message"
-                ? Math.max(
-                    0,
-                    (scrollElement.clientHeight - targetElement.getBoundingClientRect().height) / 2,
-                  )
-                : 0;
-            scrollElement.scrollTop += currentOffset - targetOffset;
-
-            if (initialScrollTarget.kind === "message") {
-              targetElement.focus({ preventScroll: true });
-            }
-          }
-
-          if (remainingFrames > 1) {
-            settleAtTarget(remainingFrames - 1);
-            return;
-          }
-
-          const distanceFromEnd =
-            scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
-          const isAtEnd = distanceFromEnd <= AT_END_THRESHOLD;
-          initialScrollInFlightRef.current = false;
-          viewportPositionRef.current = isAtEnd ? "pinned" : "detached";
-          dispatch({
-            type: "viewport-ready",
-            isAtEnd,
-          });
-          notifyInitialPositionReady(positionedViewportKey);
-
-          if (isAtEnd) {
-            reportVisibleReadSequence();
-          }
+        virtualizerRef.current.scrollToIndex(latestIndex, {
+          align: "end",
         });
-      };
 
-      settleAtTarget(LATEST_SCROLL_SETTLE_FRAMES);
-    });
-  }, [
-    cancelLatestScroll,
-    history.items,
-    initialScrollTarget,
-    notifyInitialPositionReady,
-    reportVisibleReadSequence,
-    scrollToLatest,
-    viewportKey,
-  ]);
+        const settleAtLatest = (remainingFrames: number) => {
+          frames.settle = requestAnimationFrame(() => {
+            frames.settle = null;
+            const scrollElement = scrollElementRef.current;
+
+            if (!scrollElement) {
+              return;
+            }
+
+            scrollElement.scrollTop = scrollElement.scrollHeight;
+
+            if (remainingFrames > 1) {
+              settleAtLatest(remainingFrames - 1);
+              return;
+            }
+
+            settleJob(true);
+          });
+        };
+
+        settleAtLatest(LATEST_SCROLL_SETTLE_FRAMES);
+      });
+    };
+
+    const runInitial = (byLatestIntent: boolean) => {
+      const target = initialScrollTargetRef.current;
+
+      if (byLatestIntent || target.kind === "latest") {
+        runLatest();
+        return;
+      }
+
+      frames.scroll = requestAnimationFrame(() => {
+        frames.scroll = null;
+        const items = itemsRef.current;
+        const targetIndex = findChatMessageInitialScrollIndex(items, target);
+        const targetRenderKey = targetIndex === null ? undefined : items[targetIndex]?.renderKey;
+
+        if (targetIndex === null || !targetRenderKey) {
+          const scrollElement = scrollElementRef.current;
+          settleJob(scrollElement === null || isScrollElementAtEnd(scrollElement));
+          return;
+        }
+
+        virtualizerRef.current.scrollToIndex(targetIndex, {
+          align: target.kind === "message" ? "center" : "start",
+        });
+
+        const settleAtTarget = (remainingFrames: number) => {
+          frames.settle = requestAnimationFrame(() => {
+            frames.settle = null;
+            const scrollElement = scrollElementRef.current;
+
+            if (!scrollElement) {
+              return;
+            }
+
+            const targetElement = findRenderedChatMessageAnchorElement(
+              scrollElement,
+              targetRenderKey,
+            );
+
+            if (targetElement) {
+              const currentOffset =
+                targetElement.getBoundingClientRect().top -
+                scrollElement.getBoundingClientRect().top;
+              const targetOffset =
+                target.kind === "message"
+                  ? Math.max(
+                      0,
+                      (scrollElement.clientHeight - targetElement.getBoundingClientRect().height) /
+                        2,
+                    )
+                  : 0;
+              scrollElement.scrollTop += currentOffset - targetOffset;
+
+              if (target.kind === "message") {
+                targetElement.focus({ preventScroll: true });
+              }
+            }
+
+            if (remainingFrames > 1) {
+              settleAtTarget(remainingFrames - 1);
+              return;
+            }
+
+            settleJob(isScrollElementAtEnd(scrollElement));
+          });
+        };
+
+        settleAtTarget(LATEST_SCROLL_SETTLE_FRAMES);
+      });
+    };
+
+    const runAnchor = () => {
+      frames.scroll = requestAnimationFrame(() => {
+        frames.scroll = null;
+        const anchor = pendingAnchorRef.current;
+        const anchorIndex =
+          anchor === null
+            ? -1
+            : itemsRef.current.findIndex((item) => item.renderKey === anchor.renderKey);
+
+        if (anchor === null || anchorIndex < 0) {
+          const scrollElement = scrollElementRef.current;
+          settleJob(scrollElement !== null && isScrollElementAtEnd(scrollElement));
+          return;
+        }
+
+        virtualizerRef.current.scrollToIndex(anchorIndex, {
+          align: "start",
+        });
+
+        const settleAtAnchor = (remainingFrames: number) => {
+          frames.settle = requestAnimationFrame(() => {
+            frames.settle = null;
+            const scrollElement = scrollElementRef.current;
+
+            if (!scrollElement) {
+              return;
+            }
+
+            const anchorElement = findRenderedChatMessageAnchorElement(
+              scrollElement,
+              anchor.renderKey,
+            );
+
+            if (!anchorElement) {
+              if (remainingFrames > 1) {
+                settleAtAnchor(remainingFrames - 1);
+                return;
+              }
+
+              // 기준 항목을 찾지 못하면 대기 anchor를 남겨 다음 목록 변경 때 다시 복원함
+              settleJob(isScrollElementAtEnd(scrollElement));
+              return;
+            }
+
+            const currentOffset =
+              anchorElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
+            scrollElement.scrollTop += currentOffset - anchor.offsetFromViewportTop;
+            pendingAnchorRef.current = null;
+            settleJob(isScrollElementAtEnd(scrollElement));
+          });
+        };
+
+        settleAtAnchor(OLDER_SCROLL_SETTLE_FRAMES);
+      });
+    };
+
+    switch (job.kind) {
+      case "initial":
+        runInitial(job.byLatestIntent);
+        return;
+      case "latest":
+      case "resize":
+        runLatest();
+        return;
+      case "anchor":
+        runAnchor();
+        return;
+    }
+  };
 
   const loadOlderMessages = useCallback(async () => {
     if (
@@ -445,32 +513,25 @@ export function ChatMessageViewport({
   useEffect(() => {
     olderRequestInFlightRef.current = false;
     pendingAnchorRef.current = null;
-    const preservesViewport = shouldPreserveChatMessageViewport({
-      currentContinuityKey: viewportContinuityKey,
-      position: viewportPositionRef.current,
-      previousContinuityKey: activeViewportContinuityKeyRef.current,
-    });
+    const continuityChanged = activeViewportContinuityKeyRef.current !== viewportContinuityKey;
     activeViewportContinuityKeyRef.current = viewportContinuityKey;
-    cancelLatestScroll();
+    const position = dispatchPosition({
+      type: "viewport-changed",
+      continuityChanged,
+    });
 
-    if (preservesViewport) {
+    if (position.phase === "settled") {
       notifyInitialPositionReady(viewportKey);
-
-      // 최신 대화 복귀로 원래 timeline에 돌아오면 이전 스크롤 위치 대신 최신 메시지로 이동함
-      if (latestScrollAfterNavigationRef.current) {
-        scrollToLatestRef.current();
-      }
       return;
     }
 
-    viewportPositionRef.current = "initializing";
     setOlderLoadError(null);
     setArrivalAnnouncement(null);
     dispatch({
       type: "reset",
       hasOlderMessages: canLoadOlderRef.current,
     });
-  }, [cancelLatestScroll, notifyInitialPositionReady, viewportContinuityKey, viewportKey]);
+  }, [dispatchPosition, notifyInitialPositionReady, viewportContinuityKey, viewportKey]);
 
   useEffect(() => {
     const recheckReadState = () => reportVisibleReadSequence();
@@ -486,26 +547,22 @@ export function ChatMessageViewport({
     const visualViewport = window.visualViewport;
     let resizeFrame: number | null = null;
 
-    const restoreLatestAfterResize = () => {
-      if (viewportPositionRef.current !== "pinned") {
-        return;
-      }
-
+    const notifyViewportResized = () => {
       if (resizeFrame !== null) {
         cancelAnimationFrame(resizeFrame);
       }
 
       resizeFrame = requestAnimationFrame(() => {
         resizeFrame = null;
-        scrollToLatest();
+        dispatchPosition({ type: "viewport-resized" });
       });
     };
 
-    window.addEventListener("resize", restoreLatestAfterResize);
-    visualViewport?.addEventListener("resize", restoreLatestAfterResize);
-    visualViewport?.addEventListener("scroll", restoreLatestAfterResize);
+    window.addEventListener("resize", notifyViewportResized);
+    visualViewport?.addEventListener("resize", notifyViewportResized);
+    visualViewport?.addEventListener("scroll", notifyViewportResized);
     const resizeObserver =
-      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(restoreLatestAfterResize);
+      typeof ResizeObserver === "undefined" ? null : new ResizeObserver(notifyViewportResized);
     const scrollElement = scrollElementRef.current;
 
     if (scrollElement) {
@@ -513,23 +570,23 @@ export function ChatMessageViewport({
     }
 
     return () => {
-      window.removeEventListener("resize", restoreLatestAfterResize);
-      visualViewport?.removeEventListener("resize", restoreLatestAfterResize);
-      visualViewport?.removeEventListener("scroll", restoreLatestAfterResize);
+      window.removeEventListener("resize", notifyViewportResized);
+      visualViewport?.removeEventListener("resize", notifyViewportResized);
+      visualViewport?.removeEventListener("scroll", notifyViewportResized);
       resizeObserver?.disconnect();
 
       if (resizeFrame !== null) {
         cancelAnimationFrame(resizeFrame);
       }
     };
-  }, [scrollToLatest]);
+  }, [dispatchPosition]);
 
   useEffect(() => {
     if (!history.readStateEnabled) {
       return;
     }
 
-    if (viewportPositionRef.current === "initializing") {
+    if (positionRef.current.phase !== "settled") {
       return;
     }
 
@@ -558,15 +615,8 @@ export function ChatMessageViewport({
       previous,
       viewportContinuityKey,
     });
-    const isInitializing = isNewViewport || viewportPositionRef.current === "initializing";
-    const shouldFollowLatest =
-      !isInitializing &&
-      ((appendedMessages.length > 0 &&
-        shouldFollowLatestMessages(viewportPositionRef.current, appendSource)) ||
-        (hasAppendedSystemActivity && viewportPositionRef.current !== "detached"));
 
     if (isNewViewport) {
-      viewportPositionRef.current = "initializing";
       dispatch({
         type: "reset",
         hasOlderMessages: canLoadOlder,
@@ -584,38 +634,42 @@ export function ChatMessageViewport({
           message: announcement,
         });
       }
-
-      if (appendSource === "current-user" && !isInitializing) {
-        viewportPositionRef.current = "pinned";
-      }
-
-      dispatch({
-        type: "messages-appended",
-        count: appendedMessages.length,
-        source: appendSource,
-      });
     }
 
-    if (!shouldFollowLatest) {
+    if (appendedMessages.length === 0 && !hasAppendedSystemActivity) {
       return;
     }
 
-    scrollToLatest();
+    const appendEvent = {
+      type: "messages-appended",
+      hasMessages: appendedMessages.length > 0,
+      hasSystemActivity: hasAppendedSystemActivity,
+      source: appendSource,
+    } as const;
 
-    return cancelLatestScroll;
-  }, [
-    canLoadOlder,
-    cancelLatestScroll,
-    history.items,
-    scrollToLatest,
-    viewportContinuityKey,
-    viewportKey,
-  ]);
+    if (shouldCountUnseenChatMessages(positionRef.current, appendEvent)) {
+      dispatch({
+        type: "unseen-messages-added",
+        count: appendedMessages.length,
+      });
+    }
+
+    dispatchPosition(appendEvent);
+  }, [canLoadOlder, dispatchPosition, history.items, viewportContinuityKey]);
 
   useEffect(() => {
-    scrollToInitialTarget();
-    return cancelLatestScroll;
-  }, [cancelLatestScroll, scrollToInitialTarget]);
+    if (positionRef.current.phase !== "waiting" || initialScrollTarget.kind === "pending") {
+      return;
+    }
+
+    const scrollElement = scrollElementRef.current;
+    dispatchPosition({
+      type: "target-resolved",
+      hasItems: history.items.length > 0,
+      hasTarget: findChatMessageInitialScrollIndex(history.items, initialScrollTarget) !== null,
+      isAtEnd: scrollElement === null || isScrollElementAtEnd(scrollElement),
+    });
+  }, [dispatchPosition, history.items, initialScrollTarget, viewportKey]);
 
   useEffect(() => {
     const anchor = pendingAnchorRef.current;
@@ -624,57 +678,14 @@ export function ChatMessageViewport({
       return;
     }
 
-    const anchorIndex = history.items.findIndex((item) => item.renderKey === anchor.renderKey);
-
-    if (anchorIndex < 0) {
+    if (!history.items.some((item) => item.renderKey === anchor.renderKey)) {
       return;
     }
 
-    let settleAnimationFrame: number | null = null;
-    const scrollAnimationFrame = requestAnimationFrame(() => {
-      virtualizerRef.current.scrollToIndex(anchorIndex, {
-        align: "start",
-      });
+    dispatchPosition({ type: "older-anchor-rendered" });
+  }, [dispatchPosition, history.items, viewportKey]);
 
-      const settleAtAnchor = (remainingFrames: number) => {
-        settleAnimationFrame = requestAnimationFrame(() => {
-          const scrollElement = scrollElementRef.current;
-
-          if (!scrollElement) {
-            return;
-          }
-
-          const anchorElement = findRenderedChatMessageAnchorElement(
-            scrollElement,
-            anchor.renderKey,
-          );
-
-          if (!anchorElement) {
-            if (remainingFrames > 1) {
-              settleAtAnchor(remainingFrames - 1);
-            }
-
-            return;
-          }
-
-          const currentOffset =
-            anchorElement.getBoundingClientRect().top - scrollElement.getBoundingClientRect().top;
-          scrollElement.scrollTop += currentOffset - anchor.offsetFromViewportTop;
-          pendingAnchorRef.current = null;
-        });
-      };
-
-      settleAtAnchor(OLDER_SCROLL_SETTLE_FRAMES);
-    });
-
-    return () => {
-      cancelAnimationFrame(scrollAnimationFrame);
-
-      if (settleAnimationFrame !== null) {
-        cancelAnimationFrame(settleAnimationFrame);
-      }
-    };
-  }, [history.items, viewportKey]);
+  useEffect(() => cancelJobFrames, [cancelJobFrames]);
 
   function handleScroll() {
     const scrollElement = scrollElementRef.current;
@@ -683,41 +694,40 @@ export function ChatMessageViewport({
       return;
     }
 
-    // 목록이 비면서 브라우저가 보정한 scroll이 초기 위치를 확정하지 않도록 초기 위치 이동 전 scroll은 무시함
-    if (viewportPositionRef.current === "initializing" && !initialScrollInFlightRef.current) {
+    const position = dispatchPosition({
+      type: "scroll-observed",
+      isAtEnd: isScrollElementAtEnd(scrollElement),
+    });
+
+    if (position.phase !== "settled") {
       return;
     }
 
-    const distanceFromEnd =
-      scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight;
-    const isAtEnd = distanceFromEnd <= AT_END_THRESHOLD;
-
-    viewportPositionRef.current = isAtEnd ? "pinned" : "detached";
-    dispatch({
-      type: "scroll-position-changed",
-      isAtEnd,
-    });
-
-    if (isAtEnd) {
+    if (position.pin === "pinned") {
       reportVisibleReadSequence();
     }
 
-    if (!initialScrollInFlightRef.current && scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
+    if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
       void loadOlderMessages();
     }
   }
 
   function handleJumpToLatest() {
+    dispatch({ type: "jump-to-latest" });
+
     if (history.onNavigateToLatest) {
-      latestScrollAfterNavigationRef.current = true;
-      dispatch({ type: "jump-to-latest" });
+      dispatchPosition({
+        type: "latest-requested",
+        navigatesContext: true,
+      });
       history.onNavigateToLatest();
       return;
     }
 
-    viewportPositionRef.current = "pinned";
-    dispatch({ type: "jump-to-latest" });
-    scrollToLatest();
+    dispatchPosition({
+      type: "latest-requested",
+      navigatesContext: false,
+    });
   }
 
   const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
@@ -806,6 +816,13 @@ type ChatMessageViewportScrollFrames = {
   scroll: number | null;
   settle: number | null;
 };
+
+function isScrollElementAtEnd(scrollElement: HTMLDivElement): boolean {
+  return (
+    scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <=
+    AT_END_THRESHOLD
+  );
+}
 
 function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number): boolean {
   const messageElement = scrollElement.querySelector<HTMLLIElement>(

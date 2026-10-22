@@ -1,5 +1,3 @@
-export type ChatMessageViewportPosition = "initializing" | "pinned" | "detached";
-
 export type ChatMessageOlderHistoryState = "idle" | "loading" | "exhausted" | "error";
 
 export type ChatMessageAppendSource = "current-user" | "realtime";
@@ -42,23 +40,16 @@ type ChatMessageInitialScrollItem =
 
 export type ChatMessageViewportState = Readonly<{
   olderHistory: ChatMessageOlderHistoryState;
-  position: ChatMessageViewportPosition;
   unseenMessageCount: number;
 }>;
 
 export type ChatMessageViewportEvent =
   | Readonly<{
-      type: "viewport-ready";
-      isAtEnd: boolean;
+      type: "latest-reached";
     }>
   | Readonly<{
-      type: "scroll-position-changed";
-      isAtEnd: boolean;
-    }>
-  | Readonly<{
-      type: "messages-appended";
+      type: "unseen-messages-added";
       count: number;
-      source: ChatMessageAppendSource;
     }>
   | Readonly<{
       type: "load-older-started";
@@ -87,7 +78,6 @@ export function createChatMessageViewportState(
 ): ChatMessageViewportState {
   return {
     olderHistory: hasOlderMessages ? "idle" : "exhausted",
-    position: "initializing",
     unseenMessageCount: 0,
   };
 }
@@ -127,42 +117,15 @@ export function reduceChatMessageViewportState(
   event: ChatMessageViewportEvent,
 ): ChatMessageViewportState {
   switch (event.type) {
-    case "viewport-ready":
-    case "scroll-position-changed": {
-      const position = event.isAtEnd ? "pinned" : "detached";
-      const unseenMessageCount = event.isAtEnd ? 0 : state.unseenMessageCount;
+    case "latest-reached":
+      return state.unseenMessageCount === 0 ? state : { ...state, unseenMessageCount: 0 };
 
-      if (state.position === position && state.unseenMessageCount === unseenMessageCount) {
-        return state;
-      }
-
-      return {
-        ...state,
-        position,
-        unseenMessageCount,
-      };
-    }
-
-    case "messages-appended": {
+    case "unseen-messages-added":
       assertPositiveMessageCount(event.count);
-
-      if (event.source === "current-user") {
-        return {
-          ...state,
-          position: "pinned",
-          unseenMessageCount: 0,
-        };
-      }
-
-      if (state.position !== "detached") {
-        return state;
-      }
-
       return {
         ...state,
         unseenMessageCount: state.unseenMessageCount + event.count,
       };
-    }
 
     case "load-older-started":
       return {
@@ -196,34 +159,11 @@ export function reduceChatMessageViewportState(
     }
 
     case "jump-to-latest":
-      return {
-        ...state,
-        position: "pinned",
-        unseenMessageCount: 0,
-      };
+      return state.unseenMessageCount === 0 ? state : { ...state, unseenMessageCount: 0 };
 
     case "reset":
       return createChatMessageViewportState(event.hasOlderMessages);
   }
-}
-
-export function shouldFollowLatestMessages(
-  position: ChatMessageViewportPosition,
-  source: ChatMessageAppendSource,
-): boolean {
-  return position !== "detached" || source === "current-user";
-}
-
-export function shouldPreserveChatMessageViewport({
-  currentContinuityKey,
-  position,
-  previousContinuityKey,
-}: Readonly<{
-  currentContinuityKey: string;
-  position: ChatMessageViewportPosition;
-  previousContinuityKey: string;
-}>): boolean {
-  return currentContinuityKey === previousContinuityKey && position !== "initializing";
 }
 
 function assertPositiveMessageCount(count: number): void {
