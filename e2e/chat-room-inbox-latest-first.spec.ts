@@ -270,7 +270,7 @@ test.describe("채팅방 목록 latest-first", () => {
     }
   });
 
-  test("두 번째 페이지 Room의 CREATE가 page chain을 초기화하고 새 cursor로 재구성한다", async ({
+  test("두 번째 페이지 Room의 CREATE는 펼친 목록을 유지한 채 새 cursor로 page chain을 다시 조회한다", async ({
     browser,
   }, testInfo) => {
     test.setTimeout(180_000);
@@ -324,6 +324,13 @@ test.describe("채팅방 목록 latest-first", () => {
       const targetMessage = `target-room-new-message-${uniqueId}`;
       await ownerPage.getByRole("textbox", { name: "메시지" }).fill(targetMessage);
       await focusMember(ownerPage, memberPage);
+      const refetchedCursorResponses: Response[] = [];
+      const collectCursorResponse = (response: Response) => {
+        if (isRoomInboxResponse(response) && readCursor(response) !== null) {
+          refetchedCursorResponses.push(response);
+        }
+      };
+      memberPage.on("response", collectCursorResponse);
       const resetFirstPagePromise = waitForFirstRoomInboxPageMatching(
         memberPage,
         (page) =>
@@ -341,26 +348,30 @@ test.describe("채팅방 목록 latest-first", () => {
       expect(newFirstPageNextCursor).not.toBe(oldSecondPageRequestCursor);
 
       const resetFirstIds = roomIds(resetFirstPage);
-      await expectRenderedRoomIds(memberPage, resetFirstIds);
       expect(resetFirstIds).toHaveLength(ROOM_INBOX_PAGE_SIZE);
       expect(resetFirstIds.filter((roomId) => roomId === targetRoomId)).toHaveLength(1);
-      await expectRoomMessageStatus(memberPage, targetRoomId);
-      await expect(
-        memberPage.getByRole("button", { name: "참여 중인 방 더 보기", exact: true }),
-      ).toBeVisible();
 
-      const newSecondPagePromise = waitForCursorRoomInboxResponse(memberPage);
-      await memberPage.getByRole("button", { name: "참여 중인 방 더 보기", exact: true }).click();
-      const newSecondResponse = await newSecondPagePromise;
+      // 펼친 목록은 유지하고, 이미 불러온 두 번째 페이지를 새 첫 페이지의 cursor로 다시 조회함
+      await expect
+        .poll(() =>
+          refetchedCursorResponses.some(
+            (response) => readCursor(response) === newFirstPageNextCursor,
+          ),
+        )
+        .toBe(true);
+      memberPage.off("response", collectCursorResponse);
+      const newSecondResponse = refetchedCursorResponses.find(
+        (response) => readCursor(response) === newFirstPageNextCursor,
+      )!;
       const newSecondPage = await readRoomInboxResponse(newSecondResponse);
       const newSecondPageRequestCursor = readCursor(newSecondResponse);
-      expect(newSecondPageRequestCursor).toBe(newFirstPageNextCursor);
       expect(newSecondPageRequestCursor).not.toBe(oldSecondPageRequestCursor);
       const afterIds = [...resetFirstIds, ...roomIds(newSecondPage)];
       expect(afterIds).toHaveLength(ROOM_INBOX_PAGE_SIZE + 1);
       expect(new Set(afterIds).size).toBe(ROOM_INBOX_PAGE_SIZE + 1);
       expect(afterIds.filter((roomId) => roomId === targetRoomId)).toHaveLength(1);
       expect(new Set(afterIds)).toEqual(new Set(beforeIds));
+      await expectRoomMessageStatus(memberPage, targetRoomId);
       await expectRenderedRoomIds(memberPage, afterIds);
 
       await testInfo.attach("room-inbox-page-chain.json", {
