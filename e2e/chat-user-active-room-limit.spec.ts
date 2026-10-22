@@ -59,11 +59,12 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
       await openCreateRoomForm(candidatePage, roomName);
 
       const createButton = candidatePage.getByRole("button", {
-        name: "채팅방 만들기",
+        name: "요청하기",
         exact: true,
       });
-      const firstResponse = await clickCreateAndWaitForResponse(candidatePage, createButton);
-      await expectUserActiveRoomLimitResponse(firstResponse, false);
+      const { requestBody: firstRequestBody, response: firstResponse } =
+        await clickCreateAndWaitForResponse(candidatePage, createButton);
+      await expectUserActiveRoomLimitResponse(firstResponse, false, ROOM_CREATION_REJECTED_TITLE);
 
       const form = candidatePage.locator("#create-room-form");
       await expect(form).toBeVisible();
@@ -76,16 +77,20 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
 
       const firstKey = readIdempotencyKey(firstResponse);
       const replayResponse = await candidateContext.request.post(createRoomUrl(), {
-        data: firstResponse.request().postDataJSON(),
+        data: firstRequestBody,
         headers: {
           "Idempotency-Key": firstKey,
         },
       });
-      await expectUserActiveRoomLimitResponse(replayResponse, true);
+      // 생성 요청은 같은 key로 다시 보내면 저장된 응답 대신 남아 있는 요청을 다시 승인 시도하므로 replayed가 false임
+      await expectUserActiveRoomLimitResponse(replayResponse, false, ROOM_CREATION_REJECTED_TITLE);
 
       await closeRoomViaApi(candidateContext.request, candidateRoomIds.shift()!);
 
-      const successResponse = await clickCreateAndWaitForResponse(candidatePage, createButton);
+      const { response: successResponse } = await clickCreateAndWaitForResponse(
+        candidatePage,
+        createButton,
+      );
       expect(successResponse.status()).toBe(201);
       expect(readIdempotencyKey(successResponse)).not.toBe(firstKey);
       await expect(candidatePage).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
@@ -111,7 +116,7 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
         targetRoom.roomId,
         joinButton,
       );
-      await expectUserActiveRoomLimitResponse(firstResponse, false);
+      await expectUserActiveRoomLimitResponse(firstResponse, false, ROOM_COMMAND_REJECTED_TITLE);
 
       await expect(roomDetail.getByRole("alert")).toHaveText(USER_ACTIVE_ROOM_LIMIT_MESSAGE);
       await expect(joinButton).toBeEnabled();
@@ -125,7 +130,7 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
           "Idempotency-Key": firstKey,
         },
       });
-      await expectUserActiveRoomLimitResponse(replayResponse, true);
+      await expectUserActiveRoomLimitResponse(replayResponse, true, ROOM_COMMAND_REJECTED_TITLE);
 
       await closeRoomViaApi(candidateContext.request, candidateRoomIds.shift()!);
 
@@ -148,13 +153,27 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
 
 async function openCreateRoomForm(page: Page, roomName: string): Promise<void> {
   await page.goto("/chat");
-  await page.getByRole("button", { name: "채팅방 생성", exact: true }).click();
+  await page.getByRole("button", { name: "토론방 생성 요청", exact: true }).click();
   const form = page.locator("#create-room-form");
-  await form.getByRole("textbox", { name: "방 이름", exact: true }).fill(roomName);
-  await form.getByText("정책", { exact: true }).click();
+  await form.getByRole("textbox", { name: "제목" }).fill(roomName);
+  await form
+    .getByRole("textbox", { name: "상세 설명" })
+    .fill(`${roomName} E2E 테스트용 설명입니다.`);
 }
 
-async function clickCreateAndWaitForResponse(page: Page, createButton: Locator): Promise<Response> {
+async function clickCreateAndWaitForResponse(
+  page: Page,
+  createButton: Locator,
+): Promise<{ requestBody: unknown; response: Response }> {
+  // Network event의 postDataJSON은 비어 있을 수 있어 route에서 요청 본문을 읽음
+  let requestBody: unknown = null;
+  const isCreateRequest = (url: URL) => url.pathname === "/api/v1/rooms";
+  await page.route(isCreateRequest, async (route) => {
+    if (route.request().method() === "POST") {
+      requestBody = route.request().postDataJSON();
+    }
+    await route.continue();
+  });
   const responsePromise = page.waitForResponse(
     (response) =>
       response.request().method() === "POST" &&
@@ -162,7 +181,9 @@ async function clickCreateAndWaitForResponse(page: Page, createButton: Locator):
   );
 
   await createButton.click();
-  return responsePromise;
+  const response = await responsePromise;
+  await page.unroute(isCreateRequest);
+  return { requestBody, response };
 }
 
 async function clickJoinAndWaitForResponse(
@@ -217,15 +238,19 @@ async function closeRoomViaApi(request: APIRequestContext, roomId: string): Prom
   expect(response.status(), `${roomId} Room 종료가 성공해야 합니다.`).toBe(200);
 }
 
+const ROOM_CREATION_REJECTED_TITLE = "Room creation request failed";
+const ROOM_COMMAND_REJECTED_TITLE = "Room command rejected";
+
 async function expectUserActiveRoomLimitResponse(
   response: APIResponse | Response,
   replayed: boolean,
+  title: string,
 ): Promise<void> {
   expect(response.status()).toBe(409);
   expect(response.headers()["content-type"]).toContain("application/problem+json");
   expect(await response.json()).toMatchObject({
     type: "urn:hamcheeze:problem:user-active-room-limit-exceeded",
-    title: "Room command rejected",
+    title,
     status: 409,
     detail: "The user has reached the active room limit.",
     code: "USER_ACTIVE_ROOM_LIMIT_EXCEEDED",
