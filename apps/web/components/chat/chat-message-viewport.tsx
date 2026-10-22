@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { type KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat/chat-message-arrival-announcement";
 import { canReportChatMessageReadState } from "@/components/chat/chat-message-read-state-policy";
@@ -40,6 +40,7 @@ import {
   findChatMessageInitialScrollIndex,
   reduceChatMessageViewportState,
 } from "@/components/chat/chat-message-viewport-state";
+import { isChatMessageViewportScrollKey } from "@/components/chat/chat-message-viewport-user-input";
 import type {
   ChatMessageHistoryFeedback,
   ChatMessageItemViewModel,
@@ -712,6 +713,26 @@ export function ChatMessageViewport({
     }
   }
 
+  // scroll 이벤트는 코드가 움직인 것과 구분할 수 없으므로 목록 안에서 시작된 입력으로 사용자 스크롤을 판단함
+  function handleUserScrollInput() {
+    const scrollElement = scrollElementRef.current;
+
+    if (!scrollElement) {
+      return;
+    }
+
+    dispatchPosition({
+      type: "user-scrolled",
+      isAtEnd: isScrollElementAtEnd(scrollElement),
+    });
+  }
+
+  function handleKeyDown(event: KeyboardEvent<HTMLDivElement>) {
+    if (isChatMessageViewportScrollKey(event.key, event.target)) {
+      handleUserScrollInput();
+    }
+  }
+
   function handleJumpToLatest() {
     dispatch({ type: "jump-to-latest" });
 
@@ -765,7 +786,11 @@ export function ChatMessageViewport({
         aria-live="off"
         className="min-h-0 flex-1 overflow-y-auto overscroll-contain rounded-b-[4px] px-4 pt-4 pb-[10px]"
         data-viewport-key={viewportKey}
+        onKeyDown={handleKeyDown}
+        onPointerDown={handleUserScrollInput}
         onScroll={handleScroll}
+        onTouchStart={handleUserScrollInput}
+        onWheel={handleUserScrollInput}
         ref={scrollElementRef}
         role="log"
         tabIndex={-1}
