@@ -7,11 +7,17 @@ import {
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const INITIAL_MESSAGE_COUNT = 14;
+const USER_SCROLL_INPUTS = [
+  { kind: "wheel", label: "휠" },
+  { kind: "touchstart", label: "터치" },
+  { kind: "pointerdown", label: "포인터" },
+  { kind: "keydown", label: "PageUp 키" },
+] as const;
 
 test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청할 때만 하단으로 이동한다", async ({
   browser,
 }, testInfo) => {
-  test.setTimeout(120_000);
+  test.setTimeout(180_000);
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
@@ -29,7 +35,6 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
   );
   const firstNewMessage = `viewport-new-01-${uniqueId}`;
   const secondNewMessage = `viewport-new-02-${uniqueId}`;
-  const thirdNewMessage = `viewport-new-03-${uniqueId}`;
 
   try {
     await test.step("서로 다른 사용자로 로그인해 같은 공개 방의 실시간 구독을 준비한다", async () => {
@@ -148,54 +153,65 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
       await expect.poll(() => isMessageFullyVisible(memberMessageLog, secondNewMessage)).toBe(true);
     });
 
-    await test.step("최신 이동이 시작된 직후 사용자가 스크롤하면 이동을 멈추고 그 위치를 유지한다", async () => {
-      await memberMessageLog.evaluate(
-        (element) =>
-          new Promise<void>((resolve) => {
-            element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
-            element.scrollTo({ top: 0 });
-            requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
-          }),
-      );
-      await expect.poll(() => memberMessageLog.evaluate((element) => element.scrollTop)).toBe(0);
+    for (const input of USER_SCROLL_INPUTS) {
+      await test.step(`최신 이동이 시작된 직후 ${input.label} 입력으로 스크롤하면 이동을 멈추고 그 위치를 유지한다`, async () => {
+        await memberMessageLog.evaluate(
+          (element) =>
+            new Promise<void>((resolve) => {
+              element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
+              element.scrollTo({ top: 0 });
+              requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+            }),
+        );
+        await expect.poll(() => memberMessageLog.evaluate((element) => element.scrollTop)).toBe(0);
 
-      await sendMessage(ownerPage, thirdNewMessage);
-      const newMessageButton = memberPage.getByRole("button", {
-        name: "새 메시지 1개, 최신 메시지로 이동",
-        exact: true,
+        await sendMessage(ownerPage, `viewport-interrupt-${input.kind}-${uniqueId}`);
+        const newMessageButton = memberPage.getByRole("button", {
+          name: "새 메시지 1개, 최신 메시지로 이동",
+          exact: true,
+        });
+        await expect(newMessageButton).toBeVisible({ timeout: 20_000 });
+
+        const buttonHandle = await newMessageButton.elementHandle();
+        const position = await memberMessageLog.evaluate(
+          (element, { button, kind }) =>
+            new Promise<{ distanceFromEnd: number; scrollTop: number }>((resolve) => {
+              // 버튼으로 최신 이동이 예약되고 첫 frame이 실행되기 전에 사용자가 위로 스크롤함
+              (button as HTMLButtonElement).click();
+              element.dispatchEvent(
+                kind === "wheel"
+                  ? new WheelEvent("wheel", { bubbles: true, deltaY: -120 })
+                  : kind === "touchstart"
+                    ? new TouchEvent("touchstart", { bubbles: true })
+                    : kind === "pointerdown"
+                      ? new PointerEvent("pointerdown", { bubbles: true })
+                      : new KeyboardEvent("keydown", { bubbles: true, key: "PageUp" }),
+              );
+              element.scrollTop = 0;
+
+              const waitFrames = (remainingFrames: number) => {
+                if (remainingFrames === 0) {
+                  resolve({
+                    distanceFromEnd:
+                      element.scrollHeight - element.scrollTop - element.clientHeight,
+                    scrollTop: element.scrollTop,
+                  });
+                  return;
+                }
+
+                requestAnimationFrame(() => waitFrames(remainingFrames - 1));
+              };
+
+              waitFrames(12);
+            }),
+          { button: buttonHandle, kind: input.kind },
+        );
+
+        expect(position.scrollTop).toBe(0);
+        expect(position.distanceFromEnd).toBeGreaterThan(96);
+        await expect(newMessageButton).toHaveCount(0);
       });
-      await expect(newMessageButton).toBeVisible({ timeout: 20_000 });
-
-      const buttonHandle = await newMessageButton.elementHandle();
-      const position = await memberMessageLog.evaluate(
-        (element, button) =>
-          new Promise<{ distanceFromEnd: number; scrollTop: number }>((resolve) => {
-            // 버튼으로 최신 이동이 예약되고 첫 frame이 실행되기 전에 사용자가 휠로 위로 스크롤함
-            (button as HTMLButtonElement).click();
-            element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
-            element.scrollTop = 0;
-
-            const waitFrames = (remainingFrames: number) => {
-              if (remainingFrames === 0) {
-                resolve({
-                  distanceFromEnd: element.scrollHeight - element.scrollTop - element.clientHeight,
-                  scrollTop: element.scrollTop,
-                });
-                return;
-              }
-
-              requestAnimationFrame(() => waitFrames(remainingFrames - 1));
-            };
-
-            waitFrames(12);
-          }),
-        buttonHandle,
-      );
-
-      expect(position.scrollTop).toBe(0);
-      expect(position.distanceFromEnd).toBeGreaterThan(96);
-      await expect(newMessageButton).toHaveCount(0);
-    });
+    }
   } finally {
     await Promise.all([ownerContext.close(), memberContext.close()]);
   }
