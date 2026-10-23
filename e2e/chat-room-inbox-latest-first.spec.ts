@@ -43,6 +43,11 @@ type RoomInboxPage = Readonly<{
   nextCursor: string | null;
 }>;
 
+type RoomInboxResult = Readonly<{
+  page: RoomInboxPage;
+  response: Response;
+}>;
+
 type Actors = Readonly<{
   memberContext: BrowserContext;
   memberPage: Page;
@@ -79,9 +84,9 @@ test.describe("채팅방 목록 latest-first", () => {
       await sendMessage(ownerPage, bOld);
       await sendMessage(ownerPage, bLatest);
 
-      const initialResponsePromise = waitForFirstRoomInboxResponse(memberPage);
+      const initialPagePromise = waitForFirstRoomInboxPage(memberPage);
       await memberPage.goto("/chat");
-      const initialPage = await readRoomInboxResponse(await initialResponsePromise);
+      const { page: initialPage } = await initialPagePromise;
       await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       await expectRoomOrder(memberPage, [roomB.roomId, roomA.roomId]);
       const bOriginalActivityAt = getRoomItem(initialPage, roomB.roomId).lastActivityAt;
@@ -221,9 +226,9 @@ test.describe("채팅방 목록 latest-first", () => {
       await enterRoom(ownerPage, baselineRoom);
       await sendMessage(ownerPage, baselineMessage);
 
-      const initialResponsePromise = waitForFirstRoomInboxResponse(memberPage);
+      const initialPagePromise = waitForFirstRoomInboxPage(memberPage);
       await memberPage.goto("/chat");
-      const initialPage = await readRoomInboxResponse(await initialResponsePromise);
+      const { page: initialPage } = await initialPagePromise;
       await expect(memberPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);
       const initialRoomC = getRoomItem(initialPage, roomC.roomId);
       expect(initialRoomC.lastMessage).toBeNull();
@@ -292,10 +297,10 @@ test.describe("채팅방 목록 latest-first", () => {
         fixtures.push(room);
       }
 
-      const initialFirstPagePromise = waitForFirstRoomInboxResponse(memberPage);
+      const initialFirstPagePromise = waitForFirstRoomInboxPage(memberPage);
       await memberPage.goto("/chat");
-      const initialFirstResponse = await initialFirstPagePromise;
-      const initialFirstPage = await readRoomInboxResponse(initialFirstResponse);
+      const { page: initialFirstPage, response: initialFirstResponse } =
+        await initialFirstPagePromise;
       expect(readCursor(initialFirstResponse)).toBeNull();
       expect(new URL(initialFirstResponse.url()).searchParams.get("limit")).toBe(
         String(ROOM_INBOX_PAGE_SIZE),
@@ -306,10 +311,9 @@ test.describe("채팅방 목록 latest-first", () => {
       const initialFirstIds = roomIds(initialFirstPage);
       await expectRenderedRoomIds(memberPage, initialFirstIds);
 
-      const oldSecondPagePromise = waitForCursorRoomInboxResponse(memberPage);
+      const oldSecondPagePromise = waitForCursorRoomInboxPage(memberPage);
       await memberPage.getByRole("button", { name: "참여 중인 방 더 보기", exact: true }).click();
-      const oldSecondResponse = await oldSecondPagePromise;
-      const oldSecondPage = await readRoomInboxResponse(oldSecondResponse);
+      const { page: oldSecondPage, response: oldSecondResponse } = await oldSecondPagePromise;
       const oldSecondPageRequestCursor = readCursor(oldSecondResponse);
       expect(oldSecondPageRequestCursor).toBe(initialFirstPage.nextCursor);
       expect(oldSecondPage.items).toHaveLength(1);
@@ -324,11 +328,17 @@ test.describe("채팅방 목록 latest-first", () => {
       const targetMessage = `target-room-new-message-${uniqueId}`;
       await ownerPage.getByRole("textbox", { name: "메시지" }).fill(targetMessage);
       await focusMember(ownerPage, memberPage);
-      const refetchedCursorResponses: Response[] = [];
+      const refetchedCursorPages: RoomInboxResult[] = [];
       const collectCursorResponse = (response: Response) => {
-        if (isRoomInboxResponse(response) && readCursor(response) !== null) {
-          refetchedCursorResponses.push(response);
+        if (!isRoomInboxResponse(response) || readCursor(response) === null || !response.ok()) {
+          return;
         }
+
+        void readCompletedRoomInboxPage(response).then((page) => {
+          if (page) {
+            refetchedCursorPages.push({ page, response });
+          }
+        });
       };
       memberPage.on("response", collectCursorResponse);
       const resetFirstPagePromise = waitForFirstRoomInboxPageMatching(
@@ -354,16 +364,15 @@ test.describe("채팅방 목록 latest-first", () => {
       // 펼친 목록은 유지하고, 이미 불러온 두 번째 페이지를 새 첫 페이지의 cursor로 다시 조회함
       await expect
         .poll(() =>
-          refetchedCursorResponses.some(
-            (response) => readCursor(response) === newFirstPageNextCursor,
+          refetchedCursorPages.some(
+            ({ response }) => readCursor(response) === newFirstPageNextCursor,
           ),
         )
         .toBe(true);
       memberPage.off("response", collectCursorResponse);
-      const newSecondResponse = refetchedCursorResponses.find(
-        (response) => readCursor(response) === newFirstPageNextCursor,
+      const { page: newSecondPage, response: newSecondResponse } = refetchedCursorPages.find(
+        ({ response }) => readCursor(response) === newFirstPageNextCursor,
       )!;
-      const newSecondPage = await readRoomInboxResponse(newSecondResponse);
       const newSecondPageRequestCursor = readCursor(newSecondResponse);
       expect(newSecondPageRequestCursor).not.toBe(oldSecondPageRequestCursor);
       const afterIds = [...resetFirstIds, ...roomIds(newSecondPage)];
@@ -547,38 +556,53 @@ async function focusMember(ownerPage: Page, memberPage: Page): Promise<void> {
 }
 
 async function refreshMemberInbox(memberPage: Page): Promise<void> {
-  const refresh = waitForFirstRoomInboxResponse(memberPage);
-  const [, response] = await Promise.all([memberPage.reload(), refresh]);
-
-  expect(response.ok(), `Room inbox 조회가 성공해야 합니다: ${response.status()}`).toBe(true);
+  const refresh = waitForFirstRoomInboxPage(memberPage);
+  await Promise.all([memberPage.reload(), refresh]);
 }
 
 async function clickInBackground(locator: Locator): Promise<void> {
   await locator.evaluate((element: HTMLButtonElement) => element.click());
 }
 
-function waitForFirstRoomInboxResponse(page: Page): Promise<Response> {
-  return page.waitForResponse(
-    (response) => isRoomInboxResponse(response) && readCursor(response) === null,
-  );
+function waitForFirstRoomInboxPage(page: Page): Promise<RoomInboxResult> {
+  return waitForRoomInboxPage(page, (response) => readCursor(response) === null);
 }
 
-function waitForCursorRoomInboxResponse(page: Page): Promise<Response> {
-  return page.waitForResponse(
-    (response) => isRoomInboxResponse(response) && readCursor(response) !== null,
-  );
+function waitForCursorRoomInboxPage(page: Page): Promise<RoomInboxResult> {
+  return waitForRoomInboxPage(page, (response) => readCursor(response) !== null);
+}
+
+async function waitForRoomInboxPage(
+  browserPage: Page,
+  matches: (response: Response) => boolean,
+): Promise<RoomInboxResult> {
+  const captured: { page: RoomInboxPage | null } = { page: null };
+  const response = await browserPage.waitForResponse(async (candidate) => {
+    if (!isRoomInboxResponse(candidate) || !matches(candidate)) {
+      return false;
+    }
+
+    if (!candidate.ok()) {
+      return true;
+    }
+
+    captured.page = await readCompletedRoomInboxPage(candidate);
+    return captured.page !== null;
+  });
+
+  expect(response.ok(), `Room inbox 조회가 성공해야 합니다: ${response.status()}`).toBe(true);
+  return { page: captured.page!, response };
 }
 
 async function waitForFirstRoomInboxPageMatching(
   browserPage: Page,
   predicate: (page: RoomInboxPage) => boolean,
-): Promise<Readonly<{ page: RoomInboxPage; response: Response }>> {
+): Promise<RoomInboxResult> {
   for (;;) {
-    const response = await waitForFirstRoomInboxResponse(browserPage);
-    const page = await readRoomInboxResponse(response);
+    const result = await waitForFirstRoomInboxPage(browserPage);
 
-    if (predicate(page)) {
-      return { page, response };
+    if (predicate(result.page)) {
+      return result;
     }
   }
 }
@@ -592,9 +616,14 @@ function readCursor(response: Response): string | null {
   return new URL(response.url()).searchParams.get("cursor");
 }
 
-async function readRoomInboxResponse(response: Response): Promise<RoomInboxPage> {
-  expect(response.ok(), `Room inbox 조회가 성공해야 합니다: ${response.status()}`).toBe(true);
-  return (await response.json()) as RoomInboxPage;
+// 화면이 목록을 불러오는 도중 같은 목록을 다시 요청하면 앞의 요청은 중간에 끊김
+// 끊긴 요청도 응답으로 잡히지만 내용이 없어 읽으면 오류가 나므로 내용을 읽지 못한 응답은 건너뛰고 다음 응답을 기다림
+async function readCompletedRoomInboxPage(response: Response): Promise<RoomInboxPage | null> {
+  try {
+    return (await response.json()) as RoomInboxPage;
+  } catch {
+    return null;
+  }
 }
 
 function getRoomItem(page: RoomInboxPage, roomId: string): RoomInboxItem {
