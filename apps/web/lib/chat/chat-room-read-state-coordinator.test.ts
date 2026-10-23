@@ -522,6 +522,24 @@ describe("ChatRoomReadStateCoordinator", () => {
     expect(coordinator.confirmFromPeer("room-a", 12)).toBe(false);
     expect(coordinator.getRoomSnapshot("room-a")?.confirmedSequence).toBe(15);
   });
+
+  it("서버 저장 순번을 확정값으로 반영해 그 이하의 예약은 전송하지 않는다", async () => {
+    const submit = vi.fn(async (_roomId: string, throughSequence: number) => throughSequence);
+    const coordinator = new ChatRoomReadStateCoordinator({ submit });
+
+    expect(coordinator.confirmStoredSequence("room-a", 20)).toBe(true);
+    coordinator.schedule("room-a", 18);
+    coordinator.schedule("room-a", 20);
+    await vi.runAllTimersAsync();
+
+    expect(submit).not.toHaveBeenCalled();
+    expect(coordinator.getRoomSnapshot("room-a")?.confirmedSequence).toBe(20);
+
+    coordinator.schedule("room-a", 21);
+    await vi.runAllTimersAsync();
+
+    expect(submit).toHaveBeenCalledExactlyOnceWith("room-a", 21);
+  });
 });
 
 function createDeferred<T>(): {

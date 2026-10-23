@@ -206,9 +206,7 @@ export function ChatMessageViewport({
       return;
     }
 
-    if (position.pin === "pinned") {
-      reportVisibleReadSequence();
-    }
+    reportVisibleReadSequence();
 
     if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
       void olderHistory.loadOlderMessages();

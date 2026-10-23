@@ -203,6 +203,12 @@ export class ChatRoomReadStateCoordinator {
     }
   }
 
+  // 방에 들어올 때 서버에 저장된 읽음 순번을 확정값으로 올려 둠
+  // 그 이하의 순번은 보내도 서버가 무시하므로 요청하지 않음
+  confirmStoredSequence(roomIdInput: string, readThroughSequence: number): boolean {
+    return this.confirmFromPeer(roomIdInput, readThroughSequence);
+  }
+
   confirmFromPeer(roomIdInput: string, readThroughSequence: number): boolean {
     const roomId = roomIdSchema.parse(roomIdInput);
     assertSequence(readThroughSequence, "readThroughSequence");

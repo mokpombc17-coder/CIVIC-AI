@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { ChatRoomReadReceiptState } from "./chat-room-read-receipt-state";
-import { resolveChatRoomEntryReadPosition } from "./chat-room-entry-read-position";
+import {
+  resolveChatRoomEntryReadPosition,
+  resolveChatRoomStoredReadSequence,
+} from "./chat-room-entry-read-position";
 
 function createReceiptState(
   overrides: Partial<ChatRoomReadReceiptState> = {},
@@ -123,5 +126,27 @@ describe("Room entry read position", () => {
   it("Room generation이 바뀌면 서로 다른 진입 snapshot으로 식별된다", () => {
     expect(resolve({ generation: 7 })).toMatchObject({ generation: 7 });
     expect(resolve({ generation: 8 })).toMatchObject({ generation: 8 });
+  });
+
+  it("내 Membership의 서버 저장 읽음 순번만 꺼낸다", () => {
+    const input = {
+      receiptState: createReceiptState(),
+      roomId: "room-01",
+      selfMembershipId: "membership-a",
+    };
+
+    expect(resolveChatRoomStoredReadSequence(input)).toBe(130);
+    expect(resolveChatRoomStoredReadSequence({ ...input, receiptState: undefined })).toBeNull();
+    expect(resolveChatRoomStoredReadSequence({ ...input, roomId: "room-02" })).toBeNull();
+    expect(resolveChatRoomStoredReadSequence({ ...input, selfMembershipId: null })).toBeNull();
+    expect(
+      resolveChatRoomStoredReadSequence({ ...input, selfMembershipId: "membership-b" }),
+    ).toBeNull();
+    expect(
+      resolveChatRoomStoredReadSequence({
+        ...input,
+        receiptState: createReceiptState({ positionsByMembershipId: {} }),
+      }),
+    ).toBeNull();
   });
 });

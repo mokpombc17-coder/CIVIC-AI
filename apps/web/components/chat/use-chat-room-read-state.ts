@@ -11,6 +11,7 @@ import { applyChatRoomReadStateRoomLifecycle } from "@/lib/chat/chat-room-read-s
 type UseChatRoomReadStateOptions = Readonly<{
   activeGeneration: number | null;
   membershipLifecycle: ChatRoomReadStateMembershipLifecycle | null;
+  storedReadSequence: number | null;
   terminalReason: ChatRoomReadStateCancellationReason | null;
 }>;
 
@@ -19,6 +20,7 @@ export function useChatRoomReadState(
   {
     activeGeneration,
     membershipLifecycle: membershipLifecycleInput,
+    storedReadSequence,
     terminalReason,
   }: UseChatRoomReadStateOptions,
 ): (throughSequence: number) => void {
@@ -46,6 +48,14 @@ export function useChatRoomReadState(
       terminalReason,
     });
   }, [activeGeneration, coordinator, membershipLifecycle, roomId, terminalReason]);
+
+  // Membership 동기화는 확정값을 볼 수 있는 첫 순번으로 초기화함
+  // 서버 저장 순번은 그 뒤에 반영해야 초기화에 덮이지 않음
+  useEffect(() => {
+    if (membershipLifecycle !== null && storedReadSequence !== null) {
+      coordinator.confirmStoredSequence(roomId, storedReadSequence);
+    }
+  }, [coordinator, membershipLifecycle, roomId, storedReadSequence]);
 
   return useCallback(
     (throughSequence: number) => {

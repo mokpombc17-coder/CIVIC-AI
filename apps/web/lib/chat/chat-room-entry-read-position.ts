@@ -118,3 +118,21 @@ export function resolveChatRoomEntryReadPosition({
     mode: "restore",
   });
 }
+
+export function resolveChatRoomStoredReadSequence({
+  receiptState,
+  roomId,
+  selfMembershipId,
+}: Pick<ResolveChatRoomEntryReadPositionInput, "receiptState" | "roomId" | "selfMembershipId">):
+  number | null {
+  if (
+    !receiptState ||
+    receiptState.roomId !== roomId ||
+    selfMembershipId === null ||
+    receiptState.selfMembershipId !== selfMembershipId
+  ) {
+    return null;
+  }
+
+  return receiptState.positionsByMembershipId[selfMembershipId]?.storedLastReadSequence ?? null;
+}

@@ -1,5 +1,6 @@
 import { type RefObject, useCallback, useEffect } from "react";
 import { canReportChatMessageReadState } from "@/components/chat/chat-message-read-state-policy";
+import { findChatMessageViewportReadThroughSequence } from "@/components/chat/chat-message-viewport-read-position";
 import type { ChatMessageViewportPositionState } from "@/components/chat/chat-message-viewport-position";
 import type { ChatMessageViewportItemViewModel } from "@/components/chat/chat-room-view-model";
 
@@ -26,24 +27,27 @@ export function useChatMessageViewportReadReport({
     }
 
     const scrollElement = scrollElementRef.current;
-    const position = positionRef.current;
 
     if (
+      scrollElement === null ||
       !canReportChatMessageReadState({
         documentHasFocus: document.hasFocus(),
         documentVisibilityState: document.visibilityState,
-        isLatestSequenceVisible:
-          scrollElement !== null && isSequenceVisible(scrollElement, latestConfirmedSequence),
         readStateEnabled,
         readStatePaused,
-        viewportPhase: position.phase,
-        viewportPin: position.pin,
+        viewportPhase: positionRef.current.phase,
       })
     ) {
       return;
     }
 
-    onReadThroughSequence(latestConfirmedSequence);
+    const readThroughSequence = findChatMessageViewportReadThroughSequence(scrollElement);
+
+    // 이미 보냈거나 더 작은 순번은 coordinator가 보내지 않으므로 여기서는 거르지 않음
+    // 서버가 모르는 순번을 보내면 409가 나므로 최신 확정 순번까지만 보냄
+    if (readThroughSequence !== null) {
+      onReadThroughSequence(Math.min(readThroughSequence, latestConfirmedSequence));
+    }
   }, [
     latestConfirmedSequence,
     onReadThroughSequence,
@@ -77,18 +81,4 @@ export function useChatMessageViewportReadReport({
   }, [items, positionRef, readStateEnabled, reportVisibleReadSequence]);
 
   return reportVisibleReadSequence;
-}
-
-function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number): boolean {
-  const messageElement = scrollElement.querySelector<HTMLLIElement>(
-    `[data-room-sequence="${roomSequence}"]`,
-  );
-
-  if (!messageElement) {
-    return false;
-  }
-
-  const viewportBounds = scrollElement.getBoundingClientRect();
-  const messageBounds = messageElement.getBoundingClientRect();
-  return messageBounds.bottom > viewportBounds.top && messageBounds.top < viewportBounds.bottom;
 }

@@ -68,6 +68,7 @@ describe("ChatRoomReadStateProvider", () => {
       captured.scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
         membershipLifecycle,
+        storedReadSequence: null,
         terminalReason: null,
       });
       return null;
@@ -118,6 +119,7 @@ describe("ChatRoomReadStateProvider", () => {
       scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
         membershipLifecycle,
+        storedReadSequence: null,
         terminalReason: null,
       });
       return null;
@@ -169,6 +171,7 @@ describe("ChatRoomReadStateProvider", () => {
       captured.scheduleReadState = useChatRoomReadState("room-1", {
         activeGeneration: 1,
         membershipLifecycle,
+        storedReadSequence: null,
         terminalReason: null,
       });
       return null;
@@ -226,11 +229,13 @@ describe("ChatRoomReadStateProvider", () => {
       captured.previousSchedule = useChatRoomReadState("room-1", {
         activeGeneration: 1,
         membershipLifecycle: previousLifecycle,
+        storedReadSequence: null,
         terminalReason: null,
       });
       captured.nextSchedule = useChatRoomReadState("room-1", {
         activeGeneration: 2,
         membershipLifecycle: nextLifecycle,
+        storedReadSequence: null,
         terminalReason: null,
       });
       return null;

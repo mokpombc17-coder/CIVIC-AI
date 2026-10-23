@@ -117,8 +117,11 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       );
     });
 
-    await test.step("재시도하면 첫 페이지 이전 이력을 조회하고 저장 cursor 구분선으로 이동한다", async () => {
+    await test.step("재시도하면 저장 cursor 구분선으로 이동하고 화면에 보인 메시지까지만 읽음 처리한다", async () => {
       allowOlderHistory = true;
+      await memberPage.bringToFront();
+      await setDocumentFocusState(memberPage, true);
+      const readStateResponse = waitForReadState(memberPage, roomId);
       const olderHistoryResponse = memberPage.waitForResponse((response) => {
         const url = new URL(response.url());
         return (
@@ -140,7 +143,13 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       await expect(memberMessageLog.getByText(messages[1]!, { exact: true })).toBeVisible();
       await expect.poll(() => isBoundaryInsideViewport(memberMessageLog)).toBe(true);
       await expect.poll(() => isViewportAwayFromLatest(memberMessageLog)).toBe(true);
-      expect(entryReadStateRequestCount).toBe(0);
+
+      // 구분선 아래로 화면에 보인 메시지까지만 읽음 처리되므로 저장 순번(1)보다 크고 최신(52)보다 작아야 함
+      const readState = await readStateResponse;
+      expect(readState.ok(), `read-state 저장이 성공해야 합니다: ${readState.status()}`).toBe(true);
+      const body = (await readState.json()) as { readThroughSequence?: number };
+      expect(body.readThroughSequence).toBeGreaterThan(1);
+      expect(body.readThroughSequence).toBeLessThan(MESSAGE_COUNT);
     });
   } finally {
     await Promise.all([

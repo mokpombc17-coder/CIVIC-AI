@@ -9,6 +9,7 @@ import type { ChatMessageViewportInitialScrollTarget } from "@/components/chat/c
 import { useChatRoomEntryNavigation } from "@/components/chat/use-chat-room-entry-navigation";
 import { useChatRoomReadState } from "@/components/chat/use-chat-room-read-state";
 import type { ChatRoomEntryHistoryPageState } from "@/lib/chat/chat-room-entry-history-search";
+import { resolveChatRoomStoredReadSequence } from "@/lib/chat/chat-room-entry-read-position";
 import type {
   RoomMembership,
   RoomParticipationStatus,
@@ -101,6 +102,11 @@ export function useChatRoomReadExperience({
   const onReadThroughSequence = useChatRoomReadState(roomId, {
     activeGeneration: readStateEnabled ? generation : null,
     membershipLifecycle,
+    storedReadSequence: resolveChatRoomStoredReadSequence({
+      receiptState,
+      roomId,
+      selfMembershipId: membership?.membershipId ?? null,
+    }),
     terminalReason,
   });
 
