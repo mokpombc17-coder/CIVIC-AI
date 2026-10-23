@@ -115,7 +115,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
       const responseBody = (await command.response.json()) as { targetMembershipId?: unknown };
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
-      await expect(dialog.getByRole("status")).toContainText("차단했습니다");
+      await expectMemberBanned(dialog, memberSubject);
       await dialog.getByRole("button", { name: "토론방 메뉴 닫기" }).click();
 
       const ownerLog = ownerPage.getByRole("log", { name: `${roomId} 메시지` });
@@ -134,7 +134,11 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
       const responseBody = (await command.response.json()) as { targetMembershipId?: unknown };
 
       expect(responseBody.targetMembershipId).toBe(requestBody.targetMembershipId);
-      await expect(dialog.getByRole("status")).toContainText("차단을 해제했습니다");
+      await expect(
+        getMembershipSection(dialog, "차단된 사용자 관리").getByText("차단된 사용자가 없습니다.", {
+          exact: true,
+        }),
+      ).toBeVisible();
       await dialog.getByRole("button", { name: "토론방 메뉴 닫기" }).click();
     });
 
@@ -159,7 +163,12 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
       const responseBody = (await command.response.json()) as { newOwnerMembershipId?: unknown };
 
       expect(responseBody.newOwnerMembershipId).toBe(requestBody.targetMembershipId);
-      await expect(commandDialog.getByRole("status")).toContainText("방장을 위임했습니다");
+      await expect(
+        getMemberRow(getMembershipSection(commandDialog, "참여자"), memberSubject).getByText(
+          "방장",
+          { exact: true },
+        ),
+      ).toBeVisible();
     });
 
     await test.step("새 방장에게 owner control이 이동하고 fixture Room을 정리한다", async () => {
@@ -173,7 +182,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
         ),
         `/api/v1/rooms/${roomId}/commands/ban-member`,
       );
-      await expect(dialog.getByRole("status")).toContainText("차단했습니다");
+      await expectMemberBanned(dialog, ownerSubject);
 
       const closeResponsePromise = memberPage.waitForResponse(
         (response) =>
@@ -240,6 +249,26 @@ async function executeMemberCommand(
   await page.unroute(isCommandRequest);
   expect(response.ok(), `${pathname} 요청이 성공해야 합니다: ${response.status()}`).toBe(true);
   return { requestBody, response };
+}
+
+function getMembershipSection(dialog: Locator, heading: string): Locator {
+  return dialog
+    .getByRole("heading", { name: heading, exact: true })
+    .locator("xpath=ancestor::section[1]");
+}
+
+function getMemberRow(section: Locator, displayName: string): Locator {
+  return section.getByRole("listitem").filter({
+    has: section.page().getByText(displayName, { exact: true }),
+  });
+}
+
+// 명령 성공 안내는 화면에 보이지 않으므로 차단 결과는 참여자 목록과 차단된 사용자 목록이 바뀌는 것으로 확인함
+async function expectMemberBanned(dialog: Locator, displayName: string): Promise<void> {
+  await expect(
+    getMemberRow(getMembershipSection(dialog, "차단된 사용자 관리"), displayName),
+  ).toBeVisible();
+  await expect(getMemberRow(getMembershipSection(dialog, "참여자"), displayName)).toHaveCount(0);
 }
 
 function readTargetMembershipRequest(requestBody: unknown): { targetMembershipId: string } {

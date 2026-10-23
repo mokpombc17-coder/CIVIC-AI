@@ -151,14 +151,11 @@ export function ChatRoomMembershipPanelView({
         </div>
       ) : null}
 
-      {command.successMessage ? (
-        <p
-          className="mt-4 rounded-[var(--chat-publishing-radius-card)] bg-[var(--chat-publishing-color-accent-soft)] p-4 text-sm leading-6 text-[var(--chat-publishing-color-primary-emphasis)]"
-          role="status"
-        >
-          {command.successMessage}
-        </p>
-      ) : null}
+      {/* 성공은 참여자·차단 목록이 바뀌는 것으로 화면에 드러나므로 안내는 화면 낭독기에만 읽어 줌
+          알림 영역이 새로 생기면 화면 낭독기가 내용을 놓칠 수 있어 영역은 항상 두고 문구만 바꿈 */}
+      <p className="sr-only" role="status">
+        {command.successMessage ?? ""}
+      </p>
 
       {roomActionKind ? (
         <div className="mt-5 border-t border-[var(--chat-publishing-color-border)] pt-5">

@@ -211,6 +211,26 @@ describe("ChatRoomMembershipPanel", () => {
     expect(mocks.useRoomMembershipsQuery).not.toHaveBeenCalled();
     expect(mocks.mutateAsync).not.toHaveBeenCalled();
   });
+
+  it("명령 성공 안내는 화면에 보이지 않게 두고 화면 낭독기에만 읽어 준다", () => {
+    const membership = createMembership();
+    const room = createRoomDetails({ myMembership: membership });
+    const controller = createMembershipPanelController(membership, []);
+    const succeeded = {
+      ...controller,
+      command: { ...controller.command, successMessage: "멤버를 차단했습니다." },
+    };
+
+    const idleHtml = renderToStaticMarkup(
+      <ChatRoomMembershipPanelView controller={controller} room={room} />,
+    );
+    const succeededHtml = renderToStaticMarkup(
+      <ChatRoomMembershipPanelView controller={succeeded} room={room} />,
+    );
+
+    expect(idleHtml).toContain('<p class="sr-only" role="status"></p>');
+    expect(succeededHtml).toContain('<p class="sr-only" role="status">멤버를 차단했습니다.</p>');
+  });
 });
 
 function prepareQueries(
