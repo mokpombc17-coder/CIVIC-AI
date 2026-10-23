@@ -17,7 +17,7 @@
     "lint": "pnpm -r --if-present run lint",
     "typecheck": "pnpm -r --if-present run typecheck",
     "test": "vitest run",
-    "test:e2e": "playwright test",
+    "test:e2e": "node scripts/run-e2e.mjs",
     "test:e2e:survey": "playwright test --config playwright.survey.config.ts",
     "test:e2e:webkit": "playwright test --config playwright.webkit.config.ts",
     "test:e2e:headed": "CHAT_E2E_NATIVE_VIEWPORT=true playwright test --headed",

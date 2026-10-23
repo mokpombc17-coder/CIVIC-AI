@@ -309,6 +309,15 @@ Next.js 개발 서버는 Playwright가 자동으로 실행한다. 이미 `localh
 pnpm exec playwright show-report e2e/.artifacts/report
 ```
 
+Playwright는 다음 실행을 시작할 때 `e2e/.artifacts/results`를 비운다. 로컬에서 `pnpm test:e2e`로 실행하면
+실패한 테스트가 있을 때 결과를 `e2e/.artifacts/history/<실행 시각>/`으로 옮겨 최근 10번 실행분을 남긴다
+(`scripts/run-e2e.mjs`). `CI` 환경 변수가 있으면 보관하지 않는다. `pnpm exec playwright test`로 직접
+실행하거나 `test:e2e:*` 명령으로 실행한 결과는 보관하지 않는다.
+
+```bash
+pnpm exec playwright show-trace e2e/.artifacts/history/<실행 시각>/<테스트 폴더>/trace.zip
+```
+
 기본 주소를 바꿔야 할 때는 셸 환경 변수로 덮어쓸 수 있다. 별도의 env 파일은 사용하지 않는다.
 
 ```bash
