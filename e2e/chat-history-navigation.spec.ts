@@ -1,10 +1,22 @@
-import { expect, test, type Page, type Request } from "@playwright/test";
-import { authenticateLocalE2EUserAs } from "./chat-e2e-helpers";
+import {
+  expect,
+  test,
+  type Browser,
+  type Page,
+  type Request,
+  type TestInfo,
+} from "@playwright/test";
+import {
+  authenticateLocalE2EUserAs,
+  createRoomAndEnter,
+  findPublicRoomCard,
+} from "./chat-e2e-helpers";
 
 test("채팅방 조회 중 browser history back은 진행 중인 요청을 오류 표시 없이 취소한다", async ({
+  browser,
   context,
   page,
-}) => {
+}, testInfo) => {
   const uniqueId = crypto.randomUUID();
   let releaseRoomDetails: (() => void) | undefined;
   const roomDetailsRelease = new Promise<void>((resolve) => {
@@ -16,14 +28,11 @@ test("채팅방 조회 중 browser history back은 진행 중인 요청을 오�
   });
 
   await authenticateLocalE2EUserAs(page, context, `e2e-history-back-member-${uniqueId}`);
+  const fixture = await createFixtureRoom(browser, testInfo, uniqueId);
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
-  const roomCard = page.getByRole("list", { name: "공개 토론방" }).getByRole("article").first();
-  await expect(roomCard).toBeVisible();
-  const roomId = await roomCard.getAttribute("data-room-id");
-  if (!roomId) {
-    throw new Error("공개 채팅방 카드에서 roomId를 확인할 수 없습니다.");
-  }
+  const roomCard = await findPublicRoomCard(page, fixture.roomName);
+  const roomId = fixture.roomId;
 
   await page.route("**/api/v1/rooms/*", async (route) => {
     const request = route.request();
@@ -70,20 +79,18 @@ test("채팅방 조회 중 browser history back은 진행 중인 요청을 오�
 });
 
 test("활성 채팅방의 browser history back은 세션 복구 안내를 잠깐 노출하지 않는다", async ({
+  browser,
   context,
   page,
-}) => {
+}, testInfo) => {
   const uniqueId = crypto.randomUUID();
 
   await authenticateLocalE2EUserAs(page, context, `e2e-history-back-active-${uniqueId}`);
+  const fixture = await createFixtureRoom(browser, testInfo, uniqueId);
   await page.goto("/chat");
   await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
-  const roomCard = page.getByRole("list", { name: "공개 토론방" }).getByRole("article").first();
-  await expect(roomCard).toBeVisible();
-  const roomId = await roomCard.getAttribute("data-room-id");
-  if (!roomId) {
-    throw new Error("공개 채팅방 카드에서 roomId를 확인할 수 없습니다.");
-  }
+  const roomCard = await findPublicRoomCard(page, fixture.roomName);
+  const roomId = fixture.roomId;
 
   await roomCard.getByRole("button", { name: /참여하기$/ }).click();
   await page.getByRole("dialog").getByRole("button", { name: "참여하기", exact: true }).click();
@@ -147,4 +154,22 @@ async function stopTransientChatAlertRecorder(page: Page): Promise<string[]> {
     recorder?.observer.disconnect();
     return recorder ? [...recorder.seen] : [];
   });
+}
+
+async function createFixtureRoom(
+  browser: Browser,
+  testInfo: TestInfo,
+  uniqueId: string,
+): Promise<{ roomId: string; roomName: string }> {
+  const ownerContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+
+  try {
+    const ownerPage = await ownerContext.newPage();
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-history-back-owner-${uniqueId}`);
+    const roomName = `e2e-history-back-${uniqueId}`;
+    const roomId = await createRoomAndEnter(ownerPage, roomName);
+    return { roomId, roomName };
+  } finally {
+    await ownerContext.close();
+  }
 }
