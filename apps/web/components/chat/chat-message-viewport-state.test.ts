@@ -1,16 +1,16 @@
 import { describe, expect, it } from "vitest";
 import {
-  createChatMessageViewportState,
+  createChatMessageOlderHistoryState,
   findChatMessageInitialScrollIndex,
-  reduceChatMessageViewportState,
+  reduceChatMessageOlderHistory,
 } from "./chat-message-viewport-state";
 
 describe("chat message viewport state", () => {
   it("과거 이력 유무에 맞는 초기 상태를 만든다", () => {
-    expect(createChatMessageViewportState(true)).toEqual({
-      olderHistory: "idle",
+    expect(createChatMessageOlderHistoryState(true)).toEqual({
+      status: "idle",
     });
-    expect(createChatMessageViewportState(false).olderHistory).toBe("exhausted");
+    expect(createChatMessageOlderHistoryState(false).status).toBe("exhausted");
   });
 
   it("진입 목표에 맞는 초기 스크롤 row를 찾는다", () => {
@@ -51,41 +51,41 @@ describe("chat message viewport state", () => {
   });
 
   it("과거 이력 요청의 loading, error, exhausted 상태를 독립적으로 관리한다", () => {
-    const initial = createChatMessageViewportState(true);
-    const loading = reduceChatMessageViewportState(initial, {
+    const initial = createChatMessageOlderHistoryState(true);
+    const loading = reduceChatMessageOlderHistory(initial, {
       type: "load-older-started",
     });
-    const failed = reduceChatMessageViewportState(loading, {
+    const failed = reduceChatMessageOlderHistory(loading, {
       type: "load-older-failed",
     });
-    const retrying = reduceChatMessageViewportState(failed, {
+    const retrying = reduceChatMessageOlderHistory(failed, {
       type: "load-older-started",
     });
-    const exhausted = reduceChatMessageViewportState(retrying, {
+    const exhausted = reduceChatMessageOlderHistory(retrying, {
       type: "load-older-succeeded",
       hasOlderMessages: false,
     });
 
-    expect(loading.olderHistory).toBe("loading");
-    expect(failed.olderHistory).toBe("error");
-    expect(retrying.olderHistory).toBe("loading");
-    expect(exhausted.olderHistory).toBe("exhausted");
+    expect(loading.status).toBe("loading");
+    expect(failed.status).toBe("error");
+    expect(retrying.status).toBe("loading");
+    expect(exhausted.status).toBe("exhausted");
   });
 
   it("최신 이력 응답 후 과거 페이지 가용성이 바뀌면 idle 상태로 전환한다", () => {
-    const initial = createChatMessageViewportState(false);
-    const available = reduceChatMessageViewportState(initial, {
+    const initial = createChatMessageOlderHistoryState(false);
+    const available = reduceChatMessageOlderHistory(initial, {
       type: "older-availability-changed",
       hasOlderMessages: true,
     });
 
-    expect(available.olderHistory).toBe("idle");
+    expect(available.status).toBe("idle");
   });
 
   it("방 세션이 바뀌면 과거 이력 상태를 초기화한다", () => {
-    const reset = reduceChatMessageViewportState(
+    const reset = reduceChatMessageOlderHistory(
       {
-        olderHistory: "error",
+        status: "error",
       },
       {
         type: "reset",
@@ -93,6 +93,6 @@ describe("chat message viewport state", () => {
       },
     );
 
-    expect(reset).toEqual(createChatMessageViewportState(true));
+    expect(reset).toEqual(createChatMessageOlderHistoryState(true));
   });
 });

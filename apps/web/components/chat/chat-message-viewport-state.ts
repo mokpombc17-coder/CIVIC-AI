@@ -1,4 +1,4 @@
-export type ChatMessageOlderHistoryState = "idle" | "loading" | "exhausted" | "error";
+export type ChatMessageOlderHistoryStatus = "idle" | "loading" | "exhausted" | "error";
 
 export type ChatMessageAppendSource = "current-user" | "realtime";
 
@@ -38,11 +38,11 @@ type ChatMessageInitialScrollItem =
       kind: "system-activity";
     }>;
 
-export type ChatMessageViewportState = Readonly<{
-  olderHistory: ChatMessageOlderHistoryState;
+export type ChatMessageOlderHistoryState = Readonly<{
+  status: ChatMessageOlderHistoryStatus;
 }>;
 
-export type ChatMessageViewportEvent =
+export type ChatMessageOlderHistoryEvent =
   | Readonly<{
       type: "load-older-started";
     }>
@@ -62,11 +62,11 @@ export type ChatMessageViewportEvent =
       hasOlderMessages: boolean;
     }>;
 
-export function createChatMessageViewportState(
+export function createChatMessageOlderHistoryState(
   hasOlderMessages: boolean,
-): ChatMessageViewportState {
+): ChatMessageOlderHistoryState {
   return {
-    olderHistory: hasOlderMessages ? "idle" : "exhausted",
+    status: hasOlderMessages ? "idle" : "exhausted",
   };
 }
 
@@ -100,43 +100,43 @@ export function findChatMessageInitialScrollIndex(
   }
 }
 
-export function reduceChatMessageViewportState(
-  state: ChatMessageViewportState,
-  event: ChatMessageViewportEvent,
-): ChatMessageViewportState {
+export function reduceChatMessageOlderHistory(
+  state: ChatMessageOlderHistoryState,
+  event: ChatMessageOlderHistoryEvent,
+): ChatMessageOlderHistoryState {
   switch (event.type) {
     case "load-older-started":
       return {
         ...state,
-        olderHistory: "loading",
+        status: "loading",
       };
 
     case "load-older-succeeded":
       return {
         ...state,
-        olderHistory: event.hasOlderMessages ? "idle" : "exhausted",
+        status: event.hasOlderMessages ? "idle" : "exhausted",
       };
 
     case "load-older-failed":
       return {
         ...state,
-        olderHistory: "error",
+        status: "error",
       };
 
     case "older-availability-changed": {
-      const olderHistory = event.hasOlderMessages ? "idle" : "exhausted";
+      const status = event.hasOlderMessages ? "idle" : "exhausted";
 
-      if (state.olderHistory === olderHistory) {
+      if (state.status === status) {
         return state;
       }
 
       return {
         ...state,
-        olderHistory,
+        status,
       };
     }
 
     case "reset":
-      return createChatMessageViewportState(event.hasOlderMessages);
+      return createChatMessageOlderHistoryState(event.hasOlderMessages);
   }
 }

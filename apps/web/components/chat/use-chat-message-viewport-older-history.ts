@@ -16,8 +16,8 @@ import type {
   ChatMessageViewportPositionState,
 } from "@/components/chat/chat-message-viewport-position";
 import {
-  createChatMessageViewportState,
-  reduceChatMessageViewportState,
+  createChatMessageOlderHistoryState,
+  reduceChatMessageOlderHistory,
 } from "@/components/chat/chat-message-viewport-state";
 import type { ChatMessageViewportItemViewModel } from "@/components/chat/chat-room-view-model";
 
@@ -51,9 +51,9 @@ export function useChatMessageViewportOlderHistory({
   const currentViewportKeyRef = useRef(viewportKey);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [state, dispatch] = useReducer(
-    reduceChatMessageViewportState,
+    reduceChatMessageOlderHistory,
     canLoadOlder,
-    createChatMessageViewportState,
+    createChatMessageOlderHistoryState,
   );
 
   // 과거 이력 응답을 기다리는 사이 다른 대화방이나 검색 위치로 바뀌면 늦게 온 응답을 버려야 함
@@ -67,8 +67,8 @@ export function useChatMessageViewportOlderHistory({
       olderRequestInFlightRef.current ||
       !canLoadOlder ||
       isHistoryLoadingOlder ||
-      state.olderHistory === "loading" ||
-      state.olderHistory === "exhausted"
+      state.status === "loading" ||
+      state.status === "exhausted"
     ) {
       return;
     }
@@ -116,7 +116,7 @@ export function useChatMessageViewportOlderHistory({
     onLoadOlder,
     pendingAnchorRef,
     scrollElementRef,
-    state.olderHistory,
+    state.status,
     viewportKey,
   ]);
 
@@ -161,7 +161,7 @@ export function useChatMessageViewportOlderHistory({
 
   return {
     handleViewportChanged,
-    isLoadingOlder: isHistoryLoadingOlder || state.olderHistory === "loading",
+    isLoadingOlder: isHistoryLoadingOlder || state.status === "loading",
     loadError,
     loadOlderMessages,
   };
