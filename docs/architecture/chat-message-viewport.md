@@ -33,9 +33,8 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
   (`chat-message-viewport-position.ts`).
 - 사용자 스크롤은 scroll 이벤트가 아니라 메시지 목록 안에서 시작된 사용자 입력 신호로 판단한다.
 - 자동 이동 중 사용자가 스크롤하면 이동을 멈추고 사용자가 둔 위치를 존중한다.
-- 위치 모델은 표시 상태 reducer(`chat-message-viewport-state.ts`)와 분리한다. 위치 모델은 스크롤
-  정확성을, 표시 상태 reducer는 새 메시지 개수와 과거 이력 표시 상태를 책임진다. 표시 상태
-  reducer는 위치 사본을 갖지 않는다.
+- 위치 모델은 표시 상태와 분리한다. 위치 모델은 스크롤 정확성만 책임지고, 새 메시지 개수와 과거
+  이력 상태는 각 책임 hook이 소유한다. 표시 상태는 위치 사본을 갖지 않는다.
 
 ## 위치 모델
 
@@ -56,6 +55,31 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
 - effect cleanup은 작업을 취소하지 않는다. 작업은 완료, 다른 작업으로 교체, 문맥 변경, 사용자
   입력으로만 끝난다.
 - 실행부는 시작 시점이 아니라 실행 시점의 목록과 진입 목표를 ref로 읽는다.
+
+## Hook 구성
+
+`ChatMessageViewport`는 가상화, hook 조립, scroll·입력 handler 연결과 렌더링만 담당한다. 스크롤과
+관련된 책임은 위치 모델 위의 hook으로 나눈다.
+
+| Hook                                  | 책임                                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------------------- |
+| `useChatMessageViewportPosition`      | 위치 모델, `dispatchPosition`, 자동 이동 실행부, 문맥 변경, resize, 준비 완료 알림 |
+| `useChatMessageViewportReadReport`    | 읽음 보고 조건 판단과 focus·visibility·목록 변경 시 재확인                         |
+| `useChatMessageViewportLatestFollow`  | 추가 메시지 감지, 새 메시지 개수, 도착 안내, 최신 이동 버튼                        |
+| `useChatMessageViewportInitialTarget` | 진입 목표 확인(`target-resolved`)                                                  |
+| `useChatMessageViewportOlderHistory`  | 과거 이력 요청·오류·진행 상태, anchor 캡처와 복원 요청                             |
+
+- hook은 위 순서로 호출한다. effect 실행 순서가 호출 순서를 따르므로 문맥 변경 → 추가 메시지 감지 →
+  진입 목표 확인 순서를 지켜야 한다. 진입 목표 확인이 추가 감지보다 먼저 실행되면 같은 commit에 붙은
+  메시지가 위치 확정 전 무시가 아니라 이동 중 예약으로 처리된다.
+- `useChatMessageViewportPosition`은 다른 hook보다 먼저 호출되므로 작업 완료, 하단 도달, 문맥 변경을
+  콜백으로 알린다. 컴포넌트가 각각 읽음 보고, 새 메시지 개수 초기화, 최신 추종·과거 이력 상태 정리를
+  연결한다.
+- 대기 anchor ref는 컴포넌트가 만들어 `useChatMessageViewportPosition`과
+  `useChatMessageViewportOlderHistory`에 넘긴다. 과거 이력 hook이 캡처하고 위치 hook의 `anchor`
+  작업이 복원한다.
+- hook 안에서는 렌더 중 ref를 갱신하지 않고 `useLayoutEffect`로 최신 값을 담는다. layout effect는
+  같은 commit의 effect보다 먼저 실행되므로 effect, RAF, 이벤트 handler는 항상 최신 값을 읽는다.
 
 ### 이벤트
 
@@ -130,7 +154,7 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
    붙인다. 동작은 바꾸지 않는다.
 2. 위치 모델 도입 (완료): reducer와 단위 테스트를 만들고 `viewportPositionRef`를 쓰는 경로를
    이벤트로 바꾼다. 작업 소유권과 사용자 입력 판단을 함께 도입한다.
-3. 책임별 hook 분리: 읽음 보고, 과거 이력, 최신 추종을 위치 모델 위의 hook으로 나눈다.
+3. 책임별 hook 분리 (완료): 읽음 보고, 과거 이력, 최신 추종을 위치 모델 위의 hook으로 나눈다.
 
 각 단계는 effect 선언 순서와 트리거 의존성을 의도적으로 바꾸는 경우에만 바꾸며, 바꾼 이유를
 커밋에 남긴다.
