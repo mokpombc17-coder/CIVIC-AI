@@ -330,7 +330,7 @@ function startsNewChatMessageSenderGroup(
   );
 }
 
-function createChatMessageRenderKey(clientMessageId: string): string {
+export function createChatMessageRenderKey(clientMessageId: string): string {
   return `client-message-${clientMessageId}`;
 }
 

@@ -5,13 +5,19 @@ import { useChatMessageComposer } from "@/components/chat/use-chat-message-compo
 import type { ChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomSessionControlsProps = Readonly<{
+  onMessageSent?: (() => void) | undefined;
   roomId: string;
   view: ChatRoomSessionView;
 }>;
 
-export function ChatRoomSessionControls({ roomId, view }: ChatRoomSessionControlsProps) {
+export function ChatRoomSessionControls({
+  onMessageSent,
+  roomId,
+  view,
+}: ChatRoomSessionControlsProps) {
   const composer = useChatMessageComposer({
     enabled: view.canSend,
+    onSent: onMessageSent,
     roomId,
   });
   const presentation = getChatRoomComposerPresentation(view);

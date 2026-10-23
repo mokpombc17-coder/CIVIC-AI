@@ -1,7 +1,10 @@
 "use client";
 
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
+import type { ChatMessageViewportReachedLatestPosition } from "@/components/chat/chat-message-viewport";
+import type { ChatMessageViewportInitialScrollTarget } from "@/components/chat/chat-message-viewport-state";
 import {
+  createChatMessageRenderKey,
   createChatRoomHeaderViewModel,
   type ChatMessageHistoryFeedback,
 } from "@/components/chat/chat-room-view-model";
@@ -80,6 +83,42 @@ export function useChatRoomContentExperience(
     const result = await loadOlderContextMessages();
     return { hasOlderMessages: result.hasMore };
   }, [loadOlderContextMessages]);
+  // 검색 결과 목록을 닫고 실시간 목록으로 돌아갈 때 실시간 목록을 어느 위치로 열지 기억함
+  // 아래로 끝까지 읽어서 바뀌면 보던 메시지 위치로, 메시지를 보내서 바뀌면 맨 아래로 엶
+  const liveReturnKey = `${roomId}:${session.generation}`;
+  const [liveReturn, setLiveReturn] = useState<Readonly<{
+    key: string;
+    target: ChatMessageViewportInitialScrollTarget;
+  }> | null>(null);
+  const liveReturnTarget = liveReturn?.key === liveReturnKey ? liveReturn.target : null;
+  const { closeContext } = messageNavigation;
+  const liveMessages = messageHistory.messages;
+  const handleReachedLatest = useCallback(
+    (position: ChatMessageViewportReachedLatestPosition) => {
+      // 실시간 목록에는 최신 메시지부터 일부만 들어 있어 보던 메시지가 아직 없을 수 있음
+      // 없으면 바꾼 뒤 같은 높이에 놓을 수 없어 화면이 튀므로 실시간 목록으로 바꾸지 않고 사용자가 더 내려올 때까지 기다림
+      if (
+        !liveMessages.some(
+          (liveMessage) =>
+            createChatMessageRenderKey(liveMessage.clientMessageId) === position.renderKey,
+        )
+      ) {
+        return;
+      }
+
+      setLiveReturn({ key: liveReturnKey, target: { kind: "anchor", ...position } });
+      closeContext();
+    },
+    [closeContext, liveMessages, liveReturnKey],
+  );
+  const handleMessageSent = useCallback(() => {
+    if (!contextNavigationActive) {
+      return;
+    }
+
+    setLiveReturn({ key: liveReturnKey, target: { kind: "latest" } });
+    closeContext();
+  }, [closeContext, contextNavigationActive, liveReturnKey]);
   const loadOlder = useCallback(async () => {
     const result = await fetchNextPage();
 
@@ -102,6 +141,7 @@ export function useChatRoomContentExperience(
       status: roomQuery.status,
     }),
     messageActions: message.actions,
+    onMessageSent: handleMessageSent,
     messageHistory: {
       // 아래에 붙는 메시지를 새 메시지로 보면 화면이 따라 내려가거나 개수 안내가 뜸
       // 검색 결과 등 최신과 떨어진 목록에서는 스크롤로 불러온 기존 메시지이므로 history로 표시해 그 처리를 막음
@@ -139,7 +179,7 @@ export function useChatRoomContentExperience(
           ? ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
-            : read.initialScrollTarget,
+            : (liveReturnTarget ?? read.initialScrollTarget),
       isLoadingOlder: contextNavigationActive
         ? messageNavigation.isLoadingOlder
         : messageHistory.isFetchingNextPage,
@@ -149,6 +189,7 @@ export function useChatRoomContentExperience(
       onLoadOlder: contextNavigationActive ? loadOlderContext : loadOlder,
       onNavigateToLatest: messageNavigationActive ? messageNavigation.closeContext : null,
       onOpenMessageActions: message.actions.openMessageActions,
+      onReachedLatest: contextNavigationActive ? handleReachedLatest : null,
       onReadThroughSequence: read.onReadThroughSequence,
       onRetry: contextNavigationActive
         ? () => void messageNavigation.retry()

@@ -230,7 +230,13 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
           view={realtime.sessionView}
         />
       }
-      sessionControls={<ChatRoomSessionControls roomId={roomId} view={realtime.sessionView} />}
+      sessionControls={
+        <ChatRoomSessionControls
+          onMessageSent={content.onMessageSent}
+          roomId={roomId}
+          view={realtime.sessionView}
+        />
+      }
       syncStatus={
         <ChatRealtimeSyncStatus
           error={coordinator.error}

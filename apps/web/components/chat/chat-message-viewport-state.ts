@@ -19,24 +19,31 @@ export type ChatMessageViewportInitialScrollTarget =
   | Readonly<{
       kind: "message";
       messageId: string;
+    }>
+  | Readonly<{
+      kind: "anchor";
+      offsetFromViewportTop: number;
+      renderKey: string;
     }>;
 
-type ChatMessageInitialScrollItem =
-  | Readonly<{
-      kind: "date-separator";
-    }>
-  | Readonly<{
-      kind: "message";
-      item?: Readonly<{ messageId: string | null }>;
-      messageId?: string | null;
-    }>
-  | Readonly<{
-      afterSequence: number;
-      kind: "read-boundary";
-    }>
-  | Readonly<{
-      kind: "system-activity";
-    }>;
+type ChatMessageInitialScrollItem = Readonly<{ renderKey?: string }> &
+  (
+    | Readonly<{
+        kind: "date-separator";
+      }>
+    | Readonly<{
+        kind: "message";
+        item?: Readonly<{ messageId: string | null }>;
+        messageId?: string | null;
+      }>
+    | Readonly<{
+        afterSequence: number;
+        kind: "read-boundary";
+      }>
+    | Readonly<{
+        kind: "system-activity";
+      }>
+  );
 
 export type ChatMessageOlderHistoryState = Readonly<{
   status: ChatMessageOlderHistoryStatus;
@@ -95,6 +102,10 @@ export function findChatMessageInitialScrollIndex(
           item.kind === "message" &&
           (item.messageId ?? item.item?.messageId ?? null) === target.messageId,
       );
+      return index < 0 ? null : index;
+    }
+    case "anchor": {
+      const index = items.findIndex((item) => item.renderKey === target.renderKey);
       return index < 0 ? null : index;
     }
   }

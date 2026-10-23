@@ -21,6 +21,7 @@ type ChatMessageComposerRoomState = Readonly<{
 type UseChatMessageComposerOptions = Readonly<{
   createId?: () => string;
   enabled: boolean;
+  onSent?: (() => void) | undefined;
   roomId: string;
 }>;
 
@@ -35,6 +36,7 @@ export type ChatMessageComposerState = Readonly<{
 export function useChatMessageComposer({
   createId = createClientMessageId,
   enabled,
+  onSent,
   roomId,
 }: UseChatMessageComposerOptions): ChatMessageComposerState {
   const outbox = useChatMessageOutbox();
@@ -74,7 +76,8 @@ export function useChatMessageComposer({
       roomId,
       validationError: null,
     });
-  }, [createId, draft, enabled, outbox, roomId, transport]);
+    onSent?.();
+  }, [createId, draft, enabled, onSent, outbox, roomId, transport]);
 
   const setDraft = useCallback(
     (value: string) => {

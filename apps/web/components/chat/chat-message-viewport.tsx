@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useRef } from "react";
+import { type KeyboardEvent, useEffect, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChatRoomEntryNavigationNotice,
@@ -14,7 +14,10 @@ import {
   ChatMessageViewportHistoryPageStatus,
   ChatMessageViewportVirtualRow,
 } from "@/components/chat/chat-message-viewport-presentation";
-import type { ChatMessageViewportAnchor } from "@/components/chat/chat-message-viewport-anchor";
+import {
+  type ChatMessageViewportAnchor,
+  captureChatMessageViewportAnchor,
+} from "@/components/chat/chat-message-viewport-anchor";
 import type { ChatMessageViewportInitialScrollTarget } from "@/components/chat/chat-message-viewport-state";
 import { isChatMessageViewportScrollKey } from "@/components/chat/chat-message-viewport-user-input";
 import type {
@@ -66,6 +69,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
   onNavigateToLatest?: (() => void) | null;
   onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
+  onReachedLatest: ((position: ChatMessageViewportReachedLatestPosition) => void) | null;
   onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
   readStateEnabled: boolean;
@@ -74,6 +78,11 @@ export type ChatMessageViewportViewModel = Readonly<{
   targetMessageId?: string | null;
   viewportContinuityKey: string;
   viewportKey: string;
+}>;
+
+export type ChatMessageViewportReachedLatestPosition = Readonly<{
+  offsetFromViewportTop: number;
+  renderKey: string;
 }>;
 
 export type ChatMessageViewportLoadOlderResult = Readonly<{
@@ -96,6 +105,7 @@ export function ChatMessageViewport({
     latestConfirmedSequence,
     onLoadNewer,
     onLoadOlder,
+    onReachedLatest,
     onReadThroughSequence,
     readStateEnabled,
     readStatePaused,
@@ -212,6 +222,44 @@ export function ChatMessageViewport({
   });
   newerHistoryRef.current = newerHistory;
 
+  // 검색 결과처럼 최신과 떨어진 목록을 아래로 끝까지 불러와 최신 메시지까지 받으면 이 목록을 실시간 목록으로 바꿀 수 있음
+  // 바꿀지는 채팅방 화면이 정하므로 여기서는 화면 맨 위 메시지와 그 메시지가 화면 위쪽에서 떨어진 높이를 알리기만 함
+  // 자동 스크롤 중에는 맨 위 메시지가 계속 바뀌므로 스크롤 위치가 정해진 뒤에만 알림
+  function notifyReachedLatest() {
+    const scrollElement = scrollElementRef.current;
+    const position = positionRef.current;
+
+    if (
+      appendMode !== "history" ||
+      canLoadNewer ||
+      onReachedLatest === null ||
+      scrollElement === null ||
+      position.phase !== "settled" ||
+      position.job !== null
+    ) {
+      return;
+    }
+
+    const anchor = captureChatMessageViewportAnchor(scrollElement);
+
+    if (anchor) {
+      onReachedLatest({
+        offsetFromViewportTop: anchor.offsetFromViewportTop,
+        renderKey: anchor.renderKey,
+      });
+    }
+  }
+  const notifyReachedLatestRef = useRef(notifyReachedLatest);
+  notifyReachedLatestRef.current = notifyReachedLatest;
+
+  // 마지막으로 불러온 메시지가 적으면 사용자가 스크롤하지 않아도 끝까지 보여서 스크롤할 때 하는 위 알림이 가지 않음
+  // 그래서 더 불러올 메시지가 없어진 순간에도 한 번 알림
+  useEffect(() => {
+    if (appendMode === "history" && !canLoadNewer) {
+      notifyReachedLatestRef.current();
+    }
+  }, [appendMode, canLoadNewer]);
+
   function handleScroll() {
     const scrollElement = scrollElementRef.current;
 
@@ -240,6 +288,8 @@ export function ChatMessageViewport({
     ) {
       void newerHistory.loadNewerMessages();
     }
+
+    notifyReachedLatest();
   }
 
   // scroll 이벤트는 코드가 움직인 것과 구분할 수 없으므로 목록 안에서 시작된 입력으로 사용자 스크롤을 판단함

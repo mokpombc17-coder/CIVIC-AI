@@ -50,6 +50,29 @@ describe("chat message viewport state", () => {
     ).toBeNull();
   });
 
+  it("기억해 둔 위치로 돌아갈 때는 같은 render key의 row를 찾는다", () => {
+    const items = [
+      { kind: "date-separator" as const, renderKey: "date-1" },
+      { kind: "message" as const, messageId: "message-01", renderKey: "client-message-a" },
+      { kind: "message" as const, messageId: "message-02", renderKey: "client-message-b" },
+    ];
+
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        kind: "anchor",
+        offsetFromViewportTop: 12,
+        renderKey: "client-message-b",
+      }),
+    ).toBe(2);
+    expect(
+      findChatMessageInitialScrollIndex(items, {
+        kind: "anchor",
+        offsetFromViewportTop: 12,
+        renderKey: "client-message-missing",
+      }),
+    ).toBeNull();
+  });
+
   it("과거 이력 요청의 loading, error, exhausted 상태를 독립적으로 관리한다", () => {
     const initial = createChatMessageOlderHistoryState(true);
     const loading = reduceChatMessageOlderHistory(initial, {

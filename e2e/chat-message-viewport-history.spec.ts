@@ -37,7 +37,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     }
   });
 
-  await test.step("최신 이력 밖의 검색 결과로 이동하면 대상 메시지를 viewport 안에 표시한다", async () => {
+  const openOldSearchResult = async () => {
     await reloadToLatestHistory(page, roomId, messageInput);
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
 
@@ -52,20 +52,38 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     const targetRow = messageLog.locator('[data-navigation-target="true"]');
     await expect(targetRow).toContainText(messages[0]!);
     await expect.poll(() => isElementFullyVisible(messageLog, targetRow)).toBe(true);
+  };
+
+  await test.step("최신 이력 밖의 검색 결과로 이동하면 대상 메시지를 viewport 안에 표시한다", async () => {
+    await openOldSearchResult();
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toHaveCount(0);
   });
 
-  await test.step("검색 결과 구간에서 아래로 스크롤하면 다음 페이지를 이어서 불러온다", async () => {
+  await test.step("최신 대화로 이동하면 원래 timeline의 최신 메시지로 돌아간다", async () => {
+    const navigateToLatest = page.getByRole("button", { name: "최신 대화로 이동", exact: true });
+    await expect(navigateToLatest).toBeVisible();
+
+    await navigateToLatest.click();
+
+    await expect(navigateToLatest).toHaveCount(0);
+    await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
+    await expect.poll(() => isMessageFullyVisible(messageLog, messages.at(-1)!)).toBe(true);
+    await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
+  });
+
+  await test.step("검색 결과 구간에서 최신까지 불러오면 보던 위치 그대로 실시간 목록으로 합친다", async () => {
+    await openOldSearchResult();
     const isNewerHistoryRequest = (url: URL) =>
       url.pathname === `/api/v1/rooms/${roomId}/messages` && url.searchParams.has("afterSequence");
-    let failsNextNewerHistory = true;
-    const failNewerHistoryOnce = async (route: Route) => {
-      if (!failsNextNewerHistory) {
+    // 다시 시도 버튼을 누르기 전에도 스크롤이 일어나면 다음 메시지를 자동으로 다시 요청함
+    // 그 요청이 성공하면 실패 안내가 사라져 확인할 수 없으므로 버튼을 누를 때까지 계속 실패시킴
+    let failsNewerHistory = true;
+    const failNewerHistoryUntilRetry = async (route: Route) => {
+      if (!failsNewerHistory) {
         await route.continue();
         return;
       }
 
-      failsNextNewerHistory = false;
       await route.fulfill({
         body: JSON.stringify({
           status: 500,
@@ -76,7 +94,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
         status: 500,
       });
     };
-    await page.route(isNewerHistoryRequest, failNewerHistoryOnce);
+    await page.route(isNewerHistoryRequest, failNewerHistoryUntilRetry);
 
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toHaveCount(0);
     await scrollToBottomAsUser(messageLog);
@@ -89,6 +107,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       0,
     );
 
+    const positionBeforeMerge = await readTopVisibleMessage(messageLog);
+    failsNewerHistory = false;
     const newerHistoryResponse = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === "GET" && isNewerHistoryRequest(url);
@@ -102,7 +122,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       "다시 요청한 다음 페이지 조회가 성공해야 합니다.",
     ).toBe(true);
     await expect(newerError).toHaveCount(0);
-    await page.unroute(isNewerHistoryRequest, failNewerHistoryOnce);
+    await page.unroute(isNewerHistoryRequest, failNewerHistoryUntilRetry);
 
     // 불러온 메시지가 아래에 붙어도 맨 아래로 끌려 내려가지 않아야 함
     await expect
@@ -113,20 +133,21 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       )
       .toBeGreaterThan(96);
 
+    // 더 불러올 메시지가 없으면 검색 결과 목록이 실시간 목록으로 바뀌고 바뀌기 전 맨 위에 있던 메시지는 같은 높이에 그대로 있어야 함
+    await expect(page.getByRole("button", { name: "최신 대화로 이동", exact: true })).toHaveCount(
+      0,
+    );
+    const positionAfterMerge = await readMessageOffset(
+      messageLog,
+      positionBeforeMerge.clientMessageId,
+    );
+    expect(positionAfterMerge).not.toBeNull();
+    expect(
+      Math.abs(positionAfterMerge! - positionBeforeMerge.offsetFromViewportTop),
+    ).toBeLessThanOrEqual(2);
+
     await scrollToBottomAsUser(messageLog);
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
-  });
-
-  await test.step("최신 대화로 이동하면 원래 timeline의 최신 메시지로 돌아간다", async () => {
-    const navigateToLatest = page.getByRole("button", { name: "최신 대화로 이동", exact: true });
-    await expect(navigateToLatest).toBeVisible();
-
-    await navigateToLatest.click();
-
-    await expect(navigateToLatest).toHaveCount(0);
-    await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
-    await expect.poll(() => isMessageFullyVisible(messageLog, messages.at(-1)!)).toBe(true);
-    await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
   });
 
   await test.step("과거 이력 조회가 실패하면 안내를 표시하고 재시도로 읽던 위치를 복구한다", async () => {
@@ -174,6 +195,20 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await expect(olderError).toHaveCount(0);
     await expect(messageLog.getByText(messages[2]!, { exact: true })).toBeVisible();
     await expect.poll(() => messageLog.evaluate((element) => element.scrollTop)).toBeGreaterThan(0);
+  });
+
+  await test.step("검색 결과 구간에서 메시지를 보내면 최신으로 이동해 보낸 메시지를 보여 준다", async () => {
+    await openOldSearchResult();
+    const sentMessage = `vh-sent-${uniqueId.slice(0, 8)}`;
+
+    await messageInput.fill(sentMessage);
+    await page.getByRole("button", { name: "전송", exact: true }).click();
+
+    await expect(page.getByRole("button", { name: "최신 대화로 이동", exact: true })).toHaveCount(
+      0,
+    );
+    await expect(messageLog.getByText(sentMessage, { exact: true })).toBeVisible();
+    await expect.poll(() => isMessageFullyVisible(messageLog, sentMessage)).toBe(true);
   });
 });
 
@@ -232,6 +267,36 @@ async function scrollToBottomAsUser(messageLog: Locator) {
         requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
       }),
   );
+}
+
+async function readTopVisibleMessage(
+  messageLog: Locator,
+): Promise<{ clientMessageId: string; offsetFromViewportTop: number }> {
+  const position = await messageLog.evaluate((element) => {
+    const viewportTop = element.getBoundingClientRect().top;
+    const row = [...element.querySelectorAll<HTMLElement>("li[data-client-message-id]")]
+      .filter((candidate) => candidate.getBoundingClientRect().bottom > viewportTop)
+      .sort(
+        (left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top,
+      )[0];
+
+    return row?.dataset.clientMessageId
+      ? {
+          clientMessageId: row.dataset.clientMessageId,
+          offsetFromViewportTop: row.getBoundingClientRect().top - viewportTop,
+        }
+      : null;
+  });
+
+  expect(position, "화면 맨 위 메시지를 찾아야 합니다.").not.toBeNull();
+  return position!;
+}
+
+async function readMessageOffset(messageLog: Locator, clientMessageId: string) {
+  return messageLog.evaluate((element, id) => {
+    const row = element.querySelector<HTMLElement>(`li[data-client-message-id="${id}"]`);
+    return row ? row.getBoundingClientRect().top - element.getBoundingClientRect().top : null;
+  }, clientMessageId);
 }
 
 async function isMessageFullyVisible(messageLog: Locator, messageText: string): Promise<boolean> {
