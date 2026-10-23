@@ -21,6 +21,10 @@ const EMPTY_CHAT_MESSAGES: readonly ChatMessage[] = [];
 
 export type RoomMessageContextDirection = "older" | "newer";
 
+export type RoomMessageContextPageResult = Readonly<{
+  hasMore: boolean;
+}>;
+
 type RoomMessageNavigationSelectionBase = Readonly<{
   generation: number;
   roomId: string;
@@ -229,20 +233,17 @@ export function useRoomMessageContext(
   );
 
   const loadDirection = useCallback(
-    async (direction: RoomMessageContextDirection) => {
+    async (direction: RoomMessageContextDirection): Promise<RoomMessageContextPageResult> => {
+      const cursor = direction === "older" ? nextBeforeSequence : nextAfterSequence;
+
       if (
         activeContextSelection === null ||
         selectionKey === null ||
         contextQuery.data === undefined ||
-        loadingDirectionsRef.current.has(direction)
+        loadingDirectionsRef.current.has(direction) ||
+        cursor === null
       ) {
-        return;
-      }
-
-      const cursor = direction === "older" ? nextBeforeSequence : nextAfterSequence;
-
-      if (cursor === null) {
-        return;
+        return { hasMore: cursor !== null };
       }
 
       loadingDirectionsRef.current.add(direction);
@@ -266,7 +267,7 @@ export function useRoomMessageContext(
         );
 
         if (operationGenerationRef.current !== requestGeneration) {
-          return;
+          return { hasMore: response.hasMore };
         }
 
         const contextQueryKey = chatRoomQueryKeys.messageContext(
@@ -288,12 +289,15 @@ export function useRoomMessageContext(
           key: selectionKey,
           response,
         });
+        return { hasMore: response.hasMore };
       } catch (error) {
-        if (operationGenerationRef.current !== requestGeneration) {
-          return;
+        if (operationGenerationRef.current === requestGeneration) {
+          dispatchExtension({ type: "request-failed", direction, error, key: selectionKey });
         }
 
-        dispatchExtension({ type: "request-failed", direction, error, key: selectionKey });
+        // 불러오기 실패를 화면 전체 오류로 바꾸지 않고 호출한 쪽에 넘김
+        // 보던 목록은 그대로 두고 다시 시도 버튼만 띄우기 위함
+        throw error;
       } finally {
         loadingDirectionsRef.current.delete(direction);
       }
@@ -334,12 +338,11 @@ export function useRoomMessageContext(
 
   return {
     closeContext,
-    error: activeContextSelection === null ? null : (contextQuery.error ?? activeExtension.error),
+    error: activeContextSelection === null ? null : contextQuery.error,
     failedDirection: activeExtension.failedDirection,
     hasNewer: activeContextSelection !== null && nextAfterSequence !== null,
     hasOlder: activeContextSelection !== null && nextBeforeSequence !== null,
-    isError:
-      activeContextSelection !== null && (contextQuery.isError || activeExtension.error !== null),
+    isError: activeContextSelection !== null && contextQuery.isError,
     isLoadingNewer: activeExtension.isLoadingNewer,
     isLoadingOlder: activeExtension.isLoadingOlder,
     isPending: activeContextSelection !== null && contextQuery.isPending,
@@ -351,11 +354,6 @@ export function useRoomMessageContext(
     openContext: navigateToMessage,
     retry: async () => {
       if (activeContextSelection === null) {
-        return;
-      }
-
-      if (activeExtension.failedDirection !== null) {
-        await loadDirection(activeExtension.failedDirection);
         return;
       }
 

@@ -11,7 +11,7 @@ import {
   ChatMessageViewportHistoryError,
   ChatMessageViewportHistoryNotice,
   ChatMessageViewportNewMessagesButton,
-  ChatMessageViewportOlderHistoryStatus,
+  ChatMessageViewportHistoryPageStatus,
   ChatMessageViewportVirtualRow,
 } from "@/components/chat/chat-message-viewport-presentation";
 import type { ChatMessageViewportAnchor } from "@/components/chat/chat-message-viewport-anchor";
@@ -24,9 +24,14 @@ import type {
 } from "@/components/chat/chat-room-view-model";
 import { useChatMessageViewportInitialTarget } from "@/components/chat/use-chat-message-viewport-initial-target";
 import {
+  type ChatMessageViewportAppendMode,
   type ChatMessageViewportLatestFollow,
   useChatMessageViewportLatestFollow,
 } from "@/components/chat/use-chat-message-viewport-latest-follow";
+import {
+  type ChatMessageViewportNewerHistory,
+  useChatMessageViewportNewerHistory,
+} from "@/components/chat/use-chat-message-viewport-newer-history";
 import {
   type ChatMessageViewportOlderHistory,
   useChatMessageViewportOlderHistory,
@@ -45,8 +50,11 @@ const MESSAGE_GAP = 6;
 const MESSAGE_FOLLOWING_GAP_RESERVE = 14;
 const MESSAGE_OVERSCAN = 10;
 const TOP_LOAD_THRESHOLD = 120;
+const BOTTOM_LOAD_THRESHOLD = 120;
 
 export type ChatMessageViewportViewModel = Readonly<{
+  appendMode: ChatMessageViewportAppendMode;
+  canLoadNewer: boolean;
   canLoadOlder: boolean;
   entryNavigation: ChatRoomEntryNavigationNoticeViewModel | null;
   feedback: ChatMessageHistoryFeedback | null;
@@ -54,6 +62,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   isLoadingOlder: boolean;
   items: readonly ChatMessageViewportItemViewModel[];
   latestConfirmedSequence: number | null;
+  onLoadNewer: () => Promise<unknown>;
   onLoadOlder: () => Promise<ChatMessageViewportLoadOlderResult>;
   onNavigateToLatest?: (() => void) | null;
   onOpenMessageActions: (item: ChatMessageItemViewModel, trigger: HTMLButtonElement) => void;
@@ -79,10 +88,13 @@ export function ChatMessageViewport({
   onInitialPositionReady?: (viewportKey: string) => void;
 }) {
   const {
+    appendMode,
+    canLoadNewer,
     canLoadOlder,
     initialScrollTarget,
     isLoadingOlder: isHistoryLoadingOlder,
     latestConfirmedSequence,
+    onLoadNewer,
     onLoadOlder,
     onReadThroughSequence,
     readStateEnabled,
@@ -95,6 +107,7 @@ export function ChatMessageViewport({
   const reportVisibleReadSequenceRef = useRef<() => void>(() => undefined);
   const latestFollowRef = useRef<ChatMessageViewportLatestFollow | null>(null);
   const olderHistoryRef = useRef<ChatMessageViewportOlderHistory | null>(null);
+  const newerHistoryRef = useRef<ChatMessageViewportNewerHistory | null>(null);
   // TanStack Virtual owns a mutable measurement engine; React Compiler must not memoize this hook.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -136,6 +149,7 @@ export function ChatMessageViewport({
     onLatestReached: () => latestFollowRef.current?.markLatestReached(),
     onViewportChanged: (change) => {
       olderHistoryRef.current?.handleViewportChanged(change);
+      newerHistoryRef.current?.handleViewportChanged();
 
       if (!change.preserved) {
         latestFollowRef.current?.reset();
@@ -161,6 +175,7 @@ export function ChatMessageViewport({
   reportVisibleReadSequenceRef.current = reportVisibleReadSequence;
 
   const latestFollow = useChatMessageViewportLatestFollow({
+    appendMode,
     dispatchPosition,
     items: history.items,
     onNavigateToLatest: history.onNavigateToLatest,
@@ -190,6 +205,13 @@ export function ChatMessageViewport({
   });
   olderHistoryRef.current = olderHistory;
 
+  const newerHistory = useChatMessageViewportNewerHistory({
+    canLoadNewer,
+    onLoadNewer,
+    viewportKey,
+  });
+  newerHistoryRef.current = newerHistory;
+
   function handleScroll() {
     const scrollElement = scrollElementRef.current;
 
@@ -210,6 +232,13 @@ export function ChatMessageViewport({
 
     if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
       void olderHistory.loadOlderMessages();
+    }
+
+    if (
+      scrollElement.scrollHeight - scrollElement.scrollTop - scrollElement.clientHeight <=
+      BOTTOM_LOAD_THRESHOLD
+    ) {
+      void newerHistory.loadNewerMessages();
     }
   }
 
@@ -235,7 +264,8 @@ export function ChatMessageViewport({
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-white">
-      <ChatMessageViewportOlderHistoryStatus
+      <ChatMessageViewportHistoryPageStatus
+        direction="older"
         error={olderHistory.loadError}
         isLoading={olderHistory.isLoadingOlder}
         onRetry={() => void olderHistory.loadOlderMessages()}
@@ -254,6 +284,13 @@ export function ChatMessageViewport({
       ) : null}
 
       <ChatMessageViewportArrivalAnnouncement announcement={latestFollow.arrivalAnnouncement} />
+
+      <ChatMessageViewportHistoryPageStatus
+        direction="newer"
+        error={newerHistory.loadError}
+        isLoading={newerHistory.isLoadingNewer}
+        onRetry={() => void newerHistory.loadNewerMessages()}
+      />
 
       <ChatMessageViewportNewMessagesButton
         count={latestFollow.unseenMessageCount}

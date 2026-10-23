@@ -5,17 +5,23 @@ import {
   ChatMessageViewportHistoryError,
   ChatMessageViewportHistoryNotice,
   ChatMessageViewportNewMessagesButton,
-  ChatMessageViewportOlderHistoryStatus,
+  ChatMessageViewportHistoryPageStatus,
   ChatMessageViewportVirtualRow,
 } from "./chat-message-viewport-presentation";
 
 describe("ChatMessageViewport presentation", () => {
   it("이전 이력 loading과 error 상태를 각각 렌더링한다", () => {
     const loadingMarkup = renderToStaticMarkup(
-      <ChatMessageViewportOlderHistoryStatus error={null} isLoading onRetry={vi.fn()} />,
+      <ChatMessageViewportHistoryPageStatus
+        direction="older"
+        error={null}
+        isLoading
+        onRetry={vi.fn()}
+      />,
     );
     const errorMarkup = renderToStaticMarkup(
-      <ChatMessageViewportOlderHistoryStatus
+      <ChatMessageViewportHistoryPageStatus
+        direction="older"
         error="이전 이력을 불러오지 못했습니다."
         isLoading={false}
         onRetry={vi.fn()}
@@ -32,6 +38,32 @@ describe("ChatMessageViewport presentation", () => {
     expect(errorMarkup).toContain("bg-[#fff7e8]");
     expect(errorMarkup).not.toContain("secondary-button");
     expect(errorMarkup).not.toContain("bg-red-50");
+  });
+
+  it("다음 페이지 loading과 error 상태를 목록 아래쪽에 렌더링한다", () => {
+    const loadingMarkup = renderToStaticMarkup(
+      <ChatMessageViewportHistoryPageStatus
+        direction="newer"
+        error={null}
+        isLoading
+        onRetry={vi.fn()}
+      />,
+    );
+    const errorMarkup = renderToStaticMarkup(
+      <ChatMessageViewportHistoryPageStatus
+        direction="newer"
+        error="네트워크 오류"
+        isLoading={false}
+        onRetry={vi.fn()}
+      />,
+    );
+
+    expect(loadingMarkup).toContain("다음 메시지를 불러오는 중…");
+    expect(loadingMarkup).toContain('data-chat-message-history-state="newer-loading"');
+    expect(loadingMarkup).toContain("bottom-16");
+    expect(errorMarkup).toContain("다음 메시지를 불러오지 못했습니다.");
+    expect(errorMarkup).toContain("다음 메시지 다시 불러오기");
+    expect(errorMarkup).toContain('data-chat-message-history-state="newer-error"');
   });
 
   it("메시지 이력 notice와 error의 접근성 상태를 유지한다", () => {

@@ -55,6 +55,68 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toHaveCount(0);
   });
 
+  await test.step("검색 결과 구간에서 아래로 스크롤하면 다음 페이지를 이어서 불러온다", async () => {
+    const isNewerHistoryRequest = (url: URL) =>
+      url.pathname === `/api/v1/rooms/${roomId}/messages` && url.searchParams.has("afterSequence");
+    let failsNextNewerHistory = true;
+    const failNewerHistoryOnce = async (route: Route) => {
+      if (!failsNextNewerHistory) {
+        await route.continue();
+        return;
+      }
+
+      failsNextNewerHistory = false;
+      await route.fulfill({
+        body: JSON.stringify({
+          status: 500,
+          title: "Internal Server Error",
+          type: "about:blank",
+        }),
+        contentType: "application/problem+json",
+        status: 500,
+      });
+    };
+    await page.route(isNewerHistoryRequest, failNewerHistoryOnce);
+
+    await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toHaveCount(0);
+    await scrollToBottomAsUser(messageLog);
+
+    // 불러오기에 실패해도 오류 화면으로 바뀌지 않고 목록 아래에 다시 시도 버튼만 떠야 함
+    const newerError = page.locator('[data-chat-message-history-state="newer-error"]');
+    await expect(newerError).toBeVisible({ timeout: 30_000 });
+    await expect(newerError).toContainText("다음 메시지를 불러오지 못했습니다.");
+    await expect(page.getByText("대화 위치로 이동하지 못했습니다.", { exact: true })).toHaveCount(
+      0,
+    );
+
+    const newerHistoryResponse = page.waitForResponse((response) => {
+      const url = new URL(response.url());
+      return response.request().method() === "GET" && isNewerHistoryRequest(url);
+    });
+    await newerError
+      .getByRole("button", { name: "다음 메시지 다시 불러오기", exact: true })
+      .click();
+
+    expect(
+      (await newerHistoryResponse).ok(),
+      "다시 요청한 다음 페이지 조회가 성공해야 합니다.",
+    ).toBe(true);
+    await expect(newerError).toHaveCount(0);
+    await page.unroute(isNewerHistoryRequest, failNewerHistoryOnce);
+
+    // 불러온 메시지가 아래에 붙어도 맨 아래로 끌려 내려가지 않아야 함
+    await expect
+      .poll(() =>
+        messageLog.evaluate(
+          (element) => element.scrollHeight - element.scrollTop - element.clientHeight,
+        ),
+      )
+      .toBeGreaterThan(96);
+
+    await scrollToBottomAsUser(messageLog);
+    await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
+  });
+
   await test.step("최신 대화로 이동하면 원래 timeline의 최신 메시지로 돌아간다", async () => {
     const navigateToLatest = page.getByRole("button", { name: "최신 대화로 이동", exact: true });
     await expect(navigateToLatest).toBeVisible();
@@ -159,6 +221,17 @@ async function waitForScrollSettledAtLatest(messageLog: Locator) {
       ),
     )
     .toBe(true);
+}
+
+async function scrollToBottomAsUser(messageLog: Locator) {
+  await messageLog.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
+        element.scrollTo({ top: element.scrollHeight });
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
 }
 
 async function isMessageFullyVisible(messageLog: Locator, messageText: string): Promise<boolean> {

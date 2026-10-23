@@ -74,6 +74,12 @@ export function useChatRoomContentExperience(
     selfMembershipId: room?.myMembership?.membershipId ?? null,
     systemActivities: messageNavigationActive ? [] : realtime.systemActivities,
   });
+  const { loadNewer: loadNewerContextMessages, loadOlder: loadOlderContextMessages } =
+    messageNavigation;
+  const loadOlderContext = useCallback(async () => {
+    const result = await loadOlderContextMessages();
+    return { hasOlderMessages: result.hasMore };
+  }, [loadOlderContextMessages]);
   const loadOlder = useCallback(async () => {
     const result = await fetchNextPage();
 
@@ -97,7 +103,16 @@ export function useChatRoomContentExperience(
     }),
     messageActions: message.actions,
     messageHistory: {
+      // 아래에 붙는 메시지를 새 메시지로 보면 화면이 따라 내려가거나 개수 안내가 뜸
+      // 검색 결과 등 최신과 떨어진 목록에서는 스크롤로 불러온 기존 메시지이므로 history로 표시해 그 처리를 막음
+      appendMode: contextNavigationActive ? ("history" as const) : ("realtime" as const),
+      canLoadNewer:
+        realtime.messageHistoryEnabled &&
+        !roomClosed &&
+        contextNavigationActive &&
+        messageNavigation.hasNewer,
       canLoadOlder: canLoadOlderChatRoomMessages({
+        contextHasOlder: messageNavigation.hasOlder,
         contextNavigationActive,
         hasNextPage: messageHistory.hasNextPage,
         isHistoryEnabled: realtime.messageHistoryEnabled,
@@ -125,10 +140,13 @@ export function useChatRoomContentExperience(
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
             : read.initialScrollTarget,
-      isLoadingOlder: contextNavigationActive ? false : messageHistory.isFetchingNextPage,
+      isLoadingOlder: contextNavigationActive
+        ? messageNavigation.isLoadingOlder
+        : messageHistory.isFetchingNextPage,
       items: roomClosed ? [] : message.viewportItems,
       latestConfirmedSequence,
-      onLoadOlder: loadOlder,
+      onLoadNewer: loadNewerContextMessages,
+      onLoadOlder: contextNavigationActive ? loadOlderContext : loadOlder,
       onNavigateToLatest: messageNavigationActive ? messageNavigation.closeContext : null,
       onOpenMessageActions: message.actions.openMessageActions,
       onReadThroughSequence: read.onReadThroughSequence,
@@ -157,17 +175,21 @@ export function useChatRoomContentExperience(
 }
 
 export function canLoadOlderChatRoomMessages({
+  contextHasOlder,
   contextNavigationActive,
   hasNextPage,
   isHistoryEnabled,
   roomClosed,
 }: Readonly<{
+  contextHasOlder: boolean;
   contextNavigationActive: boolean;
   hasNextPage: boolean;
   isHistoryEnabled: boolean;
   roomClosed: boolean;
 }>): boolean {
-  return isHistoryEnabled && !roomClosed && !contextNavigationActive && hasNextPage;
+  return (
+    isHistoryEnabled && !roomClosed && (contextNavigationActive ? contextHasOlder : hasNextPage)
+  );
 }
 
 export function createChatRoomMessageNavigationFeedback(

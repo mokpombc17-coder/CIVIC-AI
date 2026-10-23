@@ -250,6 +250,33 @@ describe("chat message viewport position", () => {
     });
   });
 
+  describe("다음 페이지 추가", () => {
+    it("확정된 상태에서 아래에 다음 페이지가 붙으면 하단 고정을 푼다", () => {
+      expect(reduce(settled("pinned"), { type: "newer-page-appended" })).toMatchObject({
+        job: null,
+        pin: "detached",
+      });
+
+      const detached = settled("detached");
+      expect(reduce(detached, { type: "newer-page-appended" })).toBe(detached);
+    });
+
+    it("하단으로 맞추던 이동은 멈추고 anchor 복원은 유지한다", () => {
+      const resizing = reduce(settled("pinned"), { type: "viewport-resized" });
+      const anchoring = reduce(settled("detached"), { type: "older-anchor-rendered" });
+
+      expect(reduce(resizing, { type: "newer-page-appended" })).toMatchObject({
+        job: null,
+        pin: "detached",
+      });
+      expect(reduce(anchoring, { type: "newer-page-appended" })).toBe(anchoring);
+    });
+
+    it("위치를 잡기 전에는 무시한다", () => {
+      expect(reduce(positioning(), { type: "newer-page-appended" })).toEqual(positioning());
+    });
+  });
+
   describe("viewport 크기 변경", () => {
     it("작업 없이 하단에 고정된 상태에서만 하단 보정을 시작한다", () => {
       const detached = settled("detached");

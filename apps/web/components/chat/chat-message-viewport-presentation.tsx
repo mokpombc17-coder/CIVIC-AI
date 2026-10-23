@@ -10,11 +10,28 @@ import type {
 const HISTORY_RETRY_BUTTON_CLASS_NAME =
   "inline-flex min-h-10 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-sm font-bold text-[var(--chat-publishing-color-primary-emphasis)] transition hover:bg-[var(--chat-publishing-color-accent-soft)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
 
-export function ChatMessageViewportOlderHistoryStatus({
+const HISTORY_PAGE_STATUS_COPY = {
+  newer: {
+    errorTitle: "다음 메시지를 불러오지 못했습니다.",
+    loading: "다음 메시지를 불러오는 중…",
+    position: "bottom-16",
+    retry: "다음 메시지 다시 불러오기",
+  },
+  older: {
+    errorTitle: "이전 메시지를 불러오지 못했습니다.",
+    loading: "이전 메시지를 불러오는 중…",
+    position: "top-3",
+    retry: "이전 메시지 다시 불러오기",
+  },
+} as const;
+
+export function ChatMessageViewportHistoryPageStatus({
+  direction,
   error,
   isLoading,
   onRetry,
 }: Readonly<{
+  direction: "older" | "newer";
   error: string | null;
   isLoading: boolean;
   onRetry: () => void;
@@ -23,35 +40,39 @@ export function ChatMessageViewportOlderHistoryStatus({
     return null;
   }
 
+  const copy = HISTORY_PAGE_STATUS_COPY[direction];
+
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-3 z-10 flex justify-center px-5">
+    <div
+      className={`pointer-events-none absolute inset-x-0 ${copy.position} z-10 flex justify-center px-5`}
+    >
       {error ? (
         <div
           className="pointer-events-auto w-full max-w-[345px] rounded-[var(--chat-publishing-radius-card)] border border-[#ffc95c] bg-[#fff7e8] px-4 py-3 text-[var(--chat-publishing-color-text)] shadow-[0_8px_24px_rgba(18,20,23,0.12)]"
-          data-chat-message-history-state="older-error"
+          data-chat-message-history-state={`${direction}-error`}
           role="alert"
         >
-          <p className="text-sm font-bold leading-5">이전 메시지를 불러오지 못했습니다.</p>
+          <p className="text-sm font-bold leading-5">{copy.errorTitle}</p>
           <p className="mt-1 break-words text-xs leading-5 text-[#7a4b00]">{error}</p>
           <button
             className={`${HISTORY_RETRY_BUTTON_CLASS_NAME} mt-3`}
             onClick={onRetry}
             type="button"
           >
-            이전 메시지 다시 불러오기
+            {copy.retry}
           </button>
         </div>
       ) : (
         <div
           className="flex items-center gap-2 rounded-full border border-[var(--chat-publishing-color-border)] bg-white px-3 py-2 text-xs font-medium text-[var(--chat-publishing-color-muted)] shadow-[0_4px_16px_rgba(18,20,23,0.1)]"
-          data-chat-message-history-state="older-loading"
+          data-chat-message-history-state={`${direction}-loading`}
           role="status"
         >
           <span
             aria-hidden="true"
             className="size-4 animate-spin rounded-full border-2 border-[var(--chat-publishing-color-border)] border-t-[var(--chat-publishing-color-primary)]"
           />
-          <span>이전 메시지를 불러오는 중…</span>
+          <span>{copy.loading}</span>
         </div>
       )}
     </div>

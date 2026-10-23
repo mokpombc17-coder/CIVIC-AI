@@ -96,6 +96,7 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
 | `messages-appended`     | 아래 작업 충돌 규칙 적용. `waiting`에서는 무시                                                       |
 | `latest-requested`      | `intent=latest`. 같은 문맥이고 `settled`면 하단 고정 후 최신 이동 시작                               |
 |                         | 진입 이동 중이면 진입 목표를 최신 목표로 교체. 다른 문맥으로 이동하거나 목표 대기 중이면 의도만 남김 |
+| `newer-page-appended`   | `settled`에서 목록 아래에 다음 페이지가 붙으면 하단 고정을 풀고 최신 이동·resize 작업을 멈춤         |
 | `older-anchor-rendered` | `settled`이고 최신 이동 중이 아니면 anchor 복원 시작                                                 |
 | `viewport-resized`      | 아래 작업 충돌 규칙 적용                                                                             |
 

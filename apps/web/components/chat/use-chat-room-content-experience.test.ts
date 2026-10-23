@@ -10,6 +10,7 @@ describe("ChatRoom content experience", () => {
   it("실시간 이력이 비활성화되면 캐시를 표시하되 과거 이력은 더 불러오지 않는다", () => {
     expect(
       canLoadOlderChatRoomMessages({
+        contextHasOlder: false,
         contextNavigationActive: false,
         hasNextPage: true,
         isHistoryEnabled: false,
@@ -18,12 +19,28 @@ describe("ChatRoom content experience", () => {
     ).toBe(false);
     expect(
       canLoadOlderChatRoomMessages({
+        contextHasOlder: false,
         contextNavigationActive: false,
         hasNextPage: true,
         isHistoryEnabled: true,
         roomClosed: false,
       }),
     ).toBe(true);
+  });
+
+  it("최신과 떨어진 구간에서는 그 구간에 이전 페이지가 있을 때만 더 불러온다", () => {
+    const input = {
+      contextNavigationActive: true,
+      hasNextPage: false,
+      isHistoryEnabled: true,
+      roomClosed: false,
+    };
+
+    expect(canLoadOlderChatRoomMessages({ ...input, contextHasOlder: true })).toBe(true);
+    expect(canLoadOlderChatRoomMessages({ ...input, contextHasOlder: false })).toBe(false);
+    expect(
+      canLoadOlderChatRoomMessages({ ...input, contextHasOlder: true, roomClosed: true }),
+    ).toBe(false);
   });
 
   it("비활성 Room의 구독 준비 안내는 숨기고 실제 loading만 표시한다", () => {
