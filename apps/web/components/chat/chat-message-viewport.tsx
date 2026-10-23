@@ -3,7 +3,6 @@
 import { type KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { createChatMessageArrivalAnnouncement } from "@/components/chat/chat-message-arrival-announcement";
-import { canReportChatMessageReadState } from "@/components/chat/chat-message-read-state-policy";
 import {
   ChatRoomEntryNavigationNotice,
   type ChatRoomEntryNavigationNoticeViewModel,
@@ -42,6 +41,7 @@ import {
   isChatMessageViewportAtEnd,
   useChatMessageViewportPosition,
 } from "@/components/chat/use-chat-message-viewport-position";
+import { useChatMessageViewportReadReport } from "@/components/chat/use-chat-message-viewport-read-report";
 
 const ESTIMATED_DATE_SEPARATOR_HEIGHT = 38;
 const ESTIMATED_READ_BOUNDARY_HEIGHT = 42;
@@ -175,40 +175,6 @@ export function ChatMessageViewport({
     virtualizer,
   });
 
-  const reportVisibleReadSequence = useCallback(() => {
-    if (latestConfirmedSequence === null) {
-      return;
-    }
-
-    const scrollElement = scrollElementRef.current;
-    const position = positionRef.current;
-
-    if (
-      !canReportChatMessageReadState({
-        documentHasFocus: document.hasFocus(),
-        documentVisibilityState: document.visibilityState,
-        isLatestSequenceVisible:
-          scrollElement !== null && isSequenceVisible(scrollElement, latestConfirmedSequence),
-        readStateEnabled,
-        readStatePaused,
-        viewportPhase: position.phase,
-        viewportPin: position.pin,
-      })
-    ) {
-      return;
-    }
-
-    onReadThroughSequence(latestConfirmedSequence);
-  }, [
-    latestConfirmedSequence,
-    onReadThroughSequence,
-    positionRef,
-    readStateEnabled,
-    readStatePaused,
-  ]);
-  // 자동 이동이 시작된 뒤 읽음 조건이 바뀔 수 있으므로 이동이 끝나는 시점의 조건으로 읽음을 보고함
-  reportVisibleReadSequenceRef.current = reportVisibleReadSequence;
-
   const loadOlderMessages = useCallback(async () => {
     if (
       olderRequestInFlightRef.current ||
@@ -266,28 +232,17 @@ export function ChatMessageViewport({
     });
   }, [canLoadOlder]);
 
-  useEffect(() => {
-    const recheckReadState = () => reportVisibleReadSequence();
-    document.addEventListener("visibilitychange", recheckReadState);
-    window.addEventListener("focus", recheckReadState);
-    return () => {
-      document.removeEventListener("visibilitychange", recheckReadState);
-      window.removeEventListener("focus", recheckReadState);
-    };
-  }, [reportVisibleReadSequence]);
-
-  useEffect(() => {
-    if (!history.readStateEnabled) {
-      return;
-    }
-
-    if (positionRef.current.phase !== "settled") {
-      return;
-    }
-
-    const frame = requestAnimationFrame(reportVisibleReadSequence);
-    return () => cancelAnimationFrame(frame);
-  }, [history.items, history.readStateEnabled, positionRef, reportVisibleReadSequence]);
+  const reportVisibleReadSequence = useChatMessageViewportReadReport({
+    items: history.items,
+    latestConfirmedSequence,
+    onReadThroughSequence,
+    positionRef,
+    readStateEnabled,
+    readStatePaused,
+    scrollElementRef,
+  });
+  // 자동 이동이 시작된 뒤 읽음 조건이 바뀔 수 있으므로 이동이 끝나는 시점의 조건으로 읽음을 보고함
+  reportVisibleReadSequenceRef.current = reportVisibleReadSequence;
 
   useEffect(() => {
     const previous = previousItemsRef.current;
@@ -523,20 +478,6 @@ type ChatMessageArrivalAnnouncement = Readonly<{
   id: number;
   message: string;
 }>;
-
-function isSequenceVisible(scrollElement: HTMLDivElement, roomSequence: number): boolean {
-  const messageElement = scrollElement.querySelector<HTMLLIElement>(
-    `[data-room-sequence="${roomSequence}"]`,
-  );
-
-  if (!messageElement) {
-    return false;
-  }
-
-  const viewportBounds = scrollElement.getBoundingClientRect();
-  const messageBounds = messageElement.getBoundingClientRect();
-  return messageBounds.bottom > viewportBounds.top && messageBounds.top < viewportBounds.bottom;
-}
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "이전 메시지를 불러오지 못했습니다.";
