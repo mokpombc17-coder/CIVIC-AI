@@ -40,17 +40,9 @@ type ChatMessageInitialScrollItem =
 
 export type ChatMessageViewportState = Readonly<{
   olderHistory: ChatMessageOlderHistoryState;
-  unseenMessageCount: number;
 }>;
 
 export type ChatMessageViewportEvent =
-  | Readonly<{
-      type: "latest-reached";
-    }>
-  | Readonly<{
-      type: "unseen-messages-added";
-      count: number;
-    }>
   | Readonly<{
       type: "load-older-started";
     }>
@@ -66,9 +58,6 @@ export type ChatMessageViewportEvent =
       hasOlderMessages: boolean;
     }>
   | Readonly<{
-      type: "jump-to-latest";
-    }>
-  | Readonly<{
       type: "reset";
       hasOlderMessages: boolean;
     }>;
@@ -78,7 +67,6 @@ export function createChatMessageViewportState(
 ): ChatMessageViewportState {
   return {
     olderHistory: hasOlderMessages ? "idle" : "exhausted",
-    unseenMessageCount: 0,
   };
 }
 
@@ -117,16 +105,6 @@ export function reduceChatMessageViewportState(
   event: ChatMessageViewportEvent,
 ): ChatMessageViewportState {
   switch (event.type) {
-    case "latest-reached":
-      return state.unseenMessageCount === 0 ? state : { ...state, unseenMessageCount: 0 };
-
-    case "unseen-messages-added":
-      assertPositiveMessageCount(event.count);
-      return {
-        ...state,
-        unseenMessageCount: state.unseenMessageCount + event.count,
-      };
-
     case "load-older-started":
       return {
         ...state,
@@ -158,16 +136,7 @@ export function reduceChatMessageViewportState(
       };
     }
 
-    case "jump-to-latest":
-      return state.unseenMessageCount === 0 ? state : { ...state, unseenMessageCount: 0 };
-
     case "reset":
       return createChatMessageViewportState(event.hasOlderMessages);
-  }
-}
-
-function assertPositiveMessageCount(count: number): void {
-  if (!Number.isSafeInteger(count) || count <= 0) {
-    throw new RangeError("추가된 메시지 수는 1 이상의 안전한 정수여야 합니다.");
   }
 }

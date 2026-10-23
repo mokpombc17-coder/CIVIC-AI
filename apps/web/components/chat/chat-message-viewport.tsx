@@ -2,7 +2,6 @@
 
 import { type KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { createChatMessageArrivalAnnouncement } from "@/components/chat/chat-message-arrival-announcement";
 import {
   ChatRoomEntryNavigationNotice,
   type ChatRoomEntryNavigationNoticeViewModel,
@@ -20,12 +19,6 @@ import {
   captureChatMessageViewportAnchor,
 } from "@/components/chat/chat-message-viewport-anchor";
 import {
-  type ChatMessageViewportItemsSnapshot,
-  createChatMessageViewportItemsSnapshot,
-  detectChatMessageViewportAppend,
-} from "@/components/chat/chat-message-viewport-append";
-import { shouldCountUnseenChatMessages } from "@/components/chat/chat-message-viewport-position";
-import {
   type ChatMessageViewportInitialScrollTarget,
   createChatMessageViewportState,
   reduceChatMessageViewportState,
@@ -37,6 +30,10 @@ import type {
   ChatMessageViewportItemViewModel,
 } from "@/components/chat/chat-room-view-model";
 import { useChatMessageViewportInitialTarget } from "@/components/chat/use-chat-message-viewport-initial-target";
+import {
+  type ChatMessageViewportLatestFollow,
+  useChatMessageViewportLatestFollow,
+} from "@/components/chat/use-chat-message-viewport-latest-follow";
 import {
   isChatMessageViewportAtEnd,
   useChatMessageViewportPosition,
@@ -97,16 +94,13 @@ export function ChatMessageViewport({
     viewportKey,
   } = history;
   const scrollElementRef = useRef<HTMLDivElement>(null);
-  const previousItemsRef = useRef<ChatMessageViewportItemsSnapshot | null>(null);
   const pendingAnchorRef = useRef<ChatMessageViewportAnchor | null>(null);
   const olderRequestInFlightRef = useRef(false);
   const canLoadOlderRef = useRef(canLoadOlder);
   const currentViewportKeyRef = useRef(history.viewportKey);
   const reportVisibleReadSequenceRef = useRef<() => void>(() => undefined);
-  const arrivalAnnouncementSequenceRef = useRef(0);
+  const latestFollowRef = useRef<ChatMessageViewportLatestFollow | null>(null);
   const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
-  const [arrivalAnnouncement, setArrivalAnnouncement] =
-    useState<ChatMessageArrivalAnnouncement | null>(null);
   const [viewportState, dispatch] = useReducer(
     reduceChatMessageViewportState,
     canLoadOlder,
@@ -152,7 +146,7 @@ export function ChatMessageViewport({
     items: history.items,
     onInitialPositionReady,
     onJobSettled: () => reportVisibleReadSequenceRef.current(),
-    onLatestReached: () => dispatch({ type: "latest-reached" }),
+    onLatestReached: () => latestFollowRef.current?.markLatestReached(),
     onViewportChanged: ({ preserved }) => {
       olderRequestInFlightRef.current = false;
       pendingAnchorRef.current = null;
@@ -162,7 +156,7 @@ export function ChatMessageViewport({
       }
 
       setOlderLoadError(null);
-      setArrivalAnnouncement(null);
+      latestFollowRef.current?.reset();
       dispatch({
         type: "reset",
         hasOlderMessages: canLoadOlderRef.current,
@@ -244,68 +238,14 @@ export function ChatMessageViewport({
   // 자동 이동이 시작된 뒤 읽음 조건이 바뀔 수 있으므로 이동이 끝나는 시점의 조건으로 읽음을 보고함
   reportVisibleReadSequenceRef.current = reportVisibleReadSequence;
 
-  useEffect(() => {
-    const previous = previousItemsRef.current;
-    previousItemsRef.current = createChatMessageViewportItemsSnapshot(
-      history.items,
-      viewportContinuityKey,
-    );
-
-    if (history.items.length === 0) {
-      return;
-    }
-
-    const {
-      appendedMessages,
-      hasAppendedSystemActivity,
-      isNewViewport,
-      source: appendSource,
-    } = detectChatMessageViewportAppend({
-      items: history.items,
-      previous,
-      viewportContinuityKey,
-    });
-
-    if (isNewViewport) {
-      dispatch({
-        type: "reset",
-        hasOlderMessages: canLoadOlder,
-      });
-    }
-
-    if (appendedMessages.length > 0) {
-      const announcedItems = appendedMessages.filter((item) => item.deliveryTone === null);
-      const announcement = createChatMessageArrivalAnnouncement(announcedItems);
-
-      if (announcement) {
-        arrivalAnnouncementSequenceRef.current += 1;
-        setArrivalAnnouncement({
-          id: arrivalAnnouncementSequenceRef.current,
-          message: announcement,
-        });
-      }
-    }
-
-    if (appendedMessages.length === 0 && !hasAppendedSystemActivity) {
-      return;
-    }
-
-    const appendEvent = {
-      type: "messages-appended",
-      hasMessages: appendedMessages.length > 0,
-      hasSystemActivity: hasAppendedSystemActivity,
-      source: appendSource,
-    } as const;
-
-    if (shouldCountUnseenChatMessages(positionRef.current, appendEvent)) {
-      dispatch({
-        type: "unseen-messages-added",
-        count: appendedMessages.length,
-      });
-    }
-
-    dispatchPosition(appendEvent);
-  }, [canLoadOlder, dispatchPosition, history.items, positionRef, viewportContinuityKey]);
+  const latestFollow = useChatMessageViewportLatestFollow({
+    dispatchPosition,
+    items: history.items,
+    onNavigateToLatest: history.onNavigateToLatest,
+    positionRef,
+    viewportContinuityKey,
+  });
+  latestFollowRef.current = latestFollow;
 
   useChatMessageViewportInitialTarget({
     dispatchPosition,
@@ -375,24 +315,6 @@ export function ChatMessageViewport({
     }
   }
 
-  function handleJumpToLatest() {
-    dispatch({ type: "jump-to-latest" });
-
-    if (history.onNavigateToLatest) {
-      dispatchPosition({
-        type: "latest-requested",
-        navigatesContext: true,
-      });
-      history.onNavigateToLatest();
-      return;
-    }
-
-    dispatchPosition({
-      type: "latest-requested",
-      navigatesContext: false,
-    });
-  }
-
   const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
 
   return (
@@ -415,12 +337,12 @@ export function ChatMessageViewport({
         <ChatRoomEntryNavigationNotice notice={history.entryNavigation} />
       ) : null}
 
-      <ChatMessageViewportArrivalAnnouncement announcement={arrivalAnnouncement} />
+      <ChatMessageViewportArrivalAnnouncement announcement={latestFollow.arrivalAnnouncement} />
 
       <ChatMessageViewportNewMessagesButton
-        count={viewportState.unseenMessageCount}
+        count={latestFollow.unseenMessageCount}
         label={history.onNavigateToLatest ? "최신 대화로 이동" : undefined}
-        onJumpToLatest={handleJumpToLatest}
+        onJumpToLatest={latestFollow.jumpToLatest}
       />
 
       <div
@@ -473,11 +395,6 @@ export function ChatMessageViewport({
     </div>
   );
 }
-
-type ChatMessageArrivalAnnouncement = Readonly<{
-  id: number;
-  message: string;
-}>;
 
 function toErrorMessage(error: unknown): string {
   return error instanceof Error ? error.message : "이전 메시지를 불러오지 못했습니다.";

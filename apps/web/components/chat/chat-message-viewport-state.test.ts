@@ -9,7 +9,6 @@ describe("chat message viewport state", () => {
   it("과거 이력 유무에 맞는 초기 상태를 만든다", () => {
     expect(createChatMessageViewportState(true)).toEqual({
       olderHistory: "idle",
-      unseenMessageCount: 0,
     });
     expect(createChatMessageViewportState(false).olderHistory).toBe("exhausted");
   });
@@ -51,42 +50,6 @@ describe("chat message viewport state", () => {
     ).toBeNull();
   });
 
-  it("따라가지 않은 새 메시지 수를 누적한다", () => {
-    const once = reduceChatMessageViewportState(createChatMessageViewportState(true), {
-      type: "unseen-messages-added",
-      count: 2,
-    });
-    const twice = reduceChatMessageViewportState(once, {
-      type: "unseen-messages-added",
-      count: 1,
-    });
-
-    expect(twice.unseenMessageCount).toBe(3);
-  });
-
-  it("하단에 도달하거나 최신 이동을 요청하면 새 메시지 수를 초기화한다", () => {
-    const state = {
-      olderHistory: "idle",
-      unseenMessageCount: 3,
-    } as const;
-
-    expect(reduceChatMessageViewportState(state, { type: "latest-reached" })).toEqual({
-      olderHistory: "idle",
-      unseenMessageCount: 0,
-    });
-    expect(reduceChatMessageViewportState(state, { type: "jump-to-latest" })).toEqual({
-      olderHistory: "idle",
-      unseenMessageCount: 0,
-    });
-  });
-
-  it("새 메시지 수가 이미 0이면 기존 상태 참조를 유지한다", () => {
-    const state = createChatMessageViewportState(true);
-
-    expect(reduceChatMessageViewportState(state, { type: "latest-reached" })).toBe(state);
-    expect(reduceChatMessageViewportState(state, { type: "jump-to-latest" })).toBe(state);
-  });
-
   it("과거 이력 요청의 loading, error, exhausted 상태를 독립적으로 관리한다", () => {
     const initial = createChatMessageViewportState(true);
     const loading = reduceChatMessageViewportState(initial, {
@@ -119,11 +82,10 @@ describe("chat message viewport state", () => {
     expect(available.olderHistory).toBe("idle");
   });
 
-  it("방 세션이 바뀌면 새 메시지 수와 과거 이력 상태를 함께 초기화한다", () => {
+  it("방 세션이 바뀌면 과거 이력 상태를 초기화한다", () => {
     const reset = reduceChatMessageViewportState(
       {
         olderHistory: "error",
-        unseenMessageCount: 4,
       },
       {
         type: "reset",
@@ -132,14 +94,5 @@ describe("chat message viewport state", () => {
     );
 
     expect(reset).toEqual(createChatMessageViewportState(true));
-  });
-
-  it("추가 메시지 수가 올바르지 않으면 상태 오염을 막는다", () => {
-    expect(() =>
-      reduceChatMessageViewportState(createChatMessageViewportState(true), {
-        type: "unseen-messages-added",
-        count: 0,
-      }),
-    ).toThrow(RangeError);
   });
 });
