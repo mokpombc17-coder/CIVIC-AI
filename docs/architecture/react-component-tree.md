@@ -265,7 +265,7 @@ skeleton이 끼어들지 않는다. 다만 `ServiceEligibilityGuard`의 `loading
 표시된다. 자격 조회가 실패하면 Guard가 로그인 또는 다시 시도 안내를 표시하고, 필수 설문이 남아 있으면
 설문 route로 document replace 이동한다. `/chat/[roomId]/loading.tsx`도 같은 상세 loading view를 사용하고,
 `ChatRoomView`는 실시간 session뿐 아니라
-읽음 위치 탐색과 가상 viewport의 최초 위치 보정이 끝날 때까지 같은 버블 없는 loading content를
+마지막으로 읽은 위치 조회와 가상 viewport의 최초 위치 보정이 끝날 때까지 같은 버블 없는 loading content를
 유지한다.
 `ChatLayout`은 Boundary 안에 `ServiceEligibilityGuard`, `ChatRealtimeProvider`,
 `ChatRoomReadStateProvider`와 nested page를 순서대로 조립한다. 따라서 실시간 Provider는 인증 오류가 없고

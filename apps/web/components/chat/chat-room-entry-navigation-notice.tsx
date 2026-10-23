@@ -38,19 +38,10 @@ export function ChatRoomEntryNavigationNotice({
 export function createChatRoomEntryNavigationNotice(
   navigation: ChatRoomEntryNavigationController,
 ): ChatRoomEntryNavigationNoticeViewModel | null {
-  if (navigation.status === "searching") {
+  if (navigation.status === "jumping") {
     return Object.freeze({
       kind: "loading",
       message: "마지막으로 읽은 위치를 찾고 있습니다…",
-    });
-  }
-
-  if (navigation.recovery === "continue") {
-    return Object.freeze({
-      actionLabel: "읽은 위치로 계속 이동",
-      kind: "action",
-      message: "마지막으로 읽은 위치가 더 이전에 있습니다.",
-      onAction: navigation.continueToReadPosition,
     });
   }
 
@@ -59,7 +50,7 @@ export function createChatRoomEntryNavigationNotice(
       actionLabel: "읽은 위치 다시 찾기",
       kind: "action",
       message: "마지막으로 읽은 위치를 찾지 못했습니다.",
-      onAction: navigation.continueToReadPosition,
+      onAction: navigation.retryReadPosition,
     });
   }
 

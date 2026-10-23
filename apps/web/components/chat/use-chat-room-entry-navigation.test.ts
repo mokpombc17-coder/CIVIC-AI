@@ -31,20 +31,35 @@ describe("chat Room entry navigation", () => {
     });
   });
 
-  it("읽음 위치를 찾는 동안 스크롤과 읽음 보고를 보류한다", () => {
+  it("첫 안 읽은 메시지를 찾는 동안 스크롤과 읽음 보고를 보류한다", () => {
     expect(createChatRoomEntryNavigationState(RESTORE_POSITION)).toMatchObject({
       canReportReadState: false,
       initialScrollTarget: { kind: "pending" },
-      status: "searching",
+      jumpMessageId: null,
+      status: "jumping",
     });
   });
 
-  it("읽음 위치를 찾으면 고정된 구분선으로 이동한다", () => {
+  it("읽은 위치가 처음 불러온 목록에 있으면 그 목록에서 구분선으로 이동한다", () => {
+    expect(
+      createChatRoomEntryNavigationState(RESTORE_POSITION, { status: "in-history" }),
+    ).toMatchObject({
+      canReportReadState: true,
+      initialScrollTarget: {
+        afterSequence: 120,
+        kind: "read-boundary",
+      },
+      jumpMessageId: null,
+      readBoundaryAfterSequence: 120,
+      status: "ready",
+    });
+  });
+
+  it("읽은 위치가 목록 밖이면 첫 안 읽은 메시지 위치의 목록을 열고 구분선으로 이동한다", () => {
     expect(
       createChatRoomEntryNavigationState(RESTORE_POSITION, {
-        firstUnreadSequence: 121,
-        loadedPageCount: 2,
-        status: "found",
+        messageId: "message-121",
+        status: "jumped",
       }),
     ).toMatchObject({
       canReportReadState: true,
@@ -52,36 +67,31 @@ describe("chat Room entry navigation", () => {
         afterSequence: 120,
         kind: "read-boundary",
       },
+      jumpMessageId: "message-121",
       readBoundaryAfterSequence: 120,
       status: "ready",
     });
   });
 
-  it("자동 탐색 한도에 도달하면 수동 계속 탐색 전까지 이동과 읽음 보고를 보류한다", () => {
+  it("그 사이 읽을 메시지가 없어졌으면 최신 위치로 이동한다", () => {
     expect(
-      createChatRoomEntryNavigationState(RESTORE_POSITION, {
-        loadedPageCount: 5,
-        status: "limit-reached",
-      }),
+      createChatRoomEntryNavigationState(RESTORE_POSITION, { status: "no-unread" }),
     ).toMatchObject({
-      canReportReadState: false,
-      initialScrollTarget: { kind: "pending" },
+      canReportReadState: true,
+      initialScrollTarget: { kind: "latest" },
+      jumpMessageId: null,
       readBoundaryAfterSequence: null,
-      recovery: "continue",
-      status: "manual",
+      status: "ready",
     });
   });
 
-  it("과거 이력 조회가 실패하면 같은 읽음 위치를 다시 찾을 수 있게 유지한다", () => {
+  it("첫 안 읽은 메시지를 찾지 못하면 최신 메시지를 보여 주고 다시 찾을 때까지 읽은 위치를 저장하지 않는다", () => {
     expect(
-      createChatRoomEntryNavigationState(RESTORE_POSITION, {
-        error: new Error("temporary"),
-        loadedPageCount: 1,
-        status: "error",
-      }),
+      createChatRoomEntryNavigationState(RESTORE_POSITION, { status: "failed" }),
     ).toMatchObject({
       canReportReadState: false,
-      initialScrollTarget: { kind: "pending" },
+      initialScrollTarget: { kind: "latest" },
+      jumpMessageId: null,
       readBoundaryAfterSequence: null,
       recovery: "retry",
       status: "error",

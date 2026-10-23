@@ -8,7 +8,8 @@ import {
 import type { ChatMessageViewportInitialScrollTarget } from "@/components/chat/chat-message-viewport-state";
 import { useChatRoomEntryNavigation } from "@/components/chat/use-chat-room-entry-navigation";
 import { useChatRoomReadState } from "@/components/chat/use-chat-room-read-state";
-import type { ChatRoomEntryHistoryPageState } from "@/lib/chat/chat-room-entry-history-search";
+import type { ChatRoomEntryHistoryPageState } from "@/lib/chat/chat-room-entry-history";
+import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
 import { resolveChatRoomStoredReadSequence } from "@/lib/chat/chat-room-entry-read-position";
 import type {
   RoomMembership,
@@ -34,7 +35,8 @@ type UseChatRoomReadExperienceOptions = Readonly<{
   history: ChatRoomEntryHistoryPageState;
   historyReady: boolean;
   latestConfirmedSequence: number | null;
-  loadOlder: () => Promise<ChatRoomEntryHistoryPageState>;
+  loadFirstUnreadMessage: (afterSequence: number) => Promise<ChatMessage | null>;
+  onJumpToMessage: (messageId: string) => void;
   membership: RoomMembership | null;
   messageVisibleAfterSequence: number | null;
   onRefetchReceiptState: () => void;
@@ -56,7 +58,8 @@ export function useChatRoomReadExperience({
   history,
   historyReady,
   latestConfirmedSequence,
-  loadOlder,
+  loadFirstUnreadMessage,
+  onJumpToMessage,
   membership,
   messageVisibleAfterSequence,
   onRefetchReceiptState,
@@ -76,7 +79,8 @@ export function useChatRoomReadExperience({
     history,
     historyReady,
     latestConfirmedSequence,
-    loadOlder,
+    loadFirstUnreadMessage,
+    onJumpToMessage,
     receiptState,
     receiptStateReady,
     receiptStateUnavailable,

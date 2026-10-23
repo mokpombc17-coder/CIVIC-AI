@@ -13,6 +13,7 @@ import { useChatRoomReadExperience } from "@/components/chat/use-chat-room-read-
 import type { ChatRoomRealtimeExperience } from "@/components/chat/use-chat-room-realtime-experience";
 import { useChatRoomParticipantProfiles } from "@/components/chat/use-chat-room-screen-data";
 import type { RoomMessageContextController } from "@/components/chat/use-room-message-context";
+import { chatRoomApi } from "@/lib/chat/chat-room-api";
 import { useRoomDetailsQuery } from "@/lib/chat/chat-room-queries";
 import { createChatRoomEntryErrorPresentation } from "@/lib/chat/chat-room-entry-error-presentation";
 import { createRoomMessageContextErrorPresentation } from "@/lib/chat/chat-room-message-search-error-presentation";
@@ -30,6 +31,10 @@ export function useChatRoomContentExperience(
   });
   const messageNavigationActive = messageNavigation.mode !== null;
   const contextNavigationActive = messageNavigation.mode === "context";
+  // 읽은 위치로 이동한 대화는 읽은 위치부터 끊김 없이 이어지므로 검색으로 이동한 대화와 달리
+  // 안 읽은 구분선을 보여 주고 화면에서 본 메시지까지 읽음을 보고함
+  const entryNavigationActive = messageNavigationActive && messageNavigation.purpose === "entry";
+  const searchContextActive = contextNavigationActive && !entryNavigationActive;
   const confirmedMessages = messageNavigationActive
     ? messageNavigation.messages
     : messageHistory.messages;
@@ -37,6 +42,23 @@ export function useChatRoomContentExperience(
   const room = roomQuery.data;
   const roomClosed = room?.status === "CLOSED";
   const latestConfirmedSequence = messageHistory.messages.at(-1)?.roomSequence ?? null;
+  const loadFirstUnreadMessage = useCallback(
+    async (afterSequence: number) => {
+      const response = await chatRoomApi.getRoomMessages(roomId, {
+        afterSequence,
+        limit: 1,
+        mode: "after",
+      });
+      return response.items[0] ?? null;
+    },
+    [roomId],
+  );
+  const { openContext } = messageNavigation;
+  // 읽은 위치가 최신 페이지보다 이전이면 첫 안 읽은 메시지 주변을 불러와 읽은 위치로 이동한 대화로 보여 줌
+  const openEntryContext = useCallback(
+    (messageId: string) => openContext(messageId, "entry"),
+    [openContext],
+  );
   const read = useChatRoomReadExperience({
     connectionErrorCode: session.connectionError?.code ?? null,
     enabled: session.isActive,
@@ -44,7 +66,8 @@ export function useChatRoomContentExperience(
     history: messageHistory.entryHistory,
     historyReady: messageHistory.status === "success",
     latestConfirmedSequence,
-    loadOlder: messageHistory.loadOlderEntryHistory,
+    loadFirstUnreadMessage,
+    onJumpToMessage: openEntryContext,
     membership: room?.myMembership ?? null,
     messageVisibleAfterSequence: session.messageVisibleAfterSequence,
     onRefetchReceiptState: receiptStateQuery.refetch,
@@ -70,7 +93,7 @@ export function useChatRoomContentExperience(
     messageVisibleAfterSequence: session.messageVisibleAfterSequence ?? 0,
     participantProfiles,
     participationHistory,
-    readBoundaryAfterSequence: contextNavigationActive ? null : read.readBoundaryAfterSequence,
+    readBoundaryAfterSequence: searchContextActive ? null : read.readBoundaryAfterSequence,
     receiptState: receiptStateQuery.data,
     receiptSyncStatus: coordinator.readReceiptStatus,
     roomId,
@@ -83,8 +106,8 @@ export function useChatRoomContentExperience(
     const result = await loadOlderContextMessages();
     return { hasOlderMessages: result.hasMore };
   }, [loadOlderContextMessages]);
-  // 검색 결과 목록을 닫고 실시간 목록으로 돌아갈 때 실시간 목록을 어느 위치로 열지 기억함
-  // 아래로 끝까지 읽어서 바뀌면 보던 메시지 위치로, 메시지를 보내서 바뀌면 맨 아래로 엶
+  // 이동한 대화에서 최신 대화로 돌아갈 때 최신 대화를 어느 위치에 보여 줄지 기억함
+  // 아래로 끝까지 읽어서 돌아가면 보던 메시지 위치에, 메시지를 보내서 돌아가면 맨 아래에 보여 줌
   const liveReturnKey = `${roomId}:${session.generation}`;
   const [liveReturn, setLiveReturn] = useState<Readonly<{
     key: string;
@@ -95,8 +118,8 @@ export function useChatRoomContentExperience(
   const liveMessages = messageHistory.messages;
   const handleReachedLatest = useCallback(
     (position: ChatMessageViewportReachedLatestPosition) => {
-      // 실시간 목록에는 최신 메시지부터 일부만 들어 있어 보던 메시지가 아직 없을 수 있음
-      // 없으면 바꾼 뒤 같은 높이에 놓을 수 없어 화면이 튀므로 실시간 목록으로 바꾸지 않고 사용자가 더 내려올 때까지 기다림
+      // 최신 대화에는 최신 메시지부터 일부만 들어 있어 보던 메시지가 아직 없을 수 있음
+      // 없으면 돌아간 뒤 같은 높이에 놓을 수 없어 화면이 튀므로 돌아가지 않고 사용자가 더 내려올 때까지 기다림
       if (
         !liveMessages.some(
           (liveMessage) =>
@@ -144,7 +167,7 @@ export function useChatRoomContentExperience(
     onMessageSent: handleMessageSent,
     messageHistory: {
       // 아래에 붙는 메시지를 새 메시지로 보면 화면이 따라 내려가거나 개수 안내가 뜸
-      // 검색 결과 등 최신과 떨어진 목록에서는 스크롤로 불러온 기존 메시지이므로 history로 표시해 그 처리를 막음
+      // 이동한 대화에서는 스크롤로 불러온 기존 메시지이므로 history로 표시해 그 처리를 막음
       appendMode: contextNavigationActive ? ("history" as const) : ("realtime" as const),
       canLoadNewer:
         realtime.messageHistoryEnabled &&
@@ -176,7 +199,9 @@ export function useChatRoomContentExperience(
       // Context 목록이 도착하기 전에 대상 메시지를 넘기면 viewport가 빈 목록을 보고 위치를 먼저 확정함
       initialScrollTarget:
         messageNavigationActive && messageNavigation.targetMessageId && !messageNavigation.isPending
-          ? ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
+          ? entryNavigationActive
+            ? read.initialScrollTarget
+            : ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
             : (liveReturnTarget ?? read.initialScrollTarget),
@@ -194,9 +219,12 @@ export function useChatRoomContentExperience(
       onRetry: contextNavigationActive
         ? () => void messageNavigation.retry()
         : () => void messageHistory.refetch(),
-      readStateEnabled: read.readStateEnabled && !contextNavigationActive,
+      readStateEnabled: read.readStateEnabled && !searchContextActive,
       roomLabel: `${roomId} 메시지`,
-      targetMessageId: messageNavigationActive ? messageNavigation.targetMessageId : null,
+      targetMessageId:
+        messageNavigationActive && !entryNavigationActive
+          ? messageNavigation.targetMessageId
+          : null,
       viewportContinuityKey: messageNavigationActive
         ? `${roomId}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
         : roomId,
@@ -236,13 +264,15 @@ export function canLoadOlderChatRoomMessages({
 export function createChatRoomMessageNavigationFeedback(
   navigation: Pick<
     RoomMessageContextController,
-    "error" | "isError" | "isPending" | "messages" | "targetMessageId"
+    "error" | "isError" | "isPending" | "messages" | "purpose" | "targetMessageId"
   >,
 ): ChatMessageHistoryFeedback | null {
+  const destination = navigation.purpose === "entry" ? "마지막으로 읽은 위치" : "대화 위치";
+
   if (navigation.isPending && navigation.messages.length === 0) {
     return {
       kind: "notice",
-      message: "대화 위치로 이동하고 있습니다.",
+      message: `${destination}로 이동하고 있습니다.`,
     };
   }
 
@@ -251,7 +281,7 @@ export function createChatRoomMessageNavigationFeedback(
     return {
       kind: "error",
       message: presentation.detail,
-      title: "대화 위치로 이동하지 못했습니다.",
+      title: `${destination}로 이동하지 못했습니다.`,
     };
   }
 

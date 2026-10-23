@@ -222,8 +222,8 @@ export function ChatMessageViewport({
   });
   newerHistoryRef.current = newerHistory;
 
-  // 검색 결과처럼 최신과 떨어진 목록을 아래로 끝까지 불러와 최신 메시지까지 받으면 이 목록을 실시간 목록으로 바꿀 수 있음
-  // 바꿀지는 채팅방 화면이 정하므로 여기서는 화면 맨 위 메시지와 그 메시지가 화면 위쪽에서 떨어진 높이를 알리기만 함
+  // 이동한 대화에서 아래로 끝까지 불러와 최신 메시지까지 받으면 최신 대화로 돌아갈 수 있음
+  // 돌아갈지는 채팅방 화면이 정하므로 여기서는 화면 맨 위 메시지와 그 메시지가 화면 위쪽에서 떨어진 높이를 알리기만 함
   // 자동 스크롤 중에는 맨 위 메시지가 계속 바뀌므로 스크롤 위치가 정해진 뒤에만 알림
   function notifyReachedLatest() {
     const scrollElement = scrollElementRef.current;

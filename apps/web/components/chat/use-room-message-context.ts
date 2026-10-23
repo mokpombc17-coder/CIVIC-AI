@@ -25,8 +25,13 @@ export type RoomMessageContextPageResult = Readonly<{
   hasMore: boolean;
 }>;
 
+// 이동한 대화가 검색 결과로 이동한 것인지, 방에 들어올 때 읽은 위치로 이동한 것인지 구분함
+// 종류에 따라 안 읽은 구분선 표시와 읽음 보고 여부가 달라짐
+export type RoomMessageNavigationPurpose = "search" | "entry";
+
 type RoomMessageNavigationSelectionBase = Readonly<{
   generation: number;
+  purpose: RoomMessageNavigationPurpose;
   roomId: string;
   searchSessionGeneration: number;
 }>;
@@ -173,11 +178,12 @@ export function useRoomMessageContext(
   }, []);
 
   const navigateToMessage = useCallback(
-    (messageId: string) => {
+    (messageId: string, purpose: RoomMessageNavigationPurpose = "search") => {
       operationGenerationRef.current += 1;
       loadingDirectionsRef.current.clear();
       const selectionBase: RoomMessageNavigationSelectionBase = {
         generation,
+        purpose,
         roomId,
         searchSessionGeneration,
       };
@@ -205,6 +211,7 @@ export function useRoomMessageContext(
       if (destination.source === "current" && activeContextSelection !== null) {
         setSelection({
           ...activeContextSelection,
+          purpose,
           targetMessageId: messageId,
         });
         return;
@@ -296,7 +303,7 @@ export function useRoomMessageContext(
         }
 
         // 불러오기 실패를 화면 전체 오류로 바꾸지 않고 호출한 쪽에 넘김
-        // 보던 목록은 그대로 두고 다시 시도 버튼만 띄우기 위함
+        // 보던 대화는 그대로 두고 다시 시도 버튼만 띄우기 위함
         throw error;
       } finally {
         loadingDirectionsRef.current.delete(direction);
@@ -350,6 +357,7 @@ export function useRoomMessageContext(
     loadOlder: () => loadDirection("older"),
     messages,
     mode: activeSelection?.kind ?? null,
+    purpose: activeSelection?.purpose ?? null,
     navigateToMessage,
     openContext: navigateToMessage,
     retry: async () => {

@@ -8,7 +8,7 @@ import {
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const MESSAGE_COUNT = 52;
 
-test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이력 탐색을 재시도한다", async ({
+test("재진입 시 저장된 읽음 위치로 바로 이동하고 실패한 위치 조회를 재시도한다", async ({
   browser,
 }, testInfo) => {
   test.setTimeout(180_000);
@@ -67,15 +67,22 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       }
     });
 
-    let allowOlderHistory = false;
-    let failedOlderHistoryRequestCount = 0;
+    let allowFirstUnreadLookup = false;
+    let failedFirstUnreadLookupCount = 0;
+    let olderHistoryRequestCount = 0;
     let entryReadStateRequestCount = 0;
+    const isFirstUnreadLookup = (url: URL) =>
+      url.searchParams.has("afterSequence") && url.searchParams.get("limit") === "1";
 
     await memberPage.route(`**/api/v1/rooms/${roomId}/messages**`, async (route) => {
       const url = new URL(route.request().url());
 
-      if (url.searchParams.has("beforeSequence") && !allowOlderHistory) {
-        failedOlderHistoryRequestCount += 1;
+      if (url.searchParams.has("beforeSequence")) {
+        olderHistoryRequestCount += 1;
+      }
+
+      if (isFirstUnreadLookup(url) && !allowFirstUnreadLookup) {
+        failedFirstUnreadLookupCount += 1;
         await route.fulfill({
           status: 500,
           contentType: "application/problem+json",
@@ -83,7 +90,7 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
             type: "urn:hamcheeze:problem:internal-error",
             title: "Internal server error",
             status: 500,
-            detail: "The older message history is temporarily unavailable.",
+            detail: "The message history is temporarily unavailable.",
             instance: `/api/v1/rooms/${roomId}/messages`,
             code: "INTERNAL_ERROR",
             retryable: false,
@@ -103,39 +110,44 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       }
     });
 
-    await test.step("자동 탐색 실패 중에는 읽음 위치를 올리지 않고 재시도 안내를 표시한다", async () => {
+    await test.step("첫 안 읽은 메시지를 찾지 못하면 최신 메시지와 다시 찾기 안내를 보여 주고 읽은 위치를 저장하지 않는다", async () => {
       await memberPage.goto(`/chat/${roomId}`);
       await expect(memberPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
       await expect(
         memberPage.getByText("마지막으로 읽은 위치를 찾지 못했습니다.", { exact: true }),
       ).toBeVisible();
+      await expect(memberMessageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
 
-      expect(failedOlderHistoryRequestCount).toBeGreaterThan(0);
+      expect(failedFirstUnreadLookupCount).toBeGreaterThan(0);
       expect(entryReadStateRequestCount).toBe(0);
       await expect(memberPage.getByRole("separator", { name: "여기까지 읽었습니다" })).toHaveCount(
         0,
       );
+      // 읽은 위치를 찾으려고 과거 메시지를 거슬러 불러오지 않아야 함
+      expect(olderHistoryRequestCount).toBe(0);
     });
 
-    await test.step("재시도하면 저장 cursor 구분선으로 이동하고 화면에 보인 메시지까지만 읽음 처리한다", async () => {
-      allowOlderHistory = true;
+    await test.step("다시 찾으면 구분선 위치로 바로 열고 화면에 보인 메시지까지만 읽음 처리한다", async () => {
+      allowFirstUnreadLookup = true;
       await memberPage.bringToFront();
       await setDocumentFocusState(memberPage, true);
       const readStateResponse = waitForReadState(memberPage, roomId);
-      const olderHistoryResponse = memberPage.waitForResponse((response) => {
+      const firstUnreadResponse = memberPage.waitForResponse((response) => {
         const url = new URL(response.url());
         return (
           response.request().method() === "GET" &&
           url.pathname === `/api/v1/rooms/${roomId}/messages` &&
-          url.searchParams.has("beforeSequence")
+          isFirstUnreadLookup(url)
         );
       });
 
       await memberPage.getByRole("button", { name: "읽은 위치 다시 찾기" }).click();
 
-      const response = await olderHistoryResponse;
-      expect(response.ok(), `과거 이력 재조회가 성공해야 합니다: ${response.status()}`).toBe(true);
-      expect(new URL(response.url()).searchParams.get("beforeSequence")).toBe("3");
+      const response = await firstUnreadResponse;
+      expect(response.ok(), `첫 안 읽은 메시지 조회가 성공해야 합니다: ${response.status()}`).toBe(
+        true,
+      );
+      expect(new URL(response.url()).searchParams.get("afterSequence")).toBe("1");
 
       const boundary = memberPage.getByRole("separator", { name: "여기까지 읽었습니다" });
       await expect(boundary).toHaveAttribute("data-read-boundary-after-sequence", "1");
@@ -143,6 +155,9 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       await expect(memberMessageLog.getByText(messages[1]!, { exact: true })).toBeVisible();
       await expect.poll(() => isBoundaryInsideViewport(memberMessageLog)).toBe(true);
       await expect.poll(() => isViewportAwayFromLatest(memberMessageLog)).toBe(true);
+      await expect(
+        memberPage.getByRole("button", { name: "최신 대화로 이동", exact: true }),
+      ).toBeVisible();
 
       // 구분선 아래로 화면에 보인 메시지까지만 읽음 처리되므로 저장 순번(1)보다 크고 최신(52)보다 작아야 함
       const readState = await readStateResponse;
@@ -150,6 +165,38 @@ test("재진입 시 저장된 읽음 위치를 복구하고 실패한 과거 이
       const body = (await readState.json()) as { readThroughSequence?: number };
       expect(body.readThroughSequence).toBeGreaterThan(1);
       expect(body.readThroughSequence).toBeLessThan(MESSAGE_COUNT);
+      expect(olderHistoryRequestCount).toBe(0);
+    });
+
+    await test.step("아래로 끝까지 읽으면 실시간 목록으로 바뀌고 마지막 메시지까지 읽음 처리한다", async () => {
+      const latestReadState = memberPage.waitForResponse(async (response) => {
+        const url = new URL(response.url());
+
+        if (
+          response.request().method() !== "PUT" ||
+          url.pathname !== `/api/v1/rooms/${roomId}/read-state`
+        ) {
+          return false;
+        }
+
+        const body = (await response.json()) as { readThroughSequence?: number };
+        return body.readThroughSequence === MESSAGE_COUNT;
+      });
+
+      await expect
+        .poll(
+          async () => {
+            await scrollToBottomAsUser(memberMessageLog);
+            return memberPage
+              .getByRole("button", { name: "최신 대화로 이동", exact: true })
+              .count();
+          },
+          { timeout: 30_000 },
+        )
+        .toBe(0);
+      await scrollToBottomAsUser(memberMessageLog);
+      await expect(memberMessageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
+      expect((await latestReadState).ok(), "마지막 메시지 읽음 저장이 성공해야 합니다.").toBe(true);
     });
   } finally {
     await Promise.all([
@@ -203,6 +250,17 @@ async function isBoundaryInsideViewport(messageLog: ReturnType<Page["getByRole"]
     const boundaryRect = boundary.getBoundingClientRect();
     return boundaryRect.top >= viewportRect.top && boundaryRect.bottom <= viewportRect.bottom;
   });
+}
+
+async function scrollToBottomAsUser(messageLog: ReturnType<Page["getByRole"]>) {
+  await messageLog.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: 120 }));
+        element.scrollTo({ top: element.scrollHeight });
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
 }
 
 async function isViewportAwayFromLatest(messageLog: ReturnType<Page["getByRole"]>) {

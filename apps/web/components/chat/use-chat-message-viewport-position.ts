@@ -246,8 +246,8 @@ export function useChatMessageViewportPosition({
                 const currentOffset =
                   targetElement.getBoundingClientRect().top -
                   scrollElement.getBoundingClientRect().top;
-                // 검색 결과 목록이 실시간 목록으로 바뀔 때 바뀌기 전 화면 맨 위에 있던 메시지를 같은 높이에 다시 놓음
-                // 목록이 바뀌어도 사용자에게는 화면이 그대로 보이게 하기 위함
+                // 이동한 대화에서 최신 대화로 돌아갈 때 돌아가기 전 화면 맨 위에 있던 메시지를 같은 높이에 다시 놓음
+                // 대화가 바뀌어도 사용자에게는 화면이 그대로 보이게 하기 위함
                 const targetOffset =
                   target.kind === "message"
                     ? Math.max(

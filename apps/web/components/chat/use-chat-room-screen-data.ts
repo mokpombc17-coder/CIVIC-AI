@@ -1,12 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useMemo } from "react";
-import type { ChatRoomEntryHistoryPageState } from "@/lib/chat/chat-room-entry-history-search";
+import { useEffect, useMemo } from "react";
+import type { ChatRoomEntryHistoryPageState } from "@/lib/chat/chat-room-entry-history";
 import type { ChatMessage, RoomMembershipListItem } from "@/lib/chat/chat-room-contracts";
 import { ROOM_PARTICIPANT_PROFILE_PAGE_LIMIT } from "@/lib/chat/chat-room-participant-profiles";
 import {
   DEFAULT_MESSAGE_HISTORY_LIMIT,
-  flattenRoomMessageHistoryPages,
   useRoomMembershipsQuery,
   useRoomMessageHistoryQuery,
 } from "@/lib/chat/chat-room-queries";
@@ -49,28 +48,15 @@ export function useChatRoomMessageHistoryData(
     enabled,
     limit: DEFAULT_MESSAGE_HISTORY_LIMIT,
   });
-  const { fetchNextPage, hasNextPage, messages } = query;
+  const { hasNextPage, messages } = query;
   const entryHistory = useMemo(
     () => createChatRoomEntryHistoryPageState(messages, hasNextPage),
     [hasNextPage, messages],
   );
-  const loadOlderEntryHistory = useCallback(async () => {
-    const result = await fetchNextPage();
-
-    if (result.isError) {
-      throw result.error;
-    }
-
-    return createChatRoomEntryHistoryPageState(
-      flattenRoomMessageHistoryPages(roomId, result.data?.pages),
-      result.hasNextPage,
-    );
-  }, [fetchNextPage, roomId]);
 
   return {
     ...query,
     entryHistory,
-    loadOlderEntryHistory,
   };
 }
 

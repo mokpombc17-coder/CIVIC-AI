@@ -108,6 +108,33 @@ describe("ChatRoom content experience", () => {
     expect(toChatRoomErrorMessage("unknown")).toBe("알 수 없는 오류가 발생했습니다.");
   });
 
+  it("마지막으로 읽은 위치로 이동할 때는 그 위치로 이동한다고 안내한다", () => {
+    const navigation = {
+      error: null,
+      isError: false,
+      isPending: true,
+      messages: [],
+      purpose: "entry",
+      targetMessageId: "message-01",
+    } as const;
+
+    expect(createChatRoomMessageNavigationFeedback(navigation)).toEqual({
+      kind: "notice",
+      message: "마지막으로 읽은 위치로 이동하고 있습니다.",
+    });
+    expect(
+      createChatRoomMessageNavigationFeedback({
+        ...navigation,
+        error: new Error("context failed"),
+        isError: true,
+        isPending: false,
+      }),
+    ).toMatchObject({
+      kind: "error",
+      title: "마지막으로 읽은 위치로 이동하지 못했습니다.",
+    });
+  });
+
   it("검색 메시지 이동의 loading, error, ready 상태를 구분한다", () => {
     expect(
       createChatRoomMessageNavigationFeedback({
@@ -115,6 +142,7 @@ describe("ChatRoom content experience", () => {
         isError: false,
         isPending: true,
         messages: [],
+        purpose: "search",
         targetMessageId: "message-01",
       }),
     ).toEqual({
@@ -127,6 +155,7 @@ describe("ChatRoom content experience", () => {
         isError: true,
         isPending: false,
         messages: [],
+        purpose: "search",
         targetMessageId: "message-01",
       }),
     ).toMatchObject({
@@ -139,6 +168,7 @@ describe("ChatRoom content experience", () => {
         isError: false,
         isPending: false,
         messages: [{} as never],
+        purpose: "search",
         targetMessageId: "message-01",
       }),
     ).toBeNull();

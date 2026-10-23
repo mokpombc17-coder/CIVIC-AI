@@ -229,8 +229,8 @@ export function reduceChatMessageViewportPosition(
         return state;
       }
 
-      // 사용자가 목록 맨 아래에 있으면 아래에 메시지가 붙을 때마다 화면이 자동으로 따라 내려감
-      // 스크롤로 불러온 기존 메시지가 붙을 때는 따라 내려가면 안 되므로 맨 아래 상태를 해제함
+      // 화면이 목록 맨 아래에 붙어 있으면 아래에 메시지가 붙을 때마다 화면이 자동으로 따라 내려감
+      // 스크롤로 불러온 기존 메시지가 붙을 때는 따라 내려가면 안 되므로 목록 맨 아래에 붙어 있는 상태를 해제함
       // 진행 중이던 맨 아래 맞춤 이동도 멈춤. 계속하면 내려간 끝에서 또 불러오기가 일어나 끝없이 반복됨
       const job = state.job?.kind === "latest" || state.job?.kind === "resize" ? null : state.job;
       return job === state.job && state.pin === "detached"

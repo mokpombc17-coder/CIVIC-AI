@@ -97,7 +97,7 @@ export function useChatMessageViewportLatestFollow({
     }
 
     // 새 메시지가 오면 맨 아래에 있는 사용자는 화면이 따라 내려가고, 위쪽을 보던 사용자는 새 메시지 개수 안내를 받음
-    // 검색 결과 등 최신과 떨어진 목록에서 아래에 붙는 메시지는 스크롤로 불러온 기존 메시지이므로 둘 다 하지 않음
+    // 이동한 대화에서 아래에 붙는 메시지는 스크롤로 불러온 기존 메시지이므로 둘 다 하지 않음
     if (appendMode === "history") {
       if (appendedMessages.length > 0 || hasAppendedSystemActivity) {
         dispatchPosition({ type: "newer-page-appended" });
