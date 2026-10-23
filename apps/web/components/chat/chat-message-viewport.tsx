@@ -1,6 +1,6 @@
 "use client";
 
-import { type KeyboardEvent, useCallback, useEffect, useReducer, useRef, useState } from "react";
+import { type KeyboardEvent, useRef } from "react";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   ChatRoomEntryNavigationNotice,
@@ -14,15 +14,8 @@ import {
   ChatMessageViewportOlderHistoryStatus,
   ChatMessageViewportVirtualRow,
 } from "@/components/chat/chat-message-viewport-presentation";
-import {
-  type ChatMessageViewportAnchor,
-  captureChatMessageViewportAnchor,
-} from "@/components/chat/chat-message-viewport-anchor";
-import {
-  type ChatMessageViewportInitialScrollTarget,
-  createChatMessageViewportState,
-  reduceChatMessageViewportState,
-} from "@/components/chat/chat-message-viewport-state";
+import type { ChatMessageViewportAnchor } from "@/components/chat/chat-message-viewport-anchor";
+import type { ChatMessageViewportInitialScrollTarget } from "@/components/chat/chat-message-viewport-state";
 import { isChatMessageViewportScrollKey } from "@/components/chat/chat-message-viewport-user-input";
 import type {
   ChatMessageHistoryFeedback,
@@ -34,6 +27,10 @@ import {
   type ChatMessageViewportLatestFollow,
   useChatMessageViewportLatestFollow,
 } from "@/components/chat/use-chat-message-viewport-latest-follow";
+import {
+  type ChatMessageViewportOlderHistory,
+  useChatMessageViewportOlderHistory,
+} from "@/components/chat/use-chat-message-viewport-older-history";
 import {
   isChatMessageViewportAtEnd,
   useChatMessageViewportPosition,
@@ -95,17 +92,9 @@ export function ChatMessageViewport({
   } = history;
   const scrollElementRef = useRef<HTMLDivElement>(null);
   const pendingAnchorRef = useRef<ChatMessageViewportAnchor | null>(null);
-  const olderRequestInFlightRef = useRef(false);
-  const canLoadOlderRef = useRef(canLoadOlder);
-  const currentViewportKeyRef = useRef(history.viewportKey);
   const reportVisibleReadSequenceRef = useRef<() => void>(() => undefined);
   const latestFollowRef = useRef<ChatMessageViewportLatestFollow | null>(null);
-  const [olderLoadError, setOlderLoadError] = useState<string | null>(null);
-  const [viewportState, dispatch] = useReducer(
-    reduceChatMessageViewportState,
-    canLoadOlder,
-    createChatMessageViewportState,
-  );
+  const olderHistoryRef = useRef<ChatMessageViewportOlderHistory | null>(null);
   // TanStack Virtual owns a mutable measurement engine; React Compiler must not memoize this hook.
   // eslint-disable-next-line react-hooks/incompatible-library
   const virtualizer = useVirtualizer({
@@ -139,28 +128,18 @@ export function ChatMessageViewport({
     useFlushSync: false,
   });
   const virtualItems = virtualizer.getVirtualItems();
-  canLoadOlderRef.current = canLoadOlder;
-  currentViewportKeyRef.current = viewportKey;
   const { dispatchPosition, positionRef } = useChatMessageViewportPosition({
     initialScrollTarget,
     items: history.items,
     onInitialPositionReady,
     onJobSettled: () => reportVisibleReadSequenceRef.current(),
     onLatestReached: () => latestFollowRef.current?.markLatestReached(),
-    onViewportChanged: ({ preserved }) => {
-      olderRequestInFlightRef.current = false;
-      pendingAnchorRef.current = null;
+    onViewportChanged: (change) => {
+      olderHistoryRef.current?.handleViewportChanged(change);
 
-      if (preserved) {
-        return;
+      if (!change.preserved) {
+        latestFollowRef.current?.reset();
       }
-
-      setOlderLoadError(null);
-      latestFollowRef.current?.reset();
-      dispatch({
-        type: "reset",
-        hasOlderMessages: canLoadOlderRef.current,
-      });
     },
     pendingAnchorRef,
     scrollElementRef,
@@ -168,63 +147,6 @@ export function ChatMessageViewport({
     viewportKey,
     virtualizer,
   });
-
-  const loadOlderMessages = useCallback(async () => {
-    if (
-      olderRequestInFlightRef.current ||
-      !canLoadOlder ||
-      isHistoryLoadingOlder ||
-      viewportState.olderHistory === "loading" ||
-      viewportState.olderHistory === "exhausted"
-    ) {
-      return;
-    }
-
-    const scrollElement = scrollElementRef.current;
-    const anchor = scrollElement ? captureChatMessageViewportAnchor(scrollElement) : null;
-
-    if (!anchor) {
-      return;
-    }
-
-    const requestViewportKey = viewportKey;
-    olderRequestInFlightRef.current = true;
-    pendingAnchorRef.current = anchor;
-    setOlderLoadError(null);
-    dispatch({ type: "load-older-started" });
-
-    try {
-      const result = await onLoadOlder();
-
-      if (currentViewportKeyRef.current !== requestViewportKey) {
-        return;
-      }
-
-      dispatch({
-        type: "load-older-succeeded",
-        hasOlderMessages: result.hasOlderMessages,
-      });
-    } catch (error) {
-      if (currentViewportKeyRef.current !== requestViewportKey) {
-        return;
-      }
-
-      pendingAnchorRef.current = null;
-      setOlderLoadError(toErrorMessage(error));
-      dispatch({ type: "load-older-failed" });
-    } finally {
-      if (currentViewportKeyRef.current === requestViewportKey) {
-        olderRequestInFlightRef.current = false;
-      }
-    }
-  }, [canLoadOlder, isHistoryLoadingOlder, onLoadOlder, viewportKey, viewportState.olderHistory]);
-
-  useEffect(() => {
-    dispatch({
-      type: "older-availability-changed",
-      hasOlderMessages: canLoadOlder,
-    });
-  }, [canLoadOlder]);
 
   const reportVisibleReadSequence = useChatMessageViewportReadReport({
     items: history.items,
@@ -256,19 +178,17 @@ export function ChatMessageViewport({
     viewportKey,
   });
 
-  useEffect(() => {
-    const anchor = pendingAnchorRef.current;
-
-    if (!anchor || anchor.viewportKey !== viewportKey) {
-      return;
-    }
-
-    if (!history.items.some((item) => item.renderKey === anchor.renderKey)) {
-      return;
-    }
-
-    dispatchPosition({ type: "older-anchor-rendered" });
-  }, [dispatchPosition, history.items, viewportKey]);
+  const olderHistory = useChatMessageViewportOlderHistory({
+    canLoadOlder,
+    dispatchPosition,
+    isHistoryLoadingOlder,
+    items: history.items,
+    onLoadOlder,
+    pendingAnchorRef,
+    scrollElementRef,
+    viewportKey,
+  });
+  olderHistoryRef.current = olderHistory;
 
   function handleScroll() {
     const scrollElement = scrollElementRef.current;
@@ -291,7 +211,7 @@ export function ChatMessageViewport({
     }
 
     if (scrollElement.scrollTop <= TOP_LOAD_THRESHOLD) {
-      void loadOlderMessages();
+      void olderHistory.loadOlderMessages();
     }
   }
 
@@ -315,14 +235,12 @@ export function ChatMessageViewport({
     }
   }
 
-  const isLoadingOlder = isHistoryLoadingOlder || viewportState.olderHistory === "loading";
-
   return (
     <div className="relative flex min-h-0 flex-1 flex-col bg-white">
       <ChatMessageViewportOlderHistoryStatus
-        error={olderLoadError}
-        isLoading={isLoadingOlder}
-        onRetry={() => void loadOlderMessages()}
+        error={olderHistory.loadError}
+        isLoading={olderHistory.isLoadingOlder}
+        onRetry={() => void olderHistory.loadOlderMessages()}
       />
 
       {history.feedback?.kind === "error" ? (
@@ -394,8 +312,4 @@ export function ChatMessageViewport({
       </div>
     </div>
   );
-}
-
-function toErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "이전 메시지를 불러오지 못했습니다.";
 }
