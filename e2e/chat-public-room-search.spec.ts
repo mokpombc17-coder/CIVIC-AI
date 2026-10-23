@@ -66,39 +66,30 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
     });
 
     await test.step("검색 버튼으로 OPEN 첫 페이지 조건을 적용한다", async () => {
-      const initialRequest = observerPage.waitForResponse(isPublicRoomListResponse);
+      const initialRequest = waitForPublicRoomPage(observerPage, () => true);
       await observerPage.goto("/chat");
-      const initialResponse = await initialRequest;
-      expect(initialResponse.ok()).toBe(true);
+      const { page: initialPage, response: initialResponse } = await initialRequest;
       expectPublicRoomCriteria(initialResponse, { query: null, categoryId: null, cursor: null });
-      unfilteredRoomIds = ((await initialResponse.json()) as PublicRoomPage).items
-        .map((room) => room.roomId)
-        .sort();
+      unfilteredRoomIds = initialPage.items.map((room) => room.roomId).sort();
 
       await observerPage
         .getByRole("searchbox", { name: "토론방 이름 검색" })
         .fill(`  ${searchTerm}  `);
 
-      const firstPageResponsePromise = observerPage.waitForResponse((response) => {
-        if (!isPublicRoomListResponse(response)) {
-          return false;
-        }
-
+      const firstPageResponsePromise = waitForPublicRoomPage(observerPage, (response) => {
         const searchParams = new URL(response.url()).searchParams;
         return searchParams.get("query") === searchTerm && !searchParams.has("cursor");
       });
 
       await observerPage.getByRole("button", { name: "검색", exact: true }).click();
 
-      const firstPageResponse = await firstPageResponsePromise;
-      expect(firstPageResponse.ok()).toBe(true);
+      const { page: firstPage, response: firstPageResponse } = await firstPageResponsePromise;
       expectPublicRoomCriteria(firstPageResponse, {
         query: searchTerm,
         categoryId: null,
         cursor: null,
       });
 
-      const firstPage = (await firstPageResponse.json()) as PublicRoomPage;
       expect(firstPage.items).toHaveLength(20);
       expect(firstPage.hasNext).toBe(true);
       expect(firstPage.nextCursor).toEqual(expect.any(String));
@@ -108,26 +99,20 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
         .getByRole("listitem");
       await expect(publicRoomItems).toHaveCount(20);
 
-      const nextPageResponsePromise = observerPage.waitForResponse((response) => {
-        if (!isPublicRoomListResponse(response)) {
-          return false;
-        }
-
+      const nextPageResponsePromise = waitForPublicRoomPage(observerPage, (response) => {
         const searchParams = new URL(response.url()).searchParams;
         return searchParams.get("cursor") === firstPage.nextCursor;
       });
 
       await observerPage.getByRole("button", { name: "공개 방 더 보기", exact: true }).click();
 
-      const nextPageResponse = await nextPageResponsePromise;
-      expect(nextPageResponse.ok()).toBe(true);
+      const { page: nextPage, response: nextPageResponse } = await nextPageResponsePromise;
       expectPublicRoomCriteria(nextPageResponse, {
         query: searchTerm,
         categoryId: null,
         cursor: firstPage.nextCursor as string,
       });
 
-      const nextPage = (await nextPageResponse.json()) as PublicRoomPage;
       expect(nextPage.items).toHaveLength(1);
       expect(nextPage.hasNext).toBe(false);
       await expect(publicRoomItems).toHaveCount(21);
@@ -198,6 +183,34 @@ async function createPublicRoom(
   expect(typeof body.roomId).toBe("string");
 
   return { roomId: body.roomId as string };
+}
+
+// 화면이 목록을 불러오는 도중 같은 목록을 다시 요청하면 앞의 요청은 중간에 끊김
+// 끊긴 요청도 응답으로 잡히지만 내용이 없어 읽으면 오류가 나므로 내용을 읽지 못한 응답은 건너뛰고 다음 응답을 기다림
+async function waitForPublicRoomPage(
+  browserPage: Page,
+  matches: (response: Response) => boolean,
+): Promise<Readonly<{ page: PublicRoomPage; response: Response }>> {
+  const captured: { page: PublicRoomPage | null } = { page: null };
+  const response = await browserPage.waitForResponse(async (candidate) => {
+    if (!isPublicRoomListResponse(candidate) || !matches(candidate)) {
+      return false;
+    }
+
+    if (!candidate.ok()) {
+      return true;
+    }
+
+    try {
+      captured.page = (await candidate.json()) as PublicRoomPage;
+      return true;
+    } catch {
+      return false;
+    }
+  });
+
+  expect(response.ok(), `공개 방 목록 조회가 성공해야 합니다: ${response.status()}`).toBe(true);
+  return { page: captured.page!, response };
 }
 
 function isPublicRoomListResponse(response: Response): boolean {
