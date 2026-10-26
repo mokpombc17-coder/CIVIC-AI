@@ -11,9 +11,10 @@ import {
   type OpinionMapArea,
   type OpinionMapResponse,
 } from "@/lib/vote/vote-completed-contracts";
-import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingResult } from "@/lib/vote/vote-publishing-fixtures";
 import { useTaskResultQuery, voteCompletedApiAvailable } from "@/lib/vote/vote-queries";
+import { getVoteLoginHref } from "@/lib/vote/vote-task-list-navigation";
 import styles from "./vote.module.css";
 
 type VoteResultSource = "api" | "mock";
@@ -95,6 +96,11 @@ function ApiVoteTaskResult({ taskId }: { taskId: string }) {
       ) : null}
       {voteCompletedApiAvailable && resultQuery.isError ? (
         <ResultFeedback
+          loginHref={
+            isVoteAuthenticationRequired(resultQuery.error)
+              ? getVoteLoginHref(`/vote/${taskId}/result`)
+              : undefined
+          }
           message={getTaskResultErrorMessage(resultQuery.error)}
           onRetry={() => {
             failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
@@ -305,11 +311,27 @@ function OpinionMapAreaSummary({
   );
 }
 
-function ResultFeedback({ message, onRetry }: { message: string; onRetry?: () => void }) {
+function ResultFeedback({
+  loginHref,
+  message,
+  onRetry,
+}: {
+  loginHref?: string | undefined;
+  message: string;
+  onRetry?: () => void;
+}) {
   return (
-    <div aria-live="polite" className={styles.listFeedback} role={onRetry ? "alert" : "status"}>
+    <div
+      aria-live="polite"
+      className={styles.listFeedback}
+      role={onRetry || loginHref ? "alert" : "status"}
+    >
       <p>{message}</p>
-      {onRetry ? (
+      {loginHref ? (
+        <a className={styles.listRetryButton} data-navigation-mode="document" href={loginHref}>
+          로그인하기
+        </a>
+      ) : onRetry ? (
         <button className={styles.listRetryButton} onClick={onRetry} type="button">
           다시 시도
         </button>

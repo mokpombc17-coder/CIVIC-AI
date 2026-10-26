@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it, vi } from "vitest";
 import type { OpinionMapResponse } from "@/lib/vote/vote-completed-contracts";
 import { taskResultFixtures } from "@/lib/vote/vote-completed-api";
+import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingResult } from "@/lib/vote/vote-publishing-fixtures";
 import { VoteTaskResultScreen } from "./vote-task-result-screen";
 
@@ -31,6 +32,22 @@ function renderApiOpinionMap(opinionMap: OpinionMapResponse): string {
 }
 
 describe("VoteTaskResultScreen", () => {
+  it("로그인이 만료되면 다시 시도 대신 이 결과로 돌아오는 로그인 링크를 표시한다", () => {
+    useTaskResultQueryMock.mockReturnValue({
+      data: undefined,
+      error: new VoteApiError(401, "Unauthorized", "/tasks/task-01/result", null),
+      isError: true,
+      isPending: false,
+      refetch: vi.fn(),
+    });
+
+    const html = renderToStaticMarkup(<VoteTaskResultScreen taskId="task-01" />);
+
+    expect(html).toContain("로그인 후 투표 결과를 확인할 수 있습니다.");
+    expect(html).toContain('href="/login?returnTo=%2Fvote%2Ftask-01%2Fresult"');
+    expect(html).not.toContain(">다시 시도</button>");
+  });
+
   it("결과 화면에서 투표 대상을 주제로 안내한다", () => {
     const html = renderToStaticMarkup(<VoteTaskResultScreen source="mock" taskId="task-01" />);
 

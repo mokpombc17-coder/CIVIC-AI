@@ -40,6 +40,11 @@ export function getVoteTaskSearchHref(tab: VoteTaskListTab, query: string): `/vo
   return `/vote?${params}`;
 }
 
+// 로그인 후 보던 투표 화면으로 돌아오도록 현재 경로를 returnTo로 넘김
+export function getVoteLoginHref(returnTo: string): `/login?${string}` {
+  return `/login?returnTo=${encodeURIComponent(returnTo)}`;
+}
+
 export function parseVoteTaskListView(
   value: string | readonly string[] | undefined,
   query: string,

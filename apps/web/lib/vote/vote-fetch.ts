@@ -30,6 +30,11 @@ export class VoteApiError extends Error {
   }
 }
 
+// 로그인이 만료된 오류는 다시 시도해도 같은 결과라 다시 시도 대신 로그인으로 안내해야 함
+export function isVoteAuthenticationRequired(error: unknown): boolean {
+  return error instanceof VoteApiError && error.status === 401;
+}
+
 export class VoteResponseParseError extends Error {
   override readonly name = "VoteResponseParseError";
 

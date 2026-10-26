@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { VoteApiError } from "@/lib/vote/vote-fetch";
 import type { UserTaskDetail } from "@/lib/vote/vote-task-contracts";
 import { useVoteTaskController } from "./use-vote-task-controller";
 import { VoteTaskScreen } from "./vote-task-screen";
@@ -43,6 +44,24 @@ describe("VoteTaskScreen", () => {
 
     expect(html).toContain("과업을 불러오지 못했습니다. 잠시 후 다시 시도해 주세요.");
     expect(html).toContain(">다시 시도</button>");
+  });
+
+  it("로그인이 만료되면 다시 시도 대신 이 과업으로 돌아오는 로그인 링크를 표시한다", () => {
+    useVoteTaskControllerMock.mockReturnValue(
+      createController({
+        model: {
+          taskError: new VoteApiError(401, "Unauthorized", "/tasks/task-a", null),
+          taskIsError: true,
+        },
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskScreen taskId="task-a" />);
+
+    expect(html).toContain("로그인 후 투표에 참여할 수 있습니다.");
+    expect(html).toContain('href="/login?returnTo=%2Fvote%2Ftask-a"');
+    expect(html).toContain(">로그인하기</a>");
+    expect(html).not.toContain(">다시 시도</button>");
   });
 
   it("AI 예상 답변 준비가 실패하면 안내와 함께 다시 시도 버튼을 표시한다", () => {

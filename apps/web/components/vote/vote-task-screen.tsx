@@ -7,13 +7,14 @@ import {
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
-import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import { formatVoteDateTime } from "@/lib/vote/vote-format";
 import type { PendingTaskSubmission } from "@/lib/vote/vote-idempotent-submission";
 import {
   hasLongVoteOptionContent,
   isLongVoteOptionContent,
 } from "@/lib/vote/vote-option-presentation";
+import { getVoteLoginHref } from "@/lib/vote/vote-task-list-navigation";
 import {
   sortTaskOptions,
   type PredictedReason,
@@ -64,6 +65,11 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       <div className={`${styles.surface} ${styles.flowSurface}`} data-task-id={taskId}>
         {model.taskIsError ? (
           <TaskFeedback
+            loginHref={
+              isVoteAuthenticationRequired(model.taskError)
+                ? getVoteLoginHref(`/vote/${taskId}`)
+                : undefined
+            }
             message={getTaskDetailErrorMessage(model.taskError)}
             onRetry={actions.retryTaskLoad}
           />
@@ -79,6 +85,11 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
         !model.showSubmissionLoading &&
         model.taskSubmissionIsError ? (
           <TaskFeedback
+            loginHref={
+              isVoteAuthenticationRequired(model.taskSubmissionError)
+                ? getVoteLoginHref(`/vote/${taskId}`)
+                : undefined
+            }
             message={getTaskSubmissionViewErrorMessage(model.taskSubmissionError)}
             onRetry={actions.retrySubmissionView}
           />
@@ -151,10 +162,12 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
 
 function TaskFeedback({
   loading = false,
+  loginHref,
   message,
   onRetry,
 }: {
   loading?: boolean;
+  loginHref?: string | undefined;
   message: string;
   onRetry?: () => void;
 }) {
@@ -163,11 +176,15 @@ function TaskFeedback({
       aria-busy={loading || undefined}
       aria-live="polite"
       className={styles.listFeedback}
-      role={onRetry ? "alert" : "status"}
+      role={onRetry || loginHref ? "alert" : "status"}
     >
       {loading ? <span aria-hidden="true" className={styles.loadingSpinner} /> : null}
       <p>{message}</p>
-      {onRetry ? (
+      {loginHref ? (
+        <a className={styles.listRetryButton} data-navigation-mode="document" href={loginHref}>
+          로그인하기
+        </a>
+      ) : onRetry ? (
         <button className={styles.listRetryButton} onClick={onRetry} type="button">
           다시 시도
         </button>

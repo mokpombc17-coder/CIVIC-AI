@@ -9,7 +9,7 @@ import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/compone
 import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
 import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
 import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
-import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
 import {
   flattenCompletedTaskPages,
@@ -28,6 +28,7 @@ import {
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
 import {
+  getVoteLoginHref,
   getVoteTaskListHref,
   getVoteTaskSearchHref,
   type VoteTaskListTab,
@@ -37,7 +38,6 @@ import styles from "./vote.module.css";
 import { VoteTaskListLoadingCards } from "./vote-task-list-loading";
 
 const SHOW_COMPLETED_DESIGN_SAMPLE = process.env.NODE_ENV !== "production";
-const VOTE_LOGIN_HREF = "/login?returnTo=%2Fvote";
 
 export function VoteTaskListScreen({
   initialQuery = "",
@@ -511,7 +511,7 @@ function VoteListFeedback({
         <a
           className={styles.listRetryButton!}
           data-navigation-mode="document"
-          href={VOTE_LOGIN_HREF}
+          href={getVoteLoginHref("/vote")}
         >
           로그인하기
         </a>
@@ -522,10 +522,6 @@ function VoteListFeedback({
       )}
     </div>
   );
-}
-
-function isVoteAuthenticationRequired(error: unknown): boolean {
-  return error instanceof VoteApiError && error.status === 401;
 }
 
 function getOpenTaskErrorMessage(error: unknown): string {
