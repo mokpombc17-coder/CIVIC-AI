@@ -1,0 +1,145 @@
+// @vitest-environment jsdom
+
+import { act, cleanup, renderHook } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import type { ChatMessageViewportAnchor } from "./chat-message-viewport-anchor";
+import type { ChatMessageViewportItemViewModel } from "./chat-room-view-model";
+import { useChatMessageViewportOlderHistory } from "./use-chat-message-viewport-older-history";
+
+const VIEWPORT_KEY = "room-01:1";
+
+type HookParams = Parameters<typeof useChatMessageViewportOlderHistory>[0];
+
+describe("useChatMessageViewportOlderHistory", () => {
+  afterEach(() => {
+    cleanup();
+    document.body.replaceChildren();
+  });
+
+  it("이전 페이지를 기다리는 사이 목록이 바뀌어도 불러오기가 끝난 뒤에만 기준 위치를 복원한다", async () => {
+    const olderPage = createDeferred<Readonly<{ hasOlderMessages: boolean }>>();
+    const { dispatchPosition, params } = createParams({
+      items: [createItem("m-02"), createItem("m-03")],
+      onLoadOlder: () => olderPage.promise,
+    });
+    const { result, rerender } = renderHook(
+      (props: HookParams) => useChatMessageViewportOlderHistory(props),
+      { initialProps: params },
+    );
+
+    let loadOlder: Promise<void> | undefined;
+    act(() => {
+      loadOlder = result.current.loadOlderMessages();
+    });
+
+    // 응답 전에 실시간 메시지가 붙음
+    rerender({ ...params, items: [createItem("m-02"), createItem("m-03"), createItem("m-04")] });
+    expect(anchorRenderedCount(dispatchPosition)).toBe(0);
+
+    // 이전 페이지가 붙고 응답 처리가 끝남
+    rerender({
+      ...params,
+      items: [createItem("m-01"), createItem("m-02"), createItem("m-03"), createItem("m-04")],
+    });
+    await act(async () => {
+      olderPage.resolve({ hasOlderMessages: true });
+      await loadOlder;
+    });
+
+    expect(anchorRenderedCount(dispatchPosition)).toBe(1);
+  });
+
+  it("목록 쪽에서 이전 페이지를 받는 중이면 기준 위치 복원을 기다린다", async () => {
+    const olderPage = createDeferred<Readonly<{ hasOlderMessages: boolean }>>();
+    const { dispatchPosition, params } = createParams({
+      items: [createItem("m-02"), createItem("m-03")],
+      onLoadOlder: () => olderPage.promise,
+    });
+    const { result, rerender } = renderHook(
+      (props: HookParams) => useChatMessageViewportOlderHistory(props),
+      { initialProps: params },
+    );
+
+    let loadOlder: Promise<void> | undefined;
+    act(() => {
+      loadOlder = result.current.loadOlderMessages();
+    });
+    await act(async () => {
+      olderPage.resolve({ hasOlderMessages: true });
+      await loadOlder;
+    });
+    const countAfterResponse = anchorRenderedCount(dispatchPosition);
+
+    rerender({
+      ...params,
+      isHistoryLoadingOlder: true,
+      items: [createItem("m-02"), createItem("m-03"), createItem("m-04")],
+    });
+    expect(anchorRenderedCount(dispatchPosition)).toBe(countAfterResponse);
+
+    rerender({
+      ...params,
+      isHistoryLoadingOlder: false,
+      items: [createItem("m-01"), createItem("m-02"), createItem("m-03"), createItem("m-04")],
+    });
+    expect(anchorRenderedCount(dispatchPosition)).toBe(countAfterResponse + 1);
+  });
+});
+
+function createParams({
+  items,
+  onLoadOlder,
+}: Readonly<{
+  items: readonly ChatMessageViewportItemViewModel[];
+  onLoadOlder: HookParams["onLoadOlder"];
+}>) {
+  const dispatchPosition = vi.fn<HookParams["dispatchPosition"]>();
+  const params: HookParams = {
+    canLoadOlder: true,
+    dispatchPosition,
+    isHistoryLoadingOlder: false,
+    items,
+    onLoadOlder,
+    pendingAnchorRef: { current: null as ChatMessageViewportAnchor | null },
+    scrollElementRef: { current: createScrollElement("m-02") },
+    viewportKey: VIEWPORT_KEY,
+  };
+
+  return { dispatchPosition, params };
+}
+
+function createItem(renderKey: string): ChatMessageViewportItemViewModel {
+  return { kind: "read-boundary", afterSequence: 0, renderKey };
+}
+
+function anchorRenderedCount(dispatchPosition: ReturnType<typeof vi.fn>): number {
+  return dispatchPosition.mock.calls.filter(([event]) => event.type === "older-anchor-rendered")
+    .length;
+}
+
+function createScrollElement(anchorRenderKey: string): HTMLDivElement {
+  const scrollElement = document.createElement("div");
+  scrollElement.dataset.viewportKey = VIEWPORT_KEY;
+  stubBounds(scrollElement, { bottom: 400, top: 0 });
+
+  const item = document.createElement("li");
+  item.dataset.renderKey = anchorRenderKey;
+  stubBounds(item, { bottom: 80, top: 10 });
+  scrollElement.append(item);
+
+  document.body.append(scrollElement);
+  return scrollElement;
+}
+
+function stubBounds(element: HTMLElement, { bottom, top }: { bottom: number; top: number }) {
+  element.getBoundingClientRect = () =>
+    DOMRect.fromRect({ height: bottom - top, width: 320, x: 0, y: top });
+}
+
+function createDeferred<T>() {
+  let resolve!: (value: T) => void;
+  const promise = new Promise<T>((settle) => {
+    resolve = settle;
+  });
+  return { promise, resolve };
+}

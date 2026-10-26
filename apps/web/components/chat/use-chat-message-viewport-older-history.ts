@@ -152,12 +152,18 @@ export function useChatMessageViewportOlderHistory({
       return;
     }
 
+    // 기준 메시지는 요청 전부터 목록에 있어서 응답을 기다리는 사이 실시간 메시지로 목록이 바뀌어도 복원이 시작될 수 있음
+    // 그때 복원하면 기준이 지워져 이전 페이지가 붙을 때 화면이 튀므로 불러오기가 끝난 뒤에만 복원함
+    if (isHistoryLoadingOlder || state.status === "loading") {
+      return;
+    }
+
     if (!items.some((item) => item.renderKey === anchor.renderKey)) {
       return;
     }
 
     dispatchPosition({ type: "older-anchor-rendered" });
-  }, [dispatchPosition, items, pendingAnchorRef, viewportKey]);
+  }, [dispatchPosition, isHistoryLoadingOlder, items, pendingAnchorRef, state.status, viewportKey]);
 
   return {
     handleViewportChanged,
