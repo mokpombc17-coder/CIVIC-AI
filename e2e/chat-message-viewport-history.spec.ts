@@ -400,6 +400,182 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
   }
 });
 
+// Expo WebView처럼 SharedWorker와 탭 조정 API를 쓸 수 없는 환경에서는 페이지가 STOMP 연결을 직접 가짐
+// 재연결 복원을 SharedWorker 경로에서만 확인하지 않도록 Direct transport에서도 같은 흐름을 확인함
+test("Direct STOMP transport에서도 연결이 끊긴 사이의 수정·삭제를 다시 연결된 뒤 반영하고 같은 높이로 복원한다", async ({
+  browser,
+}, testInfo) => {
+  test.setTimeout(240_000);
+
+  const baseURL = String(testInfo.project.use.baseURL);
+  const uniqueId = crypto.randomUUID();
+  const roomName = `e2e-viewport-direct-${uniqueId}`;
+  const searchQuery = `직접연결표적-${uniqueId.slice(0, 8)}`;
+  const targetMessage = `${searchQuery} 첫 메시지`;
+  const memberEditMessage = `vd-member-edit-${uniqueId.slice(0, 8)}`;
+  const memberEditedMessage = `vd-member-edited-${uniqueId.slice(0, 8)}`;
+  const memberDeleteMessage = `vd-member-delete-${uniqueId.slice(0, 8)}`;
+  const ownerContext = await browser.newContext({ baseURL });
+  const memberContext = await browser.newContext({ baseURL });
+
+  try {
+    // SharedWorker와 BroadcastChannel을 없애 Direct transport를 쓰게 함
+    await ownerContext.addInitScript(() => {
+      Object.defineProperty(window, "SharedWorker", { configurable: true, value: undefined });
+      Object.defineProperty(window, "BroadcastChannel", { configurable: true, value: undefined });
+    });
+    const page = await ownerContext.newPage();
+    const pageWebSockets: string[] = [];
+    page.on("websocket", (webSocket) => pageWebSockets.push(webSocket.url()));
+    const memberPage = await memberContext.newPage();
+
+    await authenticateLocalE2EUserAs(page, ownerContext, `e2e-viewport-direct-${uniqueId}`);
+    const roomId = await createRoomAndEnter(page, roomName);
+    const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
+    await expect(page.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+    // SharedWorker 연결은 페이지 WebSocket으로 잡히지 않으므로 페이지가 직접 연결을 연 것으로 Direct transport를 확인함
+    expect(
+      pageWebSockets.length,
+      "Direct transport가 페이지에서 WebSocket을 열어야 합니다.",
+    ).toBeGreaterThan(0);
+
+    await test.step("최신 이력 한 페이지를 넘도록 두 참여자가 메시지를 보낸다", async () => {
+      await sendAndConfirm(page, messageLog, targetMessage);
+      await authenticateLocalE2EUserAs(
+        memberPage,
+        memberContext,
+        `e2e-viewport-direct-member-${uniqueId}`,
+      );
+      await joinPublicRoomAndEnter(memberPage, roomId, roomName);
+      const memberMessageLog = memberPage.getByRole("log", { name: `${roomId} 메시지` });
+      await sendAndConfirm(memberPage, memberMessageLog, memberEditMessage);
+      await sendAndConfirm(memberPage, memberMessageLog, memberDeleteMessage);
+
+      // 전송 rate limit은 참여자별이라 나머지는 두 참여자가 나눠 동시에 보냄
+      await Promise.all([
+        (async () => {
+          for (let index = 0; index < 26; index += 1) {
+            await sendAndConfirm(page, messageLog, `vd-owner-${index}-${uniqueId.slice(0, 8)}`);
+          }
+        })(),
+        (async () => {
+          for (let index = 0; index < 26; index += 1) {
+            await sendAndConfirm(
+              memberPage,
+              memberMessageLog,
+              `vd-member-${index}-${uniqueId.slice(0, 8)}`,
+            );
+          }
+        })(),
+      ]);
+    });
+
+    await test.step("연결이 끊긴 사이 수정·삭제된 메시지를 다시 연결된 뒤 반영하고 같은 높이로 복원한다", async () => {
+      await reloadToLatestHistory(page, roomId, page.getByRole("textbox", { name: "메시지" }));
+      await expect(messageLog.getByText(targetMessage, { exact: true })).toHaveCount(0);
+      await page.getByRole("button", { name: "메시지 검색", exact: true }).click();
+      const searchBox = page
+        .locator('[data-chat-room-message-search-panel="true"]')
+        .getByRole("search")
+        .getByRole("searchbox", { name: "메시지 내용" });
+      await searchBox.fill(searchQuery);
+      await searchBox.press("Enter");
+      await expect(messageLog.locator('[data-navigation-target="true"]')).toContainText(
+        targetMessage,
+      );
+      await expect(messageLog.getByText(memberEditMessage, { exact: true })).toBeVisible();
+      await scrollByAsUser(messageLog, -80);
+      const positionBeforeDisconnect = await readTopVisibleMessage(messageLog);
+
+      await ownerContext.setOffline(true);
+      await closePageWebSockets(page);
+      await expect(page.getByText(RECONNECTING_LABEL, { exact: true })).toBeVisible();
+      await page.waitForTimeout(RECONNECT_ATTEMPT_WAIT_MS);
+
+      // 끊긴 동안에도 보던 대화와 검색을 그대로 둠
+      await expect(searchBox).toHaveValue(searchQuery);
+      await expect(
+        page.getByRole("button", { name: "최신 대화로 이동", exact: true }),
+      ).toBeVisible();
+      expect(
+        await readMessageOffsetDistance(messageLog, positionBeforeDisconnect),
+      ).toBeLessThanOrEqual(2);
+
+      await editAndDeleteOwnMessages(memberPage, roomId, {
+        deleteMessage: memberDeleteMessage,
+        editMessage: memberEditMessage,
+        editedMessage: memberEditedMessage,
+      });
+      await expect(messageLog.getByText(memberEditMessage, { exact: true })).toBeVisible();
+
+      const restoreResponse = page.waitForResponse(
+        (response) => {
+          const url = new URL(response.url());
+          return response.request().method() === "GET" && isContextRequest(roomId, url);
+        },
+        { timeout: 30_000 },
+      );
+      await ownerContext.setOffline(false);
+
+      expect((await restoreResponse).ok(), "보던 위치 주변 대화를 다시 받아야 합니다.").toBe(true);
+      await expect(page.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect(messageLog.getByText(memberEditedMessage, { exact: true })).toBeVisible();
+      await expect(messageLog.getByText(memberDeleteMessage, { exact: true })).toHaveCount(0);
+      await expect(messageLog.getByText("삭제된 메시지입니다.", { exact: true })).toBeVisible();
+      await expect
+        .poll(() => readMessageOffsetDistance(messageLog, positionBeforeDisconnect))
+        .toBeLessThanOrEqual(2);
+      await expect(searchBox).toHaveValue(searchQuery);
+      await expect(messageLog.locator('[data-navigation-target="true"]')).toContainText(
+        targetMessage,
+      );
+    });
+  } finally {
+    await ownerContext.setOffline(false).catch(() => {});
+    await Promise.all([ownerContext.close(), memberContext.close()]);
+  }
+});
+
+// 오프라인 emulation만으로는 이미 열린 WebSocket이 닫히지 않으므로 페이지의 WebSocket을 직접 닫아 끊김을 만듦
+async function closePageWebSockets(page: Page) {
+  const session = await page.context().newCDPSession(page);
+
+  try {
+    const prototype = await session.send("Runtime.evaluate", { expression: "WebSocket.prototype" });
+    const sockets = await session.send("Runtime.queryObjects", {
+      prototypeObjectId: prototype.result.objectId!,
+    });
+    const result = await session.send("Runtime.callFunctionOn", {
+      functionDeclaration: `function () {
+        let closedCount = 0;
+
+        for (const socket of this) {
+          if (socket.readyState === WebSocket.CONNECTING || socket.readyState === WebSocket.OPEN) {
+            const handleClose = socket.onclose;
+            socket.onmessage = null;
+            socket.onerror = null;
+            socket.onclose = null;
+            socket.close(3001, "NETWORK_DISCONNECTED");
+            handleClose?.call(
+              socket,
+              new CloseEvent("close", { code: 1006, reason: "NETWORK_DISCONNECTED", wasClean: false }),
+            );
+            closedCount += 1;
+          }
+        }
+
+        return closedCount;
+      }`,
+      objectId: sockets.objects.objectId!,
+      returnByValue: true,
+    });
+
+    expect(result.result.value, "닫을 페이지 WebSocket이 있어야 합니다.").toBeGreaterThan(0);
+  } finally {
+    await session.detach();
+  }
+}
+
 async function sendAndConfirm(page: Page, messageLog: Locator, message: string) {
   await page.getByRole("textbox", { name: "메시지" }).fill(message);
   await page.getByRole("button", { name: "전송", exact: true }).click();
