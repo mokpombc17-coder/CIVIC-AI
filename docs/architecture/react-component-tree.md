@@ -510,8 +510,8 @@ generation이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사�
 `membershipId` cursor page를 끝까지 이어 Backend `userLabel`과 입장 sequence를 제공한다. profile 조회 실패는 core
 message 동작을 막지 않는다. 발신자 이름은 참여 이력(`senderParticipationId`)의 이름, ACTIVE profile,
 내 메시지이면 내 이름 순서로 찾고, 모두 없으면 `알 수 없음`으로 표시한다.
-`useChatRoomMessageHistoryData`는 최신 message Query와 과거 page load를 진입 위치 탐색용 history
-snapshot으로 변환하여 Screen이 TanStack infinite page 구조를 직접 해석하지 않게 한다.
+`useChatRoomMessageHistoryData`는 최신 message Query의 메시지와 이전 page 유무를 진입 위치 판단용
+history snapshot으로 변환하여 Screen이 TanStack infinite page 구조를 직접 해석하지 않게 한다.
 `useChatRoomMessageExperience`는 확정 Message History와 Outbox의 optimistic outgoing을 합치고,
 확정된 `clientMessageId`를 Outbox에서 정리한다. 수정·삭제 mutation, 메시지 action sheet와
 `useChatRoomMessagePresentation`도 같은 경험 경계에서 조립한다. presentation hook은 참여자 이름 map,
@@ -522,13 +522,16 @@ Room detail의 현재 membership과 snapshot의 self membership이 일치할 때
 인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
 Room 진입 시에는 `useChatRoomEntryNavigation`이 `roomId`별 최초 진입 위치를 한 번 고정하고(재연결로
 generation이 바뀌어도 다시 정하지 않음),
-`useChatRoomContentExperience`가 읽음 경험 조립을 `useChatRoomReadExperience`에 위임한다. 이 hook은 읽음 구분선이 현재 message page에
-없으면 제한된 수의 과거 page를 순차 조회한다. 탐색이 끝나기 전에는
-viewport 초기 이동과 새 read-state 보고를 보류하며, 탐색 결과를 읽음 구분선 또는 안전한 fallback
-초기 스크롤 목표로 변환한다. `ChatMessageViewport`는 이 목표가 준비된 뒤 virtualization index로
-이동하고, 목표 위치가 정착된 이후에만 기존 focus·visibility·overlay 판정을 다시 적용한다. 자동
-탐색 한도 또는 일시적 조회 실패에서는 viewport 상단 안내가 사용자 동작으로 다음 탐색 batch나
-재시도를 시작하며, 읽음 위치가 결정되기 전까지 새 read-state 보고를 계속 보류한다.
+`useChatRoomContentExperience`가 읽음 경험 조립을 `useChatRoomReadExperience`에 위임한다. 이 hook은
+receipt snapshot의 읽은 위치가 처음 불러온 최신 message page 안에 있거나 더 이전 메시지가 없으면 그
+목록의 읽음 구분선을 초기 스크롤 목표로 쓴다. 최신 page보다 이전이면 과거 page를 거슬러 조회하지 않고
+`afterSequence`로 첫 안 읽은 메시지 하나를 조회한 뒤 그 주변을 읽은 위치로 이동한 Context
+(`purpose: "entry"`)로 연다. 조회가 끝나기 전에는 viewport 초기 이동과 새 read-state 보고를 보류한다.
+`ChatMessageViewport`는 목표가 준비된 뒤 virtualization index로 이동하고, 목표 위치가 정착된
+이후에만 기존 focus·visibility·overlay 판정을 다시 적용한다. 첫 안 읽은 메시지 조회에 실패하면 최신
+메시지를 보여 주되 viewport 상단 안내의 다시 찾기 동작으로 위치를 찾기 전까지 새 read-state 보고를
+보류하고, 그 사이 읽을 메시지가 없어졌으면 최신 위치로 연다. 자세한 흐름은
+`docs/architecture/chat-room-unread-entry.md`에 둔다.
 같은 hook이 Room 종료·멤버십 상실을 read-state terminal 신호로 변환하고, receipt snapshot의 self
 membership 불일치에서는 generation별 한 번만 Room detail과 receipt를 함께 재조회한다. 재참여 후 새
 실시간 generation이 준비되면 재개 가능한 terminal 또는 sequence-ahead 상태만 다시 연다.
