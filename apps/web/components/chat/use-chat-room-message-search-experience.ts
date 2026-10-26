@@ -4,11 +4,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useChatRoomMessageSearchPanel } from "@/components/chat/use-chat-room-message-search-dialog";
 import { useRoomMessageSearch } from "@/components/chat/use-room-message-search";
 import type { ChatMessage } from "@/lib/chat/chat-room-contracts";
+import type { ChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomMessageSearchExperienceOptions = Readonly<{
   generation: number;
   onNavigateToMessage: (messageId: string) => void;
   roomActive: boolean;
+  sessionKind: ChatRoomSessionView["kind"];
 }>;
 
 type ChatRoomMessageSearchCloseActions = Readonly<{
@@ -29,7 +31,12 @@ export type ChatRoomMessageSearchNavigationState = Readonly<{
 
 export function useChatRoomMessageSearchExperience(
   roomId: string,
-  { generation, onNavigateToMessage, roomActive }: ChatRoomMessageSearchExperienceOptions,
+  {
+    generation,
+    onNavigateToMessage,
+    roomActive,
+    sessionKind,
+  }: ChatRoomMessageSearchExperienceOptions,
 ) {
   const panel = useChatRoomMessageSearchPanel(roomId);
   const controller = useRoomMessageSearch(roomId, {
@@ -48,8 +55,12 @@ export function useChatRoomMessageSearchExperience(
     rateLimitRetryAfterMs,
     sessionGeneration,
   } = controller;
-  const searchSessionKey = `${roomId}:${generation}:${sessionGeneration}`;
-  const latestSearchSessionKeyRef = useRef(searchSessionKey);
+  // 사용자가 실행한 검색은 재연결로 generation이 바뀌어도 같은 검색으로 보고 선택한 결과를 유지함
+  // generation을 넣으면 재연결 때 현재 결과로 자동 이동해 보던 대화 복원을 덮어씀
+  const searchSessionKey = `${roomId}:${sessionGeneration}`;
+  // 받아 온 결과 목록은 generation마다 새로 받으므로 다음 page 자동 조회와 이전 결과 찾기는 이 key로 구분함
+  const searchResultsKey = `${roomId}:${generation}:${sessionGeneration}`;
+  const latestSearchResultsKeyRef = useRef(searchResultsKey);
   const automaticNavigationKeyRef = useRef<string | null>(null);
   const automaticPageLoadKeyRef = useRef<string | null>(null);
   const [selection, setSelection] = useState<ChatRoomMessageSearchSelection | null>(null);
@@ -63,12 +74,12 @@ export function useChatRoomMessageSearchExperience(
   const isSeekingOlderResult = seekingOlderSessionKey === searchSessionKey;
   const { close: closeDialog } = panel;
   const close = useCallback(() => {
-    latestSearchSessionKeyRef.current = `closed:${searchSessionKey}`;
+    latestSearchResultsKeyRef.current = `closed:${searchResultsKey}`;
     closeChatRoomMessageSearchExperience({
       clearSearch,
       closeDialog,
     });
-  }, [clearSearch, closeDialog, searchSessionKey]);
+  }, [clearSearch, closeDialog, searchResultsKey]);
   const navigationState = useMemo(
     () =>
       createChatRoomMessageSearchNavigationState({
@@ -116,14 +127,15 @@ export function useChatRoomMessageSearchExperience(
     }
 
     const requestedSessionKey = searchSessionKey;
+    const requestedResultsKey = searchResultsKey;
     const originMessageId = currentResultMessageId;
     setSeekingOlderSessionKey(requestedSessionKey);
 
     try {
-      while (latestSearchSessionKeyRef.current === requestedSessionKey) {
+      while (latestSearchResultsKeyRef.current === requestedResultsKey) {
         const result = await loadMore();
 
-        if (latestSearchSessionKeyRef.current !== requestedSessionKey || result.isError) {
+        if (latestSearchResultsKeyRef.current !== requestedResultsKey || result.isError) {
           return;
         }
 
@@ -153,12 +165,13 @@ export function useChatRoomMessageSearchExperience(
     messages,
     navigateToMessage,
     navigationState.currentResultIndex,
+    searchResultsKey,
     searchSessionKey,
   ]);
 
   useEffect(() => {
-    latestSearchSessionKeyRef.current = searchSessionKey;
-  }, [searchSessionKey]);
+    latestSearchResultsKeyRef.current = searchResultsKey;
+  }, [searchResultsKey]);
 
   useEffect(() => {
     if (appliedQuery === undefined || currentResultMessageId === null) {
@@ -188,7 +201,7 @@ export function useChatRoomMessageSearchExperience(
     }
 
     const loadedPageCount = data?.pages.length ?? 0;
-    const pageLoadKey = `${searchSessionKey}:${loadedPageCount}`;
+    const pageLoadKey = `${searchResultsKey}:${loadedPageCount}`;
 
     if (automaticPageLoadKeyRef.current === pageLoadKey) {
       return;
@@ -205,14 +218,14 @@ export function useChatRoomMessageSearchExperience(
     loadMore,
     messages.length,
     rateLimitRetryAfterMs,
-    searchSessionKey,
+    searchResultsKey,
   ]);
 
   useEffect(() => {
-    if (shouldCloseChatRoomMessageSearchExperience(panel.isOpen, roomActive)) {
+    if (shouldCloseChatRoomMessageSearchExperience(panel.isOpen, sessionKind)) {
       close();
     }
-  }, [close, panel.isOpen, roomActive]);
+  }, [close, panel.isOpen, sessionKind]);
 
   return {
     close,
@@ -264,9 +277,12 @@ export function closeChatRoomMessageSearchExperience({
   closeDialog();
 }
 
+// 연결이 끊기거나 다른 탭·기기에 사용권을 넘긴 동안에는 검색을 유지하고 돌아오면 이어서 씀
+// 이동한 대화도 이때 유지되므로 검색만 닫히면 보던 결과 사이를 이동할 수 없게 됨
+// 연결 오류는 자동 재연결 중 시도마다 잠깐 거치는 상태라 닫는 기준에 넣지 않고 방이 종료됐을 때만 닫음
 export function shouldCloseChatRoomMessageSearchExperience(
   isOpen: boolean,
-  roomActive: boolean,
+  sessionKind: ChatRoomSessionView["kind"],
 ): boolean {
-  return isOpen && !roomActive;
+  return isOpen && sessionKind === "closed";
 }

@@ -81,14 +81,18 @@ describe("ChatRoom message search experience", () => {
   });
 
   it.each([
-    { expected: true, isOpen: true, roomActive: false },
-    { expected: false, isOpen: false, roomActive: false },
-    { expected: false, isOpen: true, roomActive: true },
-    { expected: false, isOpen: false, roomActive: true },
-  ])(
-    "열림=$isOpen 활성=$roomActive이면 자동 종료 여부는 $expected다",
-    ({ expected, isOpen, roomActive }) => {
-      expect(shouldCloseChatRoomMessageSearchExperience(isOpen, roomActive)).toBe(expected);
+    { expected: false, isOpen: true, sessionKind: "active" },
+    { expected: false, isOpen: true, sessionKind: "pending" },
+    { expected: false, isOpen: true, sessionKind: "replaced" },
+    { expected: false, isOpen: true, sessionKind: "connection-replaced" },
+    { expected: false, isOpen: true, sessionKind: "authentication-required" },
+    { expected: true, isOpen: true, sessionKind: "closed" },
+    { expected: false, isOpen: true, sessionKind: "error" },
+    { expected: false, isOpen: false, sessionKind: "closed" },
+  ] as const)(
+    "열림=$isOpen 세션=$sessionKind이면 자동 종료 여부는 $expected다",
+    ({ expected, isOpen, sessionKind }) => {
+      expect(shouldCloseChatRoomMessageSearchExperience(isOpen, sessionKind)).toBe(expected);
     },
   );
 });

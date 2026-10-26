@@ -487,8 +487,11 @@ Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 
 현재 결과 위치와 순차 이동은 `useChatRoomMessageSearchExperience`가 조립한다. 이 controller hook은
 선택한 `messageId`를 Screen의 메시지 이동 controller에 전달하되 검색 bar를 유지한다. 불러온 가장
 오래된 결과의 위쪽으로 이동하면 다음 cursor page를 조회하고, `items`가 빈 중간 page도
-`searchComplete`가 될 때까지 건너뛴다. 명시적인 취소나 Room session 비활성화 시에는 검색 session을
-정리하고 panel을 닫는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한 메시지의
+`searchComplete`가 될 때까지 건너뛴다. 명시적인 취소나 Room 종료 시에는 검색 session을 정리하고
+panel을 닫는다. 연결이 끊기거나(자동 재연결 중 잠깐 거치는 연결 오류 포함) 다른 탭·기기에 사용권을
+넘긴 동안에는 검색을 유지하고,
+같은 Room에서 generation이 바뀌면 적용된 query와 선택한 결과를 유지한 채 결과만 새 generation으로 다시
+조회한다. 이때는 현재 결과로 자동 이동하지 않아 메시지 이동 controller의 위치 복원을 덮어쓰지 않는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한 메시지의
 위치를 live message history, 현재 Context window, 같은 Room generation의 캐시된 Context 순서로
 찾는다. 찾은 window에서는 API 요청 없이 target만 바꾸고, 캐시에 없을 때 선택한 메시지를 중심으로 새
 Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room이나 실시간

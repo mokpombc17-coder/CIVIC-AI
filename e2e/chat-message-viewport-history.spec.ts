@@ -15,6 +15,7 @@ import {
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const RECONNECTING_LABEL = "준비 중";
+const RECONNECT_ATTEMPT_WAIT_MS = 5_000;
 const MESSAGE_COUNT = 52;
 
 test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 viewport에서 복구한다", async ({
@@ -51,6 +52,10 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     }
   });
 
+  const messageSearchBox = page
+    .locator('[data-chat-room-message-search-panel="true"]')
+    .getByRole("search")
+    .getByRole("searchbox", { name: "메시지 내용" });
   const openOldSearchResult = async () => {
     await reloadToLatestHistory(page, roomId, messageInput);
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
@@ -191,6 +196,10 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       await setSharedWorkerOffline(browserSession, workerSessionId, true);
       await expect(page.getByText(RECONNECTING_LABEL, { exact: true })).toBeVisible();
 
+      // 자동 재연결이 실패할 때마다 연결 상태가 잠깐 오류를 거치므로 재연결 시도가 일어날 만큼 기다림
+      await page.waitForTimeout(RECONNECT_ATTEMPT_WAIT_MS);
+      await expect(messageSearchBox).toHaveValue(searchQuery);
+
       // 끊긴 동안에도 보던 대화를 닫지 않고 같은 위치에 둠
       await expect(
         page.getByRole("button", { name: "최신 대화로 이동", exact: true }),
@@ -205,6 +214,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       // 같은 generation으로 돌아오면 빠진 구간은 실시간 복구가 채우므로 대화를 다시 받지 않음
       await page.waitForTimeout(1_000);
       expect(contextRequestCount, "같은 연결 세대에서는 대화를 다시 받지 않아야 합니다.").toBe(0);
+      // 검색도 닫히지 않고 그대로 남아 결과 사이를 계속 이동할 수 있어야 함
+      await expect(messageSearchBox).toHaveValue(searchQuery);
       expect(
         await readMessageOffsetDistance(messageLog, positionBeforeDisconnect),
       ).toBeLessThanOrEqual(2);
@@ -230,7 +241,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       const tabReplacedNotice = page.locator('[data-chat-session-notice="replaced"]');
       await expect(tabReplacedNotice).toBeVisible();
 
-      // 사용권을 넘긴 동안에도 보던 대화를 그대로 둠
+      // 사용권을 넘긴 동안에도 보던 대화와 검색을 그대로 둠
+      await expect(messageSearchBox).toHaveValue(searchQuery);
       expect(
         await readMessageOffsetDistance(messageLog, positionBeforeReplace),
       ).toBeLessThanOrEqual(2);
@@ -253,6 +265,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       await expect(
         page.getByRole("button", { name: "최신 대화로 이동", exact: true }),
       ).toBeVisible();
+      // 검색은 유지하되 재연결 때 현재 결과로 자동 이동하지 않아야 위 복원 위치가 유지됨
+      await expect(messageSearchBox).toHaveValue(searchQuery);
     } finally {
       await otherPage.close();
     }

@@ -6,6 +6,7 @@ import {
 } from "@/components/chat/chat-room-screen-overlay-model";
 import { useChatRoomMembershipDialog } from "@/components/chat/use-chat-room-membership-dialog";
 import { useChatRoomMessageSearchExperience } from "@/components/chat/use-chat-room-message-search-experience";
+import type { ChatRoomSessionView } from "@/lib/chat/realtime/chat-room-session-view";
 
 type ChatRoomOverlayExperienceOptions = Readonly<{
   generation: number;
@@ -13,6 +14,7 @@ type ChatRoomOverlayExperienceOptions = Readonly<{
   onNavigateToMessage: (messageId: string) => void;
   roomActive: boolean;
   roomAvailable: boolean;
+  sessionKind: ChatRoomSessionView["kind"];
 }>;
 
 type ChatRoomOverlayExperienceState = Readonly<{
@@ -30,6 +32,7 @@ export function useChatRoomOverlayExperience(
     onNavigateToMessage,
     roomActive,
     roomAvailable,
+    sessionKind,
   }: ChatRoomOverlayExperienceOptions,
 ) {
   const membershipDialog = useChatRoomMembershipDialog(roomId);
@@ -37,6 +40,7 @@ export function useChatRoomOverlayExperience(
     generation,
     onNavigateToMessage,
     roomActive,
+    sessionKind,
   });
   const state = createChatRoomOverlayExperienceState({
     hasMessageActions,

@@ -147,6 +147,17 @@ export function reduceRoomMessageSearchState(
         rateLimitRetryAfterMs: undefined,
       };
     case "room-context-changed":
+      // 같은 방에서 재연결로 generation만 바뀌면 검색어는 유지하고 결과만 새 generation으로 다시 받음
+      // 검색을 지우면 보던 대화는 복원돼도 검색 결과 사이를 이동할 수 없게 됨
+      if (action.roomId === state.roomId) {
+        return {
+          ...state,
+          invalidCursorRecoveryAttempted: false,
+          rateLimitRetryAfterMs: undefined,
+          roomGeneration: action.roomGeneration,
+        };
+      }
+
       return createInitialRoomMessageSearchState(action.roomId, action.roomGeneration);
   }
 }

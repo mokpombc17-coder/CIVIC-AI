@@ -53,6 +53,7 @@ export function ChatRoomScreen({ roomId }: { roomId: string }) {
     onNavigateToMessage: messageNavigation.navigateToMessage,
     roomActive: session.isActive,
     roomAvailable: content.room !== undefined,
+    sessionKind: realtime.sessionView.kind,
   });
   const outgoingMessages = useChatOutgoingMessages(roomId);
   const messageHistoryErrorVisible = content.messageHistory.feedback?.kind === "error";

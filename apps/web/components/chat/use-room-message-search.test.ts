@@ -99,6 +99,17 @@ describe("Room message search state", () => {
 
     expect(changed).toEqual(createInitialRoomMessageSearchState("room-02", 7));
   });
+
+  it("같은 방에서 generation만 바뀌면 검색어와 검색 session을 유지하고 결과만 새 generation으로 다시 받는다", () => {
+    const searched = reduce([{ type: "draft-changed", value: "회의록" }, { type: "submitted" }]);
+
+    const reconnected = reduce(
+      [{ type: "room-context-changed", roomId: "room-01", roomGeneration: 2 }],
+      searched,
+    );
+
+    expect(reconnected).toEqual({ ...searched, roomGeneration: 2 });
+  });
 });
 
 describe("Room message search error policy", () => {
