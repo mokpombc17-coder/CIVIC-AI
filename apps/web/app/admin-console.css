@@ -131,6 +131,11 @@
   margin-left: auto;
 }
 
+/* 수정이 잠긴 버튼은 흐리게 보이되, 누르면 잠긴 이유를 안내하도록 클릭은 받는다. */
+[data-wireflow-shell="admin"] .civic-detail-actions .civic-content-locked-action {
+  opacity: 0.5;
+}
+
 [data-wireflow-shell="admin"] .civic-user-summary-grid .civic-detail-fallback {
   color: var(--wf-muted);
   opacity: 0.55;
@@ -404,6 +409,11 @@
 [data-wireflow-layout="admin-task-console"] > .console-pane:last-child > .console-pane-body {
   flex: 1 1 auto;
   padding-bottom: 0;
+}
+
+/* 편집기 저장 버튼이 패널 하단에 붙지 않도록 아래 여유를 둔다. */
+[data-wireflow-layout="admin-task-console"] .civic-domain-form > .civic-form-actions {
+  padding-bottom: 32px;
 }
 
 @media (min-width: 1101px) {
