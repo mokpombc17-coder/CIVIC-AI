@@ -24,6 +24,7 @@ import {
   DocumentInspector,
   DocumentWorkspace,
   FolderTree,
+  effectiveRagVersionStatus,
   hasActiveRagDocuments,
   buildRagDocumentListPath,
   requestRagBulkAction,
@@ -1600,6 +1601,30 @@ describe("7 functional RAG screens", () => {
     expect(html).not.toContain("실패 파일 다시 처리");
   });
 
+  it("이전 시도가 실패한 재시도 대기 작업은 실패 대신 자동 재시도 예정을 안내한다", () => {
+    const html = renderToStaticMarkup(
+      createElement(RagJobStatusCard, {
+        filename: "재시도-대기.pdf",
+        job: {
+          job_id: "retry-wait-failed-job",
+          document_id: "retry-wait-document",
+          status: "RETRY_WAIT",
+          progress: 10,
+          failure_code: "PROCESSING_FAILED",
+        },
+        message: "",
+        onRetry: vi.fn(),
+        retrying: false,
+      }),
+    );
+
+    expect(html).toContain("자동 재시도 예정");
+    expect(html).toContain("이전 시도가 실패해 자동으로 다시 처리합니다.");
+    expect(html).not.toContain("문서 처리 실패");
+    expect(html).not.toContain("문서를 처리하지 못했습니다");
+    expect(html).not.toContain("실패 파일 다시 처리");
+  });
+
   it("다중 업로드 작업을 한 문서 준비 상태 화면에서 순차 이동한다", () => {
     const screen = ragScreens.find((item) => item.id === "A-RAG-005");
     if (!screen) throw new Error("A-RAG-005 missing");
@@ -1666,6 +1691,49 @@ describe("7 functional RAG screens", () => {
     expect(selectedDocumentVersionStatus(versions, "version-1")).toBe("SUCCEEDED");
     expect(selectedDocumentVersionStatus(versions, "version-2")).toBe("FAILED");
     expect(selectedDocumentVersionStatus(versions, "missing")).toBe("처리 대기");
+  });
+
+  it("버전이 FAILED여도 처리 작업이 자동 재시도 중이면 작업 상태로 보고 계속 갱신한다", () => {
+    const version = (jobStatus: string) => ({
+      document_version_id: `version-${jobStatus}`,
+      document_id: "document-1",
+      version_number: 2,
+      filename: "정책.pdf",
+      media_type: "application/pdf",
+      source_object_sha256: "c".repeat(64),
+      status: "FAILED",
+      job_id: `job-${jobStatus}`,
+      processing: { status: jobStatus, progress: 10, failure_code: "PROCESSING_FAILED" },
+    });
+    for (const jobStatus of ["RETRY_WAIT", "QUEUED", "RUNNING"]) {
+      expect(effectiveRagVersionStatus(version(jobStatus))).toBe(jobStatus);
+      expect(selectedDocumentVersionStatus([version(jobStatus)], `version-${jobStatus}`)).toBe(
+        jobStatus,
+      );
+      expect(
+        hasActiveRagDocuments([
+          {
+            document_id: "document-1",
+            folder_id: "folder-1",
+            filename: "정책.pdf",
+            deleted: false,
+            active_version: version(jobStatus),
+          },
+        ]),
+      ).toBe(true);
+    }
+    expect(effectiveRagVersionStatus(version("FAILED"))).toBe("FAILED");
+    expect(
+      hasActiveRagDocuments([
+        {
+          document_id: "document-1",
+          folder_id: "folder-1",
+          filename: "정책.pdf",
+          deleted: false,
+          active_version: version("FAILED"),
+        },
+      ]),
+    ).toBe(false);
   });
 
   it("문서 버전 조회의 전송·응답 해석 실패를 재시도 가능한 실패로 반환한다", async () => {

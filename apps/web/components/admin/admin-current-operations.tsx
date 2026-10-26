@@ -377,15 +377,20 @@ async function loadCurrentRagOperations(request: typeof fetch): Promise<Operatio
     const root = foldersValue.items.find(isRootFolder);
     if (!root) return { status: "unavailable" };
 
+    // 자동 재시도를 기다리는 문서는 버전이 FAILED라서 FAILED 목록에서 작업이 진행 중인 것만 고른다.
+    const statuses = ["PENDING", "PROCESSING", "FAILED"] as const;
     const responses = await Promise.all(
-      ["PENDING", "PROCESSING"].map((status) =>
+      statuses.map((status) =>
         request(currentRagDocumentPath(root.folder_id, status), { cache: "no-store" }),
       ),
     );
     const pages = await Promise.all(
-      responses.map(async (response) =>
-        response.ok ? readRagOperationPage(await response.json()) : null,
-      ),
+      responses.map(async (response, index) => {
+        if (!response.ok) return null;
+        const page = readRagOperationPage(await response.json());
+        // FAILED 전체 개수는 진행 중 작업 수가 아니므로 실제로 고른 항목 수만 센다.
+        return page && statuses[index] === "FAILED" ? { ...page, total: page.items.length } : page;
+      }),
     );
     const availablePages = pages.filter((page) => page !== null);
     if (!availablePages.length) return { status: "unavailable" };

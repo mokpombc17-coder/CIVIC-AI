@@ -286,9 +286,22 @@ export function canCancelRagUpload(job: RagJob | null): boolean {
   );
 }
 
+const RETRYING_RAG_JOB_STATES = new Set(["QUEUED", "RUNNING", "RETRY_WAIT"]);
+
+// 재시도할 수 있는 실패면 서버는 버전을 FAILED로 두고 처리 작업만 RETRY_WAIT로 다시 예약한다.
+// 작업이 아직 진행 중이면 버전의 FAILED 대신 작업 상태를 보여 실패로 오인하지 않게 한다.
+export function effectiveRagVersionStatus(
+  version: Pick<DocumentVersion, "status" | "processing"> | null | undefined,
+): string | undefined {
+  const jobStatus = version?.processing?.status;
+  if (version?.status === "FAILED" && jobStatus && RETRYING_RAG_JOB_STATES.has(jobStatus))
+    return jobStatus;
+  return version?.status;
+}
+
 export function hasActiveRagDocuments(documents: readonly RagDocument[]): boolean {
   return documents.some((document) => {
-    const status = document.active_version?.status;
+    const status = effectiveRagVersionStatus(document.active_version);
     return (
       status === undefined ||
       ["PENDING", "PROCESSING", "QUEUED", "RUNNING", "RETRY_WAIT"].includes(status)
@@ -959,8 +972,10 @@ export function DocumentInspector({
           <div>
             <dt>상태</dt>
             <dd>
-              <ConsoleBadge tone={ragStatusBadgeTone(version?.status ?? "처리 대기")}>
-                {documentStatusLabel(version?.status ?? "처리 대기")}
+              <ConsoleBadge
+                tone={ragStatusBadgeTone(effectiveRagVersionStatus(version) ?? "처리 대기")}
+              >
+                {documentStatusLabel(effectiveRagVersionStatus(version) ?? "처리 대기")}
               </ConsoleBadge>
             </dd>
           </div>
@@ -1460,7 +1475,7 @@ export function filterRagDocuments(
   return documents.filter((document) => {
     if (!displayRagFilename(document.filename).toLocaleLowerCase("ko-KR").includes(normalizedQuery))
       return false;
-    const documentStatus = document.active_version?.status ?? "PROCESSING";
+    const documentStatus = effectiveRagVersionStatus(document.active_version) ?? "PROCESSING";
     if (status === "ALL") return true;
     if (status === "READY") return ["ACTIVE", "READY", "SUCCEEDED"].includes(documentStatus);
     if (status === "FAILED") return documentStatus === "FAILED";
@@ -1893,8 +1908,9 @@ export function selectedDocumentVersionStatus(
   selectedVersionId: string,
 ): string {
   return (
-    versions.find((version) => version.document_version_id === selectedVersionId)?.status ??
-    "처리 대기"
+    effectiveRagVersionStatus(
+      versions.find((version) => version.document_version_id === selectedVersionId),
+    ) ?? "처리 대기"
   );
 }
 
@@ -2575,6 +2591,7 @@ export function RagJobStatusCard({
   const displayProgress = ragJobDisplayProgress(job);
   const failedStage = stages.find(([, state]) => state === "실패")?.[0];
   const failureMessage = ragJobFailureMessage(job?.failure_code);
+  const autoRetrying = job?.status === "RETRY_WAIT";
   const statusLabel = documentStatusLabel(job?.status ?? "");
   const displayFilename =
     (filename ?? job?.filename)?.trim() || (job ? "업로드한 문서" : "문서 정보 확인 중");
@@ -2622,7 +2639,15 @@ export function RagJobStatusCard({
           ))}
         </ol>
 
-        {failureMessage ? (
+        {failureMessage && autoRetrying ? (
+          <section aria-labelledby={failureTitleId} className="civic-job-failure is-retrying">
+            <span aria-hidden="true">↻</span>
+            <div>
+              <strong id={failureTitleId}>자동 재시도 예정</strong>
+              <p>이전 시도가 실패해 자동으로 다시 처리합니다.</p>
+            </div>
+          </section>
+        ) : failureMessage ? (
           <section aria-labelledby={failureTitleId} className="civic-job-failure">
             <span aria-hidden="true">!</span>
             <div>
