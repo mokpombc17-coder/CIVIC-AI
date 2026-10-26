@@ -340,6 +340,21 @@ describe("투표 AI 생성 작업", () => {
     });
   });
 
+  it("lease가 지나 다시 요청할 수 있어도 생성 중으로 표시하고 실패로 세지 않는다", () => {
+    const detail = voteDetail("vote-resendable", "PROCESSING");
+    detail.capabilities.canStartPreparation = true;
+    const operation = taskPreparationOperation(
+      detail as unknown as Parameters<typeof taskPreparationOperation>[0],
+      Date.parse("2026-09-05T01:05:00Z"),
+    );
+    expect(operation).toMatchObject({
+      stage: "생성 중",
+      attention: false,
+      failed: false,
+      meta: "AI 예상 답변 · 5분 경과 · 2회 시도",
+    });
+  });
+
   it("실패한 투표가 없으면 홈 경고를 렌더링하지 않는다", () => {
     const html = renderToStaticMarkup(
       createElement(AdminPreparationAlert, {

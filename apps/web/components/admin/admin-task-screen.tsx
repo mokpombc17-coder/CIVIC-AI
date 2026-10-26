@@ -1070,12 +1070,12 @@ export function TaskPreparationPanel({
   pending: boolean;
   onStart: () => void;
 }>) {
-  const presentation = taskPreparationPresentation(preparation, capabilities);
-  const actionLabel = pending ? "생성 요청 중…" : presentation.action;
   const processing = preparation?.status === "PROCESSING";
   const now = useNow(30_000, processing);
   const startedAt = parseTimestamp(preparation?.processingStartedAt);
   const delayed = processing && startedAt !== null && now - startedAt >= TASK_PREPARATION_DELAY_MS;
+  const presentation = taskPreparationPresentation(preparation, capabilities, { delayed });
+  const actionLabel = pending ? "생성 요청 중…" : presentation.action;
   return (
     <section
       aria-label="AI 예상 답변 생성"
@@ -1090,8 +1090,9 @@ export function TaskPreparationPanel({
       <p className="civic-preparation-description">{presentation.description}</p>
       {delayed ? (
         <p className="civic-preparation-description civic-preparation-delay">
-          생성 시간이 평소보다 오래 걸리고 있습니다. 계속 진행되지 않으면 운영 담당자에게 확인을
-          요청해 주세요.
+          {capabilities.canStartPreparation
+            ? "생성 시간이 평소보다 오래 걸리고 있습니다. 다시 요청해도 진행 중인 작업을 이어서 확인합니다."
+            : "생성 시간이 평소보다 오래 걸리고 있습니다. 계속 진행되지 않으면 운영 담당자에게 확인을 요청해 주세요."}
         </p>
       ) : null}
       {preparation ? (

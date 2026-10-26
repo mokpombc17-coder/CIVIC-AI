@@ -1,8 +1,12 @@
 import type { TaskCapabilities, TaskPreparationView } from "@/lib/admin/domain-contracts";
 
+// 실패는 서버의 FAILED/REJECTED 상태로만 표시한다. PROCESSING에서 canStartPreparation이
+// true가 되는 것은 Vote lease가 지나 같은 요청을 다시 보낼 수 있다는 뜻일 뿐 실패가 아니므로
+// "생성 중"을 유지하고, 지연 기준을 넘긴 뒤에만 다시 요청을 제공한다.
 export function taskPreparationPresentation(
   preparation: TaskPreparationView | null,
   capabilities: TaskCapabilities,
+  options: Readonly<{ delayed?: boolean }> = {},
 ): Readonly<{
   label: string;
   description: string;
@@ -37,7 +41,7 @@ export function taskPreparationPresentation(
         ? "현재 내용으로 생성할 수 없습니다. 오류 원인을 확인하고 투표 내용을 수정해 주세요."
         : "현재 내용으로 생성할 수 없습니다. 오류 원인과 투표 상태를 확인해 주세요.",
     };
-  if (preparation.status === "FAILED" || capabilities.canStartPreparation)
+  if (preparation.status === "FAILED")
     return {
       label: "재시도 필요",
       tone: "attention",
@@ -49,7 +53,7 @@ export function taskPreparationPresentation(
   return {
     label: "생성 중",
     tone: "running",
-    action: null,
+    action: options.delayed && capabilities.canStartPreparation ? "다시 요청" : null,
     description:
       "AI 예상 답변을 생성하고 있습니다. 상태는 자동으로 갱신되며, 다른 화면으로 이동해도 작업은 계속됩니다.",
   };
