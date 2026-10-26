@@ -143,6 +143,8 @@ export function useRoomMessageContext(
   const operationGenerationRef = useRef(0);
   const loadingDirectionsRef = useRef(new Set<RoomMessageContextDirection>());
   const viewportAnchorRef = useRef<RoomMessageViewportAnchor | null>(null);
+  const missedUpdatesRef = useRef(false);
+  const restoreCountRef = useRef(0);
   // 연결이 끊긴 동안과 재연결 직후 복원 선택을 만들기 전까지는 generation이 달라도 이전 선택을 그대로 보여 줌
   // 여기서 선택을 비우면 보던 대화가 닫혀 최신 대화가 잠깐 보인 뒤 복원되므로 화면이 깜빡임
   const isCurrentSelection =
@@ -378,32 +380,42 @@ export function useRoomMessageContext(
 
   useEffect(() => {
     const currentSelection = selectionRef.current;
+    const lifecycle = resolveRoomMessageNavigationLifecycle({
+      enabled,
+      generation,
+      missedUpdates: missedUpdatesRef.current,
+      roomId,
+      searchSessionGeneration,
+      selection: currentSelection,
+    });
 
-    if (
-      currentSelection !== null &&
-      currentSelection.roomId === roomId &&
-      currentSelection.searchSessionGeneration === searchSessionGeneration
-    ) {
-      // 연결이 끊긴 동안과 같은 generation으로 다시 연결된 뒤에는 보던 대화를 그대로 이어 감
-      // 같은 generation이면 끊긴 사이 메시지를 실시간 복구가 채우므로 대화를 다시 받지 않음
-      if (!enabled || currentSelection.generation === generation) {
-        return;
-      }
+    if (lifecycle === "hold") {
+      missedUpdatesRef.current = true;
+      return;
+    }
 
-      // 재연결로 generation이 바뀌면 끊긴 사이 수정·삭제를 놓쳤을 수 있어 이전 대화를 그대로 쓰지 않음
-      // 끊기기 전 보던 메시지 주변을 새로 받아 같은 높이로 돌아감
+    if (lifecycle === "keep") {
+      return;
+    }
+
+    missedUpdatesRef.current = false;
+
+    if (lifecycle === "restore" && currentSelection !== null) {
+      restoreCountRef.current += 1;
       const restoredSelection = createRestoredRoomMessageNavigationSelection({
         anchor: viewportAnchorRef.current,
         contextMessages: contextMessagesRef.current,
         generation,
         liveMessages: liveMessagesRef.current,
+        restoreId: `restored-${restoreCountRef.current}`,
         selection: currentSelection,
       });
       operationGenerationRef.current += 1;
       loadingDirectionsRef.current.clear();
       viewportAnchorRef.current = null;
-      // 이전 generation 대화만 지움. 비동기로 지우는 방식은 곧 만들어질 복원 대화까지 지울 수 있음
-      removeStaleRoomMessageContextQueries(queryClient, roomId, generation);
+      // 같은 generation이면 이전 대화가 같은 query key로 남아 새로 받지 않고 재사용될 수 있으므로 모두 지움
+      // 복원 선택을 넣기 전에 동기로 지움. 비동기로 지우면 곧 만들어질 복원 대화까지 지울 수 있음
+      removeRoomMessageContextQueries(queryClient, roomId);
       setSelection(restoredSelection);
       dispatchExtension({
         type: "reset",
@@ -604,20 +616,60 @@ function getRoomMessageContextQueryGeneration(queryKey: QueryKey): number | null
   return typeof criteria.generation === "number" ? criteria.generation : null;
 }
 
+export type RoomMessageNavigationLifecycle = "hold" | "keep" | "restore" | "reset";
+
+// 방 세션 상태가 바뀔 때 이동 선택을 어떻게 할지 정함
+// - hold: 연결이 끊긴 동안에는 보던 대화를 그대로 두고 다시 연결된 뒤 복원함
+// - keep: 끊긴 적 없이 같은 generation이면 그대로 둠
+// - restore: 다시 연결되면 끊긴 사이 수정·삭제를 놓쳤을 수 있어 보던 위치 주변을 새로 받음
+//   같은 generation이어도 실시간 복구는 실시간 목록만 다시 받으므로 이동한 대화는 따로 새로 받아야 함
+// - reset: 방이나 검색 session이 바뀌었거나 선택이 없으면 비움
+export function resolveRoomMessageNavigationLifecycle({
+  enabled,
+  generation,
+  missedUpdates,
+  roomId,
+  searchSessionGeneration,
+  selection,
+}: Readonly<{
+  enabled: boolean;
+  generation: number;
+  missedUpdates: boolean;
+  roomId: string;
+  searchSessionGeneration: number;
+  selection: RoomMessageNavigationSelection | null;
+}>): RoomMessageNavigationLifecycle {
+  if (
+    selection === null ||
+    selection.roomId !== roomId ||
+    selection.searchSessionGeneration !== searchSessionGeneration
+  ) {
+    return "reset";
+  }
+
+  if (!enabled) {
+    return "hold";
+  }
+
+  return missedUpdates || selection.generation !== generation ? "restore" : "keep";
+}
+
 // 재연결로 다시 연 이동한 대화를 만듦
-// 실시간 목록은 재연결 뒤에도 이어지므로 그대로 두고, 이동한 대화는 끊기기 전 화면 맨 위 메시지 주변을 새로 받음
+// 실시간 목록은 재연결 때 실시간 복구가 다시 받으므로 그대로 두고, 이동한 대화는 끊기기 전 화면 맨 위 메시지 주변을 새로 받음
 // 그 메시지가 이미 실시간 목록에 있으면 실시간 목록에서 같은 높이로 돌아감
 export function createRestoredRoomMessageNavigationSelection({
   anchor,
   contextMessages,
   generation,
   liveMessages,
+  restoreId,
   selection,
 }: Readonly<{
   anchor: RoomMessageViewportAnchor | null;
   contextMessages: readonly ChatMessage[];
   generation: number;
   liveMessages: readonly Pick<ChatMessage, "messageId">[];
+  restoreId: string;
   selection: RoomMessageNavigationSelection;
 }>): RoomMessageNavigationSelection {
   if (selection.kind === "live") {
@@ -634,7 +686,8 @@ export function createRestoredRoomMessageNavigationSelection({
   const restoreMessageId = anchorMessage?.messageId ?? selection.contextMessageId;
   const restoreBase = {
     anchor: anchorMessage ? anchor : null,
-    id: `restored-${generation}`,
+    // 같은 generation에서 여러 번 복원해도 timeline key가 겹치지 않도록 복원마다 다른 id를 씀
+    id: restoreId,
     previousTimelineKey: createRoomMessageNavigationTimelineKey(selection),
   };
   const selectionBase: RoomMessageNavigationSelectionBase = {
@@ -672,17 +725,11 @@ export function createRoomMessageNavigationTimelineKey(
   return selection.restore === null ? key : `${key}:${selection.restore.id}`;
 }
 
-function removeStaleRoomMessageContextQueries(
-  queryClient: QueryClient,
-  roomId: string,
-  generation: number,
-): void {
+function removeRoomMessageContextQueries(queryClient: QueryClient, roomId: string): void {
   const queryKey = chatRoomQueryKeys.messageContextsForRoom(roomId);
-  const isStale = (query: Readonly<{ queryKey: QueryKey }>) =>
-    getRoomMessageContextQueryGeneration(query.queryKey) !== generation;
 
-  void queryClient.cancelQueries({ predicate: isStale, queryKey });
-  queryClient.removeQueries({ predicate: isStale, queryKey });
+  void queryClient.cancelQueries({ queryKey });
+  queryClient.removeQueries({ queryKey });
 }
 
 export async function discardRoomMessageContextQueries(

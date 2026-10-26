@@ -490,15 +490,17 @@ Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 
 `searchComplete`가 될 때까지 건너뛴다. 명시적인 취소나 Room 종료 시에는 검색 session을 정리하고
 panel을 닫는다. 연결이 끊기거나(자동 재연결 중 잠깐 거치는 연결 오류 포함) 다른 탭·기기에 사용권을
 넘긴 동안에는 검색을 유지하고,
-같은 Room에서 generation이 바뀌면 적용된 query와 선택한 결과를 유지한 채 결과만 새 generation으로 다시
+다시 활성화되면 적용된 query와 선택한 결과를 유지한 채 결과만 다시 조회한다. 끊긴 사이의 수정·삭제는
+실시간 이벤트로 다시 오지 않으므로 generation이 같아도 다시 조회하고, generation이 바뀌면 새 generation으로
 조회한다. 이때는 현재 결과로 자동 이동하지 않아 메시지 이동 controller의 위치 복원을 덮어쓰지 않는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한 메시지의
 위치를 live message history, 현재 Context window, 같은 Room generation의 캐시된 Context 순서로
 찾는다. 찾은 window에서는 API 요청 없이 target만 바꾸고, 캐시에 없을 때 선택한 메시지를 중심으로 새
-Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room이나 실시간
-generation이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사용할 수 있게 한다. 연결이 끊기거나 다른
-탭에 사용권을 넘겨 Room session이 잠시 비활성화되어도 이동 선택을 유지하고, 같은 generation으로
-돌아오면 그대로 이어 간다. generation이 바뀌면 `ChatMessageViewport`가 스크롤 위치가 정해질 때마다
-`onViewportAnchorSettled`로 알린 화면 맨 위 메시지 주변 Context를 새 generation으로 다시 조회한다.
+Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room이 바뀌거나
+재연결로 복원할 때 정리해 겹치는 검색 결과가 window를 재사용할 수 있게 한다. 연결이 끊기거나 다른
+탭에 사용권을 넘겨 Room session이 잠시 비활성화되어도 이동 선택을 유지한다. 다시 활성화되면
+generation이 같아도 `ChatMessageViewport`가 스크롤 위치가 정해질 때마다 `onViewportAnchorSettled`로
+알린 화면 맨 위 메시지 주변 Context를 다시 조회한다. 실시간 복구는 live history의 불러온 page만 다시
+받으므로, 끊긴 사이의 수정·삭제를 Context에 반영하려면 따로 다시 조회해야 한다.
 조회하는 동안에는 이전 메시지와 timeline key를 유지해 화면을 움직이지 않고, 도착하면 새 timeline으로
 바꿔 같은 높이의 `anchor` 초기 위치로 맞춘다. 그 메시지가 이미 live history에 있으면 live 이동으로
 복원하고, 조회에 실패하면 이전 메시지를 내리고 Context 오류와 재시도를 보여 준다.

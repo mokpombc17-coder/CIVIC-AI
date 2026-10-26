@@ -5,6 +5,7 @@ import {
   createRestoredRoomMessageNavigationSelection,
   createRoomMessageContextExtensionState,
   createRoomMessageNavigationTimelineKey,
+  resolveRoomMessageNavigationLifecycle,
   discardRoomMessageContextQueries,
   extendRoomMessageContextResponse,
   findCachedRoomMessageContextTarget,
@@ -211,6 +212,58 @@ describe("Room message navigation restore", () => {
   } as const satisfies RoomMessageNavigationSelection;
   const contextMessages = [createMessage(10), createMessage(11), createMessage(12)];
 
+  it.each([
+    {
+      expected: "hold",
+      input: { enabled: false, generation: 1, missedUpdates: false },
+      label: "연결이 끊긴 동안에는 보던 대화를 그대로 둔다",
+    },
+    {
+      expected: "keep",
+      input: { enabled: true, generation: 1, missedUpdates: false },
+      label: "끊긴 적 없이 같은 generation이면 그대로 둔다",
+    },
+    {
+      expected: "restore",
+      input: { enabled: true, generation: 1, missedUpdates: true },
+      label: "같은 generation이어도 끊겼다 돌아오면 보던 위치 주변을 새로 받는다",
+    },
+    {
+      expected: "restore",
+      input: { enabled: true, generation: 2, missedUpdates: false },
+      label: "generation이 바뀌면 보던 위치 주변을 새로 받는다",
+    },
+  ] as const)("$label", ({ expected, input }) => {
+    expect(
+      resolveRoomMessageNavigationLifecycle({
+        ...input,
+        roomId: "room-01",
+        searchSessionGeneration: 0,
+        selection: contextSelection,
+      }),
+    ).toBe(expected);
+  });
+
+  it("선택이 없거나 방이 바뀌면 이동 선택을 비운다", () => {
+    const base = {
+      enabled: true,
+      generation: 1,
+      missedUpdates: true,
+      searchSessionGeneration: 0,
+    };
+
+    expect(
+      resolveRoomMessageNavigationLifecycle({ ...base, roomId: "room-01", selection: null }),
+    ).toBe("reset");
+    expect(
+      resolveRoomMessageNavigationLifecycle({
+        ...base,
+        roomId: "room-02",
+        selection: contextSelection,
+      }),
+    ).toBe("reset");
+  });
+
   it("재연결하면 끊기기 전 화면 맨 위 메시지 주변을 새 generation으로 다시 열고 원래 대상은 유지한다", () => {
     const anchor = {
       offsetFromViewportTop: -24,
@@ -220,6 +273,7 @@ describe("Room message navigation restore", () => {
       anchor,
       contextMessages,
       generation: 2,
+      restoreId: "restored-1",
       liveMessages: [createMessage(40)],
       selection: contextSelection,
     });
@@ -236,7 +290,7 @@ describe("Room message navigation restore", () => {
       },
       targetMessageId: "message-11",
     });
-    expect(createRoomMessageNavigationTimelineKey(restored)).toBe("context:message-11:restored-2");
+    expect(createRoomMessageNavigationTimelineKey(restored)).toBe("context:message-11:restored-1");
   });
 
   it("보던 위치를 모르면 원래 이동 위치 주변을 다시 연다", () => {
@@ -244,6 +298,7 @@ describe("Room message navigation restore", () => {
       anchor: { offsetFromViewportTop: 0, renderKey: "client-message-missing" },
       contextMessages,
       generation: 2,
+      restoreId: "restored-1",
       liveMessages: [],
       selection: contextSelection,
     });
@@ -264,6 +319,7 @@ describe("Room message navigation restore", () => {
       anchor,
       contextMessages,
       generation: 2,
+      restoreId: "restored-1",
       liveMessages: [createMessage(12), createMessage(13)],
       selection: contextSelection,
     });
@@ -289,6 +345,7 @@ describe("Room message navigation restore", () => {
       anchor: null,
       contextMessages: [],
       generation: 2,
+      restoreId: "restored-1",
       liveMessages: [createMessage(40)],
       selection: liveSelection,
     });

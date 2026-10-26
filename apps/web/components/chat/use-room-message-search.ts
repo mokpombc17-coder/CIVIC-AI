@@ -196,6 +196,7 @@ export function useRoomMessageSearch(
   );
   const automaticRateLimitRetryAttemptedRef = useRef(false);
   const suppressedRateLimitErrorRef = useRef<unknown>(null);
+  const missedUpdatesRef = useRef(false);
   const isCurrentRoomContext = state.roomId === roomId && state.roomGeneration === generation;
   const queryEnabled = enabled && isCurrentRoomContext && state.appliedQuery !== undefined;
   const normalizedLimit = limit;
@@ -267,6 +268,27 @@ export function useRoomMessageSearch(
     suppressedRateLimitErrorRef.current = null;
     dispatch({ type: "room-context-changed", roomId, roomGeneration: generation });
   }, [discardActiveQuery, generation, isCurrentRoomContext, roomId]);
+
+  const hasLoadedResults = query.data !== undefined;
+
+  // 연결이 끊긴 동안 놓친 수정·삭제는 실시간 이벤트로 다시 오지 않으므로 다시 활성화되면 결과를 새로 받음
+  // generation이 바뀌면 query key가 바뀌어 처음부터 새로 받으므로 이미 받은 결과가 있을 때만 다시 받음
+  useEffect(() => {
+    if (!enabled) {
+      missedUpdatesRef.current = state.appliedQuery !== undefined;
+      return;
+    }
+
+    if (!missedUpdatesRef.current || !queryEnabled) {
+      return;
+    }
+
+    missedUpdatesRef.current = false;
+
+    if (hasLoadedResults) {
+      void refetchRef.current();
+    }
+  }, [enabled, hasLoadedResults, queryEnabled, state.appliedQuery]);
 
   useEffect(() => {
     if (
