@@ -61,6 +61,10 @@ export type ChatMessageOlderHistoryEvent =
       type: "load-older-failed";
     }>
   | Readonly<{
+      type: "load-older-cancelled";
+      hasOlderMessages: boolean;
+    }>
+  | Readonly<{
       type: "older-availability-changed";
       hasOlderMessages: boolean;
     }>
@@ -132,6 +136,17 @@ export function reduceChatMessageOlderHistory(
       return {
         ...state,
         status: "error",
+      };
+
+    case "load-older-cancelled":
+      // 진행 중인 요청이 없으면 오류 등 지금 상태를 그대로 둠
+      if (state.status !== "loading") {
+        return state;
+      }
+
+      return {
+        ...state,
+        status: event.hasOlderMessages ? "idle" : "exhausted",
       };
 
     case "older-availability-changed": {

@@ -126,6 +126,12 @@ export function useChatMessageViewportOlderHistory({
       pendingAnchorRef.current = null;
 
       if (preserved) {
+        // 같은 방에서 재연결되면 위치는 유지하지만 요청 때 viewportKey와 달라져 진행 중이던 응답은 버려짐
+        // 상태를 loading에 남기면 다음 불러오기가 막히므로 진행 중인 요청을 취소한 것으로 정리함
+        dispatch({
+          type: "load-older-cancelled",
+          hasOlderMessages: canLoadOlder,
+        });
         return;
       }
 

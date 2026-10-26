@@ -84,6 +84,46 @@ describe("useChatMessageViewportOlderHistory", () => {
     });
     expect(anchorRenderedCount(dispatchPosition)).toBe(countAfterResponse + 1);
   });
+
+  it("요청 중 같은 방에서 재연결돼 응답이 버려져도 다음 과거 이력을 다시 요청한다", async () => {
+    const firstPage = createDeferred<Readonly<{ hasOlderMessages: boolean }>>();
+    const onLoadOlder = vi
+      .fn<HookParams["onLoadOlder"]>()
+      .mockReturnValueOnce(firstPage.promise)
+      .mockResolvedValueOnce({ hasOlderMessages: true });
+    const { params } = createParams({
+      items: [createItem("m-02"), createItem("m-03")],
+      onLoadOlder,
+    });
+    const { result, rerender } = renderHook(
+      (props: HookParams) => useChatMessageViewportOlderHistory(props),
+      { initialProps: params },
+    );
+
+    let firstLoad: Promise<void> | undefined;
+    act(() => {
+      firstLoad = result.current.loadOlderMessages();
+    });
+
+    // 재연결로 generation이 바뀌었지만 같은 방이라 위치를 유지함
+    const reconnectedViewportKey = "room-01:2";
+    params.scrollElementRef.current!.dataset.viewportKey = reconnectedViewportKey;
+    act(() => {
+      result.current.handleViewportChanged({ preserved: true });
+    });
+    rerender({ ...params, viewportKey: reconnectedViewportKey });
+
+    await act(async () => {
+      firstPage.resolve({ hasOlderMessages: true });
+      await firstLoad;
+    });
+    expect(result.current.isLoadingOlder).toBe(false);
+
+    await act(async () => {
+      await result.current.loadOlderMessages();
+    });
+    expect(onLoadOlder).toHaveBeenCalledTimes(2);
+  });
 });
 
 function createParams({
