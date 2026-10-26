@@ -56,19 +56,15 @@ describe("AI 예상 답변 생성 패널", () => {
     expect(html).not.toContain("오래 걸리고");
     expect(html).not.toContain("<button");
   });
-  it("30분 지연 뒤에는 생성 중을 유지하며 다시 요청을 제공한다", () => {
+  it("30분 지연돼도 진행 중에는 재시도 버튼 없이 생성 중과 운영 확인만 안내한다", () => {
     const startedAt = new Date(Date.now() - 40 * 60_000).toISOString();
-    const html = render("PROCESSING", true, false, startedAt);
-    expect(html).toContain(">생성 중</span>");
-    expect(html).not.toContain("재시도 필요");
-    expect(html).toContain("다시 요청해도 진행 중인 작업을 이어서 확인합니다.");
-    expect(html).toContain(">다시 요청</button>");
-  });
-  it("지연됐어도 서버가 재요청을 허용하지 않으면 운영 확인만 안내한다", () => {
-    const startedAt = new Date(Date.now() - 40 * 60_000).toISOString();
-    const html = render("PROCESSING", false, false, startedAt);
-    expect(html).toContain("운영 담당자에게 확인을 요청해 주세요.");
-    expect(html).not.toContain("<button");
+    for (const canStart of [true, false]) {
+      const html = render("PROCESSING", canStart, false, startedAt);
+      expect(html).toContain(">생성 중</span>");
+      expect(html).not.toContain("재시도 필요");
+      expect(html).toContain("운영 담당자에게 확인을 요청해 주세요.");
+      expect(html).not.toContain("<button");
+    }
   });
   it("실패 원인은 접힌 상세로 보여주고 요청 중에는 중복 클릭을 막는다", () => {
     const html = render("FAILED", true, true);

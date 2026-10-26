@@ -416,18 +416,15 @@ export function taskPreparationOperation(
     !["PROCESSING", "FAILED", "REJECTED"].includes(preparation.status)
   )
     return null;
+  const presentation = taskPreparationPresentation(preparation, detail.capabilities);
   const attempts = `${preparation.attemptCount.toLocaleString("ko-KR")}회 시도`;
   const updatedAt = parseTimestamp(preparation.updatedAt);
-  const startedAt = parseTimestamp(preparation.processingStartedAt) ?? updatedAt;
-  const delayed =
-    preparation.status === "PROCESSING" &&
-    startedAt !== null &&
-    now - startedAt >= TASK_PREPARATION_DELAY_MS;
-  const presentation = taskPreparationPresentation(preparation, detail.capabilities, { delayed });
   let stage = presentation.label;
   let meta: string;
   let attention = true;
   if (preparation.status === "PROCESSING") {
+    const startedAt = parseTimestamp(preparation.processingStartedAt) ?? updatedAt;
+    const delayed = startedAt !== null && now - startedAt >= TASK_PREPARATION_DELAY_MS;
     stage = delayed ? "생성 지연" : presentation.label;
     attention = delayed;
     meta = `AI 예상 답변 · ${startedAt === null ? "경과 시간 확인 불가" : `${elapsedLabel(startedAt, now)} 경과`} · ${attempts}`;

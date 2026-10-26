@@ -1524,7 +1524,7 @@ for (const width of [394, 1440]) {
 }
 
 for (const width of [394, 1440]) {
-  test(`다시 요청할 수 있는 생성 작업도 실패가 아닌 생성 중으로 보여준다 (${width}px)`, async ({
+  test(`lease가 지난 생성 작업도 재시도 없이 생성 중으로 보여준다 (${width}px)`, async ({
     context,
     page,
   }) => {
@@ -1544,10 +1544,11 @@ for (const width of [394, 1440]) {
     preparationStartedMinutesAgo = 40;
     await page.reload();
     await expect(panel.getByRole("status")).toHaveText("생성 중");
-    await expect(panel).toContainText("다시 요청해도 진행 중인 작업을 이어서 확인합니다.");
+    await expect(panel).toContainText("운영 담당자에게 확인을 요청해 주세요.");
     await expect(panel).not.toContainText("재시도 필요");
+    await expect(panel.getByRole("button")).toHaveCount(0);
     await panel.screenshot({
-      path: `e2e/.artifacts/wireflow-results/ai-preparation-delayed-resend-${width}.png`,
+      path: `e2e/.artifacts/wireflow-results/ai-preparation-delayed-${width}.png`,
     });
 
     await page.goto("/admin");
@@ -1559,9 +1560,6 @@ for (const width of [394, 1440]) {
       page.getByRole("alert").filter({ hasText: "AI 예상 답변 생성에 실패한 투표" }),
     ).toHaveCount(0);
 
-    await page.goto(detailUrl);
-    await panel.getByRole("button", { name: "다시 요청", exact: true }).click();
-    await expect.poll(() => preparationRequests).toBe(2);
-    await expect(panel.getByRole("status")).toHaveText("생성 중");
+    expect(preparationRequests).toBe(1);
   });
 }
