@@ -3178,6 +3178,23 @@
   line-height: 1.55;
 }
 
+[data-wireflow-layout="rag-job-status"] .civic-job-failure.is-retrying {
+  border-left-color: #2e90fa;
+  background: #eff8ff;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure.is-retrying > span {
+  background: #2e90fa;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure.is-retrying strong {
+  color: #175cd3;
+}
+
+[data-wireflow-layout="rag-job-status"] .civic-job-failure.is-retrying p {
+  color: #344054;
+}
+
 [data-wireflow-layout="rag-job-status"] .civic-job-live-message {
   margin: 0;
   color: #667085;

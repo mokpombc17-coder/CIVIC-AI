@@ -49,6 +49,16 @@ describe("admin current operations", () => {
           total: 1,
         });
       }
+      if (url.includes("status=FAILED")) {
+        // 자동 재시도 대기 문서는 버전이 FAILED여도 작업은 진행 중이고, 끝난 실패는 제외된다.
+        return Response.json({
+          items: [
+            failedRagDocument("document-retry", "재시도.pdf", "RETRY_WAIT"),
+            failedRagDocument("document-failed", "실패.pdf", "FAILED"),
+          ],
+          total: 7,
+        });
+      }
       return new Response(null, { status: 404 });
     });
 
@@ -58,13 +68,17 @@ describe("admin current operations", () => {
       request: request as typeof fetch,
     });
 
-    expect(result.total).toBe(3);
+    expect(result.total).toBe(4);
     expect(result.unavailableSources).toEqual([]);
     expect(result.items.map((item) => item.title)).toEqual([
       "색인중.hwpx",
+      "재시도.pdf",
       "처리대기.pdf",
       "지역 교통정책 조사",
     ]);
+    expect(result.items.find((item) => item.title === "재시도.pdf")).toMatchObject({
+      stage: "재시도 대기",
+    });
     expect(result.items.find((item) => item.kind === "simulation")).toMatchObject({
       href: `/admin/simulations/status?simulationId=${simulationId}`,
       progressPercent: 68,
@@ -84,6 +98,7 @@ describe("admin current operations", () => {
         expect.stringContaining(`folder_id=${rootFolderId}&include_subfolders=true`),
         expect.stringContaining("status=PENDING"),
         expect.stringContaining("status=PROCESSING"),
+        expect.stringContaining("status=FAILED"),
       ]),
     );
   });
@@ -186,6 +201,19 @@ function ragDocument(id: string, filename: string, status: string, progress: num
       status: status === "QUEUED" ? "PENDING" : "PROCESSING",
       job_id: `job-${id}`,
       processing: { status, progress, failure_code: null },
+    },
+  };
+}
+
+function failedRagDocument(id: string, filename: string, jobStatus: string) {
+  const document = ragDocument(id, filename, jobStatus, 30);
+  return {
+    ...document,
+    updated_at: "2026-08-29T11:01:30Z",
+    active_version: {
+      ...document.active_version,
+      status: "FAILED",
+      processing: { status: jobStatus, progress: 30, failure_code: "PROCESSING_FAILED" },
     },
   };
 }

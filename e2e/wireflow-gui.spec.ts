@@ -204,6 +204,8 @@ test.beforeAll(async () => {
         upload_cancel_allowed: true,
         status: "RETRY_WAIT",
         progress: 10,
+        // 재시도할 수 있는 실패 뒤 자동 재시도를 기다리는 작업이다.
+        failure_code: "PROCESSING_FAILED",
       });
     }
     if (
@@ -1276,6 +1278,28 @@ test("A-RAG-001은 처리 상태 자동 갱신 중 기존 문서 표를 유지�
   expect(userLabelRequestCount).toBe(1);
 });
 
+test("A-RAG 자동 재시도 대기 작업은 실패 대신 재시도 예정으로 안내한다", async ({
+  context,
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await authenticate(context, "admin.payload.signature");
+
+  await page.goto(
+    "/admin/rag/jobs?jobId=job-retry-wait-1&filename=downloads-02.hwpx&folderId=general",
+  );
+  await expect(page.locator(".civic-job-document").getByText("재시도 대기")).toBeVisible();
+  await expect(page.getByText("자동 재시도 예정", { exact: true })).toBeVisible();
+  await expect(
+    page.getByText("이전 시도가 실패해 자동으로 다시 처리합니다.", { exact: true }),
+  ).toBeVisible();
+  await expect(page.getByText("문서 처리 실패", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "실패 파일 다시 처리" })).toHaveCount(0);
+  await page.locator(".civic-job-panel").screenshot({
+    path: "e2e/.artifacts/wireflow-results/rag-retry-wait-job.png",
+  });
+});
+
 test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층을 유지한다", async ({
   context,
   page,
@@ -1374,6 +1398,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
     "/admin/rag/jobs?jobId=job-retry-wait-1&filename=downloads-02.hwpx&folderId=general",
   );
   await expect(page.locator(".civic-job-status-badge", { hasText: "재시도 대기" })).toBeVisible();
+  await expect(page.getByText("자동 재시도 예정", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "업로드 취소" })).toBeVisible();
   const retryWaitCancellationRequestPromise = page.waitForRequest(
     (request) =>
