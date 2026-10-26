@@ -34,6 +34,7 @@ let progressSubmissionCount = 3;
 let progressRequests = 0;
 let preparationStatus: "PROCESSING" | "READY" | "FAILED" | null = null;
 let preparationRequests = 0;
+let cancelRequests = 0;
 let preparationStartedMinutesAgo = 5;
 let preparationResendableWhileProcessing = false;
 let scenarioListEmpty = false;
@@ -291,6 +292,17 @@ test.beforeAll(async () => {
         { "Cache-Control": "no-store" },
       );
     }
+    if (url.pathname === `/api/v1/admin/tasks/${taskId}/cancel` && request.method === "POST") {
+      cancelRequests += 1;
+      task = {
+        ...task,
+        status: "CLOSED",
+        closedAt: "2026-08-26T03:00:00Z",
+        closureType: "CANCELLED",
+        updatedAt: "2026-08-26T03:00:00Z",
+      };
+      return json(response, task);
+    }
     if (url.pathname === `/api/v1/admin/tasks/${taskId}/open-now` && request.method === "POST") {
       task = {
         ...task,
@@ -328,6 +340,7 @@ test.beforeEach(() => {
   progressRequests = 0;
   preparationStatus = null;
   preparationRequests = 0;
+  cancelRequests = 0;
   preparationStartedMinutesAgo = 5;
   preparationResendableWhileProcessing = false;
 });
@@ -1165,7 +1178,7 @@ function categoryFixture(categoryId: string, name: string, version: number) {
   };
 }
 
-function taskFixture(status: "DRAFT" | "OPEN", title = "기존 정책 투표") {
+function taskFixture(status: "DRAFT" | "OPEN" | "CLOSED", title = "기존 정책 투표") {
   return {
     id: taskId,
     title,
@@ -1184,7 +1197,7 @@ function taskFixture(status: "DRAFT" | "OPEN", title = "기존 정책 투표") {
     publishedAt: null,
     openedAt: null,
     closedAt: null,
-    closureType: null,
+    closureType: null as string | null,
     createdAt: "2026-08-26T02:00:00Z",
     updatedAt: "2026-08-26T02:00:00Z",
   };
@@ -1672,4 +1685,33 @@ test("AI 예상 답변 생성 뒤 잠긴 내용 수정은 이유와 새 투표 �
   await dialog.getByRole("button", { name: "새 투표 만들기", exact: true }).click();
   await expect(page).toHaveURL("/admin/tasks/create");
   await expect(page.getByRole("button", { name: "초안 저장", exact: true })).toBeVisible();
+});
+
+test("작성 중 투표는 상세의 투표 취소 버튼과 확인 다이얼로그로 취소한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  preparationStatus = "READY";
+  await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
+  const cancel = page.getByRole("button", { name: "투표 취소", exact: true });
+  await expect(cancel).toBeVisible();
+  await page.locator(".civic-detail-actions").screenshot({
+    path: "e2e/.artifacts/wireflow-results/task-cancel-button.png",
+  });
+  await cancel.click();
+  const dialog = page.getByRole("alertdialog", { name: "투표를 취소할까요?" });
+  await expect(dialog).toContainText("되돌릴 수 없으며");
+  await dialog.screenshot({ path: "e2e/.artifacts/wireflow-results/task-cancel-dialog.png" });
+  await dialog.getByRole("button", { name: "닫기", exact: true }).click();
+  expect(cancelRequests).toBe(0);
+
+  await cancel.click();
+  await page
+    .getByRole("alertdialog", { name: "투표를 취소할까요?" })
+    .getByRole("button", { name: "투표 취소", exact: true })
+    .click();
+  await expect.poll(() => cancelRequests).toBe(1);
+  await expect(page.getByRole("button", { name: "투표 취소", exact: true })).toHaveCount(0);
 });

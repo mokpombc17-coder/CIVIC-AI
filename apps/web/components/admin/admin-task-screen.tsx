@@ -661,6 +661,7 @@ function TaskOverviewTab({
   const [preparationRefreshPending, setPreparationRefreshPending] = useState(false);
   const [preparationConfirmOpen, setPreparationConfirmOpen] = useState(false);
   const [contentLockedOpen, setContentLockedOpen] = useState(false);
+  const [cancelConfirmOpen, setCancelConfirmOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
   const [closePending, setClosePending] = useState(false);
   const [closeProblem, setCloseProblem] = useState<AdminProblem | null>(null);
@@ -887,6 +888,16 @@ function TaskOverviewTab({
                 조기 종료
               </button>
             ) : null}
+            {lifecycleActions(task.status).includes("cancel") ? (
+              <button
+                className="civic-danger-action"
+                disabled={pending}
+                onClick={() => setCancelConfirmOpen(true)}
+                type="button"
+              >
+                투표 취소
+              </button>
+            ) : null}
             {task.question ? (
               <Link
                 className="wf-button wf-button-secondary"
@@ -997,6 +1008,26 @@ function TaskOverviewTab({
             }}
             open={contentLockedOpen}
             title="내용을 수정할 수 없습니다"
+          />
+          <ConfirmDialog
+            busy={pending}
+            busyLabel="최신 상태 확인 중…"
+            cancelLabel="닫기"
+            confirmLabel="투표 취소"
+            description={
+              <p>
+                취소하면 투표가 종료되고 종료 유형이 &apos;취소&apos;로 기록됩니다. 되돌릴 수
+                없으며, 목록에서는 &apos;종료&apos;에 남습니다.
+              </p>
+            }
+            destructive
+            onCancel={() => setCancelConfirmOpen(false)}
+            onConfirm={() => {
+              setCancelConfirmOpen(false);
+              void mutate("cancel", { closesAt: "", opensAt: "", reason: "" });
+            }}
+            open={cancelConfirmOpen}
+            title="투표를 취소할까요?"
           />
           <LifecyclePanel
             capabilities={detail.capabilities}
