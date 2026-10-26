@@ -188,7 +188,9 @@ test("재진입 시 저장된 읽음 위치로 바로 이동하고 실패한 위
             url.pathname.endsWith("/context")
           );
         });
+        // 다른 탭을 여는 동안 받은 blur로 읽음 보고가 멈춰 있으므로 돌아온 탭에 focus를 다시 알림
         await memberPage.bringToFront();
+        await setDocumentFocusState(memberPage, true);
         await tabReplacedNotice
           .getByRole("button", { name: "여기서 계속하기", exact: true })
           .click();
