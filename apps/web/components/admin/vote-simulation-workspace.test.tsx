@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from "vitest";
 import {
   activeSimulation,
   AdminVoteSimulationScreen,
+  reviewRequiredSimulation,
 } from "@/components/admin/vote-simulation-workspace";
 import {
   VoteSimulationOptionTable,
@@ -49,6 +50,17 @@ describe("vote simulation workspace", () => {
       ])?.simulationId,
     ).toBe("c");
     expect(activeSimulation([run("a", "FAILED", "2026-10-01T03:00:00Z")])).toBeNull();
+  });
+
+  it("확인이 필요한 실행은 진행 중과 따로 가장 최근 것을 고른다", () => {
+    const runs = [
+      run("a", "REVIEW_REQUIRED", "2026-10-01T01:00:00Z"),
+      run("b", "REVIEW_REQUIRED", "2026-10-01T02:00:00Z"),
+      run("c", "COMPLETED", "2026-10-01T03:00:00Z"),
+    ];
+    expect(reviewRequiredSimulation(runs)?.simulationId).toBe("b");
+    expect(activeSimulation(runs)).toBeNull();
+    expect(reviewRequiredSimulation([run("a", "FAILED", "2026-10-01T03:00:00Z")])).toBeNull();
   });
 
   it("좌측 실제 투표·우측 AI 시뮬레이션과 바로 실행 영역을 한 화면에 둔다", () => {

@@ -474,6 +474,9 @@ function SimulationStatus({
         (!next || ["READY", "RUNNING", "WAITING_PROVIDER", "PUBLISHING"].includes(next.state))
       ) {
         timer = window.setTimeout(() => void poll(), 2000);
+      } else if (!disposed && next?.state === "REVIEW_REQUIRED") {
+        // 확인이 필요한 실행도 마감 뒤 서버가 FAILED로 바꾸므로 느리게 계속 확인한다.
+        timer = window.setTimeout(() => void poll(), 10_000);
       }
     };
     timer = window.setTimeout(() => void poll(), 0);
@@ -613,8 +616,9 @@ function SimulationRetrySection({
   const [actionMessage, setActionMessage] = useState("");
   const [confirmOpen, setConfirmOpen] = useState(false);
   const recoveryMessage = simulationRecoveryMessage(view);
-  const now = useRetryFenceClock(view.retryAvailableAt ?? null);
-  const retryBlocked = isRetryBlocked(view.retryAvailableAt ?? null, now);
+  const now = useRetryFenceClock(view.retryAvailableAt ?? null, view.deadlineAt);
+  const deadlinePassed = isDeadlinePassed(view.deadlineAt, now);
+  const retryBlocked = isRetryBlocked(view.retryAvailableAt ?? null, now) || deadlinePassed;
 
   async function retryFailed() {
     if (view.state !== "REVIEW_REQUIRED" || retryBlocked) return;
@@ -666,6 +670,10 @@ function SimulationRetrySection({
             <dt>재실행 가능 시각</dt>
             <dd>{view.retryAvailableAt ? formatDate(view.retryAvailableAt) : "지금 가능"}</dd>
           </div>
+          <div>
+            <dt>재실행 마감</dt>
+            <dd>{formatDate(view.deadlineAt)}</dd>
+          </div>
         </dl>
       ) : null}
       <div className="civic-simulation-actions">
@@ -678,9 +686,11 @@ function SimulationRetrySection({
           >
             {pending
               ? "재실행 요청 중…"
-              : retryBlocked
-                ? "잠시 후 다시 시도해 주세요"
-                : "실패한 페르소나만 다시 실행"}
+              : deadlinePassed
+                ? "마감이 지나 다시 실행할 수 없습니다"
+                : retryBlocked
+                  ? "잠시 후 다시 시도해 주세요"
+                  : "실패한 페르소나만 다시 실행"}
           </button>
         ) : null}
         {!["REJECTED_PROVIDER_POLICY", "PUBLISHING"].includes(view.state) ? (
@@ -1038,18 +1048,22 @@ export function SimulationPreviewCard({
   );
 }
 
-function useRetryFenceClock(retryAvailableAt: string | null): number {
+function useRetryFenceClock(retryAvailableAt: string | null, deadlineAt?: string): number {
   const [now, setNow] = useState(() => Date.now());
   useEffect(() => {
-    if (!retryAvailableAt) return;
-    const target = Date.parse(retryAvailableAt);
-    if (!Number.isFinite(target) || target <= now) return;
+    // 재실행 가능 시각과 마감 중 아직 오지 않은 가장 가까운 시각에 다시 그린다.
+    const target = Math.min(
+      ...[retryAvailableAt, deadlineAt]
+        .map((value) => (value ? Date.parse(value) : Number.NaN))
+        .filter((value) => Number.isFinite(value) && value > now),
+    );
+    if (!Number.isFinite(target)) return;
     const timer = window.setTimeout(
       () => setNow(Date.now()),
       Math.min(target - now + 25, 2_147_483_647),
     );
     return () => window.clearTimeout(timer);
-  }, [now, retryAvailableAt]);
+  }, [deadlineAt, now, retryAvailableAt]);
   return now;
 }
 
@@ -1427,6 +1441,11 @@ export function roundWholeRunEtaSeconds(seconds: number): number | null {
   if (!Number.isFinite(seconds) || seconds <= 0) return null;
   const unit = seconds >= 3600 ? 300 : 60;
   return Math.ceil(seconds / unit) * unit;
+}
+
+export function isDeadlinePassed(deadlineAt: string, now: number): boolean {
+  const deadline = Date.parse(deadlineAt);
+  return Number.isFinite(deadline) && deadline <= now;
 }
 
 export function isRetryBlocked(retryAvailableAt: string | null, now: number): boolean {

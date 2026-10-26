@@ -26,7 +26,8 @@ let adminRoomRequests: URLSearchParams[] = [];
 let closeRoomIdempotencyKey: string | null = null;
 let closeRoomBody = "";
 let createdTaskIdempotencyKey: string | null = null;
-let latestSimulationState: "RUNNING" | "COMPLETED" | null = null;
+let latestSimulationState: "RUNNING" | "COMPLETED" | "REVIEW_REQUIRED" | null = null;
+let simulationDeadlineAt = "2026-08-29T02:53:06Z";
 let simulationResultQueries: string[] = [];
 let simulationResponseQueries: string[] = [];
 let progressSubmissionCount = 3;
@@ -315,6 +316,7 @@ test.beforeEach(() => {
   closeRoomBody = "";
   createdTaskIdempotencyKey = null;
   latestSimulationState = null;
+  simulationDeadlineAt = "2026-08-29T02:53:06Z";
   simulationResultQueries = [];
   simulationResponseQueries = [];
   progressSubmissionCount = 3;
@@ -1198,7 +1200,7 @@ function taskSummary(current: ReturnType<typeof taskFixture>) {
   };
 }
 
-function simulationFixture(state: "RUNNING" | "COMPLETED") {
+function simulationFixture(state: "RUNNING" | "COMPLETED" | "REVIEW_REQUIRED") {
   return {
     simulationId,
     taskId,
@@ -1213,7 +1215,7 @@ function simulationFixture(state: "RUNNING" | "COMPLETED") {
     createdAt: "2026-08-29T02:23:06Z",
     startedAt: "2026-08-29T02:23:07Z",
     completedAt: state === "COMPLETED" ? "2026-08-29T02:28:00Z" : null,
-    deadlineAt: "2026-08-29T02:53:06Z",
+    deadlineAt: simulationDeadlineAt,
     estimatedCompletionAt: state === "COMPLETED" ? null : "2026-08-29T02:29:00Z",
     canCancel: state === "RUNNING",
     estimatedKrw: 9500,
@@ -1563,3 +1565,51 @@ for (const width of [394, 1440]) {
     expect(preparationRequests).toBe(1);
   });
 }
+
+test("일부 페르소나 응답이 실패한 시뮬레이션은 끝난 실행이 아니라 확인 필요로 보여준다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  task = taskFixture("OPEN", "교통 정책 투표");
+  latestSimulationState = "REVIEW_REQUIRED";
+  simulationDeadlineAt = new Date(Date.now() + 60 * 60_000).toISOString();
+
+  await page.goto(`/admin/simulations/vote?taskId=${taskId}`);
+  const simulationSide = page.getByRole("article", { name: "AI 시뮬레이션 결과" });
+  await expect(simulationSide).toContainText("일부 페르소나 응답이 실패해 확인이 필요합니다.");
+  await expect(simulationSide).not.toContainText("아직 실행한 시뮬레이션이 없습니다");
+  await expect(
+    page.getByText("확인이 필요한 시뮬레이션을 처리한 뒤 다시 실행할 수 있습니다.", {
+      exact: true,
+    }),
+  ).toBeVisible();
+  await page.screenshot({
+    path: "e2e/.artifacts/wireflow-results/simulation-review-required-vote.png",
+    fullPage: true,
+  });
+  await simulationSide.getByRole("link", { name: "상태 확인", exact: true }).click();
+  await expect(page).toHaveURL(`/admin/simulations/status?simulationId=${simulationId}`);
+  await expect(
+    page.getByRole("button", { name: "실패한 페르소나만 다시 실행", exact: true }),
+  ).toBeEnabled();
+
+  simulationDeadlineAt = new Date(Date.now() - 60_000).toISOString();
+  await page.reload();
+  const expired = page.getByRole("button", {
+    name: "마감이 지나 다시 실행할 수 없습니다",
+    exact: true,
+  });
+  await expect(expired).toBeDisabled();
+  await expect(page.getByText("재실행 마감", { exact: true })).toBeVisible();
+  await page
+    .locator(".civic-domain-danger-panel")
+    .screenshot({ path: "e2e/.artifacts/wireflow-results/simulation-review-required-expired.png" });
+
+  await page.goto("/admin");
+  const operations = page.getByRole("region", { name: "현재 처리 중" });
+  const item = operations.getByRole("listitem").filter({ hasText: "교통 정책 투표" });
+  await expect(item).toContainText("확인 필요");
+  await expect(item).toContainText("일부 페르소나 응답 실패");
+});
