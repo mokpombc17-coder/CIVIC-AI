@@ -84,6 +84,26 @@ describe("VoteTaskScreen", () => {
     expect(html).toContain(">다시 시도</button>");
   });
 
+  it("참여할 수 없는 상태에서는 준비 중 버튼 대신 목록으로 링크를 표시한다", () => {
+    useVoteTaskControllerMock.mockReturnValue(
+      createController({
+        model: {
+          participationReady: false,
+          preparationMessage: "현재 응답을 작성할 수 없습니다.",
+          showParticipationAction: true,
+          step: 1,
+          taskDetail: createTaskDetail(),
+        },
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskScreen taskId="task-a" />);
+
+    expect(html).toContain("현재 응답을 작성할 수 없습니다.");
+    expect(html).toContain('href="/vote">목록으로</a>');
+    expect(html).not.toContain("준비 중…");
+  });
+
   it("작성 단계에서는 controller의 선택지와 입력 상태를 조립한다", () => {
     const taskDetail = createTaskDetail();
     useVoteTaskControllerMock.mockReturnValue(

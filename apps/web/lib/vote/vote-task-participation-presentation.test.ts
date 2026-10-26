@@ -188,6 +188,13 @@ describe("Vote Task participation presentation", () => {
     expect(
       getPredictionPreparationMessage({ ...input, view: { ...baseView, state: "TASK_CLOSED" } }),
     ).toBe("현재 응답을 작성할 수 없습니다.");
+    // 페르소나가 준비되면 참여할 수 있으므로 참여 불가가 아니라 준비 중으로 안내함
+    expect(
+      getPredictionPreparationMessage({
+        ...input,
+        view: { ...baseView, state: "PERSONA_NOT_READY" },
+      }),
+    ).toBe("투표 참여 정보를 준비 중입니다.");
   });
 
   it("참여 가능 상태와 준비 중인 중간 상태에는 별도 오류를 표시하지 않는다", () => {

@@ -96,6 +96,7 @@ export function getPredictionPreparationMessage({
   }
   const predictionWaitingMessage = formatPredictionWaitingMessage(view);
   if (predictionWaitingMessage) return predictionWaitingMessage;
+  if (view?.state === "PERSONA_NOT_READY") return "투표 참여 정보를 준비 중입니다.";
   if (view?.state === "FAILED") {
     return "AI 예상 답변을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.";
   }

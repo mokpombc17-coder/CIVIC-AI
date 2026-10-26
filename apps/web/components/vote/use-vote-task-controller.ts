@@ -79,7 +79,12 @@ export function useVoteTaskController(taskId: string) {
   const participationReady = canStartTaskResponse(predictionView);
   const predictionFailed = predictionView?.state === "FAILED";
   const predictionNotReady = isPredictionNotReady(predictionView);
-  const predictionWaiting = Boolean(predictionView?.waiting || predictionNotReady);
+  // 페르소나가 준비되면 참여할 수 있어 polling도 계속하므로 AI 준비 중과 같은 대기 상태로 봄
+  // 대기로 보지 않으면 참여 불가 상태처럼 안내가 나가 기다리면 되는 사용자를 내보냄
+  const personaPreparing = predictionView?.state === "PERSONA_NOT_READY";
+  const predictionWaiting = Boolean(
+    predictionView?.waiting || predictionNotReady || personaPreparing,
+  );
   const predictionRequestPending = Boolean(
     predictionView?.predictionRequestAllowed && !predictionView.predictionId,
   );

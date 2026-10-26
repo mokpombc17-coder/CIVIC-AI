@@ -299,15 +299,23 @@ function TaskOverview({
           {preparationMessage ? <span>{preparationMessage}</span> : null}
         </p>
       ) : null}
-      {showParticipationAction ? (
+      {showParticipationAction && (canRetryPreparation || canContinue) ? (
         <button
           className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
-          disabled={!canContinue && !canRetryPreparation}
           onClick={canRetryPreparation ? onRetryPreparation : onContinue}
           type="button"
         >
-          {canRetryPreparation ? "다시 시도" : canContinue ? "참여하기" : "준비 중…"}
+          {canRetryPreparation ? "다시 시도" : "참여하기"}
         </button>
+      ) : null}
+      {/* 준비 중인 상태는 위 안내에서 기다리게 하므로 여기까지 오면 참여할 수 없는 상태라 목록으로 내보냄 */}
+      {showParticipationAction && !canRetryPreparation && !canContinue ? (
+        <Link
+          className={`${styles.compactPrimaryButton} ${styles.overviewContinueButton}`}
+          href="/vote"
+        >
+          목록으로
+        </Link>
       ) : null}
     </div>
   );
