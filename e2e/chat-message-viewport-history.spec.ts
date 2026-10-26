@@ -75,16 +75,8 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await openOldSearchResult();
     const isNewerHistoryRequest = (url: URL) =>
       url.pathname === `/api/v1/rooms/${roomId}/messages` && url.searchParams.has("afterSequence");
-    // 다시 시도 버튼을 누르기 전에도 스크롤이 일어나면 다음 메시지를 자동으로 다시 요청함
-    // 그 요청이 성공하면 실패 안내가 사라져 확인할 수 없으므로 버튼을 누를 때까지 계속 실패시킴
-    let failsNewerHistory = true;
-    const failNewerHistoryUntilRetry = async (route: Route) => {
-      if (!failsNewerHistory) {
-        await route.continue();
-        return;
-      }
-
-      await route.fulfill({
+    const failNewerHistory = (route: Route) =>
+      route.fulfill({
         body: JSON.stringify({
           status: 500,
           title: "Internal Server Error",
@@ -93,8 +85,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
         contentType: "application/problem+json",
         status: 500,
       });
-    };
-    await page.route(isNewerHistoryRequest, failNewerHistoryUntilRetry);
+    await page.route(isNewerHistoryRequest, failNewerHistory);
 
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toHaveCount(0);
     await scrollToBottomAsUser(messageLog);
@@ -107,8 +98,15 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       0,
     );
 
+    // 실패한 뒤에는 맨 아래에서 다시 스크롤해도 다시 시도 버튼을 누르기 전까지 요청하지 않아야 함
+    await expectNoHistoryRequestWhile(page, isNewerHistoryRequest, async () => {
+      await scrollAwayFromBottomAsUser(messageLog);
+      await scrollToBottomAsUser(messageLog);
+    });
+    await expect(newerError).toBeVisible();
+
     const positionBeforeMerge = await readTopVisibleMessage(messageLog);
-    failsNewerHistory = false;
+    await page.unroute(isNewerHistoryRequest, failNewerHistory);
     const newerHistoryResponse = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return response.request().method() === "GET" && isNewerHistoryRequest(url);
@@ -122,7 +120,6 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
       "다시 요청한 다음 페이지 조회가 성공해야 합니다.",
     ).toBe(true);
     await expect(newerError).toHaveCount(0);
-    await page.unroute(isNewerHistoryRequest, failNewerHistoryUntilRetry);
 
     // 불러온 메시지가 아래에 붙어도 맨 아래로 끌려 내려가지 않아야 함
     await expect
@@ -174,6 +171,13 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await expect(olderError).toBeVisible({ timeout: 30_000 });
     await expect(olderError).toContainText("이전 메시지를 불러오지 못했습니다.");
     await expect(messageLog.getByText(messages[0]!, { exact: true })).toHaveCount(0);
+
+    // 실패한 뒤에는 맨 위에서 다시 스크롤해도 다시 시도 버튼을 누르기 전까지 요청하지 않아야 함
+    await expectNoHistoryRequestWhile(page, isOlderHistoryRequest, async () => {
+      await messageLog.evaluate((element) => element.scrollTo({ top: 200 }));
+      await messageLog.evaluate((element) => element.scrollTo({ top: 0 }));
+    });
+    await expect(olderError).toBeVisible();
 
     await page.unroute(isOlderHistoryRequest, failOlderHistory);
     const previousHistoryResponse = page.waitForResponse((response) => {
@@ -256,6 +260,41 @@ async function waitForScrollSettledAtLatest(messageLog: Locator) {
       ),
     )
     .toBe(true);
+}
+
+async function scrollAwayFromBottomAsUser(messageLog: Locator) {
+  await messageLog.evaluate(
+    (element) =>
+      new Promise<void>((resolve) => {
+        element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: -120 }));
+        element.scrollTo({ top: element.scrollHeight - element.clientHeight - 200 });
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+  );
+}
+
+// 요청이 없다는 것은 기다려 봐야만 알 수 있어서 동작 뒤 잠시 기다린 다음 그사이 요청 수를 확인함
+async function expectNoHistoryRequestWhile(
+  page: Page,
+  isHistoryRequest: (url: URL) => boolean,
+  action: () => Promise<void>,
+) {
+  let requestCount = 0;
+  const countHistoryRequest = (request: { method(): string; url(): string }) => {
+    if (request.method() === "GET" && isHistoryRequest(new URL(request.url()))) {
+      requestCount += 1;
+    }
+  };
+
+  page.on("request", countHistoryRequest);
+  try {
+    await action();
+    await page.waitForTimeout(1_000);
+  } finally {
+    page.off("request", countHistoryRequest);
+  }
+
+  expect(requestCount, "실패한 뒤 스크롤만으로는 다시 요청하지 않아야 합니다.").toBe(0);
 }
 
 async function scrollToBottomAsUser(messageLog: Locator) {

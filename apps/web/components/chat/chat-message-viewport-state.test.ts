@@ -119,7 +119,7 @@ describe("chat message viewport state", () => {
     expect(reset).toEqual(createChatMessageOlderHistoryState(true));
   });
 
-  it("진행 중인 과거 이력 요청을 취소하면 loading만 가용성에 맞는 상태로 되돌린다", () => {
+  it("진행 중인 과거 이력 요청을 취소하면 loading과 error를 가용성에 맞는 상태로 되돌린다", () => {
     const loading = reduceChatMessageOlderHistory(createChatMessageOlderHistoryState(true), {
       type: "load-older-started",
     });
@@ -137,12 +137,22 @@ describe("chat message viewport state", () => {
       }).status,
     ).toBe("exhausted");
 
-    const failed = { status: "error" } as const;
     expect(
-      reduceChatMessageOlderHistory(failed, {
+      reduceChatMessageOlderHistory(
+        { status: "error" },
+        {
+          type: "load-older-cancelled",
+          hasOlderMessages: true,
+        },
+      ).status,
+    ).toBe("idle");
+
+    const exhausted = createChatMessageOlderHistoryState(false);
+    expect(
+      reduceChatMessageOlderHistory(exhausted, {
         type: "load-older-cancelled",
         hasOlderMessages: true,
       }),
-    ).toBe(failed);
+    ).toBe(exhausted);
   });
 });

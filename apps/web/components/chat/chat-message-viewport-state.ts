@@ -139,8 +139,9 @@ export function reduceChatMessageOlderHistory(
       };
 
     case "load-older-cancelled":
-      // 진행 중인 요청이 없으면 오류 등 지금 상태를 그대로 둠
-      if (state.status !== "loading") {
+      // 재연결로 위치를 유지할 때 진행 중이던 요청과 함께 실패 상태도 정리함
+      // 실패 상태로 남기면 스크롤로는 다시 불러오지 않아 연결이 돌아와도 다시 시도 버튼을 눌러야 함
+      if (state.status !== "loading" && state.status !== "error") {
         return state;
       }
 

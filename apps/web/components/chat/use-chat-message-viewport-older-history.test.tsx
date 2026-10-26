@@ -124,6 +124,69 @@ describe("useChatMessageViewportOlderHistory", () => {
     });
     expect(onLoadOlder).toHaveBeenCalledTimes(2);
   });
+
+  it("실패한 뒤에는 스크롤로 다시 요청하지 않고 다시 시도로만 요청한다", async () => {
+    const onLoadOlder = vi
+      .fn<HookParams["onLoadOlder"]>()
+      .mockRejectedValueOnce(new Error("이전 메시지를 불러오지 못했습니다."))
+      .mockResolvedValueOnce({ hasOlderMessages: true });
+    const { params } = createParams({
+      items: [createItem("m-02"), createItem("m-03")],
+      onLoadOlder,
+    });
+    const { result } = renderHook(
+      (props: HookParams) => useChatMessageViewportOlderHistory(props),
+      { initialProps: params },
+    );
+
+    await act(async () => {
+      await result.current.loadOlderMessages();
+    });
+    expect(result.current.loadError).toBe("이전 메시지를 불러오지 못했습니다.");
+
+    await act(async () => {
+      await result.current.loadOlderMessages();
+    });
+    expect(onLoadOlder).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await result.current.retryOlderMessages();
+    });
+    expect(onLoadOlder).toHaveBeenCalledTimes(2);
+    expect(result.current.loadError).toBeNull();
+  });
+
+  it("실패한 뒤 같은 방에서 재연결되면 스크롤로 다시 요청할 수 있다", async () => {
+    const onLoadOlder = vi
+      .fn<HookParams["onLoadOlder"]>()
+      .mockRejectedValueOnce(new Error("이전 메시지를 불러오지 못했습니다."))
+      .mockResolvedValueOnce({ hasOlderMessages: true });
+    const { params } = createParams({
+      items: [createItem("m-02"), createItem("m-03")],
+      onLoadOlder,
+    });
+    const { result, rerender } = renderHook(
+      (props: HookParams) => useChatMessageViewportOlderHistory(props),
+      { initialProps: params },
+    );
+
+    await act(async () => {
+      await result.current.loadOlderMessages();
+    });
+
+    const reconnectedViewportKey = "room-01:2";
+    params.scrollElementRef.current!.dataset.viewportKey = reconnectedViewportKey;
+    act(() => {
+      result.current.handleViewportChanged({ preserved: true });
+    });
+    rerender({ ...params, viewportKey: reconnectedViewportKey });
+    expect(result.current.loadError).toBeNull();
+
+    await act(async () => {
+      await result.current.loadOlderMessages();
+    });
+    expect(onLoadOlder).toHaveBeenCalledTimes(2);
+  });
 });
 
 function createParams({

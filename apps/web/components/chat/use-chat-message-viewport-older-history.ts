@@ -26,6 +26,7 @@ export type ChatMessageViewportOlderHistory = Readonly<{
   isLoadingOlder: boolean;
   loadError: string | null;
   loadOlderMessages: () => Promise<void>;
+  retryOlderMessages: () => Promise<void>;
 }>;
 
 export function useChatMessageViewportOlderHistory({
@@ -62,7 +63,7 @@ export function useChatMessageViewportOlderHistory({
     currentViewportKeyRef.current = viewportKey;
   });
 
-  const loadOlderMessages = useCallback(async () => {
+  const requestOlderMessages = useCallback(async () => {
     if (
       olderRequestInFlightRef.current ||
       !canLoadOlder ||
@@ -120,14 +121,26 @@ export function useChatMessageViewportOlderHistory({
     viewportKey,
   ]);
 
+  // 실패한 뒤에는 스크롤로 다시 요청하지 않고 다시 시도 버튼으로만 요청함
+  // 연결이 끊긴 동안 맨 위에서 스크롤할 때마다 요청이 실패를 반복하고 안내가 깜빡이기 때문
+  const loadOlderMessages = useCallback(async () => {
+    if (state.status === "error") {
+      return;
+    }
+
+    await requestOlderMessages();
+  }, [requestOlderMessages, state.status]);
+
   const handleViewportChanged = useCallback(
     ({ preserved }: Readonly<{ preserved: boolean }>) => {
       olderRequestInFlightRef.current = false;
       pendingAnchorRef.current = null;
+      setLoadError(null);
 
       if (preserved) {
         // 같은 방에서 재연결되면 위치는 유지하지만 요청 때 viewportKey와 달라져 진행 중이던 응답은 버려짐
         // 상태를 loading에 남기면 다음 불러오기가 막히므로 진행 중인 요청을 취소한 것으로 정리함
+        // 재연결은 연결이 돌아왔다는 뜻이므로 실패 상태도 풀어 스크롤로 다시 불러올 수 있게 함
         dispatch({
           type: "load-older-cancelled",
           hasOlderMessages: canLoadOlder,
@@ -135,7 +148,6 @@ export function useChatMessageViewportOlderHistory({
         return;
       }
 
-      setLoadError(null);
       dispatch({
         type: "reset",
         hasOlderMessages: canLoadOlder,
@@ -176,6 +188,7 @@ export function useChatMessageViewportOlderHistory({
     isLoadingOlder: isHistoryLoadingOlder || state.status === "loading",
     loadError,
     loadOlderMessages,
+    retryOlderMessages: requestOlderMessages,
   };
 }
 

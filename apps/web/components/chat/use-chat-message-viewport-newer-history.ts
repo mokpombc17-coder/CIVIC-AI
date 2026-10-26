@@ -5,6 +5,7 @@ export type ChatMessageViewportNewerHistory = Readonly<{
   isLoadingNewer: boolean;
   loadError: string | null;
   loadNewerMessages: () => Promise<void>;
+  retryNewerMessages: () => Promise<void>;
 }>;
 
 export function useChatMessageViewportNewerHistory({
@@ -27,7 +28,7 @@ export function useChatMessageViewportNewerHistory({
     currentViewportKeyRef.current = viewportKey;
   });
 
-  const loadNewerMessages = useCallback(async () => {
+  const requestNewerMessages = useCallback(async () => {
     if (requestInFlightRef.current || !canLoadNewer) {
       return;
     }
@@ -51,6 +52,17 @@ export function useChatMessageViewportNewerHistory({
     }
   }, [canLoadNewer, onLoadNewer, viewportKey]);
 
+  // 실패한 뒤에는 스크롤로 다시 요청하지 않고 다시 시도 버튼으로만 요청함
+  // 연결이 끊긴 동안 맨 아래에서 스크롤할 때마다 요청이 실패를 반복하고 안내가 깜빡이기 때문
+  const loadNewerMessages = useCallback(async () => {
+    if (loadError !== null) {
+      return;
+    }
+
+    await requestNewerMessages();
+  }, [loadError, requestNewerMessages]);
+
+  // 재연결로 위치를 유지할 때도 실패 상태를 풀어 연결이 돌아오면 스크롤로 다시 불러올 수 있게 함
   const handleViewportChanged = useCallback(() => {
     requestInFlightRef.current = false;
     setIsLoadingNewer(false);
@@ -62,6 +74,7 @@ export function useChatMessageViewportNewerHistory({
     isLoadingNewer,
     loadError,
     loadNewerMessages,
+    retryNewerMessages: requestNewerMessages,
   };
 }
 

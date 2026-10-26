@@ -320,7 +320,7 @@ export function ChatMessageViewport({
         direction="older"
         error={olderHistory.loadError}
         isLoading={olderHistory.isLoadingOlder}
-        onRetry={() => void olderHistory.loadOlderMessages()}
+        onRetry={() => void olderHistory.retryOlderMessages()}
       />
 
       {history.feedback?.kind === "error" ? (
@@ -341,7 +341,7 @@ export function ChatMessageViewport({
         direction="newer"
         error={newerHistory.loadError}
         isLoading={newerHistory.isLoadingNewer}
-        onRetry={() => void newerHistory.loadNewerMessages()}
+        onRetry={() => void newerHistory.retryNewerMessages()}
       />
 
       <ChatMessageViewportNewMessagesButton
