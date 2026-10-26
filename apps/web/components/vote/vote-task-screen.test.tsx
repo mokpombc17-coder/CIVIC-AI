@@ -45,6 +45,26 @@ describe("VoteTaskScreen", () => {
     expect(html).toContain(">다시 시도</button>");
   });
 
+  it("AI 예상 답변 준비가 실패하면 안내와 함께 다시 시도 버튼을 표시한다", () => {
+    useVoteTaskControllerMock.mockReturnValue(
+      createController({
+        model: {
+          canRetryPreparation: true,
+          preparationMessage: "AI 예상 답변을 준비하지 못했습니다. 잠시 후 다시 시도해 주세요.",
+          predictionFailed: true,
+          showParticipationAction: true,
+          step: 1,
+          taskDetail: createTaskDetail(),
+        },
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskScreen taskId="task-a" />);
+
+    expect(html).toContain("AI 예상 답변을 준비하지 못했습니다.");
+    expect(html).toContain(">다시 시도</button>");
+  });
+
   it("작성 단계에서는 controller의 선택지와 입력 상태를 조립한다", () => {
     const taskDetail = createTaskDetail();
     useVoteTaskControllerMock.mockReturnValue(

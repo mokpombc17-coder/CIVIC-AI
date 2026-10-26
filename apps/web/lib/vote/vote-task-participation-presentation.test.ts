@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { VoteApiError } from "./vote-fetch";
 import {
+  canRetryPredictionPreparation,
   getPredictionPreparationMessage,
   getTaskSubmissionErrorMessage,
 } from "./vote-task-participation-presentation";
@@ -145,6 +146,25 @@ describe("Vote Task participation presentation", () => {
         ensurePending: false,
       }),
     ).toBe("AI 예상 이유를 준비 중입니다.\n최대 예상 대기시간은 10분입니다.");
+  });
+
+  it("AI 예상 답변 준비가 실패하면 다시 요청 중이 아닐 때 다시 시도할 수 있다", () => {
+    const input = {
+      ensureError: false,
+      ensurePending: false,
+      predictionError: false,
+      predictionFailed: true,
+      predictionFetching: false,
+    };
+
+    expect(canRetryPredictionPreparation(input)).toBe(true);
+    // 다시 요청해 새 상태를 받기 전에는 요청이 겹치지 않게 막음
+    expect(canRetryPredictionPreparation({ ...input, ensurePending: true })).toBe(false);
+    expect(canRetryPredictionPreparation({ ...input, predictionFetching: true })).toBe(false);
+    expect(canRetryPredictionPreparation({ ...input, predictionFailed: false })).toBe(false);
+    expect(
+      canRetryPredictionPreparation({ ...input, predictionFailed: false, ensureError: true }),
+    ).toBe(true);
   });
 
   it("Prediction 최종 실패와 참여 불가 상태를 구분해 안내한다", () => {

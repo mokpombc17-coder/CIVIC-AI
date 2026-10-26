@@ -56,6 +56,27 @@ export function getTaskSubmissionErrorMessage(error: unknown): string {
   return "제출 결과를 확인하지 못했습니다. 같은 내용으로 다시 시도해 주세요.";
 }
 
+// AI 예상 답변 준비를 사용자가 다시 요청할 수 있는지 정함
+// 실패 상태는 polling하지 않고 예측 요청도 화면에 들어올 때 한 번만 보내서, 버튼이 없으면 목록으로 나갔다 와야만 다시 시도할 수 있음
+// 다시 요청한 뒤 새 상태를 받기 전까지는 화면이 아직 실패 상태라 요청이 겹치지 않도록 다시 시도 대상에서 뺌
+export function canRetryPredictionPreparation({
+  ensureError,
+  ensurePending,
+  predictionError,
+  predictionFailed,
+  predictionFetching,
+}: {
+  ensureError: boolean;
+  ensurePending: boolean;
+  predictionError: boolean;
+  predictionFailed: boolean;
+  predictionFetching: boolean;
+}): boolean {
+  return (
+    predictionError || ensureError || (predictionFailed && !ensurePending && !predictionFetching)
+  );
+}
+
 export function getPredictionPreparationMessage({
   alreadySubmitted,
   view,

@@ -26,6 +26,7 @@ import {
   type VoteReasonSelection,
 } from "@/lib/vote/vote-task-participation";
 import {
+  canRetryPredictionPreparation,
   getPredictionPreparationMessage,
   getTaskSubmissionErrorMessage,
 } from "@/lib/vote/vote-task-participation-presentation";
@@ -94,6 +95,13 @@ export function useVoteTaskController(taskId: string) {
       reason.id === flow.reasonChoice.predictedReasonId,
   );
   const directReasonAllowed = canWriteTaskReason(predictionView);
+  const canRetryPreparation = canRetryPredictionPreparation({
+    ensureError: ensureMutation.isError,
+    ensurePending: ensureMutation.isPending,
+    predictionError: predictionQuery.isError,
+    predictionFailed,
+    predictionFetching: predictionQuery.isFetching,
+  });
   const preparationMessage = getPredictionPreparationMessage({
     alreadySubmitted: Boolean(taskDetail?.submission.submitted),
     view: predictionView,
@@ -358,7 +366,7 @@ export function useVoteTaskController(taskId: string) {
     },
     model: {
       ...flow,
-      canRetryPreparation: predictionQuery.isError || ensureMutation.isError,
+      canRetryPreparation,
       confirmationReason,
       directReasonAllowed,
       directReasonLength,
@@ -375,9 +383,7 @@ export function useVoteTaskController(taskId: string) {
       reasonReady,
       selectedOption,
       showParticipationAction:
-        predictionQuery.isError ||
-        ensureMutation.isError ||
-        (!predictionFailed && !predictionPreparationLoading),
+        canRetryPreparation || (!predictionFailed && !predictionPreparationLoading),
       showSubmissionLoading,
       taskDetail,
       taskError: taskQuery.error,
