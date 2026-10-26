@@ -73,6 +73,17 @@ export function AdminVoteSimulationScreen({
   );
 }
 
+// REVIEW_REQUIRED는 일부 페르소나 응답이 실패해 관리자 처리가 필요한 실행이다. 서버는 마감까지
+// 관리자당 하나뿐인 실행 자리를 계속 잡아 두므로 끝난 실행처럼 숨기지 않는다.
+export function reviewRequiredSimulation(runs: readonly SimulationView[]): SimulationView | null {
+  return (
+    runs
+      .filter((run) => run.state === "REVIEW_REQUIRED")
+      .toSorted((left, right) => Date.parse(right.createdAt) - Date.parse(left.createdAt))[0] ??
+    null
+  );
+}
+
 export function activeSimulation(runs: readonly SimulationView[]): SimulationView | null {
   return (
     runs
@@ -155,15 +166,17 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
 
   const allRuns = runs.status === "ready" ? runs.runs : [];
   const active = activeSimulation(allRuns);
+  const review = active ? null : reviewRequiredSimulation(allRuns);
   const completed = latestCompletedSimulations(allRuns);
   const currentId = selectedId ?? completed[0]?.simulationId ?? null;
 
-  // 진행 중인 실행이 있으면 완료될 때까지 이력을 다시 읽어 오른쪽 결과를 이어 붙인다.
+  // 진행 중이거나 확인이 필요한 실행이 있으면 상태가 바뀔 때까지 이력을 다시 읽어 결과를 이어 붙인다.
+  const watching = Boolean(active ?? review);
   useEffect(() => {
-    if (!active) return;
+    if (!watching) return;
     const timer = window.setInterval(() => void loadRuns(), RUN_POLL_MS);
     return () => window.clearInterval(timer);
-  }, [active, loadRuns]);
+  }, [watching, loadRuns]);
 
   useEffect(() => {
     if (!currentId) return;
@@ -316,6 +329,19 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
             </div>
           ) : null}
 
+          {review ? (
+            <div className="civic-vote-simulation-progress" role="status">
+              <span>일부 페르소나 응답이 실패해 확인이 필요합니다.</span>
+              <Link
+                href={
+                  `/admin/simulations/status?simulationId=${encodeURIComponent(review.simulationId)}` as Route
+                }
+              >
+                상태 확인
+              </Link>
+            </div>
+          ) : null}
+
           {current?.result ? (
             <ResultDonut
               data={simulationDonutData(current.result, rows)}
@@ -326,7 +352,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
               }
               total={current.result.denominators.filtered}
             />
-          ) : runs.status === "ready" && !active ? (
+          ) : runs.status === "ready" && !active && !review ? (
             <p className="civic-vote-compare-note">
               아직 실행한 시뮬레이션이 없습니다. 아래에서 바로 실행할 수 있습니다.
             </p>
@@ -361,7 +387,7 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
       <section aria-labelledby="vote-simulation-run-title" className="civic-vote-simulation-run">
         <header>
           <h2 id="vote-simulation-run-title">
-            {completed.length > 0 || active ? "다시 실행" : "시뮬레이션 실행"}
+            {completed.length > 0 || active || review ? "다시 실행" : "시뮬레이션 실행"}
           </h2>
           <p>페르소나 수와 조건을 정하고 예상 비용을 확인한 뒤 바로 실행합니다.</p>
         </header>
@@ -370,7 +396,11 @@ function VoteSimulationWorkspace({ taskId }: Readonly<{ taskId: string }>) {
           onStarted={onStarted}
           query={{}}
           runBlockedReason={
-            active ? "진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다." : null
+            active
+              ? "진행 중인 시뮬레이션이 끝나면 다시 실행할 수 있습니다."
+              : review
+                ? "확인이 필요한 시뮬레이션을 처리한 뒤 다시 실행할 수 있습니다."
+                : null
           }
           taskId={taskId}
         />

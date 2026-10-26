@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  isDeadlinePassed,
   isRetryBlocked,
   providerWaitLabel,
   roundWholeRunEtaSeconds,
@@ -51,6 +52,14 @@ describe("simulation V2 terminal presentation", () => {
     expect(roundWholeRunEtaSeconds(3599)).toBe(3600);
     expect(roundWholeRunEtaSeconds(3600)).toBe(3600);
     expect(roundWholeRunEtaSeconds(3601)).toBe(3900);
+  });
+
+  it("blocks failed-only retry once the run deadline has passed", () => {
+    expect(isDeadlinePassed("2026-08-27T00:00:01Z", Date.parse("2026-08-27T00:00:00Z"))).toBe(
+      false,
+    );
+    expect(isDeadlinePassed("2026-08-27T00:00:01Z", Date.parse("2026-08-27T00:00:01Z"))).toBe(true);
+    expect(isDeadlinePassed("not-a-date", Date.parse("2026-08-27T00:00:01Z"))).toBe(false);
   });
 
   it("blocks failed-only retry only before the server timestamp", () => {

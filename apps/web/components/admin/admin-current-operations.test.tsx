@@ -124,6 +124,34 @@ describe("admin current operations", () => {
     expect(html).toContain("현재 처리 중인 작업이 없습니다.");
   });
 
+  it("일부 페르소나 응답이 실패한 시뮬레이션은 확인 필요로 앞에 둔다", async () => {
+    const request = vi.fn(async (input: RequestInfo | URL) =>
+      Response.json(
+        String(input) === "/api/v1/admin/simulation-scenarios"
+          ? []
+          : [simulationTask("REVIEW_REQUIRED", 100)],
+      ),
+    );
+
+    const result = await loadAdminCurrentOperations({
+      canManageSimulation: true,
+      canReadRag: false,
+      request: request as typeof fetch,
+    });
+
+    expect(result).toMatchObject({ status: "ready", total: 1 });
+    expect(result.status === "ready" ? result.items : []).toEqual([
+      expect.objectContaining({
+        kind: "simulation",
+        stage: "확인 필요",
+        meta: "일부 페르소나 응답 실패",
+        attention: true,
+        href: `/admin/simulations/status?simulationId=${simulationId}`,
+      }),
+    ]);
+    expect(result.status === "ready" ? result.preparationFailures : []).toEqual([]);
+  });
+
   it("일부 소스 조회가 실패해도 확인된 진행 작업은 유지한다", async () => {
     const request = vi.fn(async (input: RequestInfo | URL) => {
       if (String(input) === "/api/v1/rag/folders") return new Response(null, { status: 503 });
@@ -146,7 +174,7 @@ describe("admin current operations", () => {
 });
 
 function simulationTask(
-  state: "RUNNING" | "WAITING_PROVIDER" | "COMPLETED",
+  state: "RUNNING" | "WAITING_PROVIDER" | "COMPLETED" | "REVIEW_REQUIRED",
   progressPercent: number,
 ) {
   return {

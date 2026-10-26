@@ -336,6 +336,22 @@ async function loadCurrentSimulationOperations(
   if (!votes && !scenarios) return { status: "unavailable" };
   const items = [...(votes ?? []), ...(scenarios ?? [])].flatMap(
     ({ id, title, latest }): readonly AdminCurrentOperation[] => {
+      if (latest?.state === "REVIEW_REQUIRED") {
+        // 일부 페르소나 응답이 실패한 실행은 관리자가 처리해야 하므로 확인 필요로 앞에 둔다.
+        return [
+          {
+            href: simulationTargetHref(id, latest),
+            id: `simulation:${latest.simulationId}`,
+            kind: "simulation",
+            meta: "일부 페르소나 응답 실패",
+            attention: true,
+            progressPercent: null,
+            sortTimestamp: validTimestamp(latest.startedAt ?? latest.createdAt),
+            stage: "확인 필요",
+            title,
+          },
+        ];
+      }
       if (!latest || simulationTargetPresentation(latest.state).tone !== "running") return [];
       return [
         {
