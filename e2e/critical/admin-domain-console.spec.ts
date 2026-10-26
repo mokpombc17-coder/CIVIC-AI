@@ -33,6 +33,8 @@ let progressSubmissionCount = 3;
 let progressRequests = 0;
 let preparationStatus: "PROCESSING" | "READY" | "FAILED" | null = null;
 let preparationRequests = 0;
+let preparationStartedMinutesAgo = 5;
+let preparationResendableWhileProcessing = false;
 let scenarioListEmpty = false;
 let scenarioListDelayMs = 0;
 
@@ -251,7 +253,10 @@ test.beforeAll(async () => {
           canEditContent:
             task.status === "DRAFT" && (!preparationStatus || preparationStatus === "FAILED"),
           canStartPreparation:
-            task.status === "DRAFT" && (!preparationStatus || preparationStatus === "FAILED"),
+            task.status === "DRAFT" &&
+            (!preparationStatus ||
+              preparationStatus === "FAILED" ||
+              (preparationStatus === "PROCESSING" && preparationResendableWhileProcessing)),
           canSchedule: preparationStatus === "READY",
           canOpenNow: preparationStatus === "READY",
         },
@@ -316,6 +321,8 @@ test.beforeEach(() => {
   progressRequests = 0;
   preparationStatus = null;
   preparationRequests = 0;
+  preparationStartedMinutesAgo = 5;
+  preparationResendableWhileProcessing = false;
 });
 
 test.afterAll(async () => close(server));
@@ -1447,7 +1454,7 @@ function preparationFixture() {
     contentFingerprint: `sha256:${"a".repeat(64)}`,
     attemptCount: Math.max(1, preparationRequests),
     // 생성 지연(30분) 기준에 걸리지 않도록 현재 시각 기준으로 만든다.
-    processingStartedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
+    processingStartedAt: new Date(Date.now() - preparationStartedMinutesAgo * 60_000).toISOString(),
     preparedAt: preparationStatus === "READY" ? new Date(Date.now() - 60_000).toISOString() : null,
     updatedAt: new Date(Date.now() - 60_000).toISOString(),
     lastError:
@@ -1513,5 +1520,46 @@ for (const width of [394, 1440]) {
     await page.goto("/admin");
     await expect(operations).toContainText("현재 확인된 진행 작업은 없습니다.");
     await expect(vote).toHaveCount(0);
+  });
+}
+
+for (const width of [394, 1440]) {
+  test(`lease가 지난 생성 작업도 재시도 없이 생성 중으로 보여준다 (${width}px)`, async ({
+    context,
+    page,
+  }) => {
+    await authenticate(context);
+    await page.setViewportSize({ width, height: 1000 });
+    // Vote lease(60초)가 지나 canStartPreparation=true가 된 PROCESSING 상태.
+    preparationStatus = "PROCESSING";
+    preparationRequests = 1;
+    preparationResendableWhileProcessing = true;
+    const detailUrl = `/admin/tasks/detail?taskId=${taskId}`;
+    await page.goto(detailUrl);
+    const panel = page.getByRole("region", { name: "AI 예상 답변 생성", exact: true });
+    await expect(panel.getByRole("status")).toHaveText("생성 중");
+    await expect(panel).not.toContainText("재시도 필요");
+    await expect(panel.getByRole("button")).toHaveCount(0);
+
+    preparationStartedMinutesAgo = 40;
+    await page.reload();
+    await expect(panel.getByRole("status")).toHaveText("생성 중");
+    await expect(panel).toContainText("운영 담당자에게 확인을 요청해 주세요.");
+    await expect(panel).not.toContainText("재시도 필요");
+    await expect(panel.getByRole("button")).toHaveCount(0);
+    await panel.screenshot({
+      path: `e2e/.artifacts/wireflow-results/ai-preparation-delayed-${width}.png`,
+    });
+
+    await page.goto("/admin");
+    const operations = page.getByRole("region", { name: "현재 처리 중" });
+    const vote = operations.getByRole("listitem").filter({ hasText: "투표 AI" });
+    await expect(vote).toContainText("생성 지연");
+    await expect(vote).not.toContainText("재시도 필요");
+    await expect(
+      page.getByRole("alert").filter({ hasText: "AI 예상 답변 생성에 실패한 투표" }),
+    ).toHaveCount(0);
+
+    expect(preparationRequests).toBe(1);
   });
 }

@@ -1,5 +1,8 @@
 import type { TaskCapabilities, TaskPreparationView } from "@/lib/admin/domain-contracts";
 
+// 실패와 재시도는 서버의 FAILED/REJECTED 상태로만 판단한다. PROCESSING에서
+// canStartPreparation이 true가 되는 것은 Vote lease가 지났다는 뜻일 뿐 실패가 아니므로
+// 진행 중에는 재시도 버튼 없이 "생성 중"을 유지한다.
 export function taskPreparationPresentation(
   preparation: TaskPreparationView | null,
   capabilities: TaskCapabilities,
@@ -37,7 +40,7 @@ export function taskPreparationPresentation(
         ? "현재 내용으로 생성할 수 없습니다. 오류 원인을 확인하고 투표 내용을 수정해 주세요."
         : "현재 내용으로 생성할 수 없습니다. 오류 원인과 투표 상태를 확인해 주세요.",
     };
-  if (preparation.status === "FAILED" || capabilities.canStartPreparation)
+  if (preparation.status === "FAILED")
     return {
       label: "재시도 필요",
       tone: "attention",
