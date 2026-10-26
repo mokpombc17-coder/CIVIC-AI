@@ -156,6 +156,72 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
   보고하지 않는다.
 - 자동 이동은 끝나는 시점의 읽음 조건으로 보고하도록 읽음 보고 함수를 ref로 읽는다.
 
+## 성능 판단: 스크롤마다 하는 DOM 측정
+
+스크롤 위치가 정해진 상태(`phase=settled`)의 scroll 이벤트마다 렌더된 행의 위치를
+`getBoundingClientRect`로 읽는다.
+
+- 읽음 위치: 렌더된 메시지마다 본문(`[data-message-bubble]`) 아래끝을 읽어 화면 안에 들어온 가장 아래
+  순번을 찾는다.
+- 맨 위 메시지 캡처: 이동한 대화에서 재연결 복원에 쓸 맨 위 행과 offset을 기억한다. 행마다 위치를 한
+  번만 읽는다.
+
+가상화로 렌더되는 행은 보이는 행과 위아래 overscan 10개 정도라 방의 메시지 수와 관계없이 측정 대상이
+늘지 않는다.
+
+### 측정 결과 (2026-10-26)
+
+- 조건: Chromium, production 빌드, CPU 6배 감속, 메시지 60개 방, wheel 입력으로 위아래 60회 스크롤
+- 방법: Chromium trace에서 scroll `EventDispatch` 시간과 그 안의 `Layout`·`UpdateLayoutTree`(강제
+  레이아웃)를 집계한다. 측정 코드를 끈 빌드와 각각 4회씩 비교했다.
+
+| 화면        | scroll 이벤트 처리 중앙값 | 측정 코드를 끈 빌드 | 측정 코드의 몫 |
+| ----------- | ------------------------- | ------------------- | -------------- |
+| 실시간 목록 | 2.7~2.9ms                 | 1.1~1.3ms           | 약 1.5ms       |
+| 이동한 대화 | 2.4~2.6ms                 | 1.3~1.6ms           | 약 1.1ms       |
+
+- 강제 레이아웃은 모든 측정에서 0이었다. scroll 이벤트 시점에는 레이아웃이 이미 계산되어 있어 위치를
+  읽는 비용만 든다.
+- 50ms를 넘는 긴 작업은 측정당 0~1개였다. dev 서버에서는 개발용 React 때문에 50개 넘게 잡히므로 판단
+  근거로 쓰지 않는다.
+
+### 판단
+
+- 6배 감속에서도 측정 코드는 scroll 이벤트당 약 1~1.5ms로 한 프레임(16.7ms)의 10% 안쪽이라 지금은
+  바꾸지 않는다.
+- scroll 이벤트는 브라우저가 렌더링 단계에서 한 프레임에 한 번 보내므로 requestAnimationFrame으로
+  묶어도 얻는 것이 거의 없다.
+- 바꿔야 할 때의 후보
+  - 맨 위 메시지 캡처는 스크롤이 멈췄을 때만 필요하므로 `scrollend`로 옮긴다. Safari는 26.2부터
+    지원하므로 그 이전 iOS WebView에는 debounce 대체가 필요하다.
+  - 읽음 위치는 본문 아래끝에 높이 0인 표식을 두고 IntersectionObserver로 바꾼다. 읽음 계산을 이벤트
+    방식으로 다시 설계해야 하고 `phase=settled` 조건과 다시 맞춰야 한다.
+- 한계: CPU 감속은 실제 저사양 기기와 같지 않고, iOS(WebKit)는 이 방법으로 재지 못했다. 짧은 텍스트
+  메시지 기준이라 첨부·미리보기처럼 무거운 행은 반영되지 않았다.
+
+### 다시 볼 조건
+
+- 저사양 Android WebView 실기기에서 스크롤 중 긴 작업이나 프레임 누락이 잡힐 때
+- 행 DOM이 무거워지거나(첨부·미리보기 등) overscan을 늘릴 때
+- iOS에서 스크롤 버벅임이 보고될 때
+
+### 다시 재는 방법
+
+`e2e/chat-scroll-performance.spec.ts`로 같은 조건을 재현한다. 평소 e2e에서는 skip되고
+`CHAT_SCROLL_PERF_PHASE`를 줄 때만 실행된다. production 빌드에서는 로컬 E2E 로그인이 막혀 있어 방
+준비와 측정을 서버를 바꿔 두 단계로 실행한다.
+
+1. `CHAT_SCROLL_PERF_PHASE=setup pnpm test:e2e e2e/chat-scroll-performance.spec.ts`로 dev 서버에서
+   메시지 60개 방과 로그인 쿠키를 준비한다.
+2. `pnpm --filter @app/web build` 후 `pnpm --filter @app/web exec next start --port 3000`으로
+   production 서버를 띄운다. Chat API CORS가 3000번 origin만 허용하므로 포트를 바꾸지 않는다.
+3. `CHAT_SCROLL_PERF_PHASE=measure pnpm test:e2e e2e/chat-scroll-performance.spec.ts`로 잰다. 이미 떠
+   있는 production 서버를 그대로 쓴다. 결과는 `e2e/.artifacts/chat-scroll-performance/`에 JSON으로
+   남는다. 감속 배율은 `CHAT_SCROLL_PERF_CPU`로 바꾼다.
+
+측정 코드를 끈 빌드와 비교하려면 `ChatMessageViewport`의 `handleScroll`에서 읽음 보고와 맨 위 메시지
+캡처 호출을 잠시 빼고 다시 빌드해 같은 방을 잰다.
+
 ## 진행 순서
 
 1. 순수 계산 분리 (완료): 추가 메시지 감지와 anchor 캡처·탐색을 함수로 분리하고 단위 테스트를
@@ -183,5 +249,6 @@ anchor 복원, 읽음 보고를 함께 다룬다. 이 문서는 스크롤 위치
 
 ## 범위 밖
 
-- 재입장 시 읽은 위치로 바로 이동하는 `afterSequence` 기반 진입 흐름은 보류한다.
+- 재입장 시 읽은 위치로 바로 이동하는 `afterSequence` 기반 진입 흐름은 이 문서에서 다루지 않는다.
+  `docs/architecture/chat-room-unread-entry.md`에 둔다.
 - 가상화 라이브러리 교체와 행 높이 추정값 조정은 다루지 않는다.
