@@ -254,6 +254,8 @@ export function ChatMessageViewport({
 
   // 마지막으로 불러온 메시지가 적으면 사용자가 스크롤하지 않아도 끝까지 보여서 스크롤할 때 하는 위 알림이 가지 않음
   // 그래서 더 불러올 메시지가 없어진 순간에도 한 번 알림
+  // 이동한 대화는 대상이 최신 페이지 밖일 때만 열려 처음에는 항상 아래로 더 불러올 메시지가 있음
+  // 처음부터 최신까지 들어 있는 짧은 이동한 대화가 생기면 위치가 정해지기 전에 이 effect가 끝나 알림이 가지 않으므로 그때는 위치가 정해진 뒤에도 확인해야 함
   useEffect(() => {
     if (appendMode === "history" && !canLoadNewer) {
       notifyReachedLatestRef.current();
