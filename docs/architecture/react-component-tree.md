@@ -511,7 +511,8 @@ viewport item을 만든다. system activity는 participations API 참여 이력�
 WebSocket journal과 중복 제거해 조립하며 현재 사용자의 활동은 제외한다. receipt sync가 ready이며
 Room detail의 현재 membership과 snapshot의 self membership이 일치할 때만 현재 확정 메시지에 읽은
 인원 projection을 적용하고, message Query cache는 수정하지 않으며 양수인 읽은 인원만 표시한다.
-Room 진입 시에는 `useChatRoomEntryNavigation`이 `roomId:generation`별 최초 진입 위치를 고정하고,
+Room 진입 시에는 `useChatRoomEntryNavigation`이 `roomId`별 최초 진입 위치를 한 번 고정하고(재연결로
+generation이 바뀌어도 다시 정하지 않음),
 `useChatRoomContentExperience`가 읽음 경험 조립을 `useChatRoomReadExperience`에 위임한다. 이 hook은 읽음 구분선이 현재 message page에
 없으면 제한된 수의 과거 page를 순차 조회한다. 탐색이 끝나기 전에는
 viewport 초기 이동과 새 read-state 보고를 보류하며, 탐색 결과를 읽음 구분선 또는 안전한 fallback

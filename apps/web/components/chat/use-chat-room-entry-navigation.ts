@@ -67,7 +67,9 @@ export function useChatRoomEntryNavigation({
   roomId,
   selfMembershipId,
 }: UseChatRoomEntryNavigationOptions): ChatRoomEntryNavigationController {
-  const key = `${roomId}:${generation}`;
+  // 입장 위치는 방에 들어올 때 한 번만 정하므로 재연결로 generation이 바뀌어도 key를 바꾸지 않음
+  // 재연결 때마다 다시 정하면 안 읽은 구분선이 옮겨지거나 보던 대화에서 첫 안 읽은 메시지로 다시 점프함
+  const key = roomId;
   const currentKeyRef = useRef(key);
   const entryPositionRef = useRef<Extract<
     ChatRoomEntryReadPositionSnapshot,
@@ -102,7 +104,7 @@ export function useChatRoomEntryNavigation({
   // 거슬러 불러오면 안 읽은 메시지가 많을수록 오래 걸리고 여러 번 요청해야 함
   const jumpToFirstUnread = useCallback(
     (entryPosition: Extract<ChatRoomEntryReadPositionSnapshot, { mode: "restore" }>) => {
-      const jumpKey = `${entryPosition.roomId}:${entryPosition.generation}`;
+      const jumpKey = entryPosition.roomId;
       jumpInFlightRef.current = true;
 
       void loadFirstUnreadMessage(entryPosition.dividerAfterSequence)
@@ -130,7 +132,7 @@ export function useChatRoomEntryNavigation({
   );
 
   useEffect(() => {
-    if (!enabled || !historyReady) {
+    if (!enabled || !historyReady || startedKeyRef.current === key) {
       return;
     }
 
@@ -151,7 +153,7 @@ export function useChatRoomEntryNavigation({
       return;
     }
 
-    if (!receiptStateReady || startedKeyRef.current === key) {
+    if (!receiptStateReady) {
       return;
     }
 
@@ -228,7 +230,7 @@ export function createChatRoomEntryNavigationState(
   entryPosition: Exclude<ChatRoomEntryReadPositionSnapshot, { mode: "unavailable" }>,
   jumpResult?: ChatRoomEntryJumpResult,
 ): ChatRoomEntryNavigationState {
-  const key = `${entryPosition.roomId}:${entryPosition.generation}`;
+  const key = entryPosition.roomId;
 
   if (entryPosition.mode === "latest") {
     return createLatestChatRoomEntryNavigationState(key);
