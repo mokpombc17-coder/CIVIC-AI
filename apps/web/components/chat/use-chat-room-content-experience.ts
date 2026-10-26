@@ -197,11 +197,14 @@ export function useChatRoomContentExperience(
               messageCount: message.messageItems.length,
             }),
       // Context 목록이 도착하기 전에 대상 메시지를 넘기면 viewport가 빈 목록을 보고 위치를 먼저 확정함
+      // 재연결로 다시 연 대화는 원래 이동 위치가 아니라 끊기기 전 보던 위치로 돌아감
       initialScrollTarget:
         messageNavigationActive && messageNavigation.targetMessageId && !messageNavigation.isPending
-          ? entryNavigationActive
-            ? read.initialScrollTarget
-            : ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
+          ? messageNavigation.restoreAnchor
+            ? ({ kind: "anchor", ...messageNavigation.restoreAnchor } as const)
+            : entryNavigationActive
+              ? read.initialScrollTarget
+              : ({ kind: "message", messageId: messageNavigation.targetMessageId } as const)
           : messageNavigationActive
             ? ({ kind: "pending" } as const)
             : (liveReturnTarget ?? read.initialScrollTarget),
@@ -219,6 +222,9 @@ export function useChatRoomContentExperience(
       onRetry: contextNavigationActive
         ? () => void messageNavigation.retry()
         : () => void messageHistory.refetch(),
+      onViewportAnchorSettled: messageNavigationActive
+        ? messageNavigation.rememberViewportAnchor
+        : null,
       readStateEnabled: read.readStateEnabled && !searchContextActive,
       roomLabel: `${roomId} 메시지`,
       targetMessageId:
@@ -226,10 +232,10 @@ export function useChatRoomContentExperience(
           ? messageNavigation.targetMessageId
           : null,
       viewportContinuityKey: messageNavigationActive
-        ? `${roomId}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
+        ? `${roomId}:message-navigation:${messageNavigation.timelineKey}`
         : roomId,
       viewportKey: messageNavigationActive
-        ? `${message.viewportKey}:message-navigation:${messageNavigation.mode}:${messageNavigation.selectedMessageId}`
+        ? `${message.viewportKey}:message-navigation:${messageNavigation.timelineKey}`
         : message.viewportKey,
     },
     participantDisplayNames: message.participantDisplayNames,

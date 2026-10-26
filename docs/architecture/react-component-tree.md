@@ -491,8 +491,14 @@ Room 메시지 검색의 dialog disclosure, 적용된 query와 opaque cursor를 
 정리하고 panel을 닫는다. `ChatRoomScreen`이 소유한 `useRoomMessageNavigation`은 선택한 메시지의
 위치를 live message history, 현재 Context window, 같은 Room generation의 캐시된 Context 순서로
 찾는다. 찾은 window에서는 API 요청 없이 target만 바꾸고, 캐시에 없을 때 선택한 메시지를 중심으로 새
-Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room session
-lifecycle이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사용할 수 있게 한다.
+Context를 조회한다. Context query는 개별 이동이나 최신 대화 복귀 때 제거하지 않고 Room이나 실시간
+generation이 바뀔 때 정리해 겹치는 검색 결과가 window를 재사용할 수 있게 한다. 연결이 끊기거나 다른
+탭에 사용권을 넘겨 Room session이 잠시 비활성화되어도 이동 선택을 유지하고, 같은 generation으로
+돌아오면 그대로 이어 간다. generation이 바뀌면 `ChatMessageViewport`가 스크롤 위치가 정해질 때마다
+`onViewportAnchorSettled`로 알린 화면 맨 위 메시지 주변 Context를 새 generation으로 다시 조회한다.
+조회하는 동안에는 이전 메시지와 timeline key를 유지해 화면을 움직이지 않고, 도착하면 새 timeline으로
+바꿔 같은 높이의 `anchor` 초기 위치로 맞춘다. 그 메시지가 이미 live history에 있으면 live 이동으로
+복원하고, 조회에 실패하면 이전 메시지를 내리고 Context 오류와 재시도를 보여 준다.
 `useChatRoomContentExperience`는 live 이동이면 기존 timeline source와 read-state를 유지하고, Context
 이동이면 분리된 message source와 read-state pause를 viewport model로 변환한다.
 새 메시지는 고정된 검색 session에 자동 추가하지 않고, 실시간 UPDATE와 DELETE만 이미 로드된

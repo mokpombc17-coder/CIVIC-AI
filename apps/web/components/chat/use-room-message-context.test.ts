@@ -1,13 +1,17 @@
 import { QueryClient } from "@tanstack/react-query";
 import { describe, expect, it } from "vitest";
+import { createChatMessageRenderKey } from "@/components/chat/chat-room-view-model";
 import {
+  createRestoredRoomMessageNavigationSelection,
   createRoomMessageContextExtensionState,
+  createRoomMessageNavigationTimelineKey,
   discardRoomMessageContextQueries,
   extendRoomMessageContextResponse,
   findCachedRoomMessageContextTarget,
   mergeRoomMessageContextWindow,
   reduceRoomMessageContextExtensionState,
   resolveRoomMessageNavigationDestination,
+  type RoomMessageNavigationSelection,
 } from "@/components/chat/use-room-message-context";
 import type {
   ChatMessage,
@@ -191,6 +195,108 @@ describe("Room message context window", () => {
     expect(queryClient.getQueryData(keyOne)).toBeUndefined();
     expect(queryClient.getQueryData(keyTwo)).toBeUndefined();
     expect(queryClient.getQueryData(otherRoomKey)).toEqual({ value: 3 });
+  });
+});
+
+describe("Room message navigation restore", () => {
+  const contextSelection = {
+    contextMessageId: "message-11",
+    generation: 1,
+    kind: "context",
+    purpose: "search",
+    restore: null,
+    roomId: "room-01",
+    searchSessionGeneration: 0,
+    targetMessageId: "message-11",
+  } as const satisfies RoomMessageNavigationSelection;
+  const contextMessages = [createMessage(10), createMessage(11), createMessage(12)];
+
+  it("재연결하면 끊기기 전 화면 맨 위 메시지 주변을 새 generation으로 다시 열고 원래 대상은 유지한다", () => {
+    const anchor = {
+      offsetFromViewportTop: -24,
+      renderKey: createChatMessageRenderKey(createMessage(12).clientMessageId),
+    };
+    const restored = createRestoredRoomMessageNavigationSelection({
+      anchor,
+      contextMessages,
+      generation: 2,
+      liveMessages: [createMessage(40)],
+      selection: contextSelection,
+    });
+
+    expect(restored).toMatchObject({
+      contextMessageId: "message-12",
+      generation: 2,
+      kind: "context",
+      purpose: "search",
+      restore: {
+        anchor,
+        carriedMessages: contextMessages,
+        previousTimelineKey: "context:message-11",
+      },
+      targetMessageId: "message-11",
+    });
+    expect(createRoomMessageNavigationTimelineKey(restored)).toBe("context:message-11:restored-2");
+  });
+
+  it("보던 위치를 모르면 원래 이동 위치 주변을 다시 연다", () => {
+    const restored = createRestoredRoomMessageNavigationSelection({
+      anchor: { offsetFromViewportTop: 0, renderKey: "client-message-missing" },
+      contextMessages,
+      generation: 2,
+      liveMessages: [],
+      selection: contextSelection,
+    });
+
+    expect(restored).toMatchObject({
+      contextMessageId: "message-11",
+      kind: "context",
+      restore: { anchor: null },
+    });
+  });
+
+  it("보던 메시지가 이미 실시간 목록에 있으면 실시간 목록에서 같은 위치로 돌아간다", () => {
+    const anchor = {
+      offsetFromViewportTop: 8,
+      renderKey: createChatMessageRenderKey(createMessage(12).clientMessageId),
+    };
+    const restored = createRestoredRoomMessageNavigationSelection({
+      anchor,
+      contextMessages,
+      generation: 2,
+      liveMessages: [createMessage(12), createMessage(13)],
+      selection: contextSelection,
+    });
+
+    expect(restored).toMatchObject({
+      kind: "live",
+      restore: { anchor, carriedMessages: [] },
+      targetMessageId: "message-11",
+    });
+  });
+
+  it("실시간 목록 이동은 재연결 뒤에도 같은 timeline으로 이어 간다", () => {
+    const liveSelection = {
+      generation: 1,
+      kind: "live",
+      purpose: "search",
+      restore: null,
+      roomId: "room-01",
+      searchSessionGeneration: 0,
+      targetMessageId: "message-40",
+    } as const satisfies RoomMessageNavigationSelection;
+    const restored = createRestoredRoomMessageNavigationSelection({
+      anchor: null,
+      contextMessages: [],
+      generation: 2,
+      liveMessages: [createMessage(40)],
+      selection: liveSelection,
+    });
+
+    expect(restored).toEqual({ ...liveSelection, generation: 2 });
+    expect(createRoomMessageNavigationTimelineKey(restored)).toBe(
+      createRoomMessageNavigationTimelineKey(liveSelection),
+    );
   });
 });
 

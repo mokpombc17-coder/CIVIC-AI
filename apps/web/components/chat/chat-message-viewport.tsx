@@ -72,6 +72,7 @@ export type ChatMessageViewportViewModel = Readonly<{
   onReachedLatest: ((position: ChatMessageViewportReachedLatestPosition) => void) | null;
   onReadThroughSequence: (throughSequence: number) => void;
   onRetry: () => void;
+  onViewportAnchorSettled?: ((position: ChatMessageViewportReachedLatestPosition) => void) | null;
   readStateEnabled: boolean;
   readStatePaused: boolean;
   roomLabel: string;
@@ -107,6 +108,7 @@ export function ChatMessageViewport({
     onLoadOlder,
     onReachedLatest,
     onReadThroughSequence,
+    onViewportAnchorSettled = null,
     readStateEnabled,
     readStatePaused,
     viewportContinuityKey,
@@ -155,7 +157,10 @@ export function ChatMessageViewport({
     initialScrollTarget,
     items: history.items,
     onInitialPositionReady,
-    onJobSettled: () => reportVisibleReadSequenceRef.current(),
+    onJobSettled: () => {
+      reportVisibleReadSequenceRef.current();
+      notifyViewportAnchorSettledRef.current();
+    },
     onLatestReached: () => latestFollowRef.current?.markLatestReached(),
     onViewportChanged: (change) => {
       olderHistoryRef.current?.handleViewportChanged(change);
@@ -252,6 +257,33 @@ export function ChatMessageViewport({
   const notifyReachedLatestRef = useRef(notifyReachedLatest);
   notifyReachedLatestRef.current = notifyReachedLatest;
 
+  // 재연결로 이동한 대화를 다시 열 때 끊기기 전 보던 위치로 돌아가려면 그 위치를 미리 알아야 함
+  // generation이 바뀐 뒤에는 화면이 이미 바뀌어 읽을 수 없으므로 스크롤 위치가 정해질 때마다 알림
+  function notifyViewportAnchorSettled() {
+    const scrollElement = scrollElementRef.current;
+    const position = positionRef.current;
+
+    if (
+      onViewportAnchorSettled === null ||
+      scrollElement === null ||
+      position.phase !== "settled" ||
+      position.job !== null
+    ) {
+      return;
+    }
+
+    const anchor = captureChatMessageViewportAnchor(scrollElement);
+
+    if (anchor) {
+      onViewportAnchorSettled({
+        offsetFromViewportTop: anchor.offsetFromViewportTop,
+        renderKey: anchor.renderKey,
+      });
+    }
+  }
+  const notifyViewportAnchorSettledRef = useRef(notifyViewportAnchorSettled);
+  notifyViewportAnchorSettledRef.current = notifyViewportAnchorSettled;
+
   // 마지막으로 불러온 메시지가 적으면 사용자가 스크롤하지 않아도 끝까지 보여서 스크롤할 때 하는 위 알림이 가지 않음
   // 그래서 더 불러올 메시지가 없어진 순간에도 한 번 알림
   // 이동한 대화는 대상이 최신 페이지 밖일 때만 열려 처음에는 항상 아래로 더 불러올 메시지가 있음
@@ -292,6 +324,7 @@ export function ChatMessageViewport({
     }
 
     notifyReachedLatest();
+    notifyViewportAnchorSettled();
   }
 
   // scroll 이벤트는 코드가 움직인 것과 구분할 수 없으므로 목록 안에서 시작된 입력으로 사용자 스크롤을 판단함

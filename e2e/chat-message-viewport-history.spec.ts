@@ -1,14 +1,28 @@
-import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
+import {
+  expect,
+  test,
+  type CDPSession,
+  type Locator,
+  type Page,
+  type Route,
+} from "@playwright/test";
 import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  enableSharedWorkerNetwork,
+  findNewSharedWorkerTargetId,
+  setSharedWorkerOffline,
+} from "./chat-shared-worker-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
+const RECONNECTING_LABEL = "준비 중";
 const MESSAGE_COUNT = 52;
 
 test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 viewport에서 복구한다", async ({
+  browser,
   context,
   page,
 }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   const uniqueId = crypto.randomUUID();
   const roomName = `e2e-viewport-history-${uniqueId}`;
@@ -147,6 +161,103 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
     await expect(messageLog.getByText(messages.at(-1)!, { exact: true })).toBeVisible();
   });
 
+  await test.step("검색 결과 구간에서 연결이 잠시 끊겨도 다시 받지 않고 보던 대화를 그대로 이어 간다", async () => {
+    const browserSession = await browser.newBrowserCDPSession();
+    // 새로고침하면 SharedWorker가 새로 만들어지므로 새로고침 전 target을 기억해 새 worker를 찾음
+    const workerTargetIdsBeforeReload = await listSharedWorkerTargetIds(browserSession);
+    await openOldSearchResult();
+    const workerTargetId = await findNewSharedWorkerTargetId(
+      browserSession,
+      workerTargetIdsBeforeReload,
+    );
+    const { sessionId: workerSessionId } = await browserSession.send("Target.attachToTarget", {
+      flatten: false,
+      targetId: workerTargetId,
+    });
+    await enableSharedWorkerNetwork(browserSession, workerSessionId);
+    let contextRequestCount = 0;
+    const countContextRequest = (request: { method(): string; url(): string }) => {
+      if (request.method() === "GET" && isContextRequest(roomId, new URL(request.url()))) {
+        contextRequestCount += 1;
+      }
+    };
+
+    try {
+      // 검색 결과가 아닌 메시지가 맨 위에 오도록 조금 스크롤해 보던 위치와 이동 위치를 구분함
+      await scrollByAsUser(messageLog, -80);
+      const positionBeforeDisconnect = await readTopVisibleMessage(messageLog);
+      page.on("request", countContextRequest);
+
+      await setSharedWorkerOffline(browserSession, workerSessionId, true);
+      await expect(page.getByText(RECONNECTING_LABEL, { exact: true })).toBeVisible();
+
+      // 끊긴 동안에도 보던 대화를 닫지 않고 같은 위치에 둠
+      await expect(
+        page.getByRole("button", { name: "최신 대화로 이동", exact: true }),
+      ).toBeVisible();
+      expect(
+        await readMessageOffsetDistance(messageLog, positionBeforeDisconnect),
+      ).toBeLessThanOrEqual(2);
+
+      await setSharedWorkerOffline(browserSession, workerSessionId, false);
+      await expect(page.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+
+      // 같은 generation으로 돌아오면 빠진 구간은 실시간 복구가 채우므로 대화를 다시 받지 않음
+      await page.waitForTimeout(1_000);
+      expect(contextRequestCount, "같은 연결 세대에서는 대화를 다시 받지 않아야 합니다.").toBe(0);
+      expect(
+        await readMessageOffsetDistance(messageLog, positionBeforeDisconnect),
+      ).toBeLessThanOrEqual(2);
+      await expect(messageLog.locator('[data-navigation-target="true"]')).toContainText(
+        messages[0]!,
+      );
+    } finally {
+      page.off("request", countContextRequest);
+      await setSharedWorkerOffline(browserSession, workerSessionId, false).catch(() => {});
+      await browserSession.detach();
+    }
+  });
+
+  await test.step("검색 결과 구간에서 다른 탭에 넘긴 사용권을 되찾으면 보던 메시지 주변을 다시 받아 같은 높이로 복원한다", async () => {
+    await openOldSearchResult();
+    await scrollByAsUser(messageLog, -80);
+    const positionBeforeReplace = await readTopVisibleMessage(messageLog);
+    const otherPage = await context.newPage();
+
+    try {
+      await otherPage.goto(page.url());
+      await expect(otherPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      const tabReplacedNotice = page.locator('[data-chat-session-notice="replaced"]');
+      await expect(tabReplacedNotice).toBeVisible();
+
+      // 사용권을 넘긴 동안에도 보던 대화를 그대로 둠
+      expect(
+        await readMessageOffsetDistance(messageLog, positionBeforeReplace),
+      ).toBeLessThanOrEqual(2);
+
+      // 사용권을 되찾으면 연결 세대가 바뀌어 끊긴 사이 수정·삭제를 놓쳤을 수 있으므로 대화를 다시 받음
+      const restoreResponse = page.waitForResponse((response) => {
+        const url = new URL(response.url());
+        return response.request().method() === "GET" && isContextRequest(roomId, url);
+      });
+      await tabReplacedNotice.getByRole("button", { name: "여기서 계속하기", exact: true }).click();
+
+      expect((await restoreResponse).ok(), "보던 위치 주변 대화를 다시 받아야 합니다.").toBe(true);
+      await expect(page.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      await expect
+        .poll(() => readMessageOffsetDistance(messageLog, positionBeforeReplace))
+        .toBeLessThanOrEqual(2);
+      await expect(messageLog.locator('[data-navigation-target="true"]')).toContainText(
+        messages[0]!,
+      );
+      await expect(
+        page.getByRole("button", { name: "최신 대화로 이동", exact: true }),
+      ).toBeVisible();
+    } finally {
+      await otherPage.close();
+    }
+  });
+
   await test.step("과거 이력 조회가 실패하면 안내를 표시하고 재시도로 읽던 위치를 복구한다", async () => {
     await reloadToLatestHistory(page, roomId, messageInput);
 
@@ -260,6 +371,44 @@ async function waitForScrollSettledAtLatest(messageLog: Locator) {
       ),
     )
     .toBe(true);
+}
+
+function isContextRequest(roomId: string, url: URL): boolean {
+  return (
+    url.pathname.startsWith(`/api/v1/rooms/${roomId}/messages/`) &&
+    url.pathname.endsWith("/context")
+  );
+}
+
+async function readMessageOffsetDistance(
+  messageLog: Locator,
+  position: Readonly<{ clientMessageId: string; offsetFromViewportTop: number }>,
+): Promise<number> {
+  const offset = await readMessageOffset(messageLog, position.clientMessageId);
+  return offset === null
+    ? Number.POSITIVE_INFINITY
+    : Math.abs(offset - position.offsetFromViewportTop);
+}
+
+async function listSharedWorkerTargetIds(browserSession: CDPSession): Promise<Set<string>> {
+  const { targetInfos } = await browserSession.send("Target.getTargets");
+  return new Set(
+    targetInfos
+      .filter((target) => target.type === "shared_worker")
+      .map((target) => target.targetId),
+  );
+}
+
+async function scrollByAsUser(messageLog: Locator, deltaY: number) {
+  await messageLog.evaluate(
+    (element, delta) =>
+      new Promise<void>((resolve) => {
+        element.dispatchEvent(new WheelEvent("wheel", { bubbles: true, deltaY: delta }));
+        element.scrollBy({ top: delta });
+        requestAnimationFrame(() => requestAnimationFrame(() => resolve()));
+      }),
+    deltaY,
+  );
 }
 
 async function scrollAwayFromBottomAsUser(messageLog: Locator) {

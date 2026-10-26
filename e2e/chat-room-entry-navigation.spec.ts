@@ -11,7 +11,7 @@ const MESSAGE_COUNT = 52;
 test("재진입 시 저장된 읽음 위치로 바로 이동하고 실패한 위치 조회를 재시도한다", async ({
   browser,
 }, testInfo) => {
-  test.setTimeout(180_000);
+  test.setTimeout(240_000);
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
@@ -168,6 +168,60 @@ test("재진입 시 저장된 읽음 위치로 바로 이동하고 실패한 위
       expect(olderHistoryRequestCount).toBe(0);
     });
 
+    await test.step("다른 탭에 넘긴 사용권을 되찾아도 읽은 위치로 이동한 대화와 구분선을 보던 높이 그대로 복원한다", async () => {
+      const positionBeforeReplace = await readTopVisibleMessage(memberMessageLog);
+      const otherPage = await memberContext.newPage();
+
+      try {
+        await otherPage.goto(memberPage.url());
+        await expect(
+          otherPage.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL }),
+        ).toBeVisible();
+        const tabReplacedNotice = memberPage.locator('[data-chat-session-notice="replaced"]');
+        await expect(tabReplacedNotice).toBeVisible();
+
+        const restoreResponse = memberPage.waitForResponse((response) => {
+          const url = new URL(response.url());
+          return (
+            response.request().method() === "GET" &&
+            url.pathname.startsWith(`/api/v1/rooms/${roomId}/messages/`) &&
+            url.pathname.endsWith("/context")
+          );
+        });
+        await memberPage.bringToFront();
+        await tabReplacedNotice
+          .getByRole("button", { name: "여기서 계속하기", exact: true })
+          .click();
+
+        expect((await restoreResponse).ok(), "보던 위치 주변 대화를 다시 받아야 합니다.").toBe(
+          true,
+        );
+        await expect(
+          memberPage.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL }),
+        ).toBeVisible();
+        // 입장 위치는 방에 들어올 때 한 번만 정하므로 사용권을 되찾아도 구분선이 옮겨지지 않아야 함
+        await expect(
+          memberPage.getByRole("separator", { name: "여기까지 읽었습니다" }),
+        ).toHaveAttribute("data-read-boundary-after-sequence", "1");
+        await expect
+          .poll(async () => {
+            const offset = await readMessageOffset(
+              memberMessageLog,
+              positionBeforeReplace.clientMessageId,
+            );
+            return offset === null
+              ? Number.POSITIVE_INFINITY
+              : Math.abs(offset - positionBeforeReplace.offsetFromViewportTop);
+          })
+          .toBeLessThanOrEqual(2);
+        await expect(
+          memberPage.getByRole("button", { name: "최신 대화로 이동", exact: true }),
+        ).toBeVisible();
+      } finally {
+        await otherPage.close();
+      }
+    });
+
     await test.step("아래로 끝까지 읽으면 실시간 목록으로 바뀌고 마지막 메시지까지 읽음 처리한다", async () => {
       const latestReadState = memberPage.waitForResponse(async (response) => {
         const url = new URL(response.url());
@@ -267,4 +321,37 @@ async function isViewportAwayFromLatest(messageLog: ReturnType<Page["getByRole"]
   return messageLog.evaluate(
     (element) => element.scrollTop + element.clientHeight < element.scrollHeight - 1,
   );
+}
+
+async function readTopVisibleMessage(
+  messageLog: ReturnType<Page["getByRole"]>,
+): Promise<{ clientMessageId: string; offsetFromViewportTop: number }> {
+  const position = await messageLog.evaluate((element) => {
+    const viewportTop = element.getBoundingClientRect().top;
+    const row = [...element.querySelectorAll<HTMLElement>("li[data-client-message-id]")]
+      .filter((candidate) => candidate.getBoundingClientRect().bottom > viewportTop)
+      .sort(
+        (left, right) => left.getBoundingClientRect().top - right.getBoundingClientRect().top,
+      )[0];
+
+    return row?.dataset.clientMessageId
+      ? {
+          clientMessageId: row.dataset.clientMessageId,
+          offsetFromViewportTop: row.getBoundingClientRect().top - viewportTop,
+        }
+      : null;
+  });
+
+  expect(position, "화면 맨 위 메시지를 찾아야 합니다.").not.toBeNull();
+  return position!;
+}
+
+async function readMessageOffset(
+  messageLog: ReturnType<Page["getByRole"]>,
+  clientMessageId: string,
+): Promise<number | null> {
+  return messageLog.evaluate((element, id) => {
+    const row = element.querySelector<HTMLElement>(`li[data-client-message-id="${id}"]`);
+    return row ? row.getBoundingClientRect().top - element.getBoundingClientRect().top : null;
+  }, clientMessageId);
 }
