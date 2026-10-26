@@ -24,6 +24,27 @@ describe("chat message viewport anchor", () => {
     });
   });
 
+  it("항목마다 위치를 한 번만 읽는다", () => {
+    const scrollElement = createScrollElement({ top: 100, viewportKey: "live" });
+    const items = [
+      appendItem(scrollElement, { renderKey: "m-03", top: 180, bottom: 240 }),
+      appendItem(scrollElement, { renderKey: "m-01", top: 120, bottom: 170 }),
+      appendItem(scrollElement, { renderKey: "m-02", top: 150, bottom: 210 }),
+    ];
+    const readCounts = items.map((item) => {
+      const readBounds = item.getBoundingClientRect;
+      const counter = { count: 0 };
+      item.getBoundingClientRect = () => {
+        counter.count += 1;
+        return readBounds();
+      };
+      return counter;
+    });
+
+    expect(captureChatMessageViewportAnchor(scrollElement)?.renderKey).toBe("m-01");
+    expect(readCounts.map((counter) => counter.count)).toEqual([1, 1, 1]);
+  });
+
   it("날짜 구분선은 anchor 기준에서 제외한다", () => {
     const scrollElement = createScrollElement({ top: 0, viewportKey: "live" });
     appendItem(scrollElement, {
