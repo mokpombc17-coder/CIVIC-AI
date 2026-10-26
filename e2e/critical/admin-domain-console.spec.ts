@@ -245,6 +245,11 @@ test.beforeAll(async () => {
       preparationStatus = "PROCESSING";
       return json(response, { taskId, preparation: preparationFixture(), replayed: false }, 202);
     }
+    if (url.pathname === `/api/v1/admin/tasks/${taskId}` && request.method === "PUT") {
+      const body = await readBody(request);
+      task = { ...task, title: body.title as string };
+      return json(response, task);
+    }
     if (url.pathname === `/api/v1/admin/tasks/${taskId}` && request.method === "GET") {
       return json(response, {
         task,
@@ -1480,6 +1485,15 @@ for (const width of [394, 1440]) {
     await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
     const panel = page.getByRole("region", { name: "AI 예상 답변 생성", exact: true });
     await panel.getByRole("button", { name: "답변 생성 시작", exact: true }).click();
+    const startDialog = page.getByRole("alertdialog", { name: "AI 예상 답변을 생성할까요?" });
+    await expect(startDialog).toContainText("투표 내용을 수정할 수 없고");
+    expect(preparationRequests).toBe(0);
+    if (width === 1440) {
+      await startDialog.screenshot({
+        path: "e2e/.artifacts/wireflow-results/ai-preparation-start-confirm.png",
+      });
+    }
+    await startDialog.getByRole("button", { name: "생성 시작", exact: true }).click();
     await expect(panel.getByRole("status")).toHaveText("생성 중");
     await expect(panel.getByRole("button")).toHaveCount(0);
     expect(preparationRequests).toBe(1);
@@ -1514,6 +1528,10 @@ for (const width of [394, 1440]) {
       path: `e2e/.artifacts/wireflow-results/ai-preparation-retry-${width}.png`,
     });
     await panel.getByRole("button", { name: "답변 생성 다시 시도", exact: true }).click();
+    await page
+      .getByRole("alertdialog", { name: "AI 예상 답변을 생성할까요?" })
+      .getByRole("button", { name: "다시 생성", exact: true })
+      .click();
     await expect(panel.getByRole("status")).toHaveText("생성 중");
     expect(preparationRequests).toBe(2);
     preparationStatus = "READY";
@@ -1612,4 +1630,46 @@ test("일부 페르소나 응답이 실패한 시뮬레이션은 끝난 실행�
   const item = operations.getByRole("listitem").filter({ hasText: "교통 정책 투표" });
   await expect(item).toContainText("확인 필요");
   await expect(item).toContainText("일부 페르소나 응답 실패");
+});
+
+test("초안 전체 저장과 취소는 편집기를 닫고 상세로 돌아간다", async ({ context, page }) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
+  await page.getByRole("button", { name: "내용 수정", exact: true }).click();
+  await page.getByRole("textbox", { name: "제목", exact: true }).fill("수정한 정책 투표");
+  const save = page.getByRole("button", { name: "초안 전체 저장", exact: true });
+  await save.scrollIntoViewIfNeeded();
+  await page.screenshot({ path: "e2e/.artifacts/wireflow-results/task-editor-save-spacing.png" });
+  await save.click();
+  await expect(page).toHaveURL(`/admin/tasks/detail?taskId=${taskId}`);
+  await expect(page.getByRole("button", { name: /초안 (전체 )?저장/u })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "내용 수정", exact: true })).toBeVisible();
+
+  await page.getByRole("button", { name: "내용 수정", exact: true }).click();
+  await page.getByRole("link", { name: "취소", exact: true }).click();
+  await expect(page).toHaveURL(`/admin/tasks/detail?taskId=${taskId}`);
+  await expect(page.getByRole("button", { name: /초안 (전체 )?저장/u })).toHaveCount(0);
+});
+
+test("AI 예상 답변 생성 뒤 잠긴 내용 수정은 이유와 새 투표 만들기를 안내한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  preparationStatus = "READY";
+  await page.goto(`/admin/tasks/detail?taskId=${taskId}`);
+  const edit = page.getByRole("button", { name: "내용 수정", exact: true });
+  await expect(edit).toHaveAttribute("aria-disabled", "true");
+  // aria-disabled로 잠김을 알리지만, 누르면 이유를 안내하도록 클릭은 받는다.
+  await edit.click({ force: true });
+  const dialog = page.getByRole("alertdialog", { name: "내용을 수정할 수 없습니다" });
+  await expect(dialog).toContainText("AI 예상 답변이 지금 내용으로 생성되어");
+  await dialog.screenshot({
+    path: "e2e/.artifacts/wireflow-results/task-content-locked-dialog.png",
+  });
+  await dialog.getByRole("button", { name: "새 투표 만들기", exact: true }).click();
+  await expect(page).toHaveURL("/admin/tasks/create");
+  await expect(page.getByRole("button", { name: "초안 저장", exact: true })).toBeVisible();
 });

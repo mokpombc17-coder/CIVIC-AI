@@ -3,9 +3,9 @@
 import { listCountLabel } from "@/lib/admin/list-count";
 import type { Route } from "next";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { AuthenticatedDownloadLink } from "@/components/auth/authenticated-download-link";
+import { ConfirmDialog } from "@/components/common/confirm-dialog";
 import { OpinionMapReviewPanel } from "@/components/admin/opinion-map-review-panel";
 import { VoteSimulationComparison } from "@/components/admin/vote-simulation-comparison";
 import { ConsoleDataGrid, type ConsoleColumn } from "@/components/admin/console/console-data-grid";
@@ -204,6 +204,16 @@ function AdminTaskWorkspace({
     syncTaskUrl({ editing: true, taskId, tab });
   }
 
+  // 편집기는 같은 작업 공간 안에서 열리므로, 닫을 때도 라우터 이동 대신 상태를 직접 바꾼다.
+  // router.push로는 이 컴포넌트가 다시 만들어지지 않아 편집 상태가 그대로 남았다.
+  function closeEditor(nextTaskId: string | null) {
+    setEditing(false);
+    setEditorTaskId(null);
+    setSelectedTaskId(nextTaskId);
+    setTab("overview");
+    syncTaskUrl({ editing: false, taskId: nextTaskId, tab: "overview" });
+  }
+
   const resultsLocked = selectedSummary !== null && !canViewTaskResults(selectedSummary);
   const tabs: readonly ConsoleTabItem[] = [
     { id: "overview", label: "개요" },
@@ -293,7 +303,15 @@ function AdminTaskWorkspace({
         }
       >
         {editing ? (
-          <TaskEditor key={editorTaskId ?? "new"} taskId={editorTaskId} />
+          <TaskEditor
+            key={editorTaskId ?? "new"}
+            onCancel={() => closeEditor(editorTaskId ?? selectedTaskId)}
+            onSaved={(savedTaskId) => {
+              closeEditor(savedTaskId);
+              void loadList();
+            }}
+            taskId={editorTaskId}
+          />
         ) : !selectedTaskId ? (
           <ConsoleEmpty title="목록에서 투표를 선택하세요." />
         ) : (
@@ -309,6 +327,7 @@ function AdminTaskWorkspace({
                 earlyCloseOpen={earlyCloseOpen}
                 key={selectedTaskId}
                 onEarlyCloseOpenChange={setEarlyCloseOpen}
+                onCreateTask={() => openEditor(null)}
                 onEditDraft={(id) => openEditor(id)}
                 onOpenResults={() => switchTab("results")}
                 onTaskChanged={() => void loadList()}
@@ -343,8 +362,15 @@ function searchTaskId(): string | null {
   return new URLSearchParams(window.location.search).get("taskId");
 }
 
-function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
-  const router = useRouter();
+function TaskEditor({
+  onCancel,
+  onSaved,
+  taskId,
+}: Readonly<{
+  onCancel: () => void;
+  onSaved: (taskId: string) => void;
+  taskId: string | null;
+}>) {
   const [task, setTask] = useState<Task | null>(null);
   const [contentEditable, setContentEditable] = useState(taskContentEditAllowed(taskId, false));
   const [title, setTitle] = useState("");
@@ -438,7 +464,7 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
       }
       const saved = readTask(await response.json());
       if (!saved) return setMessage("서버의 투표 저장 응답 형식을 확인해야 합니다.");
-      router.push(`/admin/tasks/detail?taskId=${encodeURIComponent(saved.id)}` as Route);
+      onSaved(saved.id);
     } catch {
       if (task) {
         const latest = await requestTaskDetail(task.id);
@@ -578,6 +604,10 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
               ? (`/admin/tasks/detail?taskId=${encodeURIComponent(task.id)}` as Route)
               : "/admin/tasks"
           }
+          onClick={(event) => {
+            event.preventDefault();
+            onCancel();
+          }}
         >
           취소
         </Link>
@@ -594,6 +624,14 @@ function TaskEditor({ taskId }: Readonly<{ taskId: string | null }>) {
   );
 }
 
+export function contentLockedDescription(status: string | undefined): string {
+  if (status === "PROCESSING")
+    return "AI 예상 답변을 생성하는 동안에는 투표 내용을 수정할 수 없습니다. 생성이 끝나거나 실패한 뒤 다시 확인하거나, 내용을 바꾼 새 투표를 만들어 주세요.";
+  if (status === "READY")
+    return "AI 예상 답변이 지금 내용으로 생성되어 투표 내용을 수정할 수 없습니다. 내용을 바꾸려면 새 투표를 만들어 주세요.";
+  return "현재 상태에서는 투표 내용을 수정할 수 없습니다. 내용을 바꾸려면 새 투표를 만들어 주세요.";
+}
+
 export function taskContentEditAllowed(taskId: string | null, canEditContent: boolean): boolean {
   return taskId === null || canEditContent;
 }
@@ -602,6 +640,7 @@ function TaskOverviewTab({
   taskId,
   earlyCloseOpen,
   onEarlyCloseOpenChange,
+  onCreateTask,
   onEditDraft,
   onOpenResults,
   onTaskChanged,
@@ -609,6 +648,7 @@ function TaskOverviewTab({
   taskId: string;
   earlyCloseOpen: boolean;
   onEarlyCloseOpenChange: (open: boolean) => void;
+  onCreateTask: () => void;
   onEditDraft: (taskId: string) => void;
   onOpenResults: () => void;
   onTaskChanged: () => void;
@@ -619,6 +659,8 @@ function TaskOverviewTab({
   const [problem, setProblem] = useState<AdminProblem | null>(null);
   const [preparationPending, setPreparationPending] = useState(false);
   const [preparationRefreshPending, setPreparationRefreshPending] = useState(false);
+  const [preparationConfirmOpen, setPreparationConfirmOpen] = useState(false);
+  const [contentLockedOpen, setContentLockedOpen] = useState(false);
   const [closeReason, setCloseReason] = useState("");
   const [closePending, setClosePending] = useState(false);
   const [closeProblem, setCloseProblem] = useState<AdminProblem | null>(null);
@@ -822,9 +864,15 @@ function TaskOverviewTab({
           <div className="civic-detail-actions">
             {task.status === "DRAFT" ? (
               <button
-                className="wf-button wf-button-secondary"
-                disabled={!detail.capabilities.canEditContent}
-                onClick={() => onEditDraft(task.id)}
+                aria-disabled={!detail.capabilities.canEditContent}
+                className={`wf-button wf-button-secondary${
+                  detail.capabilities.canEditContent ? "" : " civic-content-locked-action"
+                }`}
+                onClick={() =>
+                  detail.capabilities.canEditContent
+                    ? onEditDraft(task.id)
+                    : setContentLockedOpen(true)
+                }
                 type="button"
               >
                 내용 수정
@@ -915,9 +963,40 @@ function TaskOverviewTab({
         <aside aria-label="투표 운영" className="civic-task-detail-operations">
           <TaskPreparationPanel
             capabilities={detail.capabilities}
-            onStart={() => void startPreparation()}
+            onStart={() => setPreparationConfirmOpen(true)}
             pending={preparationPending}
             preparation={detail.preparation}
+          />
+          <ConfirmDialog
+            busy={preparationPending}
+            busyLabel="생성 요청 중…"
+            confirmLabel={detail.preparation ? "다시 생성" : "생성 시작"}
+            description={
+              <p>
+                생성을 시작하면 생성이 끝나거나 실패할 때까지 투표 내용을 수정할 수 없고, 생성이
+                완료되면 이후에도 수정할 수 없습니다. 제목·질문·선택지를 모두 확인한 뒤 시작해
+                주세요.
+              </p>
+            }
+            onCancel={() => setPreparationConfirmOpen(false)}
+            onConfirm={() => {
+              setPreparationConfirmOpen(false);
+              void startPreparation();
+            }}
+            open={preparationConfirmOpen}
+            title="AI 예상 답변을 생성할까요?"
+          />
+          <ConfirmDialog
+            cancelLabel="닫기"
+            confirmLabel="새 투표 만들기"
+            description={<p>{contentLockedDescription(detail.preparation?.status)}</p>}
+            onCancel={() => setContentLockedOpen(false)}
+            onConfirm={() => {
+              setContentLockedOpen(false);
+              onCreateTask();
+            }}
+            open={contentLockedOpen}
+            title="내용을 수정할 수 없습니다"
           />
           <LifecyclePanel
             capabilities={detail.capabilities}

@@ -25,6 +25,7 @@ import {
   lifecycleActionLabel,
   lifecycleActions,
   shouldPollTaskPreparation,
+  contentLockedDescription,
   taskContentEditAllowed,
   TASK_GRID_COLUMNS,
   taskWorkspacePath,
@@ -325,6 +326,9 @@ describe("latest Wire Flow shared product UI", () => {
 
   it("기존 투표 편집은 서버의 canEditContent capability로 잠근다", () => {
     expect(taskContentEditAllowed(null, false)).toBe(true);
+    expect(contentLockedDescription("PROCESSING")).toContain("생성하는 동안에는");
+    expect(contentLockedDescription("READY")).toContain("지금 내용으로 생성되어");
+    expect(contentLockedDescription(undefined)).toContain("새 투표를 만들어");
     expect(taskContentEditAllowed("task-id", true)).toBe(true);
     expect(taskContentEditAllowed("task-id", false)).toBe(false);
   });
