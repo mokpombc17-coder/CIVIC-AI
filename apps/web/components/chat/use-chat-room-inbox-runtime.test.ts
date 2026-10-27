@@ -5,6 +5,10 @@ import {
   shouldRefreshRoomInboxForMessageCommand,
   shouldRefreshRoomInboxForMessageMutation,
 } from "./use-chat-room-inbox-runtime";
+import {
+  PUBLIC_ROOM_LIST_INVALIDATION_DELAY_MS,
+  PUBLIC_ROOM_LIST_INVALIDATION_JITTER_MS,
+} from "@/lib/chat/realtime/chat-public-room-list-invalidation";
 import { ROOM_INBOX_INVALIDATION_DEBOUNCE_MS } from "@/lib/chat/realtime/chat-room-inbox-event-coordinator";
 import type {
   ChatMessageCommandEvent,
@@ -70,6 +74,44 @@ describe("Room inbox runtime", () => {
     detach();
   });
 
+  it("공개방 목록 무효화 신호는 inbox를 건드리지 않고 공개방 목록만 한 번으로 합쳐 다시 조회한다", () => {
+    vi.useFakeTimers();
+    const runtime = createRuntimeHarness();
+    const detach = attachChatRoomInboxRuntime(runtime.options);
+
+    runtime.emitInbox(PUBLIC_ROOMS_INVALIDATED_EVENT);
+    runtime.emitInbox({ ...PUBLIC_ROOMS_INVALIDATED_EVENT, eventId: PUBLIC_ROOMS_EVENT_ID_2 });
+    vi.advanceTimersByTime(
+      PUBLIC_ROOM_LIST_INVALIDATION_DELAY_MS + PUBLIC_ROOM_LIST_INVALIDATION_JITTER_MS,
+    );
+
+    expect(runtime.onPublicRoomListRefresh).toHaveBeenCalledTimes(1);
+    expect(runtime.onRefresh).not.toHaveBeenCalled();
+    expect(runtime.onCreate).not.toHaveBeenCalled();
+    detach();
+  });
+
+  it("연결되면 놓친 공개방 변경을 반영하려고 공개방 목록도 다시 조회한다", () => {
+    vi.useFakeTimers();
+    const runtime = createRuntimeHarness();
+    const detach = attachChatRoomInboxRuntime(runtime.options);
+
+    runtime.emitTarget("focus");
+    vi.advanceTimersByTime(
+      PUBLIC_ROOM_LIST_INVALIDATION_DELAY_MS + PUBLIC_ROOM_LIST_INVALIDATION_JITTER_MS,
+    );
+    expect(runtime.onPublicRoomListRefresh).not.toHaveBeenCalled();
+
+    runtime.connectionStatus = "connected";
+    runtime.emitConnection();
+    vi.advanceTimersByTime(
+      PUBLIC_ROOM_LIST_INVALIDATION_DELAY_MS + PUBLIC_ROOM_LIST_INVALIDATION_JITTER_MS,
+    );
+
+    expect(runtime.onPublicRoomListRefresh).toHaveBeenCalledTimes(1);
+    detach();
+  });
+
   it("cleanup 뒤에는 observer와 window 신호를 처리하지 않는다", () => {
     vi.useFakeTimers();
     const runtime = createRuntimeHarness();
@@ -77,13 +119,17 @@ describe("Room inbox runtime", () => {
     detach();
 
     runtime.emitInbox(UPDATED_EVENT);
+    runtime.emitInbox(PUBLIC_ROOMS_INVALIDATED_EVENT);
     runtime.emitCommand(createMessageCommandEvent("ACCEPTED"));
     runtime.emitMutation(createMessageMutationEvent("DELETED"));
     runtime.emitTarget("focus");
-    vi.advanceTimersByTime(ROOM_INBOX_INVALIDATION_DEBOUNCE_MS);
+    vi.advanceTimersByTime(
+      PUBLIC_ROOM_LIST_INVALIDATION_DELAY_MS + PUBLIC_ROOM_LIST_INVALIDATION_JITTER_MS,
+    );
 
     expect(runtime.onCreate).not.toHaveBeenCalled();
     expect(runtime.onRefresh).not.toHaveBeenCalled();
+    expect(runtime.onPublicRoomListRefresh).not.toHaveBeenCalled();
   });
 
   it.each([
@@ -185,6 +231,18 @@ const DELETED_EVENT: Extract<ChatRoomInboxEvent, { cause: "MESSAGE_DELETED" }> =
   notificationHint: null,
 };
 
+const PUBLIC_ROOMS_EVENT_ID_2 = "550e8400-e29b-41d4-a716-446655440011";
+
+const PUBLIC_ROOMS_INVALIDATED_EVENT: Extract<
+  ChatRoomInboxEvent,
+  { eventType: "PUBLIC_ROOMS_INVALIDATED" }
+> = {
+  eventVersion: 1,
+  eventId: "550e8400-e29b-41d4-a716-446655440010",
+  eventType: "PUBLIC_ROOMS_INVALIDATED",
+  emittedAt: "2026-10-27T01:10:00.123456Z",
+};
+
 function createRuntimeHarness() {
   let connectionListener: (() => void) | null = null;
   let commandListener: ((event: ChatMessageCommandEvent) => void) | null = null;
@@ -192,6 +250,7 @@ function createRuntimeHarness() {
   let inboxListener: ((event: ChatRoomInboxEvent) => void) | null = null;
   const targetListeners = new Map<"focus" | "online", () => void>();
   const onCreate = vi.fn();
+  const onPublicRoomListRefresh = vi.fn();
   const onRefresh = vi.fn();
   const harness = {
     connectionStatus: "disconnected" as ReturnType<ChatRealtimeTransport["getSnapshot"]>["status"],
@@ -201,9 +260,11 @@ function createRuntimeHarness() {
     emitMutation: (event: ChatMessageMutationEvent) => mutationListener?.(event),
     emitTarget: (type: "focus" | "online") => targetListeners.get(type)?.(),
     onCreate,
+    onPublicRoomListRefresh,
     onRefresh,
     options: {
       onCreate,
+      onPublicRoomListRefresh,
       onRefresh,
       target: {
         addEventListener: (type: "focus" | "online", listener: () => void) => {

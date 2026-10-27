@@ -640,6 +640,23 @@ describe("room inbox event contracts", () => {
     }
   });
 
+  it("공개방 목록 무효화 신호는 방 정보 없이 받고 모르는 필드는 무시한다", () => {
+    const event = {
+      eventVersion: 1,
+      eventId: "550e8400-e29b-41d4-a716-446655440000",
+      eventType: "PUBLIC_ROOMS_INVALIDATED",
+      emittedAt: "2026-10-27T01:10:00.123456Z",
+    };
+
+    expect(parseChatRoomInboxEvent(JSON.stringify(event))).toEqual(event);
+    expect(parseChatRoomInboxEvent(JSON.stringify({ ...event, addedLater: "x" }))).toEqual(event);
+    expect(parseChatRoomInboxEvent(JSON.stringify({ ...event, eventVersion: 2 }))).toBeNull();
+    expect(parseChatRoomInboxEvent(JSON.stringify({ ...event, eventId: "event-1" }))).toBeNull();
+    expect(
+      parseChatRoomInboxEvent(JSON.stringify({ ...event, emittedAt: "2026-10-27 01:10" })),
+    ).toBeNull();
+  });
+
   it("sourceEventIds 크기, 중복과 CREATE count 불일치를 거절한다", () => {
     expect(
       parseChatRoomInboxEvent(

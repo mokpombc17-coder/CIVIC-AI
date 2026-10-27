@@ -58,6 +58,20 @@ payload로 patch하지 않는다. 개인 event는 best-effort이고 중복·유�
 `sourceEventIds`를 5분 TTL, 최대 1,000개 LRU로 중복 제거하고 연결 복구, window focus,
 online 복귀에도 REST page chain을 reset한다.
 
+## 공개방 목록 invalidation
+
+같은 queue의 `PUBLIC_ROOMS_INVALIDATED`(eventVersion 1)는 공개방 목록을 다시 조회하라는 신호다.
+서버는 방 생성, 종료, 설정 변경, 관리자 카테고리 변경이 일어나면 공개 여부와 관계없이 보내고,
+참여 인원 수 변화에는 보내지 않는다. payload에 방 정보가 없으므로 원인과 관계없이 같은 방식으로
+처리한다.
+
+- Room inbox는 다시 조회하지 않고 공개방 목록 query만 invalidate한다. 현재 검색어와 필터는
+  유지되고, 펼친 page는 첫 페이지부터 새 cursor로 다시 조회된다.
+- 접속 중인 사용자 전원에게 같은 순간 가는 신호이므로 첫 신호 뒤 400ms에 0–600ms 무작위 지연을
+  더해 기다리고, 그동안 온 신호는 한 번의 조회로 합친다.
+- 연결이 끊긴 동안의 신호는 다시 오지 않으므로 연결될 때 공개방 목록도 다시 조회한다.
+- 모르는 eventType은 parser에서 무시하므로 서버가 먼저 배포되어도 동작에 영향이 없다.
+
 ## 자신의 message result
 
 작성자는 CREATE 개인 event recipient에서 제외되므로 transport의 local result도 동일한 debounced

@@ -162,6 +162,73 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
   }
 });
 
+test("목록을 켜 둔 채 다른 사용자가 공개 방을 만들거나 종료하면 새로고침 없이 반영한다", async ({
+  browser,
+}, testInfo) => {
+  test.setTimeout(90_000);
+
+  const baseURL = String(testInfo.project.use.baseURL);
+  const uniqueId = crypto.randomUUID();
+  const searchTerm = `e2e-public-live-${uniqueId}`;
+  const roomName = `${searchTerm}-room`;
+  const observerContext = await browser.newContext({ baseURL });
+  const ownerContext = await browser.newContext({ baseURL });
+  const observerPage = await observerContext.newPage();
+  const ownerPage = await ownerContext.newPage();
+
+  try {
+    await Promise.all([
+      authenticateLocalE2EUserAs(
+        observerPage,
+        observerContext,
+        `e2e-public-live-observer-${uniqueId}`,
+      ),
+      authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-public-live-owner-${uniqueId}`),
+    ]);
+
+    await observerPage.goto("/chat");
+    await expect(observerPage.locator('[data-chat-connection-status="connected"]')).toHaveCount(1);
+
+    const searchForm = observerPage.getByRole("search", { name: "공개 토론방 검색" });
+    await searchForm.getByRole("searchbox", { name: "토론방 이름 검색" }).fill(searchTerm);
+    const searchResponse = waitForPublicRoomPage(
+      observerPage,
+      (response) => new URL(response.url()).searchParams.get("query") === searchTerm,
+    );
+    await searchForm.getByRole("button", { name: "검색", exact: true }).click();
+    expect((await searchResponse).page.items).toHaveLength(0);
+    const roomCard = observerPage.getByRole("article").filter({ hasText: roomName });
+
+    const roomId =
+      await test.step("공개 방 생성 신호로 검색 조건을 유지한 채 첫 페이지부터 다시 조회한다", async () => {
+        const refreshResponse = waitForPublicRoomPage(
+          observerPage,
+          (response) => new URL(response.url()).searchParams.get("query") === searchTerm,
+        );
+        const room = await createPublicRoom(ownerContext.request, roomName);
+
+        const { page, response } = await refreshResponse;
+        expectPublicRoomCriteria(response, { query: searchTerm, categoryId: null, cursor: null });
+        expect(page.items.map((item) => item.roomId)).toEqual([room.roomId]);
+        await expect(roomCard).toBeVisible();
+
+        return room.roomId;
+      });
+
+    await test.step("공개 방 종료 신호로 목록에서 뺀다", async () => {
+      const response = await ownerContext.request.post(
+        `${CHAT_RESOURCE_SERVER_URL}/api/v1/rooms/${roomId}/commands/close`,
+        { headers: { "Idempotency-Key": crypto.randomUUID() } },
+      );
+      expect(response.status(), "공개 방 종료가 성공해야 합니다.").toBe(200);
+
+      await expect(roomCard).toHaveCount(0);
+    });
+  } finally {
+    await Promise.all([observerContext.close(), ownerContext.close()]);
+  }
+});
+
 async function createPublicRoom(
   request: APIRequestContext,
   name: string,

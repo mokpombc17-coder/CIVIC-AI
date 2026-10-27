@@ -175,10 +175,20 @@ const chatRoomInboxDeletedEventSchema = chatRoomInboxEventBaseSchema
     },
   );
 
+// 공개방 목록에 영향을 줄 수 있는 변경을 알리는 신호로, 방 정보 없이 공개방 목록을 다시 조회하라는 뜻만 담음
+// 서버가 room inbox event 큐로 함께 보내므로 같은 parser와 전달 경로를 그대로 씀
+const chatPublicRoomsInvalidatedEventSchema = z.object({
+  eventVersion: z.literal(1),
+  eventId: requestIdSchema,
+  eventType: z.literal("PUBLIC_ROOMS_INVALIDATED"),
+  emittedAt: instantSchema,
+});
+
 export const chatRoomInboxEventSchema = z.union([
   chatRoomInboxCreatedEventSchema,
   chatRoomInboxUpdatedEventSchema,
   chatRoomInboxDeletedEventSchema,
+  chatPublicRoomsInvalidatedEventSchema,
 ]);
 
 export const chatMessageCommandResultSchema = z.discriminatedUnion("status", [
@@ -457,6 +467,10 @@ export type ChatRoomSubscriptionSyncRejected = z.infer<
 >;
 export type ChatSubscriptionRejection = z.infer<typeof chatSubscriptionRejectionSchema>;
 export type ChatRoomInboxEvent = z.infer<typeof chatRoomInboxEventSchema>;
+export type ChatRoomInboxInvalidatedEvent = Extract<
+  ChatRoomInboxEvent,
+  { eventType: "ROOM_INBOX_INVALIDATED" }
+>;
 export type ChatMessageCommandResult = z.infer<typeof chatMessageCommandResultSchema>;
 export type ChatMessageMutationCommandType = z.infer<typeof chatMessageMutationCommandTypeSchema>;
 export type ChatMessageMutationCommandResult = z.infer<

@@ -4,8 +4,12 @@ import { useQueryClient, type InfiniteData, type QueryClient } from "@tanstack/r
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { RoomInboxListResponse } from "@/lib/chat/chat-room-contracts";
-import { refreshRoomInboxQueries } from "@/lib/chat/chat-room-cache-effects";
+import {
+  refreshPublicRoomListQueries,
+  refreshRoomInboxQueries,
+} from "@/lib/chat/chat-room-cache-effects";
 import { chatRoomQueryKeys } from "@/lib/chat/chat-room-queries";
+import { ChatPublicRoomListInvalidationScheduler } from "@/lib/chat/realtime/chat-public-room-list-invalidation";
 import { ChatRoomInboxEventCoordinator } from "@/lib/chat/realtime/chat-room-inbox-event-coordinator";
 import type {
   ChatMessageCommandEvent,
@@ -102,6 +106,7 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
     () =>
       attachChatRoomInboxRuntime({
         onCreate: showCreateToast,
+        onPublicRoomListRefresh: () => refreshPublicRoomListQueries(queryClient),
         onRefresh: () => refreshRoomInboxQueries(queryClient),
         target: window,
         transport,
@@ -130,11 +135,13 @@ export function useChatRoomInboxRuntime(transport: ChatRealtimeTransport) {
 
 export function attachChatRoomInboxRuntime({
   onCreate,
+  onPublicRoomListRefresh,
   onRefresh,
   target,
   transport,
 }: Readonly<{
   onCreate: (event: RoomInboxCreatedEvent, unseenCount: number) => void;
+  onPublicRoomListRefresh: () => Promise<void> | void;
   onRefresh: () => Promise<void> | void;
   target: ChatRoomInboxRuntimeTarget;
   transport: Pick<
@@ -156,13 +163,31 @@ export function attachChatRoomInboxRuntime({
       }
     },
   });
+  const publicRoomList = new ChatPublicRoomListInvalidationScheduler({
+    onInvalidate: () => {
+      try {
+        void Promise.resolve(onPublicRoomListRefresh()).catch(() => undefined);
+      } catch {
+        // REST refresh 실패는 다음 신호나 화면 진입에서 다시 복구한다.
+      }
+    },
+  });
   let previousConnectionStatus = transport.getSnapshot().status;
-  const stopInboxEvents = transport.observeRoomInboxEvent((event) => coordinator.handle(event));
+  const stopInboxEvents = transport.observeRoomInboxEvent((event) => {
+    if (event.eventType === "PUBLIC_ROOMS_INVALIDATED") {
+      publicRoomList.request();
+      return;
+    }
+
+    coordinator.handle(event);
+  });
   const stopConnection = transport.observe(() => {
     const connectionStatus = transport.getSnapshot().status;
 
+    // 연결이 끊긴 동안의 공개방 변경 신호는 서버가 다시 보내지 않으므로 연결될 때 공개방 목록도 다시 조회함
     if (connectionStatus === "connected" && previousConnectionStatus !== "connected") {
       coordinator.requestInvalidation();
+      publicRoomList.request();
     }
 
     previousConnectionStatus = connectionStatus;
@@ -190,6 +215,7 @@ export function attachChatRoomInboxRuntime({
     target.removeEventListener("focus", requestRefresh);
     target.removeEventListener("online", requestRefresh);
     coordinator.dispose();
+    publicRoomList.dispose();
   };
 }
 

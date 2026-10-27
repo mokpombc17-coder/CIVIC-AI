@@ -1,4 +1,4 @@
-import type { ChatRoomInboxEvent } from "./chat-stomp-contracts";
+import type { ChatRoomInboxInvalidatedEvent } from "./chat-stomp-contracts";
 
 export const ROOM_INBOX_INVALIDATION_DEBOUNCE_MS = 400;
 export const ROOM_INBOX_INVALIDATION_MAX_WAIT_MS = 1_500;
@@ -11,7 +11,7 @@ type ChatRoomInboxEventCoordinatorOptions = Readonly<{
   clearTimer?: (timer: TimerHandle) => void;
   now?: () => number;
   onCreate: (
-    event: Extract<ChatRoomInboxEvent, { cause: "MESSAGE_CREATED" }>,
+    event: Extract<ChatRoomInboxInvalidatedEvent, { cause: "MESSAGE_CREATED" }>,
     count: number,
   ) => void;
   onInvalidate: () => void;
@@ -25,7 +25,7 @@ export class ChatRoomInboxEventCoordinator {
 
   constructor(private readonly options: ChatRoomInboxEventCoordinatorOptions) {}
 
-  handle(event: ChatRoomInboxEvent): void {
+  handle(event: ChatRoomInboxInvalidatedEvent): void {
     const unseenCount = this.rememberUnseenSourceEventIds(event.sourceEventIds);
 
     if (unseenCount === 0) {
