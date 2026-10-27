@@ -35,6 +35,7 @@ type RoomInboxItem = Readonly<{
   lastMessage: RoomInboxLastMessage | null;
   name: string;
   roomId: string;
+  unreadCount: number;
 }>;
 
 type RoomInboxPage = Readonly<{
@@ -404,6 +405,103 @@ test.describe("채팅방 목록 latest-first", () => {
     }
   });
 });
+
+test.describe("채팅방 목록 안읽음 filter", () => {
+  test("앞 page에 안읽은 방이 없으면 다음 page까지 확인한 뒤에만 완료 상태를 보여준다", async ({
+    browser,
+  }, testInfo) => {
+    test.setTimeout(90_000);
+    const uniqueId = crypto.randomUUID();
+    const actors = await createActors(browser, testInfo, uniqueId, "unread-filter");
+    const { memberPage, ownerPage } = actors;
+
+    try {
+      const unreadRoom = await createRoom(ownerPage, `e2e-unread-older-${uniqueId}`);
+      const readRoom = await createRoom(ownerPage, `e2e-unread-newer-${uniqueId}`);
+      await joinRoom(memberPage, unreadRoom.roomId);
+      await joinRoom(memberPage, readRoom.roomId);
+
+      await enterRoom(ownerPage, unreadRoom);
+      await sendMessage(ownerPage, `unread-older-${uniqueId}`);
+      await enterRoom(ownerPage, readRoom);
+      await sendMessage(ownerPage, `read-newer-${uniqueId}`);
+      await readRoomAsMember(memberPage, readRoom);
+      await expectUnreadCount(memberPage, unreadRoom.roomId, 1);
+
+      // 참여 방이 20개를 넘어야 생기는 다음 page를 방 두 개로 만들려고 화면의 page 크기를 1로 줄임
+      const cursorRequests = await shrinkRoomInboxPageSize(memberPage);
+      await recordAllReadNotice(memberPage);
+
+      await memberPage.goto("/chat?filter=unread");
+      await expect(getRoomCard(memberPage, unreadRoom.roomId)).toBeVisible();
+      await expect(getRoomCard(memberPage, readRoom.roomId)).toHaveCount(0);
+      expect(cursorRequests()).toBeGreaterThan(0);
+      expect(await wasAllReadNoticeShown(memberPage)).toBe(false);
+
+      await readRoomAsMember(memberPage, unreadRoom);
+      await memberPage.goto("/chat?filter=unread");
+      await expect(memberPage.getByText(ALL_READ_NOTICE, { exact: true })).toBeVisible();
+      await expect(
+        memberPage.getByRole("button", { name: "참여 중인 방 더 보기", exact: true }),
+      ).toHaveCount(0);
+    } finally {
+      await closeActors(actors);
+    }
+  });
+});
+
+const ALL_READ_NOTICE = "새 메시지를 모두 확인했어요";
+
+async function readRoomAsMember(page: Page, room: RoomFixture): Promise<void> {
+  await page.bringToFront();
+  await enterRoom(page, room);
+  await expectUnreadCount(page, room.roomId, 0);
+}
+
+async function expectUnreadCount(page: Page, roomId: string, unreadCount: number): Promise<void> {
+  await expect
+    .poll(async () => getRoomItem(await listRoomInbox(page), roomId).unreadCount)
+    .toBe(unreadCount);
+}
+
+async function shrinkRoomInboxPageSize(page: Page): Promise<() => number> {
+  let cursorRequestCount = 0;
+
+  await page.route(
+    (url) => url.pathname === "/api/v1/me/room-inbox",
+    async (route) => {
+      const url = new URL(route.request().url());
+      url.searchParams.set("limit", "1");
+
+      if (url.searchParams.has("cursor")) {
+        cursorRequestCount += 1;
+      }
+
+      await route.continue({ url: url.toString() });
+    },
+  );
+
+  return () => cursorRequestCount;
+}
+
+// 완료 상태가 잠깐 나타났다 사라져도 놓치지 않도록 화면에 나타난 적이 있는지 기록함
+async function recordAllReadNotice(page: Page): Promise<void> {
+  await page.addInitScript((notice) => {
+    const state = window as Window & { __allReadNoticeShown?: boolean };
+    state.__allReadNoticeShown = false;
+    new MutationObserver(() => {
+      if (document.body?.textContent?.includes(notice)) {
+        state.__allReadNoticeShown = true;
+      }
+    }).observe(document, { childList: true, characterData: true, subtree: true });
+  }, ALL_READ_NOTICE);
+}
+
+async function wasAllReadNoticeShown(page: Page): Promise<boolean> {
+  return page.evaluate(
+    () => (window as Window & { __allReadNoticeShown?: boolean }).__allReadNoticeShown ?? false,
+  );
+}
 
 async function createActors(
   browser: Parameters<Parameters<typeof test>[1]>[0]["browser"],

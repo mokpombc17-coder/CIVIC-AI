@@ -1,7 +1,8 @@
-import { expect, test, type Locator, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
   createRoomAndEnter,
+  findPublicRoomCard,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
 
@@ -171,6 +172,97 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
     await Promise.all([ownerContext.close(), memberContext.close()]);
   }
 });
+
+test("목록 재조회가 끝나지 않아도 방 생성과 참여는 바로 방으로 이동한다", async ({
+  browser,
+}, testInfo) => {
+  test.setTimeout(90_000);
+  const baseURL = String(testInfo.project.use.baseURL);
+  const uniqueId = crypto.randomUUID();
+  const roomName = `e2e-list-refresh-held-${uniqueId}`;
+  const ownerContext = await browser.newContext({ baseURL });
+  const memberContext = await browser.newContext({ baseURL });
+  const ownerPage = await ownerContext.newPage();
+  const memberPage = await memberContext.newPage();
+
+  try {
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-held-owner-${uniqueId}`);
+    await authenticateLocalE2EUserAs(memberPage, memberContext, `e2e-held-member-${uniqueId}`);
+
+    const roomId =
+      await test.step("목록 재조회를 붙잡은 채 방을 만들면 바로 방으로 이동한다", async () => {
+        await ownerPage.goto("/chat");
+        await expect(ownerPage.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
+        await ownerPage.getByRole("button", { name: "토론방 생성 요청", exact: true }).click();
+        await ownerPage.getByRole("textbox", { name: "제목" }).fill(roomName);
+        await ownerPage
+          .getByRole("textbox", { name: "상세 설명" })
+          .fill(`${roomName} E2E 테스트용 설명입니다.`);
+
+        const heldLists = await holdRoomListRefreshes(ownerPage);
+        await ownerPage.getByRole("button", { name: "요청하기", exact: true }).click();
+
+        await expect(ownerPage).toHaveURL(/\/chat\/[A-Za-z0-9_-]+$/);
+        await expect(ownerPage.getByRole("heading", { name: roomName, exact: true })).toBeVisible();
+        expect(heldLists.count(), "생성 후 목록 재조회가 붙잡힌 상태여야 합니다.").toBeGreaterThan(
+          0,
+        );
+        await heldLists.release();
+
+        return new URL(ownerPage.url()).pathname.split("/").at(-1)!;
+      });
+
+    await test.step("목록 재조회를 붙잡은 채 방에 참여하면 바로 방으로 이동한다", async () => {
+      await memberPage.goto("/chat");
+      const roomCard = await findPublicRoomCard(memberPage, roomName);
+      await roomCard.getByRole("button", { name: `${roomName} 참여하기`, exact: true }).click();
+      const roomDetail = memberPage.getByRole("dialog", { name: roomName, exact: true });
+
+      const heldLists = await holdRoomListRefreshes(memberPage);
+      await roomDetail.getByRole("button", { name: "참여하기", exact: true }).click();
+
+      await expect(memberPage).toHaveURL(new RegExp(`/chat/${roomId}$`));
+      await expect(memberPage.getByRole("heading", { name: roomName, exact: true })).toBeVisible();
+      await expect(memberPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
+      expect(heldLists.count(), "참여 후 목록 재조회가 붙잡힌 상태여야 합니다.").toBeGreaterThan(0);
+      await heldLists.release();
+    });
+  } finally {
+    await Promise.all([ownerContext.close(), memberContext.close()]);
+  }
+});
+
+// 느린 네트워크를 흉내 내려고 목록 조회 응답을 테스트가 풀어 줄 때까지 보내지 않음
+async function holdRoomListRefreshes(
+  page: Page,
+): Promise<{ count: () => number; release: () => Promise<void> }> {
+  const listPaths = new Set([
+    "/api/v1/rooms",
+    "/api/v1/me/rooms",
+    "/api/v1/me/room-inbox",
+    "/api/v1/me/room-creation-requests",
+  ]);
+  const isListRequest = (url: URL) => listPaths.has(url.pathname);
+  const heldRoutes: Route[] = [];
+
+  await page.route(isListRequest, async (route) => {
+    if (route.request().method() !== "GET") {
+      await route.continue();
+      return;
+    }
+
+    heldRoutes.push(route);
+  });
+
+  return {
+    count: () => heldRoutes.length,
+    release: async () => {
+      await page.unroute(isListRequest);
+      // 붙잡는 동안 화면이 바뀌어 요청이 이미 취소됐을 수 있으므로 continue 실패는 무시함
+      await Promise.all(heldRoutes.map((route) => route.continue().catch(() => undefined)));
+    },
+  };
+}
 
 function getParticipatingRoomCard(page: Page, roomName: string): Locator {
   return page
