@@ -21,7 +21,7 @@ const eligibilityBase = {
 };
 
 describe("canReturnAfterSurveySubmission", () => {
-  it("영구 제출이고 재조회한 eligibility가 true일 때만 복귀를 허용한다", () => {
+  it("영구 제출이고 재조회한 eligibility가 더 이상 설문을 요구하지 않을 때 복귀를 허용한다", () => {
     expect(
       canReturnAfterSurveySubmission(persistedResult, {
         ...eligibilityBase,
@@ -37,6 +37,17 @@ describe("canReturnAfterSurveySubmission", () => {
       }),
     ).toBe(false);
     expect(canReturnAfterSurveySubmission(persistedResult, undefined)).toBe(false);
+  });
+
+  it("설문 외 이유로 이용할 수 없는 상태는 관문과 같이 완료 화면에 붙잡지 않는다", () => {
+    expect(
+      canReturnAfterSurveySubmission(persistedResult, {
+        ...eligibilityBase,
+        eligible: false,
+        nextAction: null,
+        reason: "OTHER_REQUIREMENT",
+      }),
+    ).toBe(true);
   });
 
   it("preview 검증은 eligibility와 관계없이 복귀를 허용하지 않는다", () => {

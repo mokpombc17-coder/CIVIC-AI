@@ -151,7 +151,8 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 증적을 먼저 저장해 받은 `consentReceiptId`를 answer payload와 함께 Survey API mutation에 전달한다. 선택
 문항에 모두 답하지 않으면 마지막 단계는 동의가 필요하지 않다는 안내만 표시하고, 동의 절차 없이
 `consentReceiptId`를 뺀 payload를 제출한다. 답하지 않은 선택 문항은 payload의 answers에서 생략한다. 영구 저장
-제출 후에는 Survey 제출 mutation이 eligibility 캐시를 무효화하고, 완료 화면이 강제로 재조회해 `eligible=true`일 때만 검증된 `returnTo`로
+제출 후에는 Survey 제출 mutation이 eligibility 캐시를 무효화하고, 완료 화면이 강제로 재조회해 서비스 관문과
+같은 기준으로 더 이상 설문을 요구하지 않을 때 검증된 `returnTo`로
 전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인 action을 제공한다.
 로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태를 유지한다. 답변과 현재 단계는 현재 인증
 subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
@@ -226,7 +227,7 @@ idempotency key와 발급된 receipt를 Survey 제출 재시도 동안 유지한
 판단과 answer 제출 payload 변환을 담당한다. payload 변환은 선택 문항 응답 여부와 동의 receipt 유무가
 어긋나면 요청을 만들지 않는다. `survey-submission.ts`는 같은 payload를 다시 제출하면 이전 idempotency key를
 재사용하고, payload가 바뀌면 새 key를 만든다. `survey-completion.ts`는 영구 저장된 제출이고 eligibility가
-`eligible=true`일 때만 복귀를 허용한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
+`requiresCurrentSurvey`가 아닐 때 복귀를 허용한다. `survey-navigation.ts`는 `/survey?returnTo=...` URL 생성과 내부 복귀 경로 검증을
 소유한다. `survey-draft-storage.ts`는 사용자·회차·content version별 임시 답변 key, 24시간 논리 만료,
 현재 설문 계약에 맞춘 안전한 복원과 저장소 장애 시 graceful degradation을 담당한다.
 `useSurveyDraftSession`은 이 저장소 계약을 `SurveyForm`의 수명에 연결해 최초 복원 결과를 단일 event로
