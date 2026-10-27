@@ -468,6 +468,7 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
           draggable={false}
           href={task.actionHref}
           onContextMenu={preventMobileLinkContextMenu}
+          title={task.title}
         />
       ) : null}
       <div className={styles.taskCardSurface}>

@@ -27,6 +27,12 @@ describe("RoomCreationRequestListContent", () => {
     expect(markup).toContain("rounded-[var(--chat-publishing-radius-card)]");
   });
 
+  it("한 줄에서 잘리는 신청 제목은 hover로 전체를 확인할 수 있다", () => {
+    const markup = renderView({ requests: [PENDING_REQUEST] });
+
+    expect(markup).toMatch(/<strong [^>]*title="공원 개선 논의">공원 개선 논의<\/strong>/);
+  });
+
   it("승인된 요청에만 생성된 토론방 이동 action을 표시한다", () => {
     const markup = renderView({ requests: [APPROVED_REQUEST] });
 

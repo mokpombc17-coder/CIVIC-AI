@@ -444,6 +444,7 @@ export function MyRoomCard({
         draggable={false}
         href={`/chat/${room.roomId}`}
         onContextMenu={preventMobileLinkContextMenu}
+        title={room.name}
       >
         <span className="sr-only">{room.name} 토론방 입장</span>
       </Link>
@@ -505,6 +506,7 @@ export function PublicRoomCard({
         className="peer absolute inset-0 z-0 cursor-pointer rounded-[var(--chat-publishing-radius-card)] focus-visible:outline-none"
         id={getChatRoomListDetailTriggerId(room.roomId)}
         onClick={(event) => onOpenDetails(event.currentTarget)}
+        title={room.name}
         type="button"
       >
         <span className="sr-only">{room.name} 참여하기</span>

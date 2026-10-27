@@ -376,6 +376,22 @@ describe("chat room list cards", () => {
     expect(html).toContain("새 메시지 없음");
   });
 
+  it("한 줄에서 잘리는 방 이름은 참여·공개 Room card hover로 전체를 확인할 수 있다", () => {
+    const myRoomHtml = renderMyRoomCard(createRoomInboxItem());
+    const publicRoomHtml = renderToStaticMarkup(
+      createElement(PublicRoomCard, {
+        isDetailOpen: false,
+        onOpenDetails: vi.fn(),
+        room: PUBLIC_ROOM,
+      }),
+    );
+
+    expect(myRoomHtml).toMatch(/<a [^>]* title="프로젝트 회의방" href="\/chat\/room-01"/);
+    expect(publicRoomHtml).toMatch(
+      /<button [^>]*aria-label="공개 채팅방 참여하기"[^>]* title="공개 채팅방"/,
+    );
+  });
+
   it("참여 가능 Room card는 제목, 정원과 상세 action만 표시한다", () => {
     const html = renderToStaticMarkup(
       createElement(PublicRoomCard, {

@@ -236,12 +236,35 @@ describe("VoteTaskListScreen", () => {
     const html = renderToStaticMarkup(<VoteTaskListScreen />);
 
     expect(html).toMatch(
-      /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*select-none[^"]*\[-webkit-touch-callout:none\][^"]*" draggable="false" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
+      /aria-label="지역 교통 정책 참여하기" class="[^"]*taskCardLink[^"]*select-none[^"]*\[-webkit-touch-callout:none\][^"]*" draggable="false" title="지역 교통 정책" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
     );
     expect(html).toMatch(
       /<div class="[^"]*taskCardSurface[^"]*"><div class="[^"]*taskCardCopy[^"]*">/,
     );
     expect(html).toMatch(/<span aria-hidden="true" class="[^"]*taskAction[^"]*">참여하기<\/span>/);
+  });
+
+  it("한 줄에서 잘리는 투표 제목은 카드 hover로 전체를 확인할 수 있다", () => {
+    useOpenTasksQueryMock.mockReturnValue(
+      createQueryState({
+        data: [
+          {
+            closesAt: "2026-09-30T09:00:00Z",
+            description: null,
+            openedAt: "2026-09-01T09:00:00Z",
+            submission: { submitted: false, submissionId: null, submittedAt: null },
+            taskId: "0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7",
+            title: "지역 교통 정책을 어떤 방향으로 개선해야 하는지에 대한 시민 의견",
+          },
+        ],
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskListScreen />);
+
+    expect(html).toMatch(
+      /<a [^>]* title="지역 교통 정책을 어떤 방향으로 개선해야 하는지에 대한 시민 의견" href="\/vote\/0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7"/,
+    );
   });
 
   it("401 목록 오류는 다시 시도 대신 로그인 action을 제공한다", () => {

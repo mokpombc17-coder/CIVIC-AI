@@ -126,7 +126,10 @@ function RoomCreationRequestListItem({ request }: { request: RoomCreationRequest
             {formatRoomInboxActivityTime(request.requestedAt, new Date())}
           </time>
         </div>
-        <strong className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]">
+        <strong
+          className="mt-1 block truncate text-[17px] font-bold leading-6 text-[var(--chat-publishing-color-text)]"
+          title={presentation.title}
+        >
           {presentation.title}
         </strong>
         <p className="mt-1 text-sm leading-5 text-[var(--chat-publishing-color-muted)]">
