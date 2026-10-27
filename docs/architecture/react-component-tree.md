@@ -157,8 +157,8 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 `consentReceiptId`를 뺀 payload를 제출한다. 답하지 않은 선택 문항은 payload의 answers에서 생략한다. 영구 저장
 제출 후에는 Survey 제출 mutation이 eligibility 캐시를 무효화하고, 완료 화면이 강제로 재조회해 서비스 관문과
 같은 기준으로 더 이상 설문을 요구하지 않을 때 검증된 `returnTo`로
-전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인 action을 제공한다.
-로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태를 유지한다. 답변과 현재 단계는 현재 인증
+전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인과 `/home` action을
+제공한다. 로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태와 `/home` action을 유지한다. 답변과 현재 단계는 현재 인증
 subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
 Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며, 동의 저장과 Survey 제출은
 각각 독립된 idempotency key를 사용한다. Survey 재시도에는 최초 클릭 시각과 이미 발급된 consent receipt를
@@ -173,7 +173,8 @@ analytics 기록 방식(`failure | recovered | none`)으로 분류한다. 이미
 `SUBMITTED` 재진입 시 임시 답변을 삭제한다. Section 단계의 `SurveyStepActions`는 카드 다음에 배치하고,
 마지막 필수 확인 단계에서는 `SurveyConfirmation`과 함께 `SurveyStepCard` 내부에 조립한다. 필수
 절차에서는 bottom navigation을 조립하지 않는다. 재진입 시 `SUBMITTED` 상태는 완료 아이콘과 복귀
-action만 제공하고 입력 폼을 조립하지 않는다. `PlatformShell`은 child scroll 모드로 조립하며,
+action만 제공하고 입력 폼을 조립하지 않는다. 화면이 열릴 때 서비스 관문과 같은 기준으로 eligibility를 다시
+확인해, 아직 설문을 요구하면 복귀 대신 재확인과 `/home` action을 보여 관문과 설문 사이를 오가지 않게 한다. `PlatformShell`은 child scroll 모드로 조립하며,
 `SurveyForm` 내부의 viewport `div`가 `SurveyProgress`와 현재 단계의 카드·action을 함께 스크롤한다.
 Progress가 viewport 위로 사라져도 `PlatformHeader` 제목은 유지한다. `SurveyScreen`은 header 오른쪽의
 `SurveyHeaderProgress`에 현재/전체 단계만 표시한다. 이 compact 단계 표시는 본문의 Progress가

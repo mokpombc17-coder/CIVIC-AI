@@ -14,6 +14,7 @@ import {
   PlatformShell,
   type PlatformHeaderBackAction,
 } from "@/components/platform-shell";
+import { useQuery } from "@tanstack/react-query";
 import { useAcceptSensitiveSurveyConsentMutation } from "@/lib/consent/consent-queries";
 import {
   getFeatureFailureDetails,
@@ -34,6 +35,10 @@ import {
   findFirstInvalidSurveySectionIndex,
 } from "@/lib/survey/survey-submission-recovery";
 import { createSurveyHref, SURVEY_EXIT_PATH } from "@/lib/survey/survey-navigation";
+import {
+  getServiceEligibilityQueryOptions,
+  requiresCurrentSurvey,
+} from "@/lib/vote/service-eligibility";
 import { createEligibilityLoginLocation } from "@/lib/vote/service-eligibility-navigation";
 import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import {
@@ -585,13 +590,57 @@ function SurveyRetryActions({ onRetry }: { onRetry: () => void }) {
   );
 }
 
+// 이미 제출한 설문에서 돌아가기 전에 서비스 관문과 같은 기준으로 자격을 미리 확인함
+// 설문 상태와 자격이 어긋나 있으면 돌아가도 관문이 다시 설문으로 보내 누를 때마다 같은 화면으로 돌아오므로
+// 그때는 제출 직후 완료 화면처럼 다시 확인과 홈으로 나가는 길을 보여 줌
 function SurveySubmitted({ returnTo }: { returnTo: string }) {
+  const eligibilityQuery = useQuery({ ...getServiceEligibilityQueryOptions(), staleTime: 0 });
+  const [returnRequested, setReturnRequested] = useState(false);
+  const eligibilitySettled = !eligibilityQuery.isFetching;
+  const surveyStillRequired =
+    eligibilitySettled &&
+    eligibilityQuery.data !== undefined &&
+    requiresCurrentSurvey(eligibilityQuery.data);
+  // 자격을 확인하지 못하면 예전처럼 돌려보내고 판단은 관문에 맡김
+  const canReturn =
+    eligibilitySettled &&
+    (eligibilityQuery.isError || (eligibilityQuery.isSuccess && !surveyStillRequired));
+
+  useEffect(() => {
+    if (returnRequested && canReturn) window.location.replace(returnTo);
+  }, [canReturn, returnRequested, returnTo]);
+
+  if (surveyStillRequired) {
+    return (
+      <SurveyStatus
+        actions={
+          <>
+            <button
+              className={`${styles.action} ${styles.primaryAction}`}
+              onClick={() => void eligibilityQuery.refetch()}
+              type="button"
+            >
+              다시 확인
+            </button>
+            <a className={`${styles.action} ${styles.secondaryAction}`} href={SURVEY_EXIT_PATH}>
+              홈으로
+            </a>
+          </>
+        }
+        description="완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 확인해 주세요."
+        icon={<span aria-hidden="true" className={styles.submittedIcon} />}
+        role="alert"
+        title="설문 제출을 완료했습니다."
+      />
+    );
+  }
+
   return (
     <SurveyStatus
       actions={
         <button
           className={`${styles.action} ${styles.primaryAction}`}
-          onClick={() => window.location.replace(returnTo)}
+          onClick={() => setReturnRequested(true)}
           type="button"
         >
           돌아가기

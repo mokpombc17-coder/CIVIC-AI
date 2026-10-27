@@ -6,6 +6,7 @@ import {
 } from "@/lib/analytics/feature-failure-analytics";
 import type { SubmissionResponse } from "@/lib/survey/survey-contracts";
 import { canReturnAfterSurveySubmission } from "@/lib/survey/survey-completion";
+import { SURVEY_EXIT_PATH } from "@/lib/survey/survey-navigation";
 import { getServiceEligibilityQueryOptions } from "@/lib/vote/service-eligibility";
 import { SurveyStatus } from "./survey-status";
 import styles from "./survey.module.css";
@@ -70,6 +71,11 @@ export function SurveySubmissionCompletion({
   if (!result.persisted) {
     return (
       <SurveyStatus
+        actions={
+          <a className={`${styles.action} ${styles.primaryAction}`} href={SURVEY_EXIT_PATH}>
+            홈으로
+          </a>
+        }
         description="미리보기 응답은 저장되지 않습니다."
         icon={<span aria-hidden="true" className={styles.submittedIcon} />}
         title="설문 응답 검증을 완료했습니다."
@@ -87,19 +93,25 @@ export function SurveySubmissionCompletion({
     );
   }
 
+  // 완료 상태가 계속 반영되지 않아도 갇히지 않도록 설문 없이 들어갈 수 있는 홈으로 나가는 길을 둠
   return (
     <SurveyStatus
       actions={
-        <button
-          className={`${styles.action} ${styles.primaryAction}`}
-          onClick={() => {
-            failureAnalytics.trackRecoveryAttempt("post-submit-check", "user_retry");
-            void eligibilityQuery.refetch();
-          }}
-          type="button"
-        >
-          다시 확인
-        </button>
+        <>
+          <button
+            className={`${styles.action} ${styles.primaryAction}`}
+            onClick={() => {
+              failureAnalytics.trackRecoveryAttempt("post-submit-check", "user_retry");
+              void eligibilityQuery.refetch();
+            }}
+            type="button"
+          >
+            다시 확인
+          </button>
+          <a className={`${styles.action} ${styles.secondaryAction}`} href={SURVEY_EXIT_PATH}>
+            홈으로
+          </a>
+        </>
       }
       description="완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 확인해 주세요."
       icon={<span aria-hidden="true" className={styles.submittedIcon} />}

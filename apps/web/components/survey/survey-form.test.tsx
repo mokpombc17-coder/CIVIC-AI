@@ -1,5 +1,6 @@
 // @vitest-environment jsdom
 
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { FeatureFailureAnalyticsSession } from "@/lib/analytics/feature-failure-analytics";
@@ -8,6 +9,7 @@ import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-cont
 import type { SurveyAnswerState } from "@/lib/survey/survey-answer-state";
 import type { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
 import { useCurrentSurveyQuery } from "@/lib/survey/survey-queries";
+import type { ServiceEligibility } from "@/lib/vote/service-eligibility";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { SurveyForm, SurveyScreen } from "./survey-screen";
 
@@ -32,6 +34,22 @@ const submissionHarness = vi.hoisted(() => ({
 const recoveryHarness = vi.hoisted(() => ({
   classifySubmissionFailure: vi.fn(),
 }));
+
+const eligibilityHarness = vi.hoisted(() => ({
+  current: null as unknown,
+}));
+
+vi.mock("@/lib/vote/service-eligibility", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("@/lib/vote/service-eligibility")>();
+
+  return {
+    ...actual,
+    getServiceEligibilityQueryOptions: () =>
+      actual.getServiceEligibilityQueryOptions({
+        getCurrent: async () => eligibilityHarness.current as ServiceEligibility,
+      }),
+  };
+});
 
 vi.mock("@/lib/consent/consent-queries", () => ({
   useAcceptSensitiveSurveyConsentMutation: () => ({
@@ -461,6 +479,33 @@ describe("SurveyScreen", () => {
     expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
   });
 
+  it("이미 제출했는데 자격이 아직 설문을 요구하면 돌아가는 대신 다시 확인과 홈으로를 보여 준다", async () => {
+    mockSurveyQuery({ data: SUBMITTED_SURVEY });
+
+    renderWithEligibility(<SurveyScreen returnTo="/chat" />, {
+      eligible: false,
+      nextAction: "COMPLETE_CURRENT_SURVEY",
+    });
+
+    expect(
+      await screen.findByText("완료 상태가 아직 반영되지 않았습니다. 잠시 후 다시 확인해 주세요."),
+    ).toBeTruthy();
+    expect(screen.getByRole("button", { name: "다시 확인" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "홈으로" }).getAttribute("href")).toBe("/home");
+    expect(screen.queryByRole("button", { name: "돌아가기" })).toBeNull();
+  });
+
+  it("이미 제출했고 자격이 더 이상 설문을 요구하지 않으면 돌아가기만 보여 준다", async () => {
+    mockSurveyQuery({ data: SUBMITTED_SURVEY });
+
+    renderWithEligibility(<SurveyScreen returnTo="/chat" />, { eligible: true, nextAction: null });
+
+    expect(await screen.findByRole("button", { name: "돌아가기" })).toBeTruthy();
+    await waitFor(() => {
+      expect(screen.queryByRole("button", { name: "다시 확인" })).toBeNull();
+    });
+  });
+
   it("채팅에서 넘어와도 취소하기는 설문 없이 들어갈 수 있는 홈으로 보낸다", () => {
     mockSurveyQuery({
       data: {
@@ -476,6 +521,29 @@ describe("SurveyScreen", () => {
     expect(screen.getByRole("link", { name: "취소하기" }).getAttribute("href")).toBe("/home");
   });
 });
+
+const SUBMITTED_SURVEY = {
+  contentVersionId: "survey-version-01",
+  roundId: "survey-round-01",
+  status: "SUBMITTED",
+};
+
+function renderWithEligibility(
+  ui: React.ReactElement,
+  eligibility: Pick<ServiceEligibility, "eligible" | "nextAction">,
+) {
+  const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+  eligibilityHarness.current = {
+    activeRoundId: null,
+    capabilities: [],
+    evaluatedAt: "2026-10-27T00:00:00Z",
+    reason: null,
+    surveyRequirement: null,
+    ...eligibility,
+  };
+
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>);
+}
 
 function mockSurveyQuery({ data, error }: Readonly<{ data?: unknown; error?: unknown }>) {
   vi.mocked(useCurrentSurveyQuery).mockReturnValue({
