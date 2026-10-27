@@ -28,7 +28,11 @@ import {
   type SurveyAnswerDraft,
 } from "@/lib/survey/survey-answer-state";
 import { useCurrentSurveyQuery, useSubmitSurveyMutation } from "@/lib/survey/survey-queries";
-import { removeSurveyDraft, resolveSurveyDraftOwnerKey } from "@/lib/survey/survey-draft-storage";
+import {
+  getSurveyDraftStorage,
+  removeSurveyDraft,
+  resolveSurveyDraftOwnerKey,
+} from "@/lib/survey/survey-draft-storage";
 import { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
 import {
   classifySubmissionFailure,
@@ -116,8 +120,9 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
 
     let active = true;
     void resolveSurveyDraftOwnerKey().then((ownerKey) => {
-      if (!active || !ownerKey) return;
-      removeSurveyDraft(sessionStorage, {
+      const storage = getSurveyDraftStorage();
+      if (!active || !ownerKey || !storage) return;
+      removeSurveyDraft(storage, {
         contentVersionId: survey.contentVersionId,
         ownerKey,
         roundId: survey.roundId,

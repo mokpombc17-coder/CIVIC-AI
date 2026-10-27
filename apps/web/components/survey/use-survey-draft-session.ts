@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { SurveySection } from "@/lib/survey/survey-contracts";
 import type { SurveyAnswerState } from "@/lib/survey/survey-answer-state";
 import {
+  getSurveyDraftStorage,
   loadSurveyDraft,
   removeSurveyDraft,
   resolveSurveyDraftOwnerKey,
@@ -39,9 +40,10 @@ export function useSurveyDraftSession({
     let active = true;
     void resolveSurveyDraftOwnerKey().then((ownerKey) => {
       if (!active) return;
-      if (ownerKey) {
+      const storage = getSurveyDraftStorage();
+      if (ownerKey && storage) {
         const scope = { contentVersionId, ownerKey, roundId };
-        const draft = loadSurveyDraft(sessionStorage, scope, initialSections.current);
+        const draft = loadSurveyDraft(storage, scope, initialSections.current);
         if (draft) {
           onDraftRestored({ answers: draft.answers, currentStep: draft.currentStep });
           setEntryType("resumed");
@@ -64,7 +66,8 @@ export function useSurveyDraftSession({
     if (!draftReady || !draftScope) return;
     const timeout = window.setTimeout(() => {
       draftSaveTimeoutRef.current = null;
-      saveSurveyDraft(sessionStorage, draftScope, { answers, currentStep });
+      const storage = getSurveyDraftStorage();
+      if (storage) saveSurveyDraft(storage, draftScope, { answers, currentStep });
     }, DRAFT_SAVE_DELAY_MS);
     draftSaveTimeoutRef.current = timeout;
     return () => {
@@ -78,7 +81,8 @@ export function useSurveyDraftSession({
       window.clearTimeout(draftSaveTimeoutRef.current);
       draftSaveTimeoutRef.current = null;
     }
-    if (draftScope) removeSurveyDraft(sessionStorage, draftScope);
+    const storage = getSurveyDraftStorage();
+    if (draftScope && storage) removeSurveyDraft(storage, draftScope);
   }, [draftScope]);
 
   return { clearDraft, draftReady, entryType };

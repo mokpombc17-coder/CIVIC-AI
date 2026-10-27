@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import type { SurveySection } from "./survey-contracts";
 import {
+  getSurveyDraftStorage,
   SURVEY_DRAFT_TTL_MS,
   createSurveyDraftStorageKey,
   loadSurveyDraft,
@@ -192,6 +193,34 @@ describe("survey draft storage", () => {
     expect(() => removeSurveyDraft(storage, scope)).not.toThrow();
   });
 
+  it("사용자 확인이 응답하지 않으면 시간을 넘긴 뒤 임시 저장 없이 시작한다", async () => {
+    const request = vi.fn(
+      (_input: RequestInfo | URL, init?: RequestInit) =>
+        new Promise<Response>((_resolve, reject) => {
+          init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
+        }),
+    );
+
+    await expect(resolveSurveyDraftOwnerKey(request, 10)).resolves.toBeNull();
+  });
+
+  it("저장소를 읽는 순간 예외가 나는 환경에서는 저장소 없이 진행한다", () => {
+    const descriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");
+    Object.defineProperty(globalThis, "sessionStorage", {
+      configurable: true,
+      get() {
+        throw new Error("SecurityError");
+      },
+    });
+
+    try {
+      expect(getSurveyDraftStorage()).toBeNull();
+    } finally {
+      if (descriptor) Object.defineProperty(globalThis, "sessionStorage", descriptor);
+      else Reflect.deleteProperty(globalThis, "sessionStorage");
+    }
+  });
+
   it("인증 subject 원문 대신 안정적인 SHA-256 owner key를 만든다", async () => {
     const request = vi.fn<typeof fetch>().mockResolvedValue(Response.json({ subject: "user-1" }));
 
@@ -203,6 +232,7 @@ describe("survey draft storage", () => {
       cache: "no-store",
       credentials: "same-origin",
       method: "GET",
+      signal: expect.any(AbortSignal),
     });
   });
 });

@@ -160,7 +160,8 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 같은 기준으로 더 이상 설문을 요구하지 않을 때 검증된 `returnTo`로
 전체 문서 replace 이동한다. 아직 미완료이거나 조회가 실패하면 완료 화면에 재확인과 `/home` action을
 제공한다. 로컬 preview 제출은 이동하지 않고 현재 화면에서 검증 완료 상태와 `/home` action을 유지한다. 답변과 현재 단계는 현재 인증
-subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고, 현재 API
+subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionStorage`에 임시 저장하고(subject 확인이
+5초 안에 끝나지 않거나 저장소를 읽을 수 없으면 임시 저장 없이 시작), 현재 API
 Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며, 동의 저장과 Survey 제출은
 각각 독립된 idempotency key를 사용한다. Survey 재시도에는 최초 클릭 시각과 이미 발급된 consent receipt를
 유지한다. `survey-submission-recovery.ts`의 `classifySubmissionFailure`는 동의·설문 제출 오류를 사용자

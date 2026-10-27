@@ -34,14 +34,31 @@ type StoredSurveyDraft = Readonly<{
 
 type AuthMeRequest = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+// 사용자 확인이 응답 없이 걸리면 설문 화면이 임시 저장 확인에서 멈추므로 시간을 넘기면 임시 저장 없이 시작함
+const SURVEY_DRAFT_OWNER_TIMEOUT_MS = 5_000;
+
+// 쿠키·저장소가 차단된 환경에서는 sessionStorage를 읽는 순간 예외가 나므로 저장소 없이 진행하도록 감쌈
+export function getSurveyDraftStorage(): SurveyDraftStorage | null {
+  try {
+    return sessionStorage;
+  } catch {
+    return null;
+  }
+}
+
 export async function resolveSurveyDraftOwnerKey(
   request: AuthMeRequest = fetch,
+  timeoutMs = SURVEY_DRAFT_OWNER_TIMEOUT_MS,
 ): Promise<string | null> {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
+
   try {
     const response = await request("/api/v1/auth/me", {
       cache: "no-store",
       credentials: "same-origin",
       method: "GET",
+      signal: controller.signal,
     });
     if (!response.ok) return null;
 
@@ -56,6 +73,8 @@ export async function resolveSurveyDraftOwnerKey(
     );
   } catch {
     return null;
+  } finally {
+    clearTimeout(timeout);
   }
 }
 

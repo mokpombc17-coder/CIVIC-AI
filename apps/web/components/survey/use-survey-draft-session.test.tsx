@@ -14,6 +14,7 @@ const draftStorageHarness = vi.hoisted(() => ({
 }));
 
 vi.mock("@/lib/survey/survey-draft-storage", () => ({
+  getSurveyDraftStorage: () => sessionStorage,
   loadSurveyDraft: draftStorageHarness.loadSurveyDraft,
   removeSurveyDraft: draftStorageHarness.removeSurveyDraft,
   resolveSurveyDraftOwnerKey: draftStorageHarness.resolveSurveyDraftOwnerKey,
