@@ -136,7 +136,9 @@ runtime은 편집 가능한 요소에 포커스가 있는 동안 모바일 visua
 `SurveyLoading`은 `/survey` route segment가 준비되는 동안 실제 설문 화면과 동일한
 `PlatformShell`을 유지하고, `SurveyScreenLoading`의 전용 로딩 안내를 표시한다. 동일한
 `SurveyLoadingStatus`는 `SurveyScreen`의 Current Survey API pending 상태에서도 재사용한다.
-`SurveyPage`는 검증한 `returnTo`를 `SurveyScreen`의 취소·제출 후 복귀 목적지로 전달한다. 절대 URL,
+`SurveyPage`는 검증한 `returnTo`를 `SurveyScreen`의 제출 후 복귀 목적지로 전달한다. 취소는 `returnTo`와
+관계없이 서비스 관문이 없는 `/home`(`SURVEY_EXIT_PATH`)으로 보낸다. 채팅·투표로 돌아가면 관문이 다시
+설문으로 보내기 때문이다. 절대 URL,
 프로토콜 상대 URL, `/survey` 및 인증 재귀 경로는 `/home`으로 대체한다. `SurveyScreen`은 Current
 Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API가 제공한 Section을 순서대로
 단계로 조립한 뒤 마지막 확인 단계를 항상 추가한다. 전체 단계 수는

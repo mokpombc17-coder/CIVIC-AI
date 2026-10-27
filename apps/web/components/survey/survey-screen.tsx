@@ -184,7 +184,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
             ) : null}
             {surveyQuery.data?.status === "PENDING" ? (
               <SurveyForm
-                cancelHref={returnTo}
+                cancelHref={SURVEY_EXIT_PATH}
                 contentVersionId={surveyQuery.data.contentVersionId}
                 failureAnalytics={failureAnalytics}
                 key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}

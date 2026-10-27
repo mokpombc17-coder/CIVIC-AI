@@ -460,6 +460,21 @@ describe("SurveyScreen", () => {
     );
     expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
   });
+
+  it("채팅에서 넘어와도 취소하기는 설문 없이 들어갈 수 있는 홈으로 보낸다", () => {
+    mockSurveyQuery({
+      data: {
+        contentVersionId: "survey-version-01",
+        roundId: "survey-round-01",
+        sections: SECTIONS,
+        status: "PENDING",
+      },
+    });
+
+    render(<SurveyScreen returnTo="/chat" />);
+
+    expect(screen.getByRole("link", { name: "취소하기" }).getAttribute("href")).toBe("/home");
+  });
 });
 
 function mockSurveyQuery({ data, error }: Readonly<{ data?: unknown; error?: unknown }>) {
