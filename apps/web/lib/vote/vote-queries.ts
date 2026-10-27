@@ -8,13 +8,16 @@ import {
   type QueryClient,
 } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
+import { isNativeShell, subscribeNativeMessages } from "@/lib/native/bridge-client";
 import { createVoteCompletedApi, getVoteCompletedApiMode } from "./vote-completed-api";
+import { VoteApiError } from "./vote-fetch";
 import { createVoteTaskApiAdapter } from "./vote-task-mock-api";
 import { voteTaskSearchApi } from "./vote-task-search-api";
 import type {
   SubmitTaskRequest,
   TaskPredictionView,
   TaskSubmissionResponse,
+  UserTaskSummary,
 } from "./vote-task-contracts";
 
 const completedApiMode = getVoteCompletedApiMode();
@@ -43,11 +46,30 @@ export const voteQueryKeys = {
 };
 
 export function useOpenTasksQuery(enabled = true) {
-  return useQuery({
+  const queryClient = useQueryClient();
+  const query = useQuery({
     queryKey: voteQueryKeys.openTasks(),
     queryFn: ({ signal }) => voteTaskApi.getOpenTasks(signal),
     enabled,
+    refetchInterval: (currentQuery) =>
+      getOpenTasksPollingInterval(currentQuery.state.data, currentQuery.state.error, Date.now()),
   });
+
+  useEffect(() => {
+    if (!enabled || !isNativeShell()) return;
+
+    // 앱 WebView는 백그라운드에서 돌아와도 visibilitychange를 보내지 않을 수 있어, 앱이 알려 주는 복귀 신호로도 다시 조회함
+    return subscribeNativeMessages((message) => {
+      if (message.type !== "APP_STATE_CHANGED" || message.payload.state !== "active") return;
+
+      void queryClient.invalidateQueries(
+        { queryKey: voteQueryKeys.openTasks() },
+        { cancelRefetch: false },
+      );
+    });
+  }, [enabled, queryClient]);
+
+  return query;
 }
 
 export function useTaskSearchQuery(query: string, size = 20, enabled = true) {
@@ -173,6 +195,33 @@ export function flattenCompletedTaskPages<TItem extends { taskId: string }>(
       }),
     ) ?? []
   );
+}
+
+const OPEN_TASKS_POLLING_INTERVAL_MS = 60_000;
+const OPEN_TASKS_FAILED_POLLING_INTERVAL_MS = 300_000;
+// 서버와 기기의 시계가 조금 달라도 마감이 반영된 뒤에 조회하도록 마감 시각보다 조금 늦게 조회함
+const OPEN_TASK_CLOSE_REFETCH_DELAY_MS = 2_000;
+
+/**
+ * 진행 중 투표 목록을 켜 둔 채 기다리는 사용자에게 새 투표와 마감을 보여 주려고 화면이 보이는 동안 주기적으로 조회함.
+ * 가장 가까운 마감이 주기보다 먼저 오면 마감 직후에 조회하고, 조회가 실패하면 서버 부담을 줄이려고 간격을 늘림.
+ */
+export function getOpenTasksPollingInterval(
+  tasks: readonly Pick<UserTaskSummary, "closesAt">[] | undefined,
+  error: unknown,
+  now: number,
+): number | false {
+  if (error instanceof VoteApiError && (error.status === 401 || error.status === 403)) {
+    return false;
+  }
+  if (error) return OPEN_TASKS_FAILED_POLLING_INTERVAL_MS;
+
+  const nextRefetchAt = (tasks ?? [])
+    .map((task) => Date.parse(task.closesAt) + OPEN_TASK_CLOSE_REFETCH_DELAY_MS)
+    .filter((refetchAt) => refetchAt > now)
+    .reduce((earliest, refetchAt) => Math.min(earliest, refetchAt), Number.POSITIVE_INFINITY);
+
+  return Math.min(OPEN_TASKS_POLLING_INTERVAL_MS, nextRefetchAt - now);
 }
 
 export function getPredictionPollingInterval(
