@@ -191,6 +191,12 @@ function MatrixChoiceField({
                           },
                         })
                       }
+                      onClick={clearRadioOnRepeatedClick(selected, () =>
+                        onChange({
+                          type: "MATRIX_SINGLE_CHOICE",
+                          itemAnswers: { ...itemAnswers, [item.itemId]: null },
+                        }),
+                      )}
                       onKeyDown={selectRadioOnEnter}
                       type="radio"
                       value={option.optionId}
@@ -270,6 +276,12 @@ function MatrixScaleField({
                         itemAnswers: { ...itemAnswers, [item.itemId]: scale },
                       })
                     }
+                    onClick={clearRadioOnRepeatedClick(value === scale, () =>
+                      onChange({
+                        type: "MATRIX_SCALE",
+                        itemAnswers: { ...itemAnswers, [item.itemId]: null },
+                      }),
+                    )}
                     onKeyDown={selectRadioOnEnter}
                     type="radio"
                     value={scale}
@@ -288,6 +300,14 @@ function MatrixScaleField({
       })}
     </div>
   );
+}
+
+// 라디오는 이미 선택된 항목을 다시 누르면 change 없이 click만 발생하므로 click에서 선택을 해제함
+// 드롭다운 단일 선택과 복수 선택 체크박스처럼 다시 누르면 해제되도록 맞추기 위함
+function clearRadioOnRepeatedClick(selected: boolean, clear: () => void) {
+  return () => {
+    if (selected) clear();
+  };
 }
 
 function selectRadioOnEnter(event: KeyboardEvent<HTMLInputElement>) {
@@ -329,7 +349,12 @@ function SurveyQuestionControl({
           ariaDescribedBy={describedBy}
           ariaLabel={question.prompt}
           id={controlId}
-          onChange={(optionId) => onChange({ type: question.type, selection: { optionId } })}
+          onChange={(optionId) =>
+            onChange({
+              type: question.type,
+              selection: optionId === null ? null : { optionId },
+            })
+          }
           options={question.options.map((option) => ({
             value: option.optionId,
             label: option.label,
@@ -389,7 +414,10 @@ function SurveyQuestionControl({
             ariaLabel={question.prompt}
             id={controlId}
             onChange={(selectedValue) =>
-              onChange({ type: question.type, number: Number(selectedValue) })
+              onChange({
+                type: question.type,
+                number: selectedValue === null ? null : Number(selectedValue),
+              })
             }
             optionLabelMode="plain"
             options={values.map((number) => ({ value: String(number), label: String(number) }))}
@@ -431,6 +459,9 @@ function SurveyQuestionControl({
                   checked={value === scale}
                   name={controlId}
                   onChange={() => onChange({ type: question.type, scale })}
+                  onClick={clearRadioOnRepeatedClick(value === scale, () =>
+                    onChange({ type: question.type, scale: null }),
+                  )}
                   type="radio"
                 />
                 <span>{scale}</span>

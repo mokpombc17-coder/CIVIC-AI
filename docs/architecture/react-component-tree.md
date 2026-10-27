@@ -145,7 +145,8 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 없다. 설문 조회가 실패하면 401·403·진행 중 회차 없음(`SURVEY_ACTIVE_ROUND_UNAVAILABLE`)을 구분한
 안내와 다시 시도 action을 표시하며, 진행 중 회차 없음은 failure analytics에 기록하지 않는다. Section 이동
 전에 일반 Question과 행렬 Item을 검증하며, `required=false`인 선택 문항은 제목 오른쪽에
-`선택 문항` 라벨을 표시하고 비워 둘 수 있다. 선택 문항에
+`선택 문항` 라벨을 표시하고 비워 둘 수 있다. 단일 선택·척도·행렬 문항은 이미 고른 항목을 다시 고르면
+선택을 해제해, 선택 문항에 한 번 답한 뒤에도 비울 수 있다. 선택 문항에
 하나라도 답하면 마지막 단계는 민감정보 수집·이용 동의 checkbox를 표시하고, 최종 제출은 운영 서버에 동의
 증적을 먼저 저장해 받은 `consentReceiptId`를 answer payload와 함께 Survey API mutation에 전달한다. 선택
 문항에 모두 답하지 않으면 마지막 단계는 동의가 필요하지 않다는 안내만 표시하고, 동의 절차 없이

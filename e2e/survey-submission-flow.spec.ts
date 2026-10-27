@@ -307,11 +307,57 @@ test("미완료 사용자를 설문으로 보내고 영구 제출 후 원래 경
 test("선택 문항을 비우면 동의 없이 receipt와 선택 문항 answer를 빼고 제출한다", async ({
   page,
 }) => {
-  let submittedCommand: SubmitSurveyRequest | null = null;
-  let consentRequestCount = 0;
+  const submission = await routeOptionalSurveySubmission(page, "survey-optional-e2e-user");
+
+  await page.goto("/survey");
+  await expect(
+    page.getByRole("heading", { name: "문항 1", exact: true }),
+    "필수 문항에는 선택 문항 표시를 붙이지 않아야 합니다.",
+  ).toBeVisible();
+  await answerVisibleSurveyToConfirmation(page, OPTIONAL_QUESTION_TITLES, async (title) => {
+    await expect(
+      page.getByRole("heading", { name: `${title} 선택 문항`, exact: true }),
+    ).toBeVisible();
+  });
+
+  await expectSubmittedWithoutConsent(page, submission);
+});
+
+test("선택 문항에 답했다가 같은 항목을 다시 골라 지우면 동의 없이 제출한다", async ({ page }) => {
+  const submission = await routeOptionalSurveySubmission(page, "survey-optional-clear-e2e-user");
+
+  await page.goto("/survey");
+  await answerVisibleSurveyToConfirmation(page, OPTIONAL_QUESTION_TITLES, async (title) => {
+    const combobox = page
+      .locator("[data-survey-step] section")
+      .filter({ has: page.getByRole("heading", { name: `${title} 선택 문항`, exact: true }) })
+      .getByRole("combobox");
+
+    // 민감정보 선택 문항은 한 번 답해도 같은 항목을 다시 골라 지울 수 있어야 동의 없이 제출할 수 있음
+    await combobox.click();
+    await page.getByRole("option").first().click();
+    await expect(combobox).not.toHaveAttribute("data-empty", "true");
+    await combobox.click();
+    await page.getByRole("option").first().click();
+    await expect(combobox).toHaveAttribute("data-empty", "true");
+  });
+
+  await expectSubmittedWithoutConsent(page, submission);
+});
+
+type OptionalSurveySubmission = {
+  command: SubmitSurveyRequest | null;
+  consentRequestCount: number;
+};
+
+async function routeOptionalSurveySubmission(
+  page: Page,
+  subject: string,
+): Promise<OptionalSurveySubmission> {
+  const submission: OptionalSurveySubmission = { command: null, consentRequestCount: 0 };
 
   await page.route("**/api/v1/auth/me", async (route) => {
-    await route.fulfill({ json: { subject: "survey-optional-e2e-user" } });
+    await route.fulfill({ json: { subject } });
   });
   await page.route("https://t1.kakaocdn.net/**", async (route) => {
     await route.abort("failed");
@@ -330,13 +376,13 @@ test("선택 문항을 비우면 동의 없이 receipt와 선택 문항 answer�
       return;
     }
     if (requestUrl.pathname === CONSENT_ACCEPTANCES_PATH) {
-      consentRequestCount += 1;
+      submission.consentRequestCount += 1;
     }
     if (await fulfillConsentAcceptance(route, requestUrl, corsHeaders)) {
       return;
     }
     if (requestUrl.pathname === "/api/v1/me/survey-responses" && request.method() === "POST") {
-      submittedCommand = request.postDataJSON() as SubmitSurveyRequest;
+      submission.command = request.postDataJSON() as SubmitSurveyRequest;
       await route.fulfill({
         status: 200,
         headers: corsHeaders,
@@ -354,17 +400,10 @@ test("선택 문항을 비우면 동의 없이 receipt와 선택 문항 answer�
     await route.abort("failed");
   });
 
-  await page.goto("/survey");
-  await expect(
-    page.getByRole("heading", { name: "문항 1", exact: true }),
-    "필수 문항에는 선택 문항 표시를 붙이지 않아야 합니다.",
-  ).toBeVisible();
-  await answerVisibleSurveyToConfirmation(page, OPTIONAL_QUESTION_TITLES, async (title) => {
-    await expect(
-      page.getByRole("heading", { name: `${title} 선택 문항`, exact: true }),
-    ).toBeVisible();
-  });
+  return submission;
+}
 
+async function expectSubmittedWithoutConsent(page: Page, submission: OptionalSurveySubmission) {
   await expect(page.getByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ })).toHaveCount(
     0,
   );
@@ -379,17 +418,17 @@ test("선택 문항을 비우면 동의 없이 receipt와 선택 문항 answer�
   await submitButton.click();
   await expect(page.getByRole("heading", { name: "설문 응답 검증을 완료했습니다." })).toBeVisible();
 
-  expect(consentRequestCount).toBe(0);
-  expect(submittedCommand).not.toBeNull();
-  expect(submittedCommand).not.toHaveProperty("consentReceiptId");
-  expect(submittedCommand!.answers).toHaveLength(29 - OPTIONAL_GENERAL_QUESTION_INDEXES.size);
+  expect(submission.consentRequestCount).toBe(0);
+  expect(submission.command).not.toBeNull();
+  expect(submission.command).not.toHaveProperty("consentReceiptId");
+  expect(submission.command!.answers).toHaveLength(29 - OPTIONAL_GENERAL_QUESTION_INDEXES.size);
   const submittedQuestionIds = new Set(
-    submittedCommand!.answers.map((answer) => answer.questionId),
+    submission.command!.answers.map((answer) => answer.questionId),
   );
   for (const index of OPTIONAL_GENERAL_QUESTION_INDEXES) {
     expect(submittedQuestionIds.has(uuid(100 + index))).toBe(false);
   }
-});
+}
 
 async function fulfillConsentAcceptance(
   route: Route,

@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { SurveySelect } from "./survey-select";
 
 const options = [
@@ -8,6 +11,31 @@ const options = [
 ] as const;
 
 describe("SurveySelect", () => {
+  afterEach(() => {
+    cleanup();
+    Reflect.deleteProperty(HTMLElement.prototype, "scrollIntoView");
+  });
+
+  it("이미 고른 항목을 다시 고르면 선택을 해제한다", () => {
+    // jsdom에는 scrollIntoView가 없어 목록을 열 때 활성 항목으로 스크롤하는 호출을 대신함
+    Object.defineProperty(HTMLElement.prototype, "scrollIntoView", {
+      configurable: true,
+      value: vi.fn(),
+    });
+    const onChange = vi.fn();
+    render(
+      <SurveySelect ariaLabel="성별" id="gender" onChange={onChange} options={options} value="B" />,
+    );
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /여성/ }));
+    expect(onChange).toHaveBeenLastCalledWith(null);
+
+    fireEvent.click(screen.getByRole("combobox"));
+    fireEvent.click(screen.getByRole("option", { name: /남성/ }));
+    expect(onChange).toHaveBeenLastCalledWith("A");
+  });
+
   it("renders a reusable select-only combobox with an animated ordinal menu", () => {
     const html = renderToStaticMarkup(
       <SurveySelect

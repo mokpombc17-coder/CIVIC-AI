@@ -28,7 +28,7 @@ export function SurveySelect({
   ariaDescribedBy?: string | undefined;
   ariaLabel: string;
   id: string;
-  onChange: (value: string) => void;
+  onChange: (value: string | null) => void;
   optionLabelMode?: SurveyOptionLabelMode;
   options: readonly SurveySelectOption[];
   placeholder?: string;
@@ -67,7 +67,9 @@ export function SurveySelect({
   function selectOption(index: number) {
     const option = options[index];
     if (!option || option.disabled) return;
-    onChange(option.value);
+    // 이미 고른 항목을 다시 고르면 선택을 해제함. 복수 선택 체크박스와 같은 방식임
+    // 선택 문항은 한 번 답하면 민감정보 동의가 필요해져 답을 지울 방법이 있어야 동의 없이 제출할 수 있음
+    onChange(option.value === value ? null : option.value);
     setActiveIndex(index);
     closeMenu();
   }
