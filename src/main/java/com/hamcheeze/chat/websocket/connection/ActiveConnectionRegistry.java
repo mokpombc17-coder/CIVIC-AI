@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.websocket.connection;
 
+import java.util.Map;
 import java.util.Optional;
 
 public interface ActiveConnectionRegistry {
@@ -13,6 +14,8 @@ public interface ActiveConnectionRegistry {
     Optional<String> findConnectionIdByUser(String userId);
 
     Optional<String> findUserIdByConnection(String connectionId);
+
+    Map<String, String> connectionIdsByUser();
 
     int activeCount();
 }

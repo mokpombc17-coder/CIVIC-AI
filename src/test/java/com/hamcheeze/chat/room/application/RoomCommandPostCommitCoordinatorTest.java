@@ -1,13 +1,18 @@
 package com.hamcheeze.chat.room.application;
 
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
+import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.application.event.PublicRoomListInvalidationPort;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.result.RoomCommandExecution;
 import com.hamcheeze.chat.room.application.result.RoomCommandResult;
 import com.hamcheeze.chat.room.application.result.RoomCommandResultCode;
+import com.hamcheeze.chat.room.application.result.RoomSettingsSnapshot;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandExecutionException;
 import com.hamcheeze.chat.room.application.transaction.RoomCommandFailureKind;
 import com.hamcheeze.chat.room.persistence.RoomCommandType;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.EnumSource;
 import org.mockito.InOrder;
@@ -16,6 +21,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
 
 class RoomCommandPostCommitCoordinatorTest {
 
@@ -34,7 +41,10 @@ class RoomCommandPostCommitCoordinatorTest {
         RoomCommandAccessRevocationCoordinator access =
                 mock(RoomCommandAccessRevocationCoordinator.class);
         RoomCommandPostCommitCoordinator coordinator =
-                new RoomCommandPostCommitCoordinator(events, access);
+                new RoomCommandPostCommitCoordinator(
+                        events,
+                        access,
+                        PublicRoomListInvalidationPort.disabled());
         RoomCommandExecution execution = execution(code);
 
         coordinator.afterCommand(execution);
@@ -56,7 +66,10 @@ class RoomCommandPostCommitCoordinatorTest {
         RoomCommandAccessRevocationCoordinator access =
                 mock(RoomCommandAccessRevocationCoordinator.class);
         RoomCommandPostCommitCoordinator coordinator =
-                new RoomCommandPostCommitCoordinator(events, access);
+                new RoomCommandPostCommitCoordinator(
+                        events,
+                        access,
+                        PublicRoomListInvalidationPort.disabled());
         RoomCommandExecution execution = execution(code);
         RoomCommandExecutionException failure =
                 new RoomCommandExecutionException(
@@ -70,6 +83,89 @@ class RoomCommandPostCommitCoordinatorTest {
         InOrder order = inOrder(events, access);
         order.verify(events).afterCommand(execution);
         order.verify(access).afterCommand(execution);
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = RoomCommandResultCode.class,
+            names = {"ROOM_CREATED", "CLOSED", "ROOM_SETTINGS_UPDATED"})
+    void requestsPublicRoomListInvalidationForListAffectingChanges(
+            RoomCommandResultCode code
+    ) {
+        PublicRoomListInvalidationPort publicRooms =
+                mock(PublicRoomListInvalidationPort.class);
+        RoomCommandPostCommitCoordinator coordinator =
+                coordinator(publicRooms);
+
+        coordinator.afterCommand(execution(code));
+
+        verify(publicRooms).requestInvalidation();
+    }
+
+    @ParameterizedTest
+    @EnumSource(
+            value = RoomCommandResultCode.class,
+            names = {"LEFT", "BANNED"})
+    void skipsPublicRoomListInvalidationForMembershipChanges(
+            RoomCommandResultCode code
+    ) {
+        PublicRoomListInvalidationPort publicRooms =
+                mock(PublicRoomListInvalidationPort.class);
+        RoomCommandPostCommitCoordinator coordinator =
+                coordinator(publicRooms);
+
+        coordinator.afterCommand(execution(code));
+
+        verify(publicRooms, never()).requestInvalidation();
+    }
+
+    @Test
+    void skipsPublicRoomListInvalidationForReplay() {
+        PublicRoomListInvalidationPort publicRooms =
+                mock(PublicRoomListInvalidationPort.class);
+        RoomCommandPostCommitCoordinator coordinator =
+                coordinator(publicRooms);
+        RoomCommandExecution replay = new RoomCommandExecution(
+                REQUEST_ID,
+                execution(RoomCommandResultCode.CLOSED).result(),
+                true);
+
+        coordinator.afterCommand(replay);
+
+        verify(publicRooms, never()).requestInvalidation();
+    }
+
+    @Test
+    void requestsPublicRoomListInvalidationBeforeAccessRevocationFailure() {
+        RoomCommandAccessRevocationCoordinator access =
+                mock(RoomCommandAccessRevocationCoordinator.class);
+        PublicRoomListInvalidationPort publicRooms =
+                mock(PublicRoomListInvalidationPort.class);
+        RoomCommandPostCommitCoordinator coordinator =
+                new RoomCommandPostCommitCoordinator(
+                        mock(RoomCommandEventPropagationCoordinator.class),
+                        access,
+                        publicRooms);
+        RoomCommandExecution execution =
+                execution(RoomCommandResultCode.CLOSED);
+        doThrow(new RoomCommandExecutionException(
+                RoomCommandFailureKind.ACCESS_REVOCATION_FAILED,
+                "revocation failed"))
+                .when(access).afterCommand(execution);
+
+        assertThatThrownBy(() -> coordinator.afterCommand(execution))
+                .isInstanceOf(RoomCommandExecutionException.class);
+
+        verify(publicRooms).requestInvalidation();
+    }
+
+    private static RoomCommandPostCommitCoordinator coordinator(
+            PublicRoomListInvalidationPort publicRooms
+    ) {
+        return new RoomCommandPostCommitCoordinator(
+                mock(RoomCommandEventPropagationCoordinator.class),
+                mock(RoomCommandAccessRevocationCoordinator.class),
+                publicRooms);
     }
 
     private static RoomCommandExecution execution(
@@ -133,6 +229,51 @@ class RoomCommandPostCommitCoordinatorTest {
                     4L,
                     null,
                     null);
+            case ROOM_CREATED -> new RoomCommandResult(
+                    RoomCommandType.CREATE_ROOM,
+                    code,
+                    "room-1",
+                    null,
+                    null,
+                    "owner-membership",
+                    "owner-1",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    1L,
+                    null,
+                    1L,
+                    null,
+                    null);
+            case ROOM_SETTINGS_UPDATED -> new RoomCommandResult(
+                    RoomCommandType.UPDATE_ROOM_SETTINGS,
+                    code,
+                    "room-1",
+                    null,
+                    null,
+                    null,
+                    "owner-1",
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    null,
+                    6L,
+                    null,
+                    null,
+                    null,
+                    null,
+                    new RoomSettingsSnapshot(
+                            "room",
+                            "",
+                            java.util.List.of(
+                                    "00000000-0000-0000-0000-000000000001"),
+                            RoomVisibility.UNLISTED,
+                            JoinPolicy.OPEN));
             default -> throw new IllegalArgumentException();
         };
         return new RoomCommandExecution(REQUEST_ID, result, false);

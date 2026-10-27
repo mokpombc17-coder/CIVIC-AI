@@ -10,6 +10,8 @@ import com.hamcheeze.chat.room.inbox.summary.mongo.MongoRoomInboxSummarySchemaIn
 import com.hamcheeze.chat.room.mongo.MongoRoomSchemaInitializer;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import com.hamcheeze.chat.room.receipt.RoomReadPositionAdvanceObserver;
+import com.hamcheeze.chat.room.inbox.notification.PublicRoomsInvalidatedEventDelivery;
+import com.hamcheeze.chat.room.inbox.notification.PublicRoomsInvalidationNotifier;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxEventDelivery;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxCurrentSummaryReader;
 import com.hamcheeze.chat.room.inbox.notification.RoomInboxNotificationPipeline;
@@ -121,11 +123,26 @@ public class RoomInboxConfiguration {
     }
 
     @Bean
-    RoomInboxEventDelivery roomInboxEventDelivery(
+    SimpleBrokerRoomInboxEventDelivery roomInboxEventDelivery(
             SimpMessagingTemplate messagingTemplate
     ) {
         return new SimpleBrokerRoomInboxEventDelivery(
                 messagingTemplate);
+    }
+
+    @Bean
+    PublicRoomsInvalidationNotifier publicRoomsInvalidationNotifier(
+            ActiveConnectionRegistry activeConnections,
+            PublicRoomsInvalidatedEventDelivery delivery,
+            RoomInboxProperties properties,
+            MeterRegistry meterRegistry
+    ) {
+        return new PublicRoomsInvalidationNotifier(
+                activeConnections,
+                delivery,
+                properties,
+                Clock.systemUTC(),
+                meterRegistry);
     }
 
     @Bean

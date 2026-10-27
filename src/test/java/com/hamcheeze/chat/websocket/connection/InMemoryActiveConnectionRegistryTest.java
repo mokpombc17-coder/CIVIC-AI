@@ -62,6 +62,24 @@ class InMemoryActiveConnectionRegistryTest {
     }
 
     @Test
+    void exposesImmutableSnapshotOfCurrentConnections() {
+        InMemoryActiveConnectionRegistry registry = registry(3);
+        registry.activate("user-1", "connection-1");
+        registry.activate("user-2", "connection-2");
+        registry.activate("user-1", "connection-3");
+
+        var snapshot = registry.connectionIdsByUser();
+        registry.deactivate("user-2", "connection-2");
+
+        assertThat(snapshot).containsExactlyInAnyOrderEntriesOf(
+                java.util.Map.of(
+                        "user-1", "connection-3",
+                        "user-2", "connection-2"));
+        assertThat(registry.connectionIdsByUser())
+                .containsOnlyKeys("user-1");
+    }
+
+    @Test
     void rejectsTheFiveHundredAndFirstAuthenticatedConnection() {
         InMemoryActiveConnectionRegistry registry = registry(500);
         for (int index = 0; index < 500; index++) {

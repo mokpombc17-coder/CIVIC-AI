@@ -96,6 +96,10 @@ public class RoomInboxProperties {
         @Min(1)
         private long shutdownDrainTimeoutMs = 1_000;
 
+        @Min(1)
+        @Max(5_000)
+        private long publicRoomsCoalescingWindowMs = 1_000;
+
         public int getQueueCapacity() {
             return queueCapacity;
         }
@@ -134,6 +138,14 @@ public class RoomInboxProperties {
 
         public void setShutdownDrainTimeoutMs(long value) {
             this.shutdownDrainTimeoutMs = value;
+        }
+
+        public long getPublicRoomsCoalescingWindowMs() {
+            return publicRoomsCoalescingWindowMs;
+        }
+
+        public void setPublicRoomsCoalescingWindowMs(long value) {
+            this.publicRoomsCoalescingWindowMs = value;
         }
     }
 }

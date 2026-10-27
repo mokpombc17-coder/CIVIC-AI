@@ -3,6 +3,7 @@ package com.hamcheeze.chat.room.application;
 import com.hamcheeze.chat.room.application.idempotency.IdempotentRoomCommandExecutor;
 import com.hamcheeze.chat.room.application.access.RoomAccessRevocationPort;
 import com.hamcheeze.chat.room.application.access.RoomCommandAccessRevocationCoordinator;
+import com.hamcheeze.chat.room.application.event.PublicRoomListInvalidationPort;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventMapper;
 import com.hamcheeze.chat.room.application.event.RoomCommandEventPropagationCoordinator;
 import com.hamcheeze.chat.room.application.event.RoomEventDeliveryPort;
@@ -267,10 +268,12 @@ public class RoomCommandApplicationConfiguration {
     @Bean
     RoomCommandPostCommitCoordinator roomCommandPostCommitCoordinator(
             RoomCommandEventPropagationCoordinator eventCoordinator,
-            RoomCommandAccessRevocationCoordinator accessCoordinator
+            RoomCommandAccessRevocationCoordinator accessCoordinator,
+            PublicRoomListInvalidationPort publicRoomListInvalidation
     ) {
         return new RoomCommandPostCommitCoordinator(
                 eventCoordinator,
-                accessCoordinator);
+                accessCoordinator,
+                publicRoomListInvalidation);
     }
 }

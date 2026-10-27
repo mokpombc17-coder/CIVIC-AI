@@ -101,6 +101,16 @@ public final class InMemoryActiveConnectionRegistry
     }
 
     @Override
+    public Map<String, String> connectionIdsByUser() {
+        lock.lock();
+        try {
+            return Map.copyOf(connectionByUser);
+        } finally {
+            lock.unlock();
+        }
+    }
+
+    @Override
     public int activeCount() {
         lock.lock();
         try {

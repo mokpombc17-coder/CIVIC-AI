@@ -83,6 +83,7 @@ chat:
       max-events-per-room-batch: ${CHAT_ROOM_INBOX_MAX_EVENTS_PER_BATCH:100}
       max-recipient-snapshot-size: ${CHAT_ROOM_INBOX_MAX_RECIPIENT_SNAPSHOT_SIZE:100}
       shutdown-drain-timeout-ms: ${CHAT_ROOM_INBOX_NOTIFICATION_DRAIN_TIMEOUT_MS:1000}
+      public-rooms-coalescing-window-ms: ${CHAT_ROOM_INBOX_PUBLIC_ROOMS_COALESCING_WINDOW_MS:1000}
 
   websocket:
     endpoint: /ws

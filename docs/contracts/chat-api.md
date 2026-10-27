@@ -1735,7 +1735,7 @@ const client = new Client({
 | `SUBSCRIBE` | `/topic/rooms/{roomId}/read-receipts` | Membership read cursor delta 수신 |
 | `SUBSCRIBE` | `/user/queue/command-results` | 내 메시지 전송 결과 수신 |
 | `SUBSCRIBE` | `/user/queue/system-events` | 구독 거절 및 사용자 대상 방 이벤트 수신 |
-| `SUBSCRIBE` | `/user/queue/room-inbox-events` | 토스트 hint 및 room-inbox REST query invalidation 수신 |
+| `SUBSCRIBE` | `/user/queue/room-inbox-events` | 토스트 hint, room-inbox REST query invalidation 및 공개 방 목록 invalidation 수신 |
 
 와일드카드 destination 구독은 허용하지 않는다. 방 단위 topic을
 구독하려면 해당 방의 활성 멤버여야 한다.
@@ -2275,7 +2275,8 @@ payload 형태:
 
 설정 변경 후 공개 목록 노출 여부가 바뀔 수 있으므로
 `visibility` 변경을 반영해야 하는 화면은 `GET /api/v1/rooms`를 다시
-조회한다. 공개 목록 전용 WebSocket event는 제공하지 않는다.
+조회한다. 공개 방 목록 재조회 신호는
+[공개 방 목록 invalidation event](#공개-방-목록-invalidation-event)를 사용한다.
 
 ### 사용자 System 이벤트
 
@@ -3105,6 +3106,51 @@ fail-closed하고 `room.inbox.notification.recipient_snapshot.rejected`를
 오프라인 replay, Push, durable notification outbox를 제공하지 않는다. 향후
 Push 보장이 필요하면 message와 room-topic outbox를 저장하는 transaction에
 별도 durable notification intent를 함께 기록해야 한다.
+
+### 공개 방 목록 invalidation event
+
+같은 `/user/queue/room-inbox-events` queue로 공개 방 목록
+(`GET /api/v1/rooms`) 재조회 신호도 전달한다. 별도 구독은 필요 없으며
+프론트는 `eventType`으로 `ROOM_INBOX_INVALIDATED`와 구분한다.
+
+```json
+{
+  "eventVersion": 1,
+  "eventId": "550e8400-e29b-41d4-a716-446655440000",
+  "eventType": "PUBLIC_ROOMS_INVALIDATED",
+  "emittedAt": "2026-10-27T01:10:00Z"
+}
+```
+
+- 방 정보를 포함하지 않는 "다시 조회하라" 신호다. 수신 시 현재 검색어와
+  필터를 유지하고 `cursor`를 버린 뒤 첫 페이지부터 다시 조회한다.
+- 이 event로 room-inbox query를 invalidate하지 않는다.
+- `eventId`는 canonical 소문자 UUID, `emittedAt`은 `Z`로 끝나는 ISO-8601 UTC
+  문자열이며 초 이하 자릿수가 포함될 수 있다.
+- `eventVersion`은 이 event 고유의 version이며 현재 `1`이다. 필드 추가는
+  version을 올리지 않으므로 프론트는 모르는 필드를 무시한다. 형태가 바뀌어
+  version을 올릴 때는 사전에 공지한다. 서버는 모르는 `eventType`을 프론트가
+  무시한다는 전제로 먼저 배포할 수 있다.
+
+전송 조건은 다음 변경이 실제로 commit된 경우이며 Room의 공개 여부는 따지지
+않는다. 따라서 공개 목록에 변화가 없어도 event가 올 수 있다.
+
+- 방 생성: `DIRECT` 자동 승인, 관리자 승인
+- 방 종료: 방장 종료, 관리자 강제 종료
+- 방 설정 변경: `ROOM_SETTINGS_UPDATED` (`ROOM_SETTINGS_UNCHANGED` 제외)
+- 관리자 카테고리 교체로 Room 카테고리가 바뀐 경우
+
+Idempotency replay에서는 전송하지 않는다. 참여·퇴장·차단으로 인한
+`activeMemberCount` 변화에는 전송하지 않는다. 최신 인원 수는 목록 재조회 시
+반영된다.
+
+서버는 commit 후 non-blocking으로 요청만 기록하고, 별도 worker가
+`chat.room-inbox.notification.public-rooms-coalescing-window-ms`(기본
+1000ms, 1~5000) 동안 들어온 요청을 하나로 합친 뒤 현재 활성 연결 전체에 같은
+`eventId`의 event를 한 번씩 전송한다. 비영속 best-effort이며 연결이 없던
+동안의 event는 replay하지 않는다. 프론트는 재연결 시 목록을 다시 조회하고,
+접속자 전체가 동시에 조회하지 않도록 수신 후 debounce와 무작위 지연을 적용한다.
+개별 전송 실패는 다른 연결 전송과 command 결과에 영향을 주지 않는다.
 
 ## Super Admin Room 채팅 Export
 
