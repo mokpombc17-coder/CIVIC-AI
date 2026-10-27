@@ -63,17 +63,37 @@ function createVoteApiError(
 }
 
 describe("survey submission recovery", () => {
-  it("동의 문서 변경은 동의부터 새로 시도하도록 분류한다", () => {
-    expect(classifyConsentSubmissionError({ code: "CONSENT_DOCUMENT_CHANGED" })).toEqual({
-      message: "동의 정보가 변경되어 제출할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+  it("동의 문서 변경은 선택 문항 답을 지우면 동의 없이 제출할 수 있다고 안내하고 새로 시도하도록 분류한다", () => {
+    expect(
+      classifyConsentSubmissionError({ code: "CONSENT_DOCUMENT_CHANGED", status: 409 }),
+    ).toEqual({
+      loginRequired: false,
+      message:
+        "동의 정보가 변경되어 지금은 동의할 수 없습니다. 선택 문항의 답변을 지우면 동의 없이 제출할 수 있습니다.",
       newAttempt: true,
+    });
+  });
+
+  it("토큰 재갱신까지 실패한 401은 동의와 설문 제출 모두 로그인으로 안내한다", () => {
+    expect(classifyConsentSubmissionError({ code: undefined, status: 401 })).toMatchObject({
+      loginRequired: true,
+      message: "로그인이 만료되었습니다. 다시 로그인한 뒤 제출해 주세요.",
+    });
+    expect(
+      classifySurveySubmissionError(
+        new VoteApiError(401, "Unauthorized", "/me/survey-responses", null),
+      ),
+    ).toMatchObject({
+      loginRequired: true,
+      message: "로그인이 만료되었습니다. 다시 로그인한 뒤 제출해 주세요.",
     });
   });
 
   it.each(["IDEMPOTENCY_CONFLICT", "INVALID_IDEMPOTENCY_KEY"])(
     "%s 동의 오류는 새 멱등 요청을 준비하도록 분류한다",
     (code) => {
-      expect(classifyConsentSubmissionError({ code })).toEqual({
+      expect(classifyConsentSubmissionError({ code, status: 409 })).toEqual({
+        loginRequired: false,
         message: "동의 요청을 새로 준비했습니다. 다시 제출해 주세요.",
         newAttempt: true,
       });
@@ -81,10 +101,13 @@ describe("survey submission recovery", () => {
   );
 
   it("일반 동의 오류는 같은 요청을 재시도하도록 유지한다", () => {
-    expect(classifyConsentSubmissionError({ code: "CONSENT_STORAGE_FAILED" })).toEqual({
-      message: "동의 정보를 저장하지 못했습니다. 같은 내용으로 다시 시도해 주세요.",
-      newAttempt: false,
-    });
+    expect(classifyConsentSubmissionError({ code: "CONSENT_STORAGE_FAILED", status: 500 })).toEqual(
+      {
+        loginRequired: false,
+        message: "동의 정보를 저장하지 못했습니다. 같은 내용으로 다시 시도해 주세요.",
+        newAttempt: false,
+      },
+    );
   });
 
   it.each([
@@ -112,6 +135,7 @@ describe("survey submission recovery", () => {
   ])("%s 오류의 새 시도와 새로고침 정책을 보존한다", (code, newAttempt, refresh, message) => {
     expect(classifySurveySubmissionError(createVoteApiError(code))).toEqual({
       fieldErrors: {},
+      loginRequired: false,
       message,
       newAttempt,
       refresh,
@@ -140,6 +164,7 @@ describe("survey submission recovery", () => {
         [FIRST_QUESTION_ID]: "첫 번째 답변을 확인해 주세요.",
         [`${SECOND_QUESTION_ID}:${MATRIX_ITEM_ID}`]: "답변을 다시 확인해 주세요.",
       },
+      loginRequired: false,
       message: "입력한 답변을 다시 확인해 주세요.",
       newAttempt: false,
       refresh: false,
@@ -149,6 +174,7 @@ describe("survey submission recovery", () => {
   it("Vote API가 아닌 오류는 같은 제출을 재시도하도록 분류한다", () => {
     expect(classifySurveySubmissionError(new Error("network unavailable"))).toEqual({
       fieldErrors: {},
+      loginRequired: false,
       message: "제출하지 못했습니다. 같은 내용으로 다시 시도해 주세요.",
       newAttempt: false,
       refresh: false,
@@ -163,7 +189,9 @@ describe("survey submission recovery", () => {
     ).toEqual({
       analytics: "failure",
       fieldErrors: {},
-      message: "동의 정보가 변경되어 제출할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+      loginRequired: false,
+      message:
+        "동의 정보가 변경되어 지금은 동의할 수 없습니다. 선택 문항의 답변을 지우면 동의 없이 제출할 수 있습니다.",
       newAttempt: true,
       refresh: false,
       stage: "consent",
@@ -197,6 +225,7 @@ describe("survey submission recovery", () => {
       ).toEqual({
         analytics: "failure",
         fieldErrors: {},
+        loginRequired: false,
         message: "민감정보 동의 상태가 바뀌었습니다. 동의 항목을 확인한 뒤 다시 제출해 주세요.",
         newAttempt: true,
         refresh: false,

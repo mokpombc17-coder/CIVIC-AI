@@ -144,7 +144,8 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 단계로 조립한 뒤 마지막 확인 단계를 항상 추가한다. 전체 단계 수는
 `sections.length + 1`이며 Section·Question 개수는 코드에 고정되어 있지 않다. 동의 문서 코드와 버전은
 `survey-screen.tsx`의 `SENSITIVE_INFORMATION_CONSENT` 상수로 고정되어 있고, 동의 문서를 조회하는 API는
-없다. 설문 조회가 실패하면 401·403·진행 중 회차 없음(`SURVEY_ACTIVE_ROUND_UNAVAILABLE`)을 구분한
+없다. 서버 문서가 바뀌어 `CONSENT_DOCUMENT_CHANGED`가 나면 선택 문항 답을 지우면 동의 없이 제출할 수 있다고
+안내한다. 설문 조회가 실패하면 401·403·진행 중 회차 없음(`SURVEY_ACTIVE_ROUND_UNAVAILABLE`)을 구분한
 안내를 표시한다. 401은 설문으로 돌아오는 로그인 링크를, 그 밖에는 다시 시도와 `/home`으로 나가는 action을
 함께 두며, 진행 중 회차 없음은 failure analytics에 기록하지 않는다. Section이 없는 설문도 다시 시도와
 `/home` action을 두고 운영 데이터 오류로 failure analytics에 기록한다. Section 이동
@@ -163,11 +164,12 @@ subject의 SHA-256 지문과 회차·content version으로 격리해 `sessionSto
 Question·Item·Option과 대조해 복원한다. 필수 확인 상태는 저장하지 않으며, 동의 저장과 Survey 제출은
 각각 독립된 idempotency key를 사용한다. Survey 재시도에는 최초 클릭 시각과 이미 발급된 consent receipt를
 유지한다. `survey-submission-recovery.ts`의 `classifySubmissionFailure`는 동의·설문 제출 오류를 사용자
-메시지, 필드 오류, 최신 설문 재조회, 새 멱등 시도 여부와 함께 실패 단계(`consent | survey`)와 failure
+메시지, 필드 오류, 로그인 필요 여부, 최신 설문 재조회, 새 멱등 시도 여부와 함께 실패 단계(`consent | survey`)와 failure
 analytics 기록 방식(`failure | recovered | none`)으로 분류한다. 이미 제출된 설문 오류는 복구로, 응답
 검증 실패는 기록하지 않음으로 분류한다. 단, 응답 검증 실패 중 동의 receipt 불일치
 (`SURVEY_CONSENT_RECEIPT_REQUIRED`, `SURVEY_CONSENT_RECEIPT_NOT_ALLOWED`)는 실패로 기록하고 동의 상태
-안내와 새 시도로 분류한다. `SurveyForm`은 이 결과에 따라 failure analytics 기록, 폼 상태
+안내와 새 시도로 분류한다. 토큰 재갱신까지 실패한 401은 로그인 필요로 분류해 `SurveyForm`이 제출 오류
+옆에 설문으로 돌아오는 로그인 링크를 두되 제출하기로 다시 시도할 수 있게 둔다. `SurveyForm`은 이 결과에 따라 failure analytics 기록, 폼 상태
 전이, 설문 재조회와 제출 coordinator 초기화만 수행하고, 첫 필드 오류가 속한 Section은
 `findFirstInvalidSurveySectionIndex`로 찾는다. 제출 성공 또는
 `SUBMITTED` 재진입 시 임시 답변을 삭제한다. Section 단계의 `SurveyStepActions`는 카드 다음에 배치하고,

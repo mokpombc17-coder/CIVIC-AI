@@ -35,6 +35,7 @@ describe("reduceSurveyFormState", () => {
       errors: {},
       requiredConsentClickedAt: null,
       submissionError: null,
+      submissionLoginRequired: false,
       validationScrollRequest: 0,
     });
   });
@@ -131,6 +132,7 @@ describe("reduceSurveyFormState", () => {
     const started = reduceSurveyFormState(state, { type: "submissionStarted" });
     const failed = reduceSurveyFormState(started, {
       type: "submissionFailed",
+      loginRequired: false,
       message: "새 제출 오류",
     });
 
@@ -189,6 +191,7 @@ function createState(
     errors: SurveyValidationErrors;
     requiredConsentClickedAt: string | null;
     submissionError: string | null;
+    submissionLoginRequired: boolean;
     validationScrollRequest: number;
   }> = {},
 ): SurveyFormState {
@@ -198,6 +201,7 @@ function createState(
     errors: {},
     requiredConsentClickedAt: null,
     submissionError: null,
+    submissionLoginRequired: false,
     validationScrollRequest: 0,
     ...overrides,
   };

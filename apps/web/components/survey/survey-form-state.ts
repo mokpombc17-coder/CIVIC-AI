@@ -12,6 +12,7 @@ export type SurveyFormState = Readonly<{
   errors: SurveyValidationErrors;
   requiredConsentClickedAt: string | null;
   submissionError: string | null;
+  submissionLoginRequired: boolean;
   validationScrollRequest: number;
 }>;
 
@@ -35,7 +36,7 @@ export type SurveyFormAction =
       errors: SurveyValidationErrors;
     }>
   | Readonly<{ type: "submissionStarted" }>
-  | Readonly<{ type: "submissionFailed"; message: string }>
+  | Readonly<{ type: "submissionFailed"; loginRequired: boolean; message: string }>
   | Readonly<{
       type: "submissionFailedWithFieldErrors";
       currentStep: number;
@@ -51,6 +52,7 @@ export function createInitialSurveyFormState(sections: readonly SurveySection[])
     errors: {},
     requiredConsentClickedAt: null,
     submissionError: null,
+    submissionLoginRequired: false,
     validationScrollRequest: 0,
   };
 }
@@ -72,6 +74,7 @@ export function reduceSurveyFormState(
         answers: { ...state.answers, [action.questionId]: action.answer },
         errors: removeQuestionErrors(state.errors, action.questionId),
         submissionError: null,
+        submissionLoginRequired: false,
       };
     case "previousStepRequested":
       return { ...state, currentStep: Math.max(state.currentStep - 1, 1) };
@@ -94,15 +97,20 @@ export function reduceSurveyFormState(
         validationScrollRequest: state.validationScrollRequest + 1,
       };
     case "submissionStarted":
-      return { ...state, submissionError: null };
+      return { ...state, submissionError: null, submissionLoginRequired: false };
     case "submissionFailed":
-      return { ...state, submissionError: action.message };
+      return {
+        ...state,
+        submissionError: action.message,
+        submissionLoginRequired: action.loginRequired,
+      };
     case "submissionFailedWithFieldErrors":
       return {
         ...state,
         currentStep: action.currentStep,
         errors: action.errors,
         submissionError: action.message,
+        submissionLoginRequired: false,
         validationScrollRequest: state.validationScrollRequest + 1,
       };
     case "requiredConsentChanged":
@@ -110,6 +118,7 @@ export function reduceSurveyFormState(
         ...state,
         requiredConsentClickedAt: action.clickedAt,
         submissionError: null,
+        submissionLoginRequired: false,
       };
   }
 }

@@ -354,6 +354,37 @@ describe("SurveyForm", () => {
     );
   });
 
+  it("로그인이 만료돼 제출하지 못하면 안내와 함께 설문으로 돌아오는 로그인 링크를 표시한다", async () => {
+    submissionHarness.coordinatorSubmit.mockRejectedValue(new Error("unauthorized"));
+    recoveryHarness.classifySubmissionFailure.mockReturnValue({
+      analytics: "failure",
+      fieldErrors: {},
+      loginRequired: true,
+      message: "로그인이 만료되었습니다. 다시 로그인한 뒤 제출해 주세요.",
+      newAttempt: false,
+      refresh: false,
+      stage: "survey",
+    });
+    renderSurveyForm();
+    completeSurveyAnswers();
+    fireEvent.click(screen.getByRole("checkbox", { name: /민감정보 수집·이용에 동의합니다/ }));
+
+    fireEvent.click(screen.getByRole("button", { name: "제출하기" }));
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("로그인이 만료되었습니다. 다시 로그인한 뒤 제출해 주세요."),
+      ).toBeTruthy();
+    });
+    expect(screen.getByRole("link", { name: "로그인하기" }).getAttribute("href")).toBe(
+      "/login?returnTo=%2Fsurvey",
+    );
+    // 토큰 재갱신이 잠깐 실패한 경우도 있어 제출하기로 다시 시도하는 길은 남겨 둠
+    expect((screen.getByRole("button", { name: "제출하기" }) as HTMLButtonElement).disabled).toBe(
+      false,
+    );
+  });
+
   it("문항이 없으면 다시 시도와 홈으로 가는 길을 두고 운영 데이터 오류로 기록한다", () => {
     renderSurveyForm({ sections: [] });
 
@@ -400,7 +431,9 @@ describe("SurveyForm", () => {
 
     await waitFor(() => {
       expect(
-        screen.getByText("동의 정보가 변경되어 제출할 수 없습니다. 잠시 후 다시 시도해 주세요."),
+        screen.getByText(
+          "동의 정보가 변경되어 지금은 동의할 수 없습니다. 선택 문항의 답변을 지우면 동의 없이 제출할 수 있습니다.",
+        ),
       ).toBeTruthy();
     });
     expect(submissionHarness.acceptConsent).toHaveBeenCalledOnce();
@@ -570,6 +603,7 @@ function renderSurveyForm({
     <SurveyForm
       cancelHref="/home"
       contentVersionId="survey-version-01"
+      loginHref="/login?returnTo=%2Fsurvey"
       failureAnalytics={failureAnalytics}
       onHeaderBackActionChange={vi.fn()}
       onHeaderProgressChange={vi.fn()}

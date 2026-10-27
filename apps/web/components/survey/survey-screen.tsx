@@ -190,6 +190,7 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
             {surveyQuery.data?.status === "PENDING" ? (
               <SurveyForm
                 cancelHref={SURVEY_EXIT_PATH}
+                loginHref={createEligibilityLoginLocation(createSurveyHref(returnTo))}
                 contentVersionId={surveyQuery.data.contentVersionId}
                 failureAnalytics={failureAnalytics}
                 key={`${surveyQuery.data.roundId}:${surveyQuery.data.contentVersionId}`}
@@ -212,6 +213,7 @@ export function SurveyForm({
   cancelHref,
   contentVersionId,
   failureAnalytics,
+  loginHref,
   onHeaderBackActionChange,
   onHeaderProgressChange,
   onRefresh,
@@ -222,6 +224,7 @@ export function SurveyForm({
   cancelHref: string;
   contentVersionId: string;
   failureAnalytics: FeatureFailureAnalyticsSession;
+  loginHref: string;
   onHeaderBackActionChange: (action: PlatformHeaderBackAction | null) => void;
   onHeaderProgressChange: (progress: SurveyHeaderProgressState | null) => void;
   onRefresh: () => void;
@@ -241,6 +244,7 @@ export function SurveyForm({
     errors,
     requiredConsentClickedAt,
     submissionError,
+    submissionLoginRequired,
     validationScrollRequest,
   } = formState;
   const isConfirmationStep = currentStep === totalSteps;
@@ -459,7 +463,11 @@ export function SurveyForm({
           message: failure.message,
         });
       } else {
-        dispatchForm({ type: "submissionFailed", message: failure.message });
+        dispatchForm({
+          type: "submissionFailed",
+          loginRequired: failure.loginRequired,
+          message: failure.message,
+        });
       }
       if (failure.refresh) onRefresh();
       if (failure.newAttempt) submissionCoordinator.reset();
@@ -523,6 +531,11 @@ export function SurveyForm({
               <p className={styles.questionError} role="alert">
                 {submissionError}
               </p>
+            ) : null}
+            {submissionLoginRequired ? (
+              <a className={`${styles.action} ${styles.secondaryAction}`} href={loginHref}>
+                로그인하기
+              </a>
             ) : null}
           </SurveyStepCard>
           {isConfirmationStep ? null : actions}
