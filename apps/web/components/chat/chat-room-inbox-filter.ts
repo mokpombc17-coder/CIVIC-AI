@@ -34,3 +34,23 @@ export function filterLoadedRoomInboxItems(
 
   return rooms.filter((room) => room.unreadCount > 0);
 }
+
+export type RoomInboxFilterPaging = Readonly<{
+  filter: ChatRoomInboxFilter;
+  hasNextPage: boolean;
+  isError: boolean;
+  visibleRoomCount: number;
+}>;
+
+/**
+ * 안읽음 filter 결과가 비었는데 다음 page가 남아 있으면 모든 방을 확인하기 전이므로
+ * 완료 상태 대신 다음 page를 이어서 불러와야 하는지 판단함.
+ */
+export function shouldContinueLoadingFilteredRoomInbox({
+  filter,
+  hasNextPage,
+  isError,
+  visibleRoomCount,
+}: RoomInboxFilterPaging): boolean {
+  return filter === "UNREAD" && visibleRoomCount === 0 && hasNextPage && !isError;
+}

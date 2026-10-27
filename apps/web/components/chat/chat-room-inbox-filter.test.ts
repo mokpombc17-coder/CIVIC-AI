@@ -4,6 +4,7 @@ import {
   filterLoadedRoomInboxItems,
   getChatRoomListHref,
   parseChatRoomInboxFilter,
+  shouldContinueLoadingFilteredRoomInbox,
 } from "./chat-room-inbox-filter";
 
 describe("loaded Room inbox filter", () => {
@@ -17,6 +18,21 @@ describe("loaded Room inbox filter", () => {
     expect(filterLoadedRoomInboxItems(rooms, "UNREAD").map((room) => room.roomId)).toEqual([
       "room-unread",
     ]);
+  });
+
+  it("안읽음 결과가 비어도 다음 page가 남아 있으면 완료 상태 대신 이어서 불러온다", () => {
+    const paging = {
+      filter: "UNREAD",
+      hasNextPage: true,
+      isError: false,
+      visibleRoomCount: 0,
+    } as const;
+
+    expect(shouldContinueLoadingFilteredRoomInbox(paging)).toBe(true);
+    expect(shouldContinueLoadingFilteredRoomInbox({ ...paging, hasNextPage: false })).toBe(false);
+    expect(shouldContinueLoadingFilteredRoomInbox({ ...paging, visibleRoomCount: 1 })).toBe(false);
+    expect(shouldContinueLoadingFilteredRoomInbox({ ...paging, isError: true })).toBe(false);
+    expect(shouldContinueLoadingFilteredRoomInbox({ ...paging, filter: "ALL" })).toBe(false);
   });
 
   it("unread query만 안읽음 filter로 복원한다", () => {

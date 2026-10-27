@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   filterLoadedRoomInboxItems,
   getChatRoomListHref,
+  shouldContinueLoadingFilteredRoomInbox,
   type ChatRoomInboxFilter,
 } from "@/components/chat/chat-room-inbox-filter";
 import {
@@ -48,6 +49,22 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
     () => filterLoadedRoomInboxItems(roomInbox.rooms, participatingRoomFilter),
     [participatingRoomFilter, roomInbox.rooms],
   );
+
+  const isLoadingFilteredRoomInbox = shouldContinueLoadingFilteredRoomInbox({
+    filter: participatingRoomFilter,
+    hasNextPage: roomInbox.hasNextPage,
+    isError: roomInbox.isError,
+    visibleRoomCount: filteredParticipatingRooms.length,
+  });
+  const { fetchNextPage: fetchNextRoomInboxPage, isFetchingNextPage: isFetchingNextRoomInboxPage } =
+    roomInbox;
+
+  useEffect(() => {
+    // 앞 page에 안읽은 방이 없어도 뒤 page에 남아 있을 수 있으므로 끝까지 확인한 뒤에만 완료 상태를 보여줌
+    if (isLoadingFilteredRoomInbox && !isFetchingNextRoomInboxPage) {
+      void fetchNextRoomInboxPage();
+    }
+  }, [fetchNextRoomInboxPage, isFetchingNextRoomInboxPage, isLoadingFilteredRoomInbox]);
 
   useEffect(() => {
     if (roomInbox.isError && roomInbox.rooms.length === 0) {
@@ -162,7 +179,7 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
       hasNextPage: roomInbox.hasNextPage,
       isError: roomInbox.isError,
       isFetchingNextPage: roomInbox.isFetchingNextPage,
-      isPending: roomInbox.isPending,
+      isPending: roomInbox.isPending || isLoadingFilteredRoomInbox,
       loadMore: () => void roomInbox.fetchNextPage(),
       retry: () => {
         failureAnalytics.trackRecoveryAttempt("participating-room-list-load", "user_retry");
