@@ -237,4 +237,48 @@ describe("survey answer state", () => {
       }),
     ).toEqual({ [RESIDENCE_ID]: "항목을 모두 입력해 주세요." });
   });
+
+  it("복수 선택 선택 문항은 비우면 통과하고 답하면 최소 선택 개수를 검증한다", () => {
+    const questionId = "88888888-8888-4888-8888-888888888888";
+    const optionIds = [
+      "99999999-9999-4999-8999-999999999991",
+      "99999999-9999-4999-8999-999999999992",
+    ];
+    const sectionWith = (required: boolean): SurveySection[] => [
+      {
+        sectionKey: "multi",
+        title: "복수 선택",
+        questions: [
+          {
+            questionId,
+            questionKey: "multi",
+            title: "관심사",
+            prompt: "관심사를 골라 주세요",
+            required,
+            type: "MULTIPLE_CHOICE",
+            minimumSelections: 2,
+            maximumSelections: null,
+            options: optionIds.map((optionId, index) => ({
+              optionId,
+              label: `선택지 ${index + 1}`,
+            })),
+          },
+        ],
+      },
+    ];
+    const answersWith = (selected: readonly string[]) => ({
+      [questionId]: {
+        type: "MULTIPLE_CHOICE" as const,
+        selections: selected.map((optionId) => ({ optionId })),
+      },
+    });
+
+    expect(validateSurvey(sectionWith(false), answersWith([]))).toEqual({});
+    expect(validateSurvey(sectionWith(true), answersWith([]))).toEqual({
+      [questionId]: "2개 이상 선택해 주세요.",
+    });
+    expect(validateSurvey(sectionWith(false), answersWith([optionIds[0]!]))).toEqual({
+      [questionId]: "2개 이상 선택해 주세요.",
+    });
+  });
 });

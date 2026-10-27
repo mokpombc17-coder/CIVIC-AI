@@ -168,6 +168,9 @@ function validateSurveyAnswer(
     case "MULTIPLE_CHOICE": {
       const selections = answer.type === question.type ? answer.selections : [];
       const count = selections.length;
+      // 선택 문항은 비워 두면 다른 유형처럼 통과시킴. 최소 선택 개수는 계약상 항상 1 이상이라
+      // 그대로 검사하면 선택 문항이 사실상 필수가 되고, 답하는 순간 민감정보 동의까지 강제됨
+      if (count === 0 && !question.required) return [];
       if (count < question.minimumSelections) {
         return [[key, `${question.minimumSelections}개 이상 선택해 주세요.`]];
       }
