@@ -768,6 +768,32 @@ test("기존 투표 생성 주소는 목록의 새 투표 Drawer로 연결한다
   await expect(page.getByRole("dialog", { name: "새 투표 만들기" })).toBeVisible();
 });
 
+test("투표 제목은 20자까지 입력되고 16자를 넘으면 모바일 잘림을 경고한다", async ({
+  context,
+  page,
+}) => {
+  await authenticate(context);
+  await page.setViewportSize({ width: 1138, height: 768 });
+  await page.goto("/admin/tasks");
+  await page.getByRole("button", { name: "새 투표 만들기" }).click();
+
+  const title = page.getByRole("textbox", { name: /^제목/u });
+  const warning = page.locator("#task-title-warning");
+
+  await title.fill("광주·전남 청년 정착 우선정책");
+  await expect(title).toHaveValue("광주·전남 청년 정착 우선정책");
+  await expect(warning).toHaveCount(0);
+
+  await title.fill("");
+  await title.pressSequentially("광주·전남 청년 정착을 위한 우선 지원정책 조사");
+  await expect(title).toHaveValue("광주·전남 청년 정착을 위한 우선 지");
+  await expect(warning).toHaveText(
+    "제목이 16자를 넘으면 모바일에서 잘려 보일 수 있습니다. (현재 20/20자)",
+  );
+  await expect(title).toHaveAttribute("aria-describedby", "task-title-warning");
+  await page.screenshot({ path: "e2e/.artifacts/vote-title-limit.png" });
+});
+
 test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
   context,
   page,

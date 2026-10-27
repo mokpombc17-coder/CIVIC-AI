@@ -38,6 +38,11 @@ import {
 } from "@/lib/admin/domain-contracts";
 import { taskPreparationPresentation } from "@/lib/admin/task-preparation";
 import {
+  TASK_TITLE_MAX_LENGTH,
+  taskTitleMobileWarning,
+  taskTitleTooLongMessage,
+} from "@/lib/admin/task-title";
+import {
   TASK_PREPARATION_DELAY_MS,
   elapsedLabel,
   parseTimestamp,
@@ -374,6 +379,7 @@ function TaskEditor({
   const [task, setTask] = useState<Task | null>(null);
   const [contentEditable, setContentEditable] = useState(taskContentEditAllowed(taskId, false));
   const [title, setTitle] = useState("");
+  const titleWarning = taskTitleMobileWarning(title);
   const [description, setDescription] = useState("");
   const [question, setQuestion] = useState("");
   const [questionDescription, setQuestionDescription] = useState("");
@@ -489,15 +495,27 @@ function TaskEditor({
         <label className="civic-field">
           <span>제목</span>
           <input
-            aria-describedby={adminFieldError(problem, "title") ? "task-title-error" : undefined}
+            aria-describedby={
+              [
+                adminFieldError(problem, "title") ? "task-title-error" : null,
+                titleWarning ? "task-title-warning" : null,
+              ]
+                .filter(Boolean)
+                .join(" ") || undefined
+            }
             aria-invalid={Boolean(adminFieldError(problem, "title"))}
             disabled={pending || !contentEditable}
-            maxLength={200}
+            maxLength={TASK_TITLE_MAX_LENGTH}
             onChange={(event) => setTitle(event.currentTarget.value)}
             required
             value={title}
           />
           <FieldError id="task-title-error" message={adminFieldError(problem, "title")} />
+          {titleWarning ? (
+            <small className="civic-field-warning" id="task-title-warning">
+              {titleWarning}
+            </small>
+          ) : null}
         </label>
         <label className="civic-field">
           <span>배경</span>
@@ -1469,6 +1487,8 @@ function validateDraft(
   options: readonly DraftOption[],
 ): string | null {
   if (!title.trim()) return "투표 제목을 입력해 주세요.";
+  const titleTooLong = taskTitleTooLongMessage(title);
+  if (titleTooLong) return titleTooLong;
   if (!question.trim()) return "질문을 입력해 주세요.";
   if (options.length < 2) return "선택지를 두 개 이상 입력해 주세요.";
   const normalized = options.map((option) => option.content.trim().replace(/\s+/gu, " "));

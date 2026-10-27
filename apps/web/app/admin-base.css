@@ -1265,6 +1265,12 @@
   font-weight: 650;
 }
 
+[data-wireflow-shell="admin"] .civic-field-warning {
+  color: #b45309;
+  font-size: 0.78rem;
+  font-weight: 650;
+}
+
 [data-wireflow-shell="admin"] .civic-domain-detail,
 [data-wireflow-shell="admin"] .civic-domain-form,
 [data-wireflow-shell="admin"] .civic-domain-result {
