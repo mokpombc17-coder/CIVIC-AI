@@ -33,7 +33,9 @@ import {
   classifySubmissionFailure,
   findFirstInvalidSurveySectionIndex,
 } from "@/lib/survey/survey-submission-recovery";
-import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { createSurveyHref, SURVEY_EXIT_PATH } from "@/lib/survey/survey-navigation";
+import { createEligibilityLoginLocation } from "@/lib/vote/service-eligibility-navigation";
+import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import {
   SurveyFlowLayout,
   SurveyHeaderProgress,
@@ -156,16 +158,21 @@ export function SurveyScreen({ returnTo }: { returnTo: string }) {
             {surveyQuery.isError ? (
               <SurveyStatus
                 actions={
-                  <button
-                    className={`${styles.action} ${styles.primaryAction}`}
-                    onClick={() => {
-                      failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
-                      void surveyQuery.refetch();
-                    }}
-                    type="button"
-                  >
-                    다시 시도
-                  </button>
+                  isVoteAuthenticationRequired(surveyQuery.error) ? (
+                    <a
+                      className={`${styles.action} ${styles.primaryAction}`}
+                      href={createEligibilityLoginLocation(createSurveyHref(returnTo))}
+                    >
+                      로그인하기
+                    </a>
+                  ) : (
+                    <SurveyRetryActions
+                      onRetry={() => {
+                        failureAnalytics.trackRecoveryAttempt("screen-load", "user_retry");
+                        void surveyQuery.refetch();
+                      }}
+                    />
+                  )
                 }
                 description={getSurveyLoadErrorMessage(surveyQuery.error)}
                 role="alert"
@@ -273,6 +280,26 @@ export function SurveyForm({
     dispatchForm({ type: "previousStepRequested" });
   }, [trackStepExited]);
 
+  // 문항 없는 설문은 사용자가 해결할 수 없는 운영 데이터 오류라 알아챌 수 있게 실패로 기록함
+  // 다시 시도로 문항을 받으면 기록한 실패만 복구로 남김
+  const emptySectionsReportedRef = useRef(false);
+  useEffect(() => {
+    if (sections.length > 0) {
+      if (emptySectionsReportedRef.current) failureAnalytics.trackRecovered("survey-content");
+      emptySectionsReportedRef.current = false;
+      return;
+    }
+    emptySectionsReportedRef.current = true;
+    failureAnalytics.trackFailure({
+      errorCode: "survey_sections_empty",
+      errorSource: "api",
+      incidentKey: "survey-content",
+      operation: "screen_load",
+      retryable: true,
+      surface: "participation",
+    });
+  }, [failureAnalytics, sections.length]);
+
   useEffect(() => {
     if (validationScrollRequest === 0) return;
     const frame = requestAnimationFrame(() => {
@@ -312,7 +339,16 @@ export function SurveyForm({
   if (sections.length === 0) {
     return (
       <SurveyStatus
-        description="잠시 후 다시 접속해 주세요."
+        actions={
+          <SurveyRetryActions
+            onRetry={() => {
+              failureAnalytics.trackRecoveryAttempt("survey-content", "user_retry");
+              onRefresh();
+            }}
+          />
+        }
+        description="잠시 후 다시 시도해 주세요."
+        role="alert"
         title="표시할 설문 문항을 준비하지 못했습니다."
       />
     );
@@ -528,6 +564,24 @@ function SurveyConfirmation({
       </label>
       {actions}
     </section>
+  );
+}
+
+// 다시 시도로 풀리지 않는 오류에서도 갇히지 않도록 설문 없이 들어갈 수 있는 홈으로 나가는 길을 함께 둠
+function SurveyRetryActions({ onRetry }: { onRetry: () => void }) {
+  return (
+    <>
+      <button
+        className={`${styles.action} ${styles.primaryAction}`}
+        onClick={onRetry}
+        type="button"
+      >
+        다시 시도
+      </button>
+      <a className={`${styles.action} ${styles.secondaryAction}`} href={SURVEY_EXIT_PATH}>
+        홈으로
+      </a>
+    </>
   );
 }
 

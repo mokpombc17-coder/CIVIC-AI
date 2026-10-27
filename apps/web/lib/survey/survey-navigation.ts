@@ -1,5 +1,7 @@
 export const SURVEY_PATH = "/survey" as const;
 export const DEFAULT_SURVEY_RETURN_PATH = "/home" as const;
+// 설문을 마치지 않은 사용자도 들어갈 수 있는 곳. 채팅·투표는 서비스 관문이 다시 설문으로 보냄
+export const SURVEY_EXIT_PATH = "/home" as const;
 
 const SURVEY_RETURN_PATH_BASE_URL = "https://civic-ai.invalid";
 

@@ -7,7 +7,9 @@ import { ConsentApiError } from "@/lib/consent/consent-api";
 import type { SubmissionResponse, SurveySection } from "@/lib/survey/survey-contracts";
 import type { SurveyAnswerState } from "@/lib/survey/survey-answer-state";
 import type { SurveySubmissionCoordinator } from "@/lib/survey/survey-submission-coordinator";
-import { SurveyForm } from "./survey-screen";
+import { useCurrentSurveyQuery } from "@/lib/survey/survey-queries";
+import { VoteApiError } from "@/lib/vote/vote-fetch";
+import { SurveyForm, SurveyScreen } from "./survey-screen";
 
 type SurveySubmissionInput = Parameters<SurveySubmissionCoordinator["submit"]>[0];
 
@@ -334,6 +336,19 @@ describe("SurveyForm", () => {
     );
   });
 
+  it("문항이 없으면 다시 시도와 홈으로 가는 길을 두고 운영 데이터 오류로 기록한다", () => {
+    renderSurveyForm({ sections: [] });
+
+    expect(screen.getByText("표시할 설문 문항을 준비하지 못했습니다.")).toBeTruthy();
+    expect(screen.getByRole("link", { name: "홈으로" }).getAttribute("href")).toBe("/home");
+    expect(submissionHarness.trackFailure).toHaveBeenCalledWith(
+      expect.objectContaining({ errorCode: "survey_sections_empty" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "다시 시도" }));
+    expect(submissionHarness.onRefresh).toHaveBeenCalledTimes(1);
+  });
+
   it("동의 저장 오류를 제출 오류와 analytics로 연결하고 새 시도를 준비한다", async () => {
     const consentError = new ConsentApiError(
       409,
@@ -420,7 +435,48 @@ describe("SurveyForm", () => {
   });
 });
 
-function renderSurveyForm() {
+describe("SurveyScreen", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
+  it("설문을 불러오지 못하면 다시 시도와 함께 설문 없이 들어갈 수 있는 홈으로 가는 길을 둔다", () => {
+    mockSurveyQuery({ error: new VoteApiError(403, "Forbidden", "/me/surveys/current", null) });
+
+    render(<SurveyScreen returnTo="/chat" />);
+
+    expect(screen.getByText("설문을 조회할 권한이 없습니다.")).toBeTruthy();
+    expect(screen.getByRole("button", { name: "다시 시도" })).toBeTruthy();
+    expect(screen.getByRole("link", { name: "홈으로" }).getAttribute("href")).toBe("/home");
+  });
+
+  it("로그인이 만료되면 다시 시도 대신 설문으로 돌아오는 로그인 링크를 표시한다", () => {
+    mockSurveyQuery({ error: new VoteApiError(401, "Unauthorized", "/me/surveys/current", null) });
+
+    render(<SurveyScreen returnTo="/chat" />);
+
+    expect(screen.getByRole("link", { name: "로그인하기" }).getAttribute("href")).toBe(
+      `/login?returnTo=${encodeURIComponent("/survey?returnTo=%2Fchat")}`,
+    );
+    expect(screen.queryByRole("button", { name: "다시 시도" })).toBeNull();
+  });
+});
+
+function mockSurveyQuery({ data, error }: Readonly<{ data?: unknown; error?: unknown }>) {
+  vi.mocked(useCurrentSurveyQuery).mockReturnValue({
+    data,
+    error: error ?? null,
+    failureCount: error ? 1 : 0,
+    isError: Boolean(error),
+    isPending: false,
+    isSuccess: !error,
+    refetch: vi.fn(),
+  } as unknown as ReturnType<typeof useCurrentSurveyQuery>);
+}
+
+function renderSurveyForm({
+  sections = SECTIONS,
+}: Readonly<{ sections?: readonly SurveySection[] }> = {}) {
   const failureAnalytics: FeatureFailureAnalyticsSession = {
     trackFailure: submissionHarness.trackFailure,
     trackRecovered: submissionHarness.trackRecovered,
@@ -437,7 +493,7 @@ function renderSurveyForm() {
       onRefresh={submissionHarness.onRefresh}
       onSubmitted={submissionHarness.onSubmitted}
       roundId="survey-round-01"
-      sections={SECTIONS}
+      sections={sections}
     />,
   );
 }

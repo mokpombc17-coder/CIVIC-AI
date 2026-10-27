@@ -143,7 +143,9 @@ Survey API의 `PENDING | SUBMITTED` 상태를 분기하고, `PENDING`이면 API�
 `sections.length + 1`이며 Section·Question 개수는 코드에 고정되어 있지 않다. 동의 문서 코드와 버전은
 `survey-screen.tsx`의 `SENSITIVE_INFORMATION_CONSENT` 상수로 고정되어 있고, 동의 문서를 조회하는 API는
 없다. 설문 조회가 실패하면 401·403·진행 중 회차 없음(`SURVEY_ACTIVE_ROUND_UNAVAILABLE`)을 구분한
-안내와 다시 시도 action을 표시하며, 진행 중 회차 없음은 failure analytics에 기록하지 않는다. Section 이동
+안내를 표시한다. 401은 설문으로 돌아오는 로그인 링크를, 그 밖에는 다시 시도와 `/home`으로 나가는 action을
+함께 두며, 진행 중 회차 없음은 failure analytics에 기록하지 않는다. Section이 없는 설문도 다시 시도와
+`/home` action을 두고 운영 데이터 오류로 failure analytics에 기록한다. Section 이동
 전에 일반 Question과 행렬 Item을 검증하며, `required=false`인 선택 문항은 제목 오른쪽에
 `선택 문항` 라벨을 표시하고 비워 둘 수 있다. 단일 선택·척도·행렬 문항은 이미 고른 항목을 다시 고르면
 선택을 해제해, 선택 문항에 한 번 답한 뒤에도 비울 수 있다. 선택 문항에
