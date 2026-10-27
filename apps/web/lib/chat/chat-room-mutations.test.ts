@@ -1,4 +1,4 @@
-import { MutationObserver, QueryClient } from "@tanstack/react-query";
+import { MutationObserver, QueryClient, QueryObserver } from "@tanstack/react-query";
 import { describe, expect, it, vi } from "vitest";
 import { ChatApiError } from "./chat-fetch";
 import {
@@ -76,6 +76,35 @@ describe("chat room mutation options", () => {
         chatRoomQueryKeys.creationRequestDetail(PENDING_ROOM_CREATION_RESPONSE.creationRequestId),
       ),
     ).toEqual(PENDING_ROOM_CREATION_RESPONSE);
+  });
+
+  it("방 생성은 화면에 열린 목록의 재조회가 끝나지 않아도 결과를 바로 돌려준다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    const unsubscribe = [
+      observeWithPendingRefetch(queryClient, PUBLIC_LIST_KEY),
+      observeWithPendingRefetch(queryClient, chatRoomQueryKeys.creationRequestList(20)),
+    ];
+    const createRoom = vi.fn(async () => CREATE_ROOM_RESPONSE);
+    const observer = new MutationObserver(
+      queryClient,
+      createRoomMutationOptions(queryClient, { createRoom }),
+    );
+
+    await expect(
+      observer.mutate({
+        idempotencyKey: IDEMPOTENCY_KEY,
+        body: {
+          name: "시민 AI 토론방",
+          visibility: "LISTED",
+          joinPolicy: "OPEN",
+        },
+      }),
+    ).resolves.toEqual(CREATE_ROOM_RESPONSE);
+
+    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(1);
+    expect(queryClient.isFetching({ queryKey: chatRoomQueryKeys.creationRequestList(20) })).toBe(1);
+    unsubscribe.forEach((stop) => stop());
   });
 
   it("신청 취소 성공은 상세 cache를 교체하고 신청 이력만 무효화한다", async () => {
@@ -196,6 +225,38 @@ describe("chat room mutation options", () => {
     expect(queryClient.getQueryData(chatRoomQueryKeys.messageHistory("room-01", 50))).toBe(
       "room-01-50",
     );
+  });
+
+  it("참여 성공은 입장 화면이 쓰는 방 상태만 기다리고 목록 재조회는 기다리지 않는다", async () => {
+    const queryClient = createQueryClient();
+    seedRoomQueries(queryClient);
+    const stopListObserver = observeWithPendingRefetch(queryClient, PUBLIC_LIST_KEY);
+    let resolveDetail: (value: string) => void = () => undefined;
+    const stopDetailObserver = new QueryObserver(queryClient, {
+      queryKey: chatRoomQueryKeys.detail("room-01"),
+      queryFn: () => new Promise<string>((resolve) => (resolveDetail = resolve)),
+      staleTime: Infinity,
+    }).subscribe(() => undefined);
+    const joinRoom = vi.fn(async () => JOIN_ROOM_RESPONSE);
+    const observer = new MutationObserver(
+      queryClient,
+      joinRoomMutationOptions(queryClient, { joinRoom }),
+    );
+    let settled = false;
+
+    const mutation = observer.mutate(createJoinVariables()).then(() => (settled = true));
+    await vi.waitFor(() =>
+      expect(queryClient.isFetching({ queryKey: chatRoomQueryKeys.detail("room-01") })).toBe(1),
+    );
+
+    expect(settled).toBe(false);
+
+    resolveDetail("fresh-detail");
+    await mutation;
+
+    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(1);
+    stopListObserver();
+    stopDetailObserver();
   });
 
   it("재참여 성공 시 해당 방의 모든 메시지 이력 cache를 라우팅 전에 제거한다", async () => {
@@ -354,6 +415,17 @@ function seedRoomQueries(queryClient: QueryClient): void {
   queryClient.setQueryData(chatRoomQueryKeys.detail("room-01"), "detail");
   queryClient.setQueryData(chatRoomQueryKeys.myMembership("room-01"), "membership");
   queryClient.setQueryData(chatRoomQueryKeys.membershipList("room-01", "ACTIVE", 20), "members");
+}
+
+function observeWithPendingRefetch(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+): () => void {
+  return new QueryObserver(queryClient, {
+    queryKey,
+    queryFn: () => new Promise<never>(() => undefined),
+    staleTime: Infinity,
+  }).subscribe(() => undefined);
 }
 
 function seedMessageHistories(queryClient: QueryClient): void {

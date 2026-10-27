@@ -15,6 +15,7 @@ import type {
 } from "./chat-room-contracts";
 import {
   invalidateRoomLists,
+  invalidateRoomScopedState,
   invalidateRoomSettingsState,
   invalidateRoomState,
 } from "./chat-room-cache-effects";
@@ -43,22 +44,20 @@ export function createRoomMutationOptions(
     mutationKey: [...chatRoomQueryKeys.all, "command", "create"] as const,
     mutationFn: (command: IdempotentCommand<CreateRoomRequest>) => api.createRoom(command),
     retry: false,
-    onSuccess: async (response) => {
+    onSuccess: (response) => {
       queryClient.setQueryData(
         chatRoomQueryKeys.creationRequestDetail(response.creationRequestId),
         response,
       );
 
-      const requestListInvalidation = queryClient.invalidateQueries({
+      // 목록 재조회가 느리거나 응답이 없어도 생성 결과 화면이나 방 이동을 막지 않도록 기다리지 않음
+      void queryClient.invalidateQueries({
         queryKey: chatRoomQueryKeys.creationRequestLists(),
       });
 
-      if (response.status !== "APPROVED") {
-        await requestListInvalidation;
-        return;
+      if (response.status === "APPROVED") {
+        void invalidateRoomLists(queryClient);
       }
-
-      await Promise.all([requestListInvalidation, invalidateRoomLists(queryClient)]);
     },
   });
 }
@@ -112,7 +111,9 @@ export function joinRoomMutationOptions(
         });
       }
 
-      return invalidateRoomState(queryClient, roomId);
+      // 입장 화면이 쓰는 방 상태만 기다리고, 목록 재조회는 방 이동을 막지 않도록 기다리지 않음
+      void invalidateRoomLists(queryClient);
+      return invalidateRoomScopedState(queryClient, roomId);
     },
   });
 }

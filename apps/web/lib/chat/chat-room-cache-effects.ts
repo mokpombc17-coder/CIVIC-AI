@@ -74,6 +74,15 @@ export async function invalidateRoomSettingsState(
 export async function invalidateRoomState(queryClient: QueryClient, roomId: string): Promise<void> {
   await Promise.all([
     invalidateRoomLists(queryClient),
+    invalidateRoomScopedState(queryClient, roomId),
+  ]);
+}
+
+export async function invalidateRoomScopedState(
+  queryClient: QueryClient,
+  roomId: string,
+): Promise<void> {
+  await Promise.all([
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.detail(roomId),
     }),
