@@ -562,7 +562,7 @@ class ChatMessagePipelineWebSocketIntegrationTest
     }
 
     @Test
-    void simpleBrokerDropsDelayedMessageAtJoinBoundary()
+    void simpleBrokerDropsDelayedMessageAtHistoryBoundary()
             throws Exception {
         mongoOperations.save(new MongoRoomSequenceDocument(
                 "test-room", 100, 0));
@@ -575,6 +575,11 @@ class ChatMessagePipelineWebSocketIntegrationTest
                 .orElseThrow()
                 .messageVisibleAfterSequence())
                 .isEqualTo(100);
+        assertThat(membershipStore.findByRoomIdAndUserId(
+                        "test-room", "local-user-2")
+                .orElseThrow()
+                .historyVisibleAfterSequence())
+                .isEqualTo(90);
 
         ThreadPoolTaskScheduler scheduler =
                 new ThreadPoolTaskScheduler();
@@ -627,21 +632,21 @@ class ChatMessagePipelineWebSocketIntegrationTest
                             messages));
             assertThat(subscribed.await(5, TimeUnit.SECONDS)).isTrue();
 
-            messagePublisher.publish(event(100));
+            messagePublisher.publish(event(90));
             assertThat(messages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
 
-            messagePublisher.publish(updatedEvent(100));
+            messagePublisher.publish(updatedEvent(90));
             assertThat(messages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
 
-            messagePublisher.publish(deletedEvent(100));
+            messagePublisher.publish(deletedEvent(90));
             assertThat(messages.poll(
                     300, TimeUnit.MILLISECONDS)).isNull();
 
-            messagePublisher.publish(updatedEvent(101));
+            messagePublisher.publish(updatedEvent(91));
             assertThat(messages.poll(5, TimeUnit.SECONDS))
-                    .isEqualTo(updatedEvent(101));
+                    .isEqualTo(updatedEvent(91));
         } finally {
             if (session != null && session.isConnected()) {
                 session.disconnect();

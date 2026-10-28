@@ -124,9 +124,9 @@ class ChatMessageContextApiIntegrationTest
     }
 
     @Test
-    void hidesMissingOtherRoomAndPreJoinTargets() throws Exception {
+    void hidesMissingOtherRoomAndPreHistoryTargets() throws Exception {
         String roomId = createRoom();
-        StoredChatMessage beforeJoin = append(roomId, 1).getFirst();
+        StoredChatMessage beforeJoin = append(roomId, 11).getFirst();
         roomCommandService.joinRoom(new JoinRoomCommand(
                 "user-2",
                 UUID.randomUUID().toString(),

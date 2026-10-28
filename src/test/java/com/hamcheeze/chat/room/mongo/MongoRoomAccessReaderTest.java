@@ -159,6 +159,61 @@ class MongoRoomAccessReaderTest {
                 .isInstanceOf(RoomAccessReadException.class);
     }
 
+    @Test
+    void legacyMembershipWithoutHistoryBoundaryUsesJoinBoundary() {
+        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
+        Document legacy = membership("ACTIVE", 1);
+        assertThat(legacy.containsKey("historyVisibleAfterSequence"))
+                .isFalse();
+        whenMembership(legacy);
+
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence())
+                .isEqualTo(100);
+    }
+
+    @Test
+    void historyBoundaryIsProjectedAndUsedForMessageAccess() {
+        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
+        whenMembership(membership("ACTIVE", 1)
+                .append("historyVisibleAfterSequence", 90L));
+
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence())
+                .isEqualTo(90);
+        org.mockito.ArgumentCaptor<Query> query =
+                org.mockito.ArgumentCaptor.forClass(Query.class);
+        verify(mongo).findOne(
+                query.capture(),
+                eq(Document.class),
+                eq(MongoMembershipDocument.COLLECTION_NAME));
+        assertThat(query.getValue().getFieldsObject())
+                .containsKey("historyVisibleAfterSequence");
+    }
+
+    @Test
+    void historyBoundaryIsFailClosedWhenNegativeOrAfterJoinBoundary() {
+        whenRoom(
+                room("ACTIVE", 1),
+                room("ACTIVE", 1),
+                room("ACTIVE", 1));
+        whenMembership(membership("ACTIVE", 1)
+                .append("historyVisibleAfterSequence", -1L));
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class);
+
+        whenRoom(
+                room("ACTIVE", 1),
+                room("ACTIVE", 1),
+                room("ACTIVE", 1));
+        whenMembership(membership("ACTIVE", 1)
+                .append("historyVisibleAfterSequence", 101L));
+        assertThatThrownBy(() ->
+                reader.readAccess("user-1", "room-1"))
+                .isInstanceOf(RoomAccessReadException.class);
+    }
+
     private void whenRoom(Document... documents) {
         when(mongo.findOne(
                 any(Query.class),

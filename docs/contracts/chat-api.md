@@ -735,11 +735,23 @@ count projection이 아니며 `activeRoomCount`를 저장하지 않는다. 실�
 backfill이나 감소 operation의 counter 갱신은 필요 없다.
 
 최초 참여가 확정될 때 서버는 참여 직전까지 확정된 방의 최신
-`roomSequence`를 Membership의 `messageVisibleAfterSequence`로 저장한다.
-재참여(`LEFT -> ACTIVE`) 시에는 새 참여 시점의 최신 sequence로 이 경계를
-교체하므로 이전 참여 구간과 퇴장 중 생성된 메시지는 다시 조회할 수 없다.
-이미 `ACTIVE`인 사용자의 중복 join(`ALREADY_ACTIVE`)은 기존 경계를 변경하지
-않는다. 방 생성 시 방장의 경계는 `0`이다.
+`roomSequence`를 Membership의 `messageVisibleAfterSequence`(입장 경계)로
+저장한다. 입장 경계는 읽음 상태, 안 읽음 수, 읽음 응답, 인박스 미리보기,
+참여 기록(`enteredAfterMessageSequence`)의 기준이다.
+
+메시지 접근 하한은 별도의 이력 경계 `max(0, 입장 경계 - N)`이다. `N`은
+`CHAT_ROOM_JOIN_HISTORY_MESSAGE_COUNT`(기본 `10`, `0`이면 비활성)로 설정한다.
+따라서 참여자는 입장 직전 메시지를 최대 `N`개까지 볼 수 있다. 이 메시지들은
+읽음 계산 대상이 아니며 입장 경계 이하 `throughSequence`의 읽음 갱신은
+`updated=false`와 입장 경계 `readThroughSequence`로 응답한다. 이력 경계는
+API 응답 필드로 별도 노출하지 않는다.
+
+재참여(`LEFT -> ACTIVE`) 시에는 두 경계를 새 참여 시점 기준으로 교체한다.
+이전 참여 구간과 퇴장 중 생성된 메시지는 새 이력 경계 안에 들어오는 최대
+`N`개를 제외하고 다시 조회할 수 없다. 이미 `ACTIVE`인 사용자의 중복
+join(`ALREADY_ACTIVE`)은 기존 경계를 변경하지 않는다. 방 생성 시 방장의 두
+경계는 모두 `0`이다. 이 기능 이전에 생성된 Membership은 이력 경계가 입장
+경계와 같다.
 
 ```json
 {
@@ -1274,19 +1286,18 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
 - `chat:rooms:read` scope와 해당 방의 활성 멤버십이 필요하다.
 - 응답에는 `Cache-Control: no-store`가 포함된다.
 
-메시지 이력의 접근 하한은 현재 Membership에 저장된
-`messageVisibleAfterSequence`다. 사용자는 현재 참여 구간이 시작된 뒤 생성된,
-즉 `roomSequence > messageVisibleAfterSequence`인 메시지만 조회할 수 있다.
+메시지 이력의 접근 하한은 현재 Membership의 이력 경계
+(`max(0, 입장 경계 - N)`)다. 사용자는 `roomSequence > 이력 경계`인 메시지,
+즉 현재 참여 구간의 메시지와 입장 직전 최대 `N`개 메시지만 조회할 수 있다.
 
 - 최신 조회에도 이 하한이 적용된다.
 - `beforeSequence` 조회는 경계보다 크고 cursor보다 작은 메시지만 반환한다.
   cursor가 경계 이하이면 빈 페이지를 반환한다.
-- `afterSequence` 조회의 실제 하한은
-  `max(afterSequence, messageVisibleAfterSequence)`다.
+- `afterSequence` 조회의 실제 하한은 `max(afterSequence, 이력 경계)`다.
 - `beforeSequence`나 `afterSequence`를 임의로 조작해도 현재 Membership의
   경계 이전 메시지는 반환되지 않는다.
 - 재참여하면 새 접근 경계가 설정되며 이전 참여 구간과 퇴장 중 생성된
-  메시지는 조회할 수 없다.
+  메시지는 새 이력 경계 안의 최대 `N`개를 제외하고 조회할 수 없다.
 
 최신 메시지를 조회했고 더 오래된 메시지가 남아 있는 응답 예:
 
@@ -1424,7 +1435,7 @@ Content-Type: application/json
 
 검색 범위와 비용 계약:
 
-- 현재 Room 한 개에서 `messageVisibleAfterSequence < roomSequence`인 메시지만
+- 현재 Room 한 개에서 `이력 경계 < roomSequence`인 메시지만
   검색한다. `ACTIVE + countable=true + content 존재` 메시지가 후보이며 삭제
   tombstone과 non-countable 메시지는 제외한다.
 - 첫 요청 시 Room current sequence를 `searchUpperBoundSequence`로 고정한다.
@@ -1800,8 +1811,10 @@ sync destination:
 }
 ```
 
-`messageVisibleAfterSequence`는 현재 참여 구간의 배타적 접근 하한이다.
-클라이언트는 이 값 이하의 실시간 buffer 메시지를 적용하지 않고 폐기해야 한다.
+`messageVisibleAfterSequence`는 현재 참여 구간의 배타적 접근 하한, 즉
+이력 경계(`max(0, 입장 경계 - N)`)다. 읽음 응답의 같은 이름 필드(입장
+경계)와 값이 다를 수 있으므로 섞어 쓰지 않는다. 클라이언트는 이 값 이하의
+실시간 buffer 메시지를 적용하지 않고 폐기해야 한다.
 
 `watermarkSequence`는 READY를 생성할 때 서버에 저장되어 있던 해당 방의
 최신 `roomSequence`이며 빈 방은 `0`이다. 이 값은 REST 응답의 상한을

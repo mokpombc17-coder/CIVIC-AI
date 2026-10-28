@@ -6,6 +6,7 @@ import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomCategory;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.application.command.BanMemberCommand;
 import com.hamcheeze.chat.room.application.command.CloseRoomCommand;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
@@ -53,6 +54,9 @@ class ChatMessageSearchApiIntegrationTest
 
     @Autowired
     private ChatMessageStore messageStore;
+
+    @Autowired
+    private RoomMembershipProperties membershipProperties;
 
     @Test
     void searchesWithReadScopeAndContinuesFromFixedUpperBound()
@@ -179,6 +183,38 @@ class ChatMessageSearchApiIntegrationTest
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code")
                         .value("MESSAGE_SEARCH_NOT_AVAILABLE"));
+    }
+
+    @Test
+    void searchIncludesConfiguredJoinHistoryOnly() throws Exception {
+        membershipProperties.setJoinHistoryMessageCount(1);
+        try {
+            String roomId = createRoom();
+            append(roomId, "needle hidden");
+            append(roomId, "needle hidden too");
+            append(roomId, "needle join history");
+            roomCommandService.joinRoom(new JoinRoomCommand(
+                    "join-history-user",
+                    UUID.randomUUID().toString(),
+                    roomId));
+            append(roomId, "needle after join");
+
+            mockMvc.perform(post(
+                                    "/api/v1/rooms/{roomId}/messages/search",
+                                    roomId)
+                            .with(jwt("join-history-user", ChatScopes.ROOMS_READ))
+                            .contentType(MediaType.APPLICATION_JSON)
+                            .content("""
+                                    {"query":"needle","limit":10}
+                                    """))
+                    .andExpect(status().isOk())
+                    .andExpect(jsonPath("$.items.length()").value(2))
+                    .andExpect(jsonPath("$.items[0].roomSequence").value(4))
+                    .andExpect(jsonPath("$.items[1].roomSequence").value(3))
+                    .andExpect(jsonPath("$.searchComplete").value(true));
+        } finally {
+            membershipProperties.setJoinHistoryMessageCount(10);
+        }
     }
 
     @Test

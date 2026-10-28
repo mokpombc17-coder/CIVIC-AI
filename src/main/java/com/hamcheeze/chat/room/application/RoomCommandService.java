@@ -450,11 +450,19 @@ public final class RoomCommandService {
                             .USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
                     command.roomId());
         }
-        long messageVisibleAfterSequence =
-                outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE
-                        ? existing.messageVisibleAfterSequence()
-                        : messageBoundaryPort.captureCurrentSequence(
-                                room.roomId());
+        boolean alreadyActive =
+                outcome == JoinRoomTransition.Outcome.ALREADY_ACTIVE;
+        long messageVisibleAfterSequence = alreadyActive
+                ? existing.messageVisibleAfterSequence()
+                : messageBoundaryPort.captureCurrentSequence(
+                        room.roomId());
+        long historyVisibleAfterSequence = alreadyActive
+                ? existing.historyVisibleAfterSequence()
+                : Math.max(
+                        0L,
+                        messageVisibleAfterSequence
+                                - membershipProperties
+                                .joinHistoryMessageCount());
         JoinRoomTransition transition =
                 RoomMembershipTransitions.joinRoom(
                         room,
@@ -463,6 +471,7 @@ public final class RoomCommandService {
                         command.requesterUserId(),
                         transitionTime,
                         messageVisibleAfterSequence,
+                        historyVisibleAfterSequence,
                         participationEnabled);
         if (transition.outcome()
                 == JoinRoomTransition.Outcome.JOINED) {

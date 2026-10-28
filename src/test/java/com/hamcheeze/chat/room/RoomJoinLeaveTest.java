@@ -120,6 +120,101 @@ class RoomJoinLeaveTest {
     }
 
     @Test
+    void joinAndRejoinKeepSeparateHistoryBoundary() {
+        JoinRoomTransition joined =
+                RoomMembershipTransitions.joinRoom(
+                        activeRoom(1, 3, JoinPolicy.OPEN),
+                        null,
+                        "membership-2",
+                        "user-2",
+                        TRANSITION_AT,
+                        100,
+                        90,
+                        true);
+        JoinRoomTransition rejoined =
+                RoomMembershipTransitions.joinRoom(
+                        activeRoom(1, 2, JoinPolicy.OPEN, 8),
+                        leftMember("user-2", 5),
+                        null,
+                        "user-2",
+                        TRANSITION_AT,
+                        200,
+                        190,
+                        true);
+
+        assertThat(joined.membership().messageVisibleAfterSequence())
+                .isEqualTo(100);
+        assertThat(joined.membership().historyVisibleAfterSequence())
+                .isEqualTo(90);
+        assertThat(rejoined.membership().messageVisibleAfterSequence())
+                .isEqualTo(200);
+        assertThat(rejoined.membership().historyVisibleAfterSequence())
+                .isEqualTo(190);
+    }
+
+    @Test
+    void historyBoundaryDefaultsToJoinBoundaryAndSurvivesLeave() {
+        JoinRoomTransition joined =
+                RoomMembershipTransitions.joinRoom(
+                        activeRoom(1, 3, JoinPolicy.OPEN),
+                        null,
+                        "membership-2",
+                        "user-2",
+                        TRANSITION_AT,
+                        100);
+        Membership withHistory = Membership.restore(
+                "membership-user-2",
+                "room-1",
+                "user-2",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
+                CREATED_AT,
+                null,
+                null,
+                10,
+                4,
+                1);
+
+        LeaveRoomTransition left = RoomMembershipTransitions.leaveRoom(
+                activeRoom(2, 3, JoinPolicy.OPEN),
+                withHistory,
+                "user-2",
+                TRANSITION_AT);
+
+        assertThat(joined.membership().historyVisibleAfterSequence())
+                .isEqualTo(100);
+        assertThat(left.membership().historyVisibleAfterSequence())
+                .isEqualTo(4);
+    }
+
+    @Test
+    void rejectsHistoryBoundaryAfterJoinBoundary() {
+        assertThatThrownBy(() -> RoomMembershipTransitions.joinRoom(
+                activeRoom(1, 3, JoinPolicy.OPEN),
+                null,
+                "membership-2",
+                "user-2",
+                TRANSITION_AT,
+                100,
+                101,
+                true))
+                .isInstanceOf(RoomDomainException.class);
+        assertThatThrownBy(() -> RoomMembershipTransitions.joinRoom(
+                activeRoom(1, 3, JoinPolicy.OPEN),
+                null,
+                "membership-2",
+                "user-2",
+                TRANSITION_AT,
+                100,
+                -1,
+                true))
+                .isInstanceOf(RoomDomainException.class);
+    }
+
+    @Test
     void assignsMonotonicNumbersToNewParticipations() {
         Room room = activeRoom(1, 0, JoinPolicy.OPEN, 2);
 

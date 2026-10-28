@@ -10,6 +10,7 @@ public class RoomMembershipProperties {
 
     private int maxActiveMembersPerRoom = 50;
     private int maxActiveRoomsPerUser = 20;
+    private int joinHistoryMessageCount = 10;
     private Duration activeRoomCountQueryMaxTime =
             Duration.ofSeconds(1);
 
@@ -39,6 +40,20 @@ public class RoomMembershipProperties {
                     "maxActiveRoomsPerUser must be at least 1");
         }
         this.maxActiveRoomsPerUser = maxActiveRoomsPerUser;
+    }
+
+    public int joinHistoryMessageCount() {
+        return joinHistoryMessageCount;
+    }
+
+    public void setJoinHistoryMessageCount(
+            int joinHistoryMessageCount
+    ) {
+        if (joinHistoryMessageCount < 0) {
+            throw new IllegalArgumentException(
+                    "joinHistoryMessageCount must not be negative");
+        }
+        this.joinHistoryMessageCount = joinHistoryMessageCount;
     }
 
     public Duration activeRoomCountQueryMaxTime() {

@@ -360,6 +360,7 @@ class MongoRoomDocumentMappingTest {
                         null,
                         null,
                         10L,
+                        null,
                         0);
         MongoRoomCommandReceiptDocument receiptDocument =
                 new MongoRoomCommandReceiptDocument(
@@ -417,11 +418,11 @@ class MongoRoomDocumentMappingTest {
         MongoMembershipDocument legacy = new MongoMembershipDocument(
                 "membership-1", 1, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                null, CREATED_AT, null, null, 10L, 0);
+                null, CREATED_AT, null, null, 10L, null, 0);
         MongoMembershipDocument previous = new MongoMembershipDocument(
                 "membership-1", 2, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                null, CREATED_AT, null, null, 10L, 0);
+                null, CREATED_AT, null, null, 10L, null, 0);
 
         assertUnsupportedSchema(
                 legacy::toDomain,
@@ -434,17 +435,61 @@ class MongoRoomDocumentMappingTest {
         assertThatThrownBy(() -> new MongoMembershipDocument(
                 "membership-1", 3, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                null, CREATED_AT, null, null, 10L, 0))
+                null, CREATED_AT, null, null, 10L, null, 0))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new MongoMembershipDocument(
                 "membership-1", 3, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                profile(), CREATED_AT, null, null, null, 0))
+                profile(), CREATED_AT, null, null, null, null, 0))
                 .isInstanceOf(NullPointerException.class);
         assertThatThrownBy(() -> new MongoMembershipDocument(
                 "membership-1", 3, "room-1", "user-1",
                 MembershipRole.MEMBER, MembershipStatus.ACTIVE,
-                profile(), CREATED_AT, null, null, -1L, 0))
+                profile(), CREATED_AT, null, null, -1L, null, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void membershipHistoryBoundaryRoundTripsAndFallsBackToJoinBoundary() {
+        Membership withHistory = Membership.restore(
+                "membership-1",
+                "room-1",
+                "user-1",
+                MembershipRole.MEMBER,
+                MembershipStatus.ACTIVE,
+                com.hamcheeze.chat.room.MembershipProfile.createAnonymous(
+                        2,
+                        java.time.Instant.EPOCH),
+                CREATED_AT,
+                null,
+                null,
+                10,
+                4,
+                0);
+        MongoMembershipDocument document =
+                MongoMembershipDocument.fromDomain(withHistory);
+        MongoMembershipDocument withoutHistory = new MongoMembershipDocument(
+                "membership-1", 3, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                profile(), CREATED_AT, null, null, 10L, null, 0);
+
+        assertThat(document.historyVisibleAfterSequence()).isEqualTo(4L);
+        assertThat(document.toDomain()).isEqualTo(withHistory);
+        assertThat(withoutHistory.toDomain().historyVisibleAfterSequence())
+                .isEqualTo(10L);
+    }
+
+    @Test
+    void invalidMembershipHistoryBoundariesFailClosed() {
+        assertThatThrownBy(() -> new MongoMembershipDocument(
+                "membership-1", 3, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                profile(), CREATED_AT, null, null, 10L, -1L, 0))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> new MongoMembershipDocument(
+                "membership-1", 3, "room-1", "user-1",
+                MembershipRole.MEMBER, MembershipStatus.ACTIVE,
+                profile(), CREATED_AT, null, null, 10L, 11L, 0))
                 .isInstanceOf(IllegalArgumentException.class);
     }
 
@@ -491,6 +536,7 @@ class MongoRoomDocumentMappingTest {
                 leftAt,
                 bannedAt,
                 10L,
+                null,
                 version);
     }
 

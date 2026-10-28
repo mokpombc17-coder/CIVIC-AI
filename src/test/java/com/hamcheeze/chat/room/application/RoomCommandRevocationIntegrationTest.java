@@ -493,6 +493,59 @@ class RoomCommandRevocationIntegrationTest
     }
 
     @Test
+    void rejoinRevokesLateSubscriptionWhenHistoryBoundaryMoves()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        appendMessages(roomId, 12);
+        join(roomId, "user-2");
+        commandService.leaveRoom(
+                new LeaveRoomCommand("user-2", uuid(), roomId));
+        WebSocketSession lateSession =
+                openSession("late-" + uuid());
+        trackSubscribedConnection(lateSession, "user-2", roomId, 2L);
+        appendMessages(roomId, 1);
+
+        join(roomId, "user-2");
+
+        assertThat(memberships.findByRoomIdAndUserId(roomId, "user-2")
+                .orElseThrow()
+                .historyVisibleAfterSequence())
+                .isEqualTo(3L);
+        assertThat(subscriptions.findConnectionIdsByUserAndRoom(
+                "user-2", roomId)).isEmpty();
+        verify(lateSession).close(any());
+    }
+
+    @Test
+    void rejoinKeepsLateSubscriptionWhenClampedHistoryBoundaryIsUnchanged()
+            throws Exception {
+        String roomId = createRoom("owner-1");
+        join(roomId, "user-2");
+        commandService.leaveRoom(
+                new LeaveRoomCommand("user-2", uuid(), roomId));
+        String lateConnectionId = "late-" + uuid();
+        String lateSubscriptionId = trackSubscribedConnection(
+                openSession(lateConnectionId),
+                "user-2",
+                roomId,
+                0L);
+        appendMessages(roomId, 1);
+
+        join(roomId, "user-2");
+
+        // Both participations can read the whole room, so the surviving
+        // subscription exposes nothing the rejoined member cannot read.
+        assertThat(accessReader.readAccess("user-2", roomId)
+                .messageVisibleAfterSequence())
+                .isZero();
+        assertThat(subscriptions.find(
+                lateConnectionId, lateSubscriptionId))
+                .get()
+                .extracting(SubscriptionDescriptor::roomAccessRevoked)
+                .isEqualTo(false);
+    }
+
+    @Test
     void rejoinSnapshotFailureFallsBackToFullRevocationAndSucceeds()
             throws Exception {
         String roomId = createRoom("owner-1");
@@ -560,6 +613,24 @@ class RoomCommandRevocationIntegrationTest
                 userId,
                 uuid(),
                 roomId));
+    }
+
+    private void appendMessages(String roomId, int count) {
+        for (int index = 0; index < count; index++) {
+            messageStore.append(new NewChatMessage(
+                    roomId,
+                    "owner-1",
+                    "membership-owner-1",
+                    uuid(),
+                    "message " + index));
+        }
+    }
+
+    private static WebSocketSession openSession(String connectionId) {
+        WebSocketSession session = mock(WebSocketSession.class);
+        when(session.getId()).thenReturn(connectionId);
+        when(session.isOpen()).thenReturn(true);
+        return session;
     }
 
     private String trackSubscribedConnection(

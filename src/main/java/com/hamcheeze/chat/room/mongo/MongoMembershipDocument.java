@@ -25,6 +25,7 @@ public record MongoMembershipDocument(
         Instant leftAt,
         Instant bannedAt,
         Long messageVisibleAfterSequence,
+        Long historyVisibleAfterSequence,
         long version
 ) {
 
@@ -49,6 +50,14 @@ public record MongoMembershipDocument(
             throw new IllegalArgumentException(
                     "messageVisibleAfterSequence must not be negative");
         }
+        if (historyVisibleAfterSequence != null
+                && (historyVisibleAfterSequence < 0
+                || historyVisibleAfterSequence
+                > messageVisibleAfterSequence)) {
+            throw new IllegalArgumentException(
+                    "historyVisibleAfterSequence must be between 0 and "
+                            + "messageVisibleAfterSequence");
+        }
     }
 
     public static MongoMembershipDocument fromDomain(
@@ -68,6 +77,7 @@ public record MongoMembershipDocument(
                 membership.leftAt(),
                 membership.bannedAt(),
                 membership.messageVisibleAfterSequence(),
+                membership.historyVisibleAfterSequence(),
                 membership.version());
     }
 
@@ -84,7 +94,16 @@ public record MongoMembershipDocument(
                 leftAt,
                 bannedAt,
                 messageVisibleAfterSequence,
+                effectiveHistoryVisibleAfterSequence(),
                 version);
+    }
+
+    // Memberships written before join history existed have no separate
+    // history boundary, so history starts at the join boundary.
+    public long effectiveHistoryVisibleAfterSequence() {
+        return historyVisibleAfterSequence == null
+                ? messageVisibleAfterSequence
+                : historyVisibleAfterSequence;
     }
 
     private void requireCurrentSchema() {

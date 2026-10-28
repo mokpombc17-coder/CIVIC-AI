@@ -8,6 +8,7 @@ import com.hamcheeze.chat.message.StoredChatMessage;
 import com.hamcheeze.chat.room.JoinPolicy;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.application.RoomCommandService;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.application.command.CreateRoomCommand;
 import com.hamcheeze.chat.room.application.command.JoinRoomCommand;
 import com.hamcheeze.chat.room.application.command.LeaveRoomCommand;
@@ -49,6 +50,9 @@ class ChatMessageHistoryApiIntegrationTest
 
     @Autowired
     private ChatMessageMutationStore mutationStore;
+
+    @Autowired
+    private RoomMembershipProperties membershipProperties;
 
     @Test
     void returnsDeletedMessageAsTombstoneAtOriginalCursorPosition()
@@ -208,7 +212,7 @@ class ChatMessageHistoryApiIntegrationTest
     }
 
     @Test
-    void memberCannotReadAtOrBelowJoinBoundaryWithAnyCursor()
+    void memberReadsConfiguredHistoryButNothingBelowItWithAnyCursor()
             throws Exception {
         String roomId = createRoom("owner-1");
         appendMessages(roomId, "owner-1", 100);
@@ -222,43 +226,56 @@ class ChatMessageHistoryApiIntegrationTest
         org.assertj.core.api.Assertions.assertThat(
                         membership.messageVisibleAfterSequence())
                 .isEqualTo(100);
+        org.assertj.core.api.Assertions.assertThat(
+                        membership.historyVisibleAfterSequence())
+                .isEqualTo(90);
 
-        assertRange(roomId, null, null, 101, 130, 30);
-        assertRange(roomId, "beforeSequence", "200", 101, 130, 30);
-        assertEmpty(roomId, "beforeSequence", "101");
+        assertRange(roomId, null, null, 91, 130, 40);
+        assertRange(roomId, "beforeSequence", "200", 91, 130, 40);
+        assertRange(roomId, "beforeSequence", "101", 91, 100, 10);
+        assertEmpty(roomId, "beforeSequence", "91");
         assertEmpty(roomId, "beforeSequence", "50");
-        assertRange(roomId, "afterSequence", "0", 101, 130, 30);
-        assertRange(roomId, "afterSequence", "50", 101, 130, 30);
+        assertRange(roomId, "afterSequence", "0", 91, 130, 40);
+        assertRange(roomId, "afterSequence", "50", 91, 130, 40);
         assertRange(roomId, "afterSequence", "100", 101, 130, 30);
         assertRange(roomId, "afterSequence", "120", 121, 130, 10);
     }
 
     @Test
-    void rejoinReplacesBoundaryAndHidesEarlierParticipationWindow()
+    void rejoinReplacesBoundaryAndShowsOnlyConfiguredHistory()
             throws Exception {
-        String roomId = createRoom("owner-1");
-        appendMessages(roomId, "owner-1", 3);
-        roomCommandService.joinRoom(new JoinRoomCommand(
-                "user-2", UUID.randomUUID().toString(), roomId));
-        append(roomId, "owner-1", "message 4");
-        roomCommandService.leaveRoom(new LeaveRoomCommand(
-                "user-2", UUID.randomUUID().toString(), roomId));
-        append(roomId, "owner-1", "message 5");
-        append(roomId, "owner-1", "message 6");
-        roomCommandService.joinRoom(new JoinRoomCommand(
-                "user-2", UUID.randomUUID().toString(), roomId));
+        membershipProperties.setJoinHistoryMessageCount(2);
+        try {
+            String roomId = createRoom("owner-1");
+            appendMessages(roomId, "owner-1", 3);
+            roomCommandService.joinRoom(new JoinRoomCommand(
+                    "user-2", UUID.randomUUID().toString(), roomId));
+            append(roomId, "owner-1", "message 4");
+            roomCommandService.leaveRoom(new LeaveRoomCommand(
+                    "user-2", UUID.randomUUID().toString(), roomId));
+            append(roomId, "owner-1", "message 5");
+            append(roomId, "owner-1", "message 6");
+            roomCommandService.joinRoom(new JoinRoomCommand(
+                    "user-2", UUID.randomUUID().toString(), roomId));
 
-        org.assertj.core.api.Assertions.assertThat(
-                membershipStore.findByRoomIdAndUserId(
-                                roomId, "user-2")
-                        .orElseThrow()
-                        .messageVisibleAfterSequence())
-                .isEqualTo(6);
-        assertEmpty(roomId, "afterSequence", "0");
-        assertEmpty(roomId, "beforeSequence", "100");
+            var rejoined = membershipStore
+                    .findByRoomIdAndUserId(roomId, "user-2")
+                    .orElseThrow();
+            org.assertj.core.api.Assertions.assertThat(
+                            rejoined.messageVisibleAfterSequence())
+                    .isEqualTo(6);
+            org.assertj.core.api.Assertions.assertThat(
+                            rejoined.historyVisibleAfterSequence())
+                    .isEqualTo(4);
+            assertRange(roomId, "afterSequence", "0", 5, 6, 2);
+            assertRange(roomId, "beforeSequence", "100", 5, 6, 2);
+            assertEmpty(roomId, "beforeSequence", "5");
 
-        append(roomId, "owner-1", "message 7");
-        assertRange(roomId, "afterSequence", "0", 7, 7, 1);
+            append(roomId, "owner-1", "message 7");
+            assertRange(roomId, "afterSequence", "0", 5, 7, 3);
+        } finally {
+            membershipProperties.setJoinHistoryMessageCount(10);
+        }
     }
 
     @Test
