@@ -6,6 +6,7 @@ import {
   buildAdminSimulationRequest,
   buildDefaultSimulationRunInput,
   initialRunSetup,
+  loadLatestRunSettings,
   requestAdminSimulationPreview,
   requestAdminSimulationStart,
   SimulationPreviewCard,
@@ -295,5 +296,32 @@ describe("initialRunSetup", () => {
     expect(initialRunSetup(options, null, { personaCount: 900, filters: {} }).personaCount).toBe(
       100,
     );
+  });
+});
+
+describe("loadLatestRunSettings", () => {
+  // deploy/nginx/next-webview.conf가 시뮬레이션 서버로 보내는 경로여야 한다.
+  const SIMULATION_INGRESS =
+    /^\/api\/v1\/admin\/(simulations(?:\/.*)?|simulation-options|simulation-capacity|simulation-tasks(?:\/.*)?|simulation-scenarios(?:\/.*)?|simulation-billing(?:\/.*)?)$/;
+
+  it("시뮬레이션 서버로 라우팅되는 경로에서 직전 실행 설정을 읽는다", async () => {
+    const calls: string[] = [];
+    const request = (async (input: RequestInfo | URL) => {
+      calls.push(String(input));
+      return new Response(JSON.stringify({ personaCount: 796, filters: { age_groups: ["20대"] } }));
+    }) as typeof fetch;
+    await expect(loadLatestRunSettings("task-1", request)).resolves.toEqual({
+      personaCount: 796,
+      filters: { age_groups: ["20대"] },
+    });
+    expect(calls).toEqual(["/api/v1/admin/simulation-tasks/task-1/run-settings"]);
+    expect(SIMULATION_INGRESS.test(calls[0] ?? "")).toBe(true);
+  });
+
+  it("서버가 이 API를 모르거나 이전 실행이 없으면 null", async () => {
+    const notFound = (async () => new Response("{}", { status: 404 })) as typeof fetch;
+    const empty = (async () => new Response("null")) as typeof fetch;
+    await expect(loadLatestRunSettings("task-1", notFound)).resolves.toBeNull();
+    await expect(loadLatestRunSettings("task-1", empty)).resolves.toBeNull();
   });
 });

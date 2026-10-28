@@ -1290,13 +1290,13 @@ export function buildDefaultSimulationRunInput(
   };
 }
 
-async function loadLatestRunSettings(
+export async function loadLatestRunSettings(
   taskId: string,
   request: typeof fetch = authenticatedFetch,
 ): Promise<SimulationRunSettings | null> {
   try {
     const response = await request(
-      `/api/v1/admin/simulation-run-settings?taskId=${encodeURIComponent(taskId)}`,
+      `/api/v1/admin/simulation-tasks/${encodeURIComponent(taskId)}/run-settings`,
       { cache: "no-store" },
     );
     // 서버가 아직 이 API를 모르면 기본값으로 시작한다.
