@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.mongo;
 
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.authorization.RoomAccessReadException;
 import com.hamcheeze.chat.room.authorization.RoomAccessState;
 import com.hamcheeze.chat.room.authorization.RoomAuthorizationProperties;
@@ -23,7 +24,10 @@ class MongoRoomAccessReaderTest {
     private final RoomAuthorizationProperties properties =
             new RoomAuthorizationProperties();
     private final MongoRoomAccessReader reader =
-            new MongoRoomAccessReader(mongo, properties);
+            new MongoRoomAccessReader(
+                    mongo,
+                    properties,
+                    new RoomMembershipProperties());
 
     @Test
     void returnsStableActiveMembershipSnapshot() {
@@ -36,7 +40,7 @@ class MongoRoomAccessReaderTest {
         assertThat(snapshot.membershipId())
                 .isEqualTo("membership-1");
         assertThat(snapshot.messageVisibleAfterSequence())
-                .isEqualTo(100);
+                .isEqualTo(90);
     }
 
     @Test
@@ -53,7 +57,7 @@ class MongoRoomAccessReaderTest {
         assertThat(snapshot.state())
                 .isEqualTo(RoomAccessState.ACTIVE_MEMBER);
         assertThat(snapshot.messageVisibleAfterSequence())
-                .isEqualTo(100);
+                .isEqualTo(90);
     }
 
     @Test
@@ -160,7 +164,7 @@ class MongoRoomAccessReaderTest {
     }
 
     @Test
-    void legacyMembershipWithoutHistoryBoundaryUsesJoinBoundary() {
+    void legacyMembershipWithoutHistoryBoundaryGetsJoinHistory() {
         whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
         Document legacy = membership("ACTIVE", 1);
         assertThat(legacy.containsKey("historyVisibleAfterSequence"))
@@ -169,18 +173,29 @@ class MongoRoomAccessReaderTest {
 
         assertThat(reader.readAccess("user-1", "room-1")
                 .messageVisibleAfterSequence())
-                .isEqualTo(100);
+                .isEqualTo(90);
+    }
+
+    @Test
+    void legacyHistoryBoundaryNeverDropsBelowZero() {
+        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
+        whenMembership(membership("ACTIVE", 1)
+                .append("messageVisibleAfterSequence", 4L));
+
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence())
+                .isZero();
     }
 
     @Test
     void historyBoundaryIsProjectedAndUsedForMessageAccess() {
         whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
         whenMembership(membership("ACTIVE", 1)
-                .append("historyVisibleAfterSequence", 90L));
+                .append("historyVisibleAfterSequence", 95L));
 
         assertThat(reader.readAccess("user-1", "room-1")
                 .messageVisibleAfterSequence())
-                .isEqualTo(90);
+                .isEqualTo(95);
         org.mockito.ArgumentCaptor<Query> query =
                 org.mockito.ArgumentCaptor.forClass(Query.class);
         verify(mongo).findOne(

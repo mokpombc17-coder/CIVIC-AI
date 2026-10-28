@@ -450,7 +450,7 @@ class MongoRoomDocumentMappingTest {
     }
 
     @Test
-    void membershipHistoryBoundaryRoundTripsAndFallsBackToJoinBoundary() {
+    void membershipHistoryBoundaryRoundTripsAndFallsBackToJoinHistory() {
         Membership withHistory = Membership.restore(
                 "membership-1",
                 "room-1",
@@ -475,6 +475,10 @@ class MongoRoomDocumentMappingTest {
 
         assertThat(document.historyVisibleAfterSequence()).isEqualTo(4L);
         assertThat(document.toDomain()).isEqualTo(withHistory);
+        assertThat(withoutHistory.toDomain(3).historyVisibleAfterSequence())
+                .isEqualTo(7L);
+        assertThat(withoutHistory.toDomain(20).historyVisibleAfterSequence())
+                .isZero();
         assertThat(withoutHistory.toDomain().historyVisibleAfterSequence())
                 .isEqualTo(10L);
     }

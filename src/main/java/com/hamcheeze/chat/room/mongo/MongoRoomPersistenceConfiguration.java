@@ -36,12 +36,25 @@ public class MongoRoomPersistenceConfiguration {
         return new MongoRoomStore(mongoOperations);
     }
 
+    @Bean(initMethod = "initialize")
+    MongoMembershipJoinHistoryBackfill mongoMembershipJoinHistoryBackfill(
+            MongoOperations mongoOperations,
+            MongoRoomSchemaInitializer schemaInitializer,
+            RoomMembershipProperties properties
+    ) {
+        return new MongoMembershipJoinHistoryBackfill(
+                mongoOperations,
+                properties);
+    }
+
     @Bean
     MembershipStore membershipStore(
             MongoOperations mongoOperations,
-            MongoRoomSchemaInitializer schemaInitializer
+            MongoRoomSchemaInitializer schemaInitializer,
+            MongoMembershipJoinHistoryBackfill joinHistoryBackfill,
+            RoomMembershipProperties properties
     ) {
-        return new MongoMembershipStore(mongoOperations);
+        return new MongoMembershipStore(mongoOperations, properties);
     }
 
     @Bean
@@ -87,10 +100,13 @@ public class MongoRoomPersistenceConfiguration {
     RoomAccessReader roomAccessReader(
             MongoOperations mongoOperations,
             MongoRoomSchemaInitializer schemaInitializer,
-            RoomAuthorizationProperties properties
+            MongoMembershipJoinHistoryBackfill joinHistoryBackfill,
+            RoomAuthorizationProperties properties,
+            RoomMembershipProperties membershipProperties
     ) {
         return new MongoRoomAccessReader(
                 mongoOperations,
-                properties);
+                properties,
+                membershipProperties);
     }
 }

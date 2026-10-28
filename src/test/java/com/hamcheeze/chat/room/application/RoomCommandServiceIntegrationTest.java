@@ -750,7 +750,7 @@ class RoomCommandServiceIntegrationTest
     }
 
     @Test
-    void legacyMembershipWithoutHistoryFieldKeepsJoinBoundary() {
+    void legacyMembershipWithoutHistoryFieldGetsJoinHistory() {
         String roomId = createOpenRoom("owner-1");
         appendMessages(roomId, "owner-1", 12);
         service.joinRoom(new JoinRoomCommand(
@@ -772,9 +772,9 @@ class RoomCommandServiceIntegrationTest
                 "user-2", requestId(), roomId));
 
         assertThat(legacy.messageVisibleAfterSequence()).isEqualTo(12);
-        assertThat(legacy.historyVisibleAfterSequence()).isEqualTo(12);
+        assertThat(legacy.historyVisibleAfterSequence()).isEqualTo(2);
         assertThat(accessReader.readAccess("user-2", roomId)
-                .messageVisibleAfterSequence()).isEqualTo(12);
+                .messageVisibleAfterSequence()).isEqualTo(2);
         assertThat(membership(roomId, "user-2")).isEqualTo(legacy);
     }
 

@@ -81,7 +81,13 @@ public record MongoMembershipDocument(
                 membership.version());
     }
 
+    // Read-only projections never use the history boundary, so they keep
+    // the join boundary for memberships stored before join history.
     public Membership toDomain() {
+        return toDomain(0);
+    }
+
+    public Membership toDomain(long joinHistoryMessageCount) {
         requireCurrentSchema();
         return Membership.restore(
                 membershipId,
@@ -94,16 +100,23 @@ public record MongoMembershipDocument(
                 leftAt,
                 bannedAt,
                 messageVisibleAfterSequence,
-                effectiveHistoryVisibleAfterSequence(),
+                historyVisibleAfterSequence == null
+                        ? legacyHistoryVisibleAfterSequence(
+                                messageVisibleAfterSequence,
+                                joinHistoryMessageCount)
+                        : historyVisibleAfterSequence,
                 version);
     }
 
-    // Memberships written before join history existed have no separate
-    // history boundary, so history starts at the join boundary.
-    public long effectiveHistoryVisibleAfterSequence() {
-        return historyVisibleAfterSequence == null
-                ? messageVisibleAfterSequence
-                : historyVisibleAfterSequence;
+    // Memberships written before join history have no history boundary.
+    // They get the same boundary a join would have produced.
+    public static long legacyHistoryVisibleAfterSequence(
+            long messageVisibleAfterSequence,
+            long joinHistoryMessageCount
+    ) {
+        return Math.max(
+                0L,
+                messageVisibleAfterSequence - joinHistoryMessageCount);
     }
 
     private void requireCurrentSchema() {

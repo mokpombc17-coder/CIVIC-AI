@@ -2,6 +2,7 @@ package com.hamcheeze.chat.room.mongo;
 
 import com.hamcheeze.chat.room.MembershipStatus;
 import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.authorization.RoomAccessReadException;
 import com.hamcheeze.chat.room.authorization.RoomAccessReader;
 import com.hamcheeze.chat.room.authorization.RoomAccessSnapshot;
@@ -17,14 +18,17 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
 
     private final MongoOperations mongoOperations;
     private final int maxConsistencyAttempts;
+    private final RoomMembershipProperties membershipProperties;
 
     public MongoRoomAccessReader(
             MongoOperations mongoOperations,
-            RoomAuthorizationProperties properties
+            RoomAuthorizationProperties properties,
+            RoomMembershipProperties membershipProperties
     ) {
         this.mongoOperations = mongoOperations;
         this.maxConsistencyAttempts =
                 properties.getMaxConsistencyAttempts();
+        this.membershipProperties = membershipProperties;
     }
 
     @Override
@@ -166,19 +170,28 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                         document,
                         "status",
                         MembershipStatus.class),
-                historyVisibleAfterSequence(document),
+                historyVisibleAfterSequence(
+                        document,
+                        membershipProperties
+                                .joinHistoryMessageCount()),
                 longValue(document, "version"));
     }
 
     // Message access starts at the history boundary, which may include
-    // messages from before the join. Memberships without it fall back to
-    // the join boundary.
-    private static long historyVisibleAfterSequence(Document document) {
+    // messages from before the join. Memberships stored without it get
+    // the boundary a join would have produced.
+    private static long historyVisibleAfterSequence(
+            Document document,
+            long joinHistoryMessageCount
+    ) {
         long joinBoundary = nonNegativeLongValue(
                 document,
                 "messageVisibleAfterSequence");
         if (document.get("historyVisibleAfterSequence") == null) {
-            return joinBoundary;
+            return MongoMembershipDocument
+                    .legacyHistoryVisibleAfterSequence(
+                            joinBoundary,
+                            joinHistoryMessageCount);
         }
         long historyBoundary = nonNegativeLongValue(
                 document,
