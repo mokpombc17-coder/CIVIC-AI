@@ -226,9 +226,6 @@ class ChatMessageHistoryApiIntegrationTest
         org.assertj.core.api.Assertions.assertThat(
                         membership.messageVisibleAfterSequence())
                 .isEqualTo(100);
-        org.assertj.core.api.Assertions.assertThat(
-                        membership.historyVisibleAfterSequence())
-                .isEqualTo(90);
 
         assertRange(roomId, null, null, 91, 130, 40);
         assertRange(roomId, "beforeSequence", "200", 91, 130, 40);
@@ -264,9 +261,6 @@ class ChatMessageHistoryApiIntegrationTest
             org.assertj.core.api.Assertions.assertThat(
                             rejoined.messageVisibleAfterSequence())
                     .isEqualTo(6);
-            org.assertj.core.api.Assertions.assertThat(
-                            rejoined.historyVisibleAfterSequence())
-                    .isEqualTo(4);
             assertRange(roomId, "afterSequence", "0", 5, 6, 2);
             assertRange(roomId, "beforeSequence", "100", 5, 6, 2);
             assertEmpty(roomId, "beforeSequence", "5");

@@ -25,7 +25,6 @@ public record MongoMembershipDocument(
         Instant leftAt,
         Instant bannedAt,
         Long messageVisibleAfterSequence,
-        Long historyVisibleAfterSequence,
         long version
 ) {
 
@@ -50,14 +49,6 @@ public record MongoMembershipDocument(
             throw new IllegalArgumentException(
                     "messageVisibleAfterSequence must not be negative");
         }
-        if (historyVisibleAfterSequence != null
-                && (historyVisibleAfterSequence < 0
-                || historyVisibleAfterSequence
-                > messageVisibleAfterSequence)) {
-            throw new IllegalArgumentException(
-                    "historyVisibleAfterSequence must be between 0 and "
-                            + "messageVisibleAfterSequence");
-        }
     }
 
     public static MongoMembershipDocument fromDomain(
@@ -77,17 +68,10 @@ public record MongoMembershipDocument(
                 membership.leftAt(),
                 membership.bannedAt(),
                 membership.messageVisibleAfterSequence(),
-                membership.historyVisibleAfterSequence(),
                 membership.version());
     }
 
-    // Read-only projections never use the history boundary, so they keep
-    // the join boundary for memberships stored before join history.
     public Membership toDomain() {
-        return toDomain(0);
-    }
-
-    public Membership toDomain(long joinHistoryMessageCount) {
         requireCurrentSchema();
         return Membership.restore(
                 membershipId,
@@ -100,23 +84,7 @@ public record MongoMembershipDocument(
                 leftAt,
                 bannedAt,
                 messageVisibleAfterSequence,
-                historyVisibleAfterSequence == null
-                        ? legacyHistoryVisibleAfterSequence(
-                                messageVisibleAfterSequence,
-                                joinHistoryMessageCount)
-                        : historyVisibleAfterSequence,
                 version);
-    }
-
-    // Memberships written before join history have no history boundary.
-    // They get the same boundary a join would have produced.
-    public static long legacyHistoryVisibleAfterSequence(
-            long messageVisibleAfterSequence,
-            long joinHistoryMessageCount
-    ) {
-        return Math.max(
-                0L,
-                messageVisibleAfterSequence - joinHistoryMessageCount);
     }
 
     private void requireCurrentSchema() {

@@ -23,11 +23,13 @@ class MongoRoomAccessReaderTest {
     private final MongoOperations mongo = mock(MongoOperations.class);
     private final RoomAuthorizationProperties properties =
             new RoomAuthorizationProperties();
+    private final RoomMembershipProperties membershipProperties =
+            new RoomMembershipProperties();
     private final MongoRoomAccessReader reader =
             new MongoRoomAccessReader(
                     mongo,
                     properties,
-                    new RoomMembershipProperties());
+                    membershipProperties);
 
     @Test
     void returnsStableActiveMembershipSnapshot() {
@@ -164,69 +166,25 @@ class MongoRoomAccessReaderTest {
     }
 
     @Test
-    void legacyMembershipWithoutHistoryBoundaryGetsJoinHistory() {
-        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
-        Document legacy = membership("ACTIVE", 1);
-        assertThat(legacy.containsKey("historyVisibleAfterSequence"))
-                .isFalse();
-        whenMembership(legacy);
-
-        assertThat(reader.readAccess("user-1", "room-1")
-                .messageVisibleAfterSequence())
-                .isEqualTo(90);
-    }
-
-    @Test
-    void legacyHistoryBoundaryNeverDropsBelowZero() {
-        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
-        whenMembership(membership("ACTIVE", 1)
-                .append("messageVisibleAfterSequence", 4L));
-
-        assertThat(reader.readAccess("user-1", "room-1")
-                .messageVisibleAfterSequence())
-                .isZero();
-    }
-
-    @Test
-    void historyBoundaryIsProjectedAndUsedForMessageAccess() {
-        whenRoom(room("ACTIVE", 1), room("ACTIVE", 1));
-        whenMembership(membership("ACTIVE", 1)
-                .append("historyVisibleAfterSequence", 95L));
-
-        assertThat(reader.readAccess("user-1", "room-1")
-                .messageVisibleAfterSequence())
-                .isEqualTo(95);
-        org.mockito.ArgumentCaptor<Query> query =
-                org.mockito.ArgumentCaptor.forClass(Query.class);
-        verify(mongo).findOne(
-                query.capture(),
-                eq(Document.class),
-                eq(MongoMembershipDocument.COLLECTION_NAME));
-        assertThat(query.getValue().getFieldsObject())
-                .containsKey("historyVisibleAfterSequence");
-    }
-
-    @Test
-    void historyBoundaryIsFailClosedWhenNegativeOrAfterJoinBoundary() {
+    void messageAccessFollowsTheCurrentJoinHistoryCount() {
         whenRoom(
-                room("ACTIVE", 1),
-                room("ACTIVE", 1),
-                room("ACTIVE", 1));
-        whenMembership(membership("ACTIVE", 1)
-                .append("historyVisibleAfterSequence", -1L));
-        assertThatThrownBy(() ->
-                reader.readAccess("user-1", "room-1"))
-                .isInstanceOf(RoomAccessReadException.class);
+                room("ACTIVE", 1), room("ACTIVE", 1),
+                room("ACTIVE", 1), room("ACTIVE", 1),
+                room("ACTIVE", 1), room("ACTIVE", 1));
+        whenMembership(
+                membership("ACTIVE", 1),
+                membership("ACTIVE", 1),
+                membership("ACTIVE", 1));
 
-        whenRoom(
-                room("ACTIVE", 1),
-                room("ACTIVE", 1),
-                room("ACTIVE", 1));
-        whenMembership(membership("ACTIVE", 1)
-                .append("historyVisibleAfterSequence", 101L));
-        assertThatThrownBy(() ->
-                reader.readAccess("user-1", "room-1"))
-                .isInstanceOf(RoomAccessReadException.class);
+        membershipProperties.setJoinHistoryMessageCount(20);
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence()).isEqualTo(80);
+        membershipProperties.setJoinHistoryMessageCount(0);
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence()).isEqualTo(100);
+        membershipProperties.setJoinHistoryMessageCount(150);
+        assertThat(reader.readAccess("user-1", "room-1")
+                .messageVisibleAfterSequence()).isZero();
     }
 
     private void whenRoom(Document... documents) {

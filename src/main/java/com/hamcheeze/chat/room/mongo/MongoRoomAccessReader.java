@@ -93,7 +93,8 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                         membership.membershipId(),
                         membership.status(),
                         membership.version(),
-                        membership.messageVisibleAfterSequence(),
+                        historyVisibleAfterSequence(
+                                membership.messageVisibleAfterSequence()),
                         state(membership.status()));
             }
             throw new RoomAccessReadException(
@@ -146,7 +147,6 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                 .include("userId")
                 .include("status")
                 .include("messageVisibleAfterSequence")
-                .include("historyVisibleAfterSequence")
                 .include("version");
         Document document = mongoOperations.findOne(
                 query,
@@ -170,37 +170,19 @@ public final class MongoRoomAccessReader implements RoomAccessReader {
                         document,
                         "status",
                         MembershipStatus.class),
-                historyVisibleAfterSequence(
+                nonNegativeLongValue(
                         document,
-                        membershipProperties
-                                .joinHistoryMessageCount()),
+                        "messageVisibleAfterSequence"),
                 longValue(document, "version"));
     }
 
-    // Message access starts at the history boundary, which may include
-    // messages from before the join. Memberships stored without it get
-    // the boundary a join would have produced.
-    private static long historyVisibleAfterSequence(
-            Document document,
-            long joinHistoryMessageCount
-    ) {
-        long joinBoundary = nonNegativeLongValue(
-                document,
-                "messageVisibleAfterSequence");
-        if (document.get("historyVisibleAfterSequence") == null) {
-            return MongoMembershipDocument
-                    .legacyHistoryVisibleAfterSequence(
-                            joinBoundary,
-                            joinHistoryMessageCount);
-        }
-        long historyBoundary = nonNegativeLongValue(
-                document,
-                "historyVisibleAfterSequence");
-        if (historyBoundary > joinBoundary) {
-            throw new RoomAccessReadException(
-                    "Invalid historyVisibleAfterSequence in access snapshot");
-        }
-        return historyBoundary;
+    // Members may read the configured number of messages sent right before
+    // they joined. The join boundary itself stays the read-state baseline.
+    private long historyVisibleAfterSequence(long joinBoundary) {
+        return Math.max(
+                0L,
+                joinBoundary
+                        - membershipProperties.joinHistoryMessageCount());
     }
 
     private static RoomAccessState state(MembershipStatus status) {

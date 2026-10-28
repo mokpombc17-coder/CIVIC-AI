@@ -739,25 +739,20 @@ backfill이나 감소 operation의 counter 갱신은 필요 없다.
 저장한다. 입장 경계는 읽음 상태, 안 읽음 수, 읽음 응답, 인박스 미리보기,
 참여 기록(`enteredAfterMessageSequence`)의 기준이다.
 
-메시지 접근 하한은 별도의 이력 경계 `max(0, 입장 경계 - N)`이다. `N`은
-`CHAT_ROOM_JOIN_HISTORY_MESSAGE_COUNT`(기본 `10`, `0`이면 비활성)로 설정한다.
-따라서 참여자는 입장 직전 메시지를 최대 `N`개까지 볼 수 있다. 이 메시지들은
-읽음 계산 대상이 아니며 입장 경계 이하 `throughSequence`의 읽음 갱신은
-`updated=false`와 입장 경계 `readThroughSequence`로 응답한다. 이력 경계는
-API 응답 필드로 별도 노출하지 않는다.
+메시지 접근 하한은 저장하지 않고 요청마다 `max(0, 입장 경계 - N)`으로
+계산하는 이력 경계다. `N`은 `CHAT_ROOM_JOIN_HISTORY_MESSAGE_COUNT`(기본
+`10`, `0`이면 비활성)로 설정한다. 따라서 참여자는 입장 직전 메시지를 최대
+`N`개 볼 수 있고, `N`을 바꾸면 재시작 후 기존 멤버를 포함한 모든 멤버에게
+바로 적용된다. `N`을 줄이면 이미 보이던 입장 전 메시지도 다시 숨겨진다.
+입장 전 메시지는 읽음 계산 대상이 아니며 입장 경계 이하 `throughSequence`의
+읽음 갱신은 `updated=false`와 입장 경계 `readThroughSequence`로 응답한다.
+이력 경계는 API 응답 필드로 별도 노출하지 않는다.
 
-재참여(`LEFT -> ACTIVE`) 시에는 두 경계를 새 참여 시점 기준으로 교체한다.
-이전 참여 구간과 퇴장 중 생성된 메시지는 새 이력 경계 안에 들어오는 최대
-`N`개를 제외하고 다시 조회할 수 없다. 이미 `ACTIVE`인 사용자의 중복
-join(`ALREADY_ACTIVE`)은 기존 경계를 변경하지 않는다. 방 생성 시 방장의 두
-경계는 모두 `0`이다.
-
-이 기능 이전에 생성되어 이력 경계가 저장되지 않은 Membership도 같은 규칙을
-따른다. 서버는 저장값이 없으면 이력 경계를 `max(0, 입장 경계 - N)`으로
-계산하고, 시작 시 일회성 backfill로 `ACTIVE` Membership에 같은 값을
-저장한다. backfill은 `version`을 바꾸지 않으며 다시 실행해도 이미 저장된
-Membership은 바뀌지 않는다. 한 번 저장된 이력 경계는 이후 `N`이 바뀌어도
-유지된다.
+재참여(`LEFT -> ACTIVE`) 시에는 새 참여 시점의 최신 sequence로 입장 경계를
+교체한다. 이전 참여 구간과 퇴장 중 생성된 메시지는 새 이력 경계 안에 들어오는
+최대 `N`개를 제외하고 다시 조회할 수 없다. 이미 `ACTIVE`인 사용자의 중복
+join(`ALREADY_ACTIVE`)은 기존 경계를 변경하지 않는다. 방 생성 시 방장의
+경계는 `0`이다.
 
 ```json
 {
@@ -1292,16 +1287,16 @@ GET /api/v1/rooms/{roomId}/messages?afterSequence=120&limit=50
 - `chat:rooms:read` scope와 해당 방의 활성 멤버십이 필요하다.
 - 응답에는 `Cache-Control: no-store`가 포함된다.
 
-메시지 이력의 접근 하한은 현재 Membership의 이력 경계
-(`max(0, 입장 경계 - N)`)다. 사용자는 `roomSequence > 이력 경계`인 메시지,
-즉 현재 참여 구간의 메시지와 입장 직전 최대 `N`개 메시지만 조회할 수 있다.
+메시지 이력의 접근 하한은 이력 경계(`max(0, 입장 경계 - N)`)다. 사용자는
+`roomSequence > 이력 경계`인 메시지, 즉 현재 참여 구간의 메시지와 입장 직전
+최대 `N`개 메시지만 조회할 수 있다.
 
 - 최신 조회에도 이 하한이 적용된다.
 - `beforeSequence` 조회는 경계보다 크고 cursor보다 작은 메시지만 반환한다.
   cursor가 경계 이하이면 빈 페이지를 반환한다.
 - `afterSequence` 조회의 실제 하한은 `max(afterSequence, 이력 경계)`다.
-- `beforeSequence`나 `afterSequence`를 임의로 조작해도 현재 Membership의
-  경계 이전 메시지는 반환되지 않는다.
+- `beforeSequence`나 `afterSequence`를 임의로 조작해도 이력 경계 이전
+  메시지는 반환되지 않는다.
 - 재참여하면 새 접근 경계가 설정되며 이전 참여 구간과 퇴장 중 생성된
   메시지는 새 이력 경계 안의 최대 `N`개를 제외하고 조회할 수 없다.
 

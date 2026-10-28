@@ -106,27 +106,6 @@ public final class RoomMembershipTransitions {
             long messageVisibleAfterSequence,
             boolean createNewParticipationIdentity
     ) {
-        return joinRoom(
-                room,
-                existingMembership,
-                membershipId,
-                userId,
-                transitionTime,
-                messageVisibleAfterSequence,
-                messageVisibleAfterSequence,
-                createNewParticipationIdentity);
-    }
-
-    public static JoinRoomTransition joinRoom(
-            Room room,
-            Membership existingMembership,
-            String membershipId,
-            String userId,
-            Instant transitionTime,
-            long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
-            boolean createNewParticipationIdentity
-    ) {
         JoinRoomTransition.Outcome outcome = determineJoinOutcome(
                 room,
                 existingMembership,
@@ -149,7 +128,6 @@ public final class RoomMembershipTransitions {
                     userId,
                     joinedAt,
                     messageVisibleAfterSequence,
-                    historyVisibleAfterSequence,
                     room.nextParticipantNumber());
             return new JoinRoomTransition(
                     outcome,
@@ -161,12 +139,10 @@ public final class RoomMembershipTransitions {
                 ? existingMembership.reactivateAt(
                         joinedAt,
                         messageVisibleAfterSequence,
-                        historyVisibleAfterSequence,
                         room.nextParticipantNumber())
                 : existingMembership.reactivateAt(
                         joinedAt,
-                        messageVisibleAfterSequence,
-                        historyVisibleAfterSequence);
+                        messageVisibleAfterSequence);
         return new JoinRoomTransition(
                 outcome,
                 createNewParticipationIdentity

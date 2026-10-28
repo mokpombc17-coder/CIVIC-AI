@@ -2,7 +2,6 @@ package com.hamcheeze.chat.room.mongo;
 
 import com.hamcheeze.chat.room.Membership;
 import com.hamcheeze.chat.room.MembershipStatus;
-import com.hamcheeze.chat.room.application.RoomMembershipProperties;
 import com.hamcheeze.chat.room.persistence.MembershipStore;
 import com.mongodb.client.result.UpdateResult;
 import org.springframework.data.mongodb.core.MongoOperations;
@@ -19,22 +18,11 @@ public final class MongoMembershipStore
         implements MembershipStore {
 
     private final MongoOperations mongoOperations;
-    private final RoomMembershipProperties properties;
 
     public MongoMembershipStore(MongoOperations mongoOperations) {
-        this(mongoOperations, new RoomMembershipProperties());
-    }
-
-    public MongoMembershipStore(
-            MongoOperations mongoOperations,
-            RoomMembershipProperties properties
-    ) {
         this.mongoOperations = Objects.requireNonNull(
                 mongoOperations,
                 "mongoOperations");
-        this.properties = Objects.requireNonNull(
-                properties,
-                "properties");
     }
 
     @Override
@@ -48,7 +36,7 @@ public final class MongoMembershipStore
                         MongoMembershipDocument.class,
                         MongoMembershipDocument.COLLECTION_NAME);
         return Optional.ofNullable(document)
-                .map(this::toDomain);
+                .map(MongoMembershipDocument::toDomain);
     }
 
     @Override
@@ -67,7 +55,7 @@ public final class MongoMembershipStore
                         MongoMembershipDocument.class,
                         MongoMembershipDocument.COLLECTION_NAME);
         return Optional.ofNullable(document)
-                .map(this::toDomain);
+                .map(MongoMembershipDocument::toDomain);
     }
 
     @Override
@@ -88,7 +76,7 @@ public final class MongoMembershipStore
                         MongoMembershipDocument.class,
                         MongoMembershipDocument.COLLECTION_NAME)
                 .stream()
-                .map(this::toDomain)
+                .map(MongoMembershipDocument::toDomain)
                 .toList();
     }
 
@@ -140,10 +128,6 @@ public final class MongoMembershipStore
                     "membership.version must equal "
                             + "expectedVersion + 1");
         }
-    }
-
-    private Membership toDomain(MongoMembershipDocument document) {
-        return document.toDomain(properties.joinHistoryMessageCount());
     }
 
     private static String requireNonBlank(

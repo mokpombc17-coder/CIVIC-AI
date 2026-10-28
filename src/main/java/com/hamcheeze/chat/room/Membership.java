@@ -15,7 +15,6 @@ public final class Membership {
     private final Instant leftAt;
     private final Instant bannedAt;
     private final long messageVisibleAfterSequence;
-    private final long historyVisibleAfterSequence;
     private final long version;
 
     private Membership(
@@ -29,7 +28,6 @@ public final class Membership {
             Instant leftAt,
             Instant bannedAt,
             long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
             long version
     ) {
         this.membershipId =
@@ -44,10 +42,6 @@ public final class Membership {
         this.messageVisibleAfterSequence =
                 RoomDomainValidation.requireMessageVisibleAfterSequence(
                         messageVisibleAfterSequence);
-        this.historyVisibleAfterSequence =
-                RoomDomainValidation.requireHistoryVisibleAfterSequence(
-                        historyVisibleAfterSequence,
-                        this.messageVisibleAfterSequence);
         this.version = RoomDomainValidation.requireVersion(version);
         validateState(role, status, joinedAt, leftAt, bannedAt);
         if (profile.createdAt().isAfter(joinedAt)) {
@@ -70,35 +64,6 @@ public final class Membership {
             long messageVisibleAfterSequence,
             long version
     ) {
-        return restore(
-                membershipId,
-                roomId,
-                userId,
-                role,
-                status,
-                profile,
-                joinedAt,
-                leftAt,
-                bannedAt,
-                messageVisibleAfterSequence,
-                messageVisibleAfterSequence,
-                version);
-    }
-
-    public static Membership restore(
-            String membershipId,
-            String roomId,
-            String userId,
-            MembershipRole role,
-            MembershipStatus status,
-            MembershipProfile profile,
-            Instant joinedAt,
-            Instant leftAt,
-            Instant bannedAt,
-            long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
-            long version
-    ) {
         return new Membership(
                 membershipId,
                 roomId,
@@ -110,7 +75,6 @@ public final class Membership {
                 leftAt,
                 bannedAt,
                 messageVisibleAfterSequence,
-                historyVisibleAfterSequence,
                 version);
     }
 
@@ -127,7 +91,6 @@ public final class Membership {
                 MembershipRole.OWNER,
                 joinedAt,
                 0,
-                0,
                 1);
     }
 
@@ -139,25 +102,6 @@ public final class Membership {
             long messageVisibleAfterSequence,
             long participantNumber
     ) {
-        return createMember(
-                membershipId,
-                roomId,
-                userId,
-                joinedAt,
-                messageVisibleAfterSequence,
-                messageVisibleAfterSequence,
-                participantNumber);
-    }
-
-    static Membership createMember(
-            String membershipId,
-            String roomId,
-            String userId,
-            Instant joinedAt,
-            long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
-            long participantNumber
-    ) {
         return createActive(
                 membershipId,
                 roomId,
@@ -165,7 +109,6 @@ public final class Membership {
                 MembershipRole.MEMBER,
                 joinedAt,
                 messageVisibleAfterSequence,
-                historyVisibleAfterSequence,
                 participantNumber);
     }
 
@@ -176,7 +119,6 @@ public final class Membership {
             MembershipRole role,
             Instant joinedAt,
             long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
             long participantNumber
     ) {
         Instant transitionTime =
@@ -194,14 +136,12 @@ public final class Membership {
                 null,
                 null,
                 messageVisibleAfterSequence,
-                historyVisibleAfterSequence,
                 0);
     }
 
     Membership reactivateAt(
             Instant transitionTime,
             long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence,
             long participantNumber
     ) {
         if (status != MembershipStatus.LEFT) {
@@ -220,14 +160,12 @@ public final class Membership {
                 joined,
                 null,
                 null,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership reactivateAt(
             Instant transitionTime,
-            long messageVisibleAfterSequence,
-            long historyVisibleAfterSequence
+            long messageVisibleAfterSequence
     ) {
         if (status != MembershipStatus.LEFT) {
             throw new RoomDomainException(
@@ -242,8 +180,7 @@ public final class Membership {
                 joined,
                 null,
                 null,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership leaveAt(Instant transitionTime) {
@@ -260,8 +197,7 @@ public final class Membership {
                 joinedAt,
                 left,
                 null,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership banAt(Instant transitionTime) {
@@ -282,8 +218,7 @@ public final class Membership {
                 joinedAt,
                 null,
                 banned,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership unbanAt(Instant transitionTime) {
@@ -300,8 +235,7 @@ public final class Membership {
                 joinedAt,
                 left,
                 null,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership promoteToOwner() {
@@ -316,8 +250,7 @@ public final class Membership {
                 joinedAt,
                 leftAt,
                 bannedAt,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     Membership demoteToMember() {
@@ -332,8 +265,7 @@ public final class Membership {
                 joinedAt,
                 leftAt,
                 bannedAt,
-                messageVisibleAfterSequence,
-                historyVisibleAfterSequence);
+                messageVisibleAfterSequence);
     }
 
     private Membership copy(
@@ -342,8 +274,7 @@ public final class Membership {
             Instant nextJoinedAt,
             Instant nextLeftAt,
             Instant nextBannedAt,
-            long nextMessageVisibleAfterSequence,
-            long nextHistoryVisibleAfterSequence
+            long nextMessageVisibleAfterSequence
     ) {
         return new Membership(
                 membershipId,
@@ -356,7 +287,6 @@ public final class Membership {
                 nextLeftAt,
                 nextBannedAt,
                 nextMessageVisibleAfterSequence,
-                nextHistoryVisibleAfterSequence,
                 RoomDomainValidation.nextVersion(version));
     }
 
@@ -367,8 +297,7 @@ public final class Membership {
             Instant nextJoinedAt,
             Instant nextLeftAt,
             Instant nextBannedAt,
-            long nextMessageVisibleAfterSequence,
-            long nextHistoryVisibleAfterSequence
+            long nextMessageVisibleAfterSequence
     ) {
         return new Membership(
                 membershipId,
@@ -381,7 +310,6 @@ public final class Membership {
                 nextLeftAt,
                 nextBannedAt,
                 nextMessageVisibleAfterSequence,
-                nextHistoryVisibleAfterSequence,
                 RoomDomainValidation.nextVersion(version));
     }
 
@@ -462,10 +390,6 @@ public final class Membership {
         return messageVisibleAfterSequence;
     }
 
-    public long historyVisibleAfterSequence() {
-        return historyVisibleAfterSequence;
-    }
-
     public long version() {
         return version;
     }
@@ -480,8 +404,6 @@ public final class Membership {
         }
         return messageVisibleAfterSequence
                 == membership.messageVisibleAfterSequence
-                && historyVisibleAfterSequence
-                == membership.historyVisibleAfterSequence
                 && version == membership.version
                 && membershipId.equals(membership.membershipId)
                 && roomId.equals(membership.roomId)
@@ -507,7 +429,6 @@ public final class Membership {
                 leftAt,
                 bannedAt,
                 messageVisibleAfterSequence,
-                historyVisibleAfterSequence,
                 version);
     }
 
@@ -524,8 +445,6 @@ public final class Membership {
                 + ", bannedAt=" + bannedAt
                 + ", messageVisibleAfterSequence="
                 + messageVisibleAfterSequence
-                + ", historyVisibleAfterSequence="
-                + historyVisibleAfterSequence
                 + ", version=" + version
                 + ']';
     }

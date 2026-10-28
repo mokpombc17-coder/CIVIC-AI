@@ -575,11 +575,6 @@ class ChatMessagePipelineWebSocketIntegrationTest
                 .orElseThrow()
                 .messageVisibleAfterSequence())
                 .isEqualTo(100);
-        assertThat(membershipStore.findByRoomIdAndUserId(
-                        "test-room", "local-user-2")
-                .orElseThrow()
-                .historyVisibleAfterSequence())
-                .isEqualTo(90);
 
         ThreadPoolTaskScheduler scheduler =
                 new ThreadPoolTaskScheduler();

@@ -507,9 +507,8 @@ class RoomCommandRevocationIntegrationTest
 
         join(roomId, "user-2");
 
-        assertThat(memberships.findByRoomIdAndUserId(roomId, "user-2")
-                .orElseThrow()
-                .historyVisibleAfterSequence())
+        assertThat(accessReader.readAccess("user-2", roomId)
+                .messageVisibleAfterSequence())
                 .isEqualTo(3L);
         assertThat(subscriptions.findConnectionIdsByUserAndRoom(
                 "user-2", roomId)).isEmpty();

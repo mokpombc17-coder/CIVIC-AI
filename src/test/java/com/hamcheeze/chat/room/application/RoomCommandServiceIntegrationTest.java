@@ -710,11 +710,8 @@ class RoomCommandServiceIntegrationTest
                             joined.membershipId()).orElse(null));
 
             assertThat(joined.messageVisibleAfterSequence()).isEqualTo(5);
-            assertThat(joined.historyVisibleAfterSequence()).isEqualTo(3);
-            assertThat(alreadyActive.historyVisibleAfterSequence())
-                    .isEqualTo(3);
-            assertThat(accessReader.readAccess("user-2", roomId)
-                    .messageVisibleAfterSequence()).isEqualTo(3);
+            assertThat(alreadyActive).isEqualTo(joined);
+            assertThat(historyBoundary("user-2", roomId)).isEqualTo(3);
             assertThat(preJoinRead.updated()).isFalse();
             assertThat(preJoinRead.readThroughSequence()).isEqualTo(5);
             assertThat(position.effectiveReadThroughSequence())
@@ -741,63 +738,34 @@ class RoomCommandServiceIntegrationTest
             Membership rejoined = membership(roomId, "user-2");
 
             assertThat(rejoined.messageVisibleAfterSequence()).isEqualTo(8);
-            assertThat(rejoined.historyVisibleAfterSequence()).isEqualTo(6);
-            assertThat(accessReader.readAccess("user-2", roomId)
-                    .messageVisibleAfterSequence()).isEqualTo(6);
+            assertThat(historyBoundary("user-2", roomId)).isEqualTo(6);
         } finally {
             membershipProperties.setJoinHistoryMessageCount(10);
         }
     }
 
     @Test
-    void legacyMembershipWithoutHistoryFieldGetsJoinHistory() {
+    void changingHistoryCountAppliesToExistingMembersWithoutWrites() {
         String roomId = createOpenRoom("owner-1");
         appendMessages(roomId, "owner-1", 12);
         service.joinRoom(new JoinRoomCommand(
                 "user-2", requestId(), roomId));
-        String membershipId = membership(roomId, "user-2").membershipId();
-        mongoOperations.updateFirst(
-                Query.query(Criteria.where("_id").is(membershipId)),
-                new org.springframework.data.mongodb.core.query.Update()
-                        .unset("historyVisibleAfterSequence"),
-                MongoMembershipDocument.COLLECTION_NAME);
-        assertThat(mongoOperations.getCollection(
-                        MongoMembershipDocument.COLLECTION_NAME)
-                .find(new org.bson.Document("_id", membershipId))
-                .first())
-                .doesNotContainKey("historyVisibleAfterSequence");
-
-        Membership legacy = membership(roomId, "user-2");
-        service.joinRoom(new JoinRoomCommand(
-                "user-2", requestId(), roomId));
-
-        assertThat(legacy.messageVisibleAfterSequence()).isEqualTo(12);
-        assertThat(legacy.historyVisibleAfterSequence()).isEqualTo(2);
-        assertThat(accessReader.readAccess("user-2", roomId)
-                .messageVisibleAfterSequence()).isEqualTo(2);
-        assertThat(membership(roomId, "user-2")).isEqualTo(legacy);
-    }
-
-    @Test
-    void joinHistoryIsClampedAndCanBeDisabled() {
-        String roomId = createOpenRoom("owner-1");
-        appendMessages(roomId, "owner-1", 3);
-        service.joinRoom(new JoinRoomCommand(
-                "user-2", requestId(), roomId));
-        membershipProperties.setJoinHistoryMessageCount(0);
+        Membership joined = membership(roomId, "user-2");
         try {
-            service.joinRoom(new JoinRoomCommand(
-                    "user-3", requestId(), roomId));
+            assertThat(historyBoundary("user-2", roomId)).isEqualTo(2);
+            membershipProperties.setJoinHistoryMessageCount(20);
+            assertThat(historyBoundary("user-2", roomId)).isZero();
+            membershipProperties.setJoinHistoryMessageCount(0);
+            assertThat(historyBoundary("user-2", roomId)).isEqualTo(12);
+            membershipProperties.setJoinHistoryMessageCount(5);
+            assertThat(historyBoundary("user-2", roomId)).isEqualTo(7);
         } finally {
             membershipProperties.setJoinHistoryMessageCount(10);
         }
 
-        assertThat(membership(roomId, "user-2")
-                .historyVisibleAfterSequence()).isZero();
-        assertThat(membership(roomId, "user-3")
-                .historyVisibleAfterSequence()).isEqualTo(3);
-        assertThat(membership(roomId, "owner-1")
-                .historyVisibleAfterSequence()).isZero();
+        assertThat(membership(roomId, "user-2")).isEqualTo(joined);
+        assertThat(joined.messageVisibleAfterSequence()).isEqualTo(12);
+        assertThat(historyBoundary("owner-1", roomId)).isZero();
     }
 
     @Test
@@ -2348,6 +2316,11 @@ class RoomCommandServiceIntegrationTest
                 visibility,
                 joinPolicyPresent,
                 joinPolicy);
+    }
+
+    private long historyBoundary(String userId, String roomId) {
+        return accessReader.readAccess(userId, roomId)
+                .messageVisibleAfterSequence();
     }
 
     private Membership membership(
