@@ -191,6 +191,55 @@ describe("admin domain response contracts", () => {
     ).toBe("잔액이 부족합니다.");
   });
 
+  it("시뮬레이션 거절 사유를 공통 충돌 문구 대신 구체적으로 보여 준다", () => {
+    expect(
+      formatSimulationProblem({
+        code: "SIMULATION_ACTIVE_RUN_EXISTS",
+        detail: "The administrator already has an active simulation.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe(
+      "현재 진행 중인 시뮬레이션이 있어 지금은 실행할 수 없습니다. 진행 중인 작업이 끝난 뒤 다시 실행해 주세요.",
+    );
+    expect(
+      formatSimulationProblem({
+        code: "INSUFFICIENT_BALANCE",
+        detail: "The shared simulation wallet has insufficient available balance.",
+        status: 409,
+        traceId: "trace-3",
+        violations: [],
+      }),
+    ).toBe("시뮬레이션 잔액이 부족해 실행할 수 없습니다. 잔액을 확인해 주세요. 문의 코드: trace-3");
+    expect(
+      formatSimulationProblem({
+        code: "STALE_BILLING_PREVIEW",
+        detail: "Pricing changed. Request a new preview before starting.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("요금 기준이 바뀌었습니다. 예상 비용을 다시 확인한 뒤 실행해 주세요.");
+    expect(
+      formatSimulationProblem({
+        code: "COUPON_ALREADY_REDEEMED",
+        detail: "The coupon was already redeemed.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("이미 사용된 쿠폰입니다.");
+    expect(
+      formatSimulationProblem({
+        code: "SIMULATION_TIMEOUT",
+        detail: "Simulation deadline expired.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("시뮬레이션 마감 시간이 지나 더 진행할 수 없습니다.");
+    expect(formatSimulationProblem({ code: "UNKNOWN_CONFLICT", status: 409, violations: [] })).toBe(
+      "다른 변경과 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.",
+    );
+  });
+
   it("투표·토론방 오류는 서버 원문 처리를 바꾸지 않는다", () => {
     expect(
       formatAdminProblem({

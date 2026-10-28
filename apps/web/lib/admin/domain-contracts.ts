@@ -416,8 +416,34 @@ export function formatAdminProblem(
     : `${base} 문의 코드: ${problem.traceId}`;
 }
 
+/**
+ * Korean copy for the simulation service's refusal codes. Its details are English, so without
+ * these every 409 would collapse into the generic conflict message and hide the real reason.
+ */
+const SIMULATION_CODE_MESSAGES: Readonly<Record<string, string>> = {
+  SIMULATION_ACTIVE_RUN_EXISTS:
+    "현재 진행 중인 시뮬레이션이 있어 지금은 실행할 수 없습니다. 진행 중인 작업이 끝난 뒤 다시 실행해 주세요.",
+  INSUFFICIENT_BALANCE: "시뮬레이션 잔액이 부족해 실행할 수 없습니다. 잔액을 확인해 주세요.",
+  STALE_BILLING_PREVIEW: "요금 기준이 바뀌었습니다. 예상 비용을 다시 확인한 뒤 실행해 주세요.",
+  BILLING_EVIDENCE_UNAVAILABLE:
+    "요금 산정 정보를 확인할 수 없어 지금은 실행할 수 없습니다. 관리자에게 문의해 주세요.",
+  IDEMPOTENCY_CONFLICT:
+    "같은 요청이 다른 내용으로 이미 접수되었습니다. 화면을 새로 고친 뒤 다시 시도해 주세요.",
+  SIMULATION_CANCELLATION_CLOSED: "AI 응답 생성이 이미 시작되어 취소할 수 없습니다.",
+  SIMULATION_RETRY_BACKOFF_ACTIVE:
+    "AI 서버 대기 시간이 아직 끝나지 않았습니다. 잠시 후 다시 시도해 주세요.",
+  SIMULATION_RETRY_NOT_AVAILABLE: "지금은 실패한 응답을 다시 시도할 수 없는 상태입니다.",
+  SIMULATION_EXECUTION_CONTEXT_UNAVAILABLE:
+    "실패한 응답의 실행 정보가 남아 있지 않아 다시 시도할 수 없습니다.",
+  MANUAL_RETRY_EXHAUSTED: "다시 시도는 한 번만 할 수 있으며 이미 사용했습니다.",
+  SIMULATION_TIMEOUT: "시뮬레이션 마감 시간이 지나 더 진행할 수 없습니다.",
+  COUPON_ALREADY_REDEEMED: "이미 사용된 쿠폰입니다.",
+};
+
 /** Simulation service details are English, so only Korean copy reaches the screen. */
 export function formatSimulationProblem(problem: AdminProblem): string {
+  const message = SIMULATION_CODE_MESSAGES[problem.code];
+  if (message) return problem.traceId ? `${message} 문의 코드: ${problem.traceId}` : message;
   return formatAdminProblem(problem, { localizeDetail: true });
 }
 
