@@ -304,6 +304,8 @@ export function SimulationSetup({
           const initial = initialRunSetup(nextOptions, requestedPersonaCount, latestSettings);
           setPersonaCount(initial.personaCount);
           setFilters(initial.filters);
+          // 이어받은 조건이 있으면 접힌 채로 실행하지 않도록 조건 패널을 펼쳐 보여준다.
+          if (Object.keys(initial.filters).some((key) => key !== "regions")) setPanelOpen(true);
           setMessage("");
         })
         .catch((error: unknown) =>
