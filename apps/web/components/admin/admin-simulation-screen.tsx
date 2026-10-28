@@ -280,6 +280,7 @@ export function SimulationSetup({
   const { pending, start, startMessage } = useStartSimulation(
     taskId,
     onStarted ? handleStarted : undefined,
+    resetPreview,
   );
 
   useEffect(() => {
@@ -851,7 +852,11 @@ export function useSimulationResponses(
   };
 }
 
-function useStartSimulation(taskId: string | null, onStarted?: (view: SimulationView) => void) {
+function useStartSimulation(
+  taskId: string | null,
+  onStarted?: (view: SimulationView) => void,
+  onStalePreview?: () => void,
+) {
   const router = useRouter();
   const requestRef = useRef<{ key: string; signature: string } | null>(null);
   const [pending, setPending] = useState(false);
@@ -874,8 +879,12 @@ function useStartSimulation(taskId: string | null, onStarted?: (view: Simulation
           pricingFingerprint,
           requestRef.current.key,
         );
-        if (!response.ok)
-          return setMessage(formatSimulationProblem(await readAdminProblem(response)));
+        if (!response.ok) {
+          const problem = await readAdminProblem(response);
+          // 요금 기준이 바뀌면 같은 미리보기로는 계속 거절되므로 비용 확인부터 다시 하게 한다.
+          if (problem.code === "STALE_BILLING_PREVIEW") onStalePreview?.();
+          return setMessage(formatSimulationProblem(problem));
+        }
         const created = readSimulationView(await response.json());
         if (!created) return setMessage("서버의 실행 요청 응답 형식을 확인해야 합니다.");
         requestRef.current = null;
@@ -891,7 +900,7 @@ function useStartSimulation(taskId: string | null, onStarted?: (view: Simulation
         setPending(false);
       }
     },
-    [onStarted, router, taskId],
+    [onStalePreview, onStarted, router, taskId],
   );
 
   return { pending, start, startMessage: message };

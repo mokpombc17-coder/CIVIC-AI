@@ -218,7 +218,23 @@ describe("admin domain response contracts", () => {
         status: 409,
         violations: [],
       }),
-    ).not.toContain("다른 변경과 충돌했습니다");
+    ).toBe("요금 기준이 바뀌었습니다. 예상 비용을 다시 확인한 뒤 실행해 주세요.");
+    expect(
+      formatSimulationProblem({
+        code: "COUPON_ALREADY_REDEEMED",
+        detail: "The coupon was already redeemed.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("이미 사용된 쿠폰입니다.");
+    expect(
+      formatSimulationProblem({
+        code: "SIMULATION_TIMEOUT",
+        detail: "Simulation deadline expired.",
+        status: 409,
+        violations: [],
+      }),
+    ).toBe("시뮬레이션 마감 시간이 지나 더 진행할 수 없습니다.");
     expect(formatSimulationProblem({ code: "UNKNOWN_CONFLICT", status: 409, violations: [] })).toBe(
       "다른 변경과 충돌했습니다. 최신 상태를 확인한 뒤 다시 시도해 주세요.",
     );

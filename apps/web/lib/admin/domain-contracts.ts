@@ -436,6 +436,8 @@ const SIMULATION_CODE_MESSAGES: Readonly<Record<string, string>> = {
   SIMULATION_EXECUTION_CONTEXT_UNAVAILABLE:
     "실패한 응답의 실행 정보가 남아 있지 않아 다시 시도할 수 없습니다.",
   MANUAL_RETRY_EXHAUSTED: "다시 시도는 한 번만 할 수 있으며 이미 사용했습니다.",
+  SIMULATION_TIMEOUT: "시뮬레이션 마감 시간이 지나 더 진행할 수 없습니다.",
+  COUPON_ALREADY_REDEEMED: "이미 사용된 쿠폰입니다.",
 };
 
 /** Simulation service details are English, so only Korean copy reaches the screen. */
