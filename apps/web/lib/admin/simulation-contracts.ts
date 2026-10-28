@@ -264,6 +264,21 @@ export function readSimulationOptions(value: unknown): SimulationOptions | null 
   return parsed.success ? parsed.data : null;
 }
 
+const simulationRunSettingsSchema = z
+  .object({
+    personaCount: z.number().int().positive(),
+    filters: z.record(z.string(), z.array(z.string().min(1))),
+  })
+  .strict();
+
+export type SimulationRunSettings = z.infer<typeof simulationRunSettingsSchema>;
+
+// 직전 실행의 인원·조건. 이전 실행이 없거나 형식이 다르면 null.
+export function readSimulationRunSettings(value: unknown): SimulationRunSettings | null {
+  const parsed = simulationRunSettingsSchema.safeParse(value);
+  return parsed.success ? parsed.data : null;
+}
+
 export function readSimulationCapacity(value: unknown): SimulationCapacity | null {
   const parsed = simulationCapacitySchema.safeParse(value);
   return parsed.success ? parsed.data : null;
