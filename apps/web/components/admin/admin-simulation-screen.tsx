@@ -49,11 +49,13 @@ import {
   readSimulationOptions,
   readSimulationResult,
   readSimulationResponsePage,
+  readSimulationRunSettings,
   readSimulationView,
   type SimulationCapacity,
   type SimulationOptions,
   type SimulationResult,
   type SimulationResponsePage,
+  type SimulationRunSettings,
   type SimulationState,
   type SimulationView,
 } from "@/lib/admin/simulation-contracts";
@@ -289,22 +291,21 @@ export function SimulationSetup({
       void Promise.all([
         loadSimulationTarget(taskId),
         authenticatedFetch("/api/v1/admin/simulation-options", { cache: "no-store" }),
+        loadLatestRunSettings(taskId),
       ])
-        .then(async ([nextTarget, optionsResponse]) => {
+        .then(async ([nextTarget, optionsResponse, latestSettings]) => {
           if (!optionsResponse.ok)
             throw new Error(formatSimulationProblem(await readAdminProblem(optionsResponse)));
           const nextOptions = readSimulationOptions(await optionsResponse.json());
           if (!nextOptions) throw new Error("서버 응답 형식을 확인해야 합니다.");
           setTarget(nextTarget);
           setOptions(nextOptions);
-          const nextLimits = simulationPersonaCountLimits(nextOptions);
-          setPersonaCount(
-            requestedPersonaCount &&
-              isPersonaCountWithinLimit(requestedPersonaCount, nextLimits.min, nextLimits.max)
-              ? requestedPersonaCount
-              : nextLimits.min,
-          );
-          setFilters({ regions: nextOptions.filters.regions });
+          // 다시 실행할 때 직전 실행의 인원·조건(예: 10대 이하 제외)을 그대로 이어받는다.
+          const initial = initialRunSetup(nextOptions, requestedPersonaCount, latestSettings);
+          setPersonaCount(initial.personaCount);
+          setFilters(initial.filters);
+          // 이어받은 조건이 있으면 접힌 채로 실행하지 않도록 조건 패널을 펼쳐 보여준다.
+          if (Object.keys(initial.filters).some((key) => key !== "regions")) setPanelOpen(true);
           setMessage("");
         })
         .catch((error: unknown) =>
@@ -1287,6 +1288,51 @@ export function buildDefaultSimulationRunInput(
     sampleSeed: null,
     filters: filters ?? { regions: options.filters.regions },
   };
+}
+
+export async function loadLatestRunSettings(
+  taskId: string,
+  request: typeof fetch = authenticatedFetch,
+): Promise<SimulationRunSettings | null> {
+  try {
+    const response = await request(
+      `/api/v1/admin/simulation-tasks/${encodeURIComponent(taskId)}/run-settings`,
+      { cache: "no-store" },
+    );
+    // 서버가 아직 이 API를 모르면 기본값으로 시작한다.
+    if (!response.ok) return null;
+    return readSimulationRunSettings(await response.json());
+  } catch {
+    return null;
+  }
+}
+
+const RUN_FILTER_GROUPS = {
+  genders: "genders",
+  age_groups: "ageGroups",
+  political_ideologies: "politicalIdeologies",
+} as const satisfies Record<string, keyof SimulationOptions["filters"]>;
+
+export function initialRunSetup(
+  options: SimulationOptions,
+  requestedPersonaCount: number | null,
+  latest: SimulationRunSettings | null,
+): { personaCount: number; filters: Record<string, readonly string[]> } {
+  const limits = simulationPersonaCountLimits(options);
+  const withinLimit = (count: number | null | undefined): count is number =>
+    typeof count === "number" && isPersonaCountWithinLimit(count, limits.min, limits.max);
+  const personaCount = withinLimit(requestedPersonaCount)
+    ? requestedPersonaCount
+    : withinLimit(latest?.personaCount)
+      ? latest.personaCount
+      : limits.min;
+  const filters: Record<string, readonly string[]> = { regions: options.filters.regions };
+  for (const [key, optionKey] of Object.entries(RUN_FILTER_GROUPS)) {
+    const allowed = new Set(options.filters[optionKey]);
+    const values = (latest?.filters[key] ?? []).filter((value) => allowed.has(value));
+    if (values.length > 0) filters[key] = values;
+  }
+  return { personaCount, filters };
 }
 
 function simulationPersonaCountLimits(options: SimulationOptions) {
