@@ -10,6 +10,7 @@ import {
   type KeyboardEvent,
   type ReactNode,
 } from "react";
+import { CREATE_ROOM_NAME_MAX_LENGTH } from "@/components/chat/create-chat-room-form-model";
 import {
   RoomCreationRequestListContent,
   type RoomCreationRequestListContentProps,
@@ -202,14 +203,18 @@ export function CreateChatRoomFormView({
                 </div>
               ) : null}
 
-              <RequestField id="create-room-name" label="제목" maxLength={100}>
+              <RequestField
+                id="create-room-name"
+                label="제목"
+                maxLength={CREATE_ROOM_NAME_MAX_LENGTH}
+              >
                 <input
                   autoFocus={activeView === "request"}
                   aria-describedby="create-room-name-help"
                   className={INPUT_CLASS_NAME}
                   disabled={isPending}
                   id="create-room-name"
-                  maxLength={100}
+                  maxLength={CREATE_ROOM_NAME_MAX_LENGTH}
                   minLength={1}
                   name="name"
                   placeholder="예) 청년 주거 정책 같이 보기..."

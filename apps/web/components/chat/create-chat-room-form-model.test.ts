@@ -44,6 +44,23 @@ describe("create chat room form model", () => {
     }
   });
 
+  it("목록 카드에서 잘리지 않도록 제목을 16자까지만 받는다", () => {
+    expect(
+      parseCreateChatRoomFormData(
+        createFormData({ name: "우리 동네 교통 개선 아이디어", description: "의견을 나눠요." }),
+      ).success,
+    ).toBe(true);
+
+    const result = parseCreateChatRoomFormData(
+      createFormData({ name: "우리 동네 교통 개선 아이디어들", description: "의견을 나눠요." }),
+    );
+
+    expect(result.success).toBe(false);
+    if (!result.success) {
+      expect(result.error.issues[0]?.message).toBe("제목은 16자 이하로 입력해 주세요.");
+    }
+  });
+
   it("APPROVED 결과만 생성된 Room 화면으로 연결한다", () => {
     expect(resolveCreateChatRoomResultDestination(APPROVED_RESPONSE)).toEqual({
       href: "/chat/room-123",
@@ -125,10 +142,11 @@ const CREATION_REQUEST_RESPONSES = {
 function createFormData(
   patch: Readonly<{
     description?: string;
+    name?: string;
   }> = {},
 ): FormData {
   const formData = new FormData();
-  formData.set("name", "시민 AI 토론방");
+  formData.set("name", patch.name ?? "시민 AI 토론방");
   formData.set("description", patch.description ?? "");
   formData.set("visibility", "LISTED");
   formData.set("joinPolicy", "OPEN");
