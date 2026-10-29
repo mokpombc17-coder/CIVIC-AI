@@ -13,8 +13,15 @@ export type VoteTaskListItemPresentation = Readonly<{
   sourceLabel?: "디자인 샘플";
 }>;
 
-export function sortOpenTasksByLatest(tasks: readonly UserTaskSummary[]): UserTaskSummary[] {
-  return sortTasksByTimestamp(tasks, (task) => task.openedAt);
+export function sortOpenTasksUnsubmittedFirst(
+  tasks: readonly UserTaskSummary[],
+): UserTaskSummary[] {
+  // 진행 중 목록에서 아직 참여할 투표가 참여 완료 투표 아래로 밀리지 않도록 미참여 묶음을 먼저 두고, 각 묶음 안은 기존처럼 최신순 유지
+  const latestFirst = sortTasksByTimestamp(tasks, (task) => task.openedAt);
+  return [
+    ...latestFirst.filter((task) => !task.submission.submitted),
+    ...latestFirst.filter((task) => task.submission.submitted),
+  ];
 }
 
 export function sortCompletedTasksByLatest(

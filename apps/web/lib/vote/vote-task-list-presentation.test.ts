@@ -3,7 +3,7 @@ import {
   presentOpenTask,
   presentSearchTask,
   sortCompletedTasksByLatest,
-  sortOpenTasksByLatest,
+  sortOpenTasksUnsubmittedFirst,
 } from "./vote-task-list-presentation";
 
 const TASK_ID = "0f6e8c4f-87d0-4f6e-87b7-c3635c3c96b7";
@@ -66,9 +66,58 @@ describe("Vote task list presentation", () => {
       openedAt: "2026-08-28T00:00:00Z",
     };
 
-    expect(sortOpenTasksByLatest([olderTask, latestTask]).map((task) => task.title)).toEqual([
-      "최신 투표",
-      "이전 투표",
+    expect(
+      sortOpenTasksUnsubmittedFirst([olderTask, latestTask]).map((task) => task.title),
+    ).toEqual(["최신 투표", "이전 투표"]);
+  });
+
+  it("진행 중인 투표에서 참여 완료 투표를 미참여 투표 뒤에 두고 각 묶음 안은 최신순으로 정렬한다", () => {
+    const unsubmitted = { submitted: false as const, submissionId: null, submittedAt: null };
+    const submitted = {
+      submitted: true as const,
+      submissionId: SUBMISSION_ID,
+      submittedAt: "2026-08-29T00:00:00Z",
+    };
+    const baseTask = {
+      description: null,
+      closesAt: "2026-08-31T00:00:00Z",
+    };
+    const tasks = [
+      {
+        ...baseTask,
+        taskId: "11111111-1111-1111-1111-111111111111",
+        title: "이전 미참여",
+        openedAt: "2026-08-20T00:00:00Z",
+        submission: unsubmitted,
+      },
+      {
+        ...baseTask,
+        taskId: "22222222-2222-2222-2222-222222222222",
+        title: "최신 참여 완료",
+        openedAt: "2026-08-28T00:00:00Z",
+        submission: submitted,
+      },
+      {
+        ...baseTask,
+        taskId: "33333333-3333-3333-3333-333333333333",
+        title: "최신 미참여",
+        openedAt: "2026-08-27T00:00:00Z",
+        submission: unsubmitted,
+      },
+      {
+        ...baseTask,
+        taskId: "44444444-4444-4444-4444-444444444444",
+        title: "이전 참여 완료",
+        openedAt: "2026-08-10T00:00:00Z",
+        submission: submitted,
+      },
+    ];
+
+    expect(sortOpenTasksUnsubmittedFirst(tasks).map((task) => task.title)).toEqual([
+      "최신 미참여",
+      "이전 미참여",
+      "최신 참여 완료",
+      "이전 참여 완료",
     ]);
   });
 

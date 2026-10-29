@@ -24,7 +24,7 @@ import {
   presentOpenTask,
   presentSearchTask,
   sortCompletedTasksByLatest,
-  sortOpenTasksByLatest,
+  sortOpenTasksUnsubmittedFirst,
   type VoteTaskListItemPresentation,
 } from "@/lib/vote/vote-task-list-presentation";
 import {
@@ -67,7 +67,7 @@ export function VoteTaskListScreen({
   );
   const searchTasksQuery = useTaskSearchQuery(query, 20, hasSearchQuery);
   const activeTasks = useMemo(
-    () => sortOpenTasksByLatest(openTasksQuery.data ?? []).map(presentOpenTask),
+    () => sortOpenTasksUnsubmittedFirst(openTasksQuery.data ?? []).map(presentOpenTask),
     [openTasksQuery.data],
   );
   const actualCompletedTasks = useMemo(
