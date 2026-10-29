@@ -1,4 +1,4 @@
-const MOBILE_PRIMARY_POINTER_QUERY = "(hover: none) and (pointer: coarse)";
+export const MOBILE_PRIMARY_POINTER_QUERY = "(hover: none) and (pointer: coarse)";
 
 type MatchMedia = (query: string) => Pick<MediaQueryList, "matches">;
 type PreventableEvent = Pick<Event, "preventDefault">;

@@ -7,8 +7,8 @@ import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
 import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
+import { usePressFeedbackNavigation } from "@/components/use-press-feedback-navigation";
 import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
-import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 import { isVoteAuthenticationRequired, VoteApiError } from "@/lib/vote/vote-fetch";
 import { votePublishingCompletedList } from "@/lib/vote/vote-publishing-fixtures";
 import {
@@ -459,6 +459,8 @@ function VoteTaskListEmptyState({
 }
 
 function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
+  const pressNavigation = usePressFeedbackNavigation(task.actionHref);
+
   return (
     <li aria-disabled={task.actionHref ? undefined : true} className={styles.taskCard}>
       {task.actionHref ? (
@@ -467,7 +469,7 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
           className={`${styles.taskCardLink} select-none [-webkit-touch-callout:none]`}
           draggable={false}
           href={task.actionHref}
-          onContextMenu={preventMobileLinkContextMenu}
+          {...pressNavigation}
           title={task.title}
         />
       ) : null}

@@ -40,6 +40,7 @@ import { getChatRoomUnreadBadgePresentation } from "@/components/chat/chat-room-
 import { PublicRoomSearchForm } from "@/components/chat/public-room-search-form";
 import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
+import { usePressFeedbackNavigation } from "@/components/use-press-feedback-navigation";
 import type { PublicRoomSearchController } from "@/components/chat/use-public-room-search";
 import type { PublicRoomListItem, RoomInboxListItem } from "@/lib/chat/chat-room-contracts";
 import {
@@ -47,7 +48,6 @@ import {
   isChatAuthenticationRequired,
 } from "@/lib/chat/chat-authentication-required";
 import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-presentation";
-import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 
 const PUBLIC_ROOM_HIGHLIGHT_DURATION_MS = 1_600;
 const ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX = 2;
@@ -429,6 +429,8 @@ export function MyRoomCard({
 }>) {
   const memberCount = getChatRoomMemberCountPresentation(room.activeMemberCount);
   const unread = getChatRoomUnreadBadgePresentation(room.unreadCount, room.unreadCountCapped);
+  const roomHref = `/chat/${room.roomId}` as const;
+  const pressNavigation = usePressFeedbackNavigation(roomHref);
 
   return (
     <article
@@ -439,8 +441,8 @@ export function MyRoomCard({
         aria-label={`${room.name} 토론방 입장`}
         className="peer absolute inset-0 z-0 cursor-pointer select-none rounded-[var(--chat-publishing-radius-card)] [-webkit-touch-callout:none] focus-visible:outline-none"
         draggable={false}
-        href={`/chat/${room.roomId}`}
-        onContextMenu={preventMobileLinkContextMenu}
+        href={roomHref}
+        {...pressNavigation}
         title={room.name}
       >
         <span className="sr-only">{room.name} 토론방 입장</span>
