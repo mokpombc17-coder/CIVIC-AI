@@ -208,10 +208,12 @@
   border-color: var(--vote-primary);
 }
 
+/* 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 누를 때는 색과 크기를 즉시 바꾸고 뗄 때만 서서히 되돌림 */
 .taskCardLink:active + .taskCardSurface {
   border-color: transparent;
   background: var(--vote-soft);
   transform: scale(0.9);
+  transition: none;
 }
 
 .taskSkeletonCard {

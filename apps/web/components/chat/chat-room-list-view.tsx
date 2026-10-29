@@ -530,9 +530,10 @@ function RoomCardInteractionSurface({
   children: ReactNode;
   highlighted?: boolean;
 }>) {
+  // 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 누를 때는 색과 크기를 즉시 바꾸고 뗄 때만 서서히 되돌림
   return (
     <div
-      className={`pointer-events-none absolute inset-0 z-[1] isolate grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--chat-publishing-radius-card)] border border-transparent bg-white px-5 py-4 transition-[background-color,transform] duration-[180ms] ease-in-out after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:bg-[var(--chat-publishing-color-accent-soft)] after:transition-opacity after:duration-700 after:content-[''] peer-hover:bg-[var(--chat-publishing-color-accent-soft)] peer-focus-visible:border-[var(--chat-publishing-color-primary)] peer-active:[transform:scale(0.90)] peer-active:!border-transparent peer-active:bg-[var(--chat-publishing-color-accent-soft)] motion-reduce:!transform-none motion-reduce:transition-none motion-reduce:after:transition-none [&>*]:relative [&>*]:z-[1] ${
+      className={`pointer-events-none absolute inset-0 z-[1] isolate grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--chat-publishing-radius-card)] border border-transparent bg-white px-5 py-4 transition-[background-color,transform] duration-[180ms] ease-in-out after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:bg-[var(--chat-publishing-color-accent-soft)] after:transition-opacity after:duration-700 after:content-[''] peer-hover:bg-[var(--chat-publishing-color-accent-soft)] peer-focus-visible:border-[var(--chat-publishing-color-primary)] peer-active:[transform:scale(0.90)] peer-active:!border-transparent peer-active:bg-[var(--chat-publishing-color-accent-soft)] peer-active:transition-none motion-reduce:!transform-none motion-reduce:transition-none motion-reduce:after:transition-none [&>*]:relative [&>*]:z-[1] ${
         highlighted ? "after:opacity-100" : "after:opacity-0"
       }`}
     >
