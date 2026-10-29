@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import { ChatRoomCategoryBadges } from "@/components/chat/chat-room-category-badges";
-import { useCallback, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+  type Ref,
+  type RefObject,
+} from "react";
 import { ChatRoomInboxFilterControl } from "@/components/chat/chat-room-inbox-filter-control";
 import type { ChatRoomInboxFilterController } from "@/components/chat/chat-room-inbox-filter";
 import {
@@ -42,7 +50,7 @@ import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-p
 import { preventMobileLinkContextMenu } from "@/lib/ui/mobile-link-interaction";
 
 const PUBLIC_ROOM_HIGHLIGHT_DURATION_MS = 1_600;
-const PUBLIC_ROOM_SCROLL_EDGE_TOLERANCE_PX = 2;
+const ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX = 2;
 
 type PublicRoomLoadRequest = {
   observedFetching: boolean;
@@ -93,7 +101,13 @@ export function ChatRoomListView({
   roomDetail,
   toggleCreateRoomForm,
 }: ChatRoomListViewProps) {
+  const participatingRoomListRef = useRef<HTMLUListElement>(null);
   const publicRoomListRef = useRef<HTMLUListElement>(null);
+  const participatingRoomListScroll = useRoomListBottomGradient(
+    participatingRoomListRef,
+    participatingRooms.rooms,
+  );
+  const publicRoomListScroll = useRoomListBottomGradient(publicRoomListRef, publicRooms.rooms);
   const publicRoomLoadRequestRef = useRef<PublicRoomLoadRequest | null>(null);
   const [publicRoomLoadFeedback, setPublicRoomLoadFeedback] = useState<PublicRoomLoadFeedback>({
     announcement: "",
@@ -101,7 +115,6 @@ export function ChatRoomListView({
     highlightedRoomId: null,
     query: publicRoomSearch.appliedQuery,
   });
-  const [isPublicRoomBottomGradientVisible, setIsPublicRoomBottomGradientVisible] = useState(false);
   const isOverlayOpen = isCreateRoomOpen || roomDetail.selection !== null;
   const hasAppliedPublicRoomSearch = Boolean(publicRoomSearch.appliedQuery);
   const hasCurrentPublicRoomLoadFeedback =
@@ -114,15 +127,6 @@ export function ChatRoomListView({
   const publicRoomLoadAnnouncement = hasCurrentPublicRoomLoadFeedback
     ? publicRoomLoadFeedback.announcement
     : "";
-  const updatePublicRoomBottomGradient = useCallback(() => {
-    const nextVisible = publicRoomListRef.current
-      ? shouldShowPublicRoomBottomGradient(publicRoomListRef.current)
-      : false;
-
-    setIsPublicRoomBottomGradientVisible((current) =>
-      current === nextVisible ? current : nextVisible,
-    );
-  }, []);
   const overlay = isCreateRoomOpen ? (
     <CreateChatRoomForm onCancel={closeCreateRoomForm} />
   ) : roomDetail.selection ? (
@@ -186,18 +190,6 @@ export function ChatRoomListView({
 
     return () => window.clearTimeout(timeout);
   }, [highlightedPublicRoomId]);
-
-  useEffect(() => {
-    updatePublicRoomBottomGradient();
-
-    const publicRoomList = publicRoomListRef.current;
-    if (!publicRoomList || typeof ResizeObserver === "undefined") return;
-
-    const resizeObserver = new ResizeObserver(updatePublicRoomBottomGradient);
-    resizeObserver.observe(publicRoomList);
-
-    return () => resizeObserver.disconnect();
-  }, [publicRooms.rooms, updatePublicRoomBottomGradient]);
 
   function loadMorePublicRooms() {
     if (publicRooms.isFetchingNextPage) return;
@@ -289,23 +281,28 @@ export function ChatRoomListView({
               variant="no-participating-rooms"
             />
           ) : participatingRooms.rooms.length > 0 ? (
-            <ul
-              aria-label="참여 중인 토론방"
-              className={PARTICIPATING_ROOM_LIST_CLASS_NAME}
-              tabIndex={0}
-            >
-              {participatingRooms.rooms.map((room) => (
-                <li key={room.roomId}>
-                  <MyRoomCard
-                    isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
-                    onOpenDetails={(trigger) =>
-                      roomDetail.open({ kind: "participating", room }, trigger)
-                    }
-                    room={room}
-                  />
-                </li>
-              ))}
-            </ul>
+            <div className="relative">
+              <ul
+                aria-label="참여 중인 토론방"
+                className={PARTICIPATING_ROOM_LIST_CLASS_NAME}
+                onScroll={participatingRoomListScroll.update}
+                ref={participatingRoomListRef}
+                tabIndex={0}
+              >
+                {participatingRooms.rooms.map((room) => (
+                  <li key={room.roomId}>
+                    <MyRoomCard
+                      isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
+                      onOpenDetails={(trigger) =>
+                        roomDetail.open({ kind: "participating", room }, trigger)
+                      }
+                      room={room}
+                    />
+                  </li>
+                ))}
+              </ul>
+              <RoomListBottomGradient visible={participatingRoomListScroll.visible} />
+            </div>
           ) : null}
 
           <PlatformLoadMoreButton
@@ -359,7 +356,7 @@ export function ChatRoomListView({
                 <ul
                   aria-label="공개 토론방"
                   className={PUBLIC_ROOM_LIST_CLASS_NAME}
-                  onScroll={updatePublicRoomBottomGradient}
+                  onScroll={publicRoomListScroll.update}
                   ref={publicRoomListRef}
                   tabIndex={0}
                 >
@@ -376,7 +373,7 @@ export function ChatRoomListView({
                     </li>
                   ))}
                 </ul>
-                <PublicRoomBottomGradient visible={isPublicRoomBottomGradientVisible} />
+                <RoomListBottomGradient visible={publicRoomListScroll.visible} />
               </div>
             ) : null}
 
@@ -692,12 +689,40 @@ function RoomListNotice({
   );
 }
 
-function PublicRoomBottomGradient({ visible }: Readonly<{ visible: boolean }>) {
+// 목록 안에서 스크롤해야 볼 수 있는 방이 남아 있을 때만 하단 gradient를 보여, 상자 높이에서 잘린 카드가 아래로 이어진다는 단서를 줌
+function useRoomListBottomGradient(
+  listRef: RefObject<HTMLUListElement | null>,
+  rooms: readonly unknown[],
+) {
+  const [visible, setVisible] = useState(false);
+  const update = useCallback(() => {
+    const nextVisible = listRef.current ? shouldShowRoomListBottomGradient(listRef.current) : false;
+
+    setVisible((current) => (current === nextVisible ? current : nextVisible));
+  }, [listRef]);
+
+  // 본문에서 읽지 않는 rooms는 방 목록이 바뀌어 넘침 여부가 달라질 때 다시 계산하게 하는 실행 계기임
+  useEffect(() => {
+    update();
+
+    const list = listRef.current;
+    if (!list || typeof ResizeObserver === "undefined") return;
+
+    const resizeObserver = new ResizeObserver(update);
+    resizeObserver.observe(list);
+
+    return () => resizeObserver.disconnect();
+  }, [listRef, rooms, update]);
+
+  return { update, visible };
+}
+
+function RoomListBottomGradient({ visible }: Readonly<{ visible: boolean }>) {
   return (
     <div
       aria-hidden="true"
       className={`pointer-events-none absolute inset-x-0 bottom-0 z-20 h-6 bg-gradient-to-t from-white/90 to-transparent motion-safe:transition-opacity motion-safe:duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
-      data-public-room-scroll-indicator="down"
+      data-room-list-scroll-indicator="down"
     />
   );
 }
@@ -709,17 +734,17 @@ export function findFirstNewPublicRoomIndex(
   return rooms.findIndex((room) => !previousRoomIds.has(room.roomId));
 }
 
-export function shouldShowPublicRoomBottomGradient(
+export function shouldShowRoomListBottomGradient(
   scrollContainer: Pick<HTMLElement, "clientHeight" | "scrollHeight" | "scrollTop">,
 ): boolean {
   const hasScrollableOverflow =
     scrollContainer.scrollHeight - scrollContainer.clientHeight >
-    PUBLIC_ROOM_SCROLL_EDGE_TOLERANCE_PX;
+    ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX;
 
   return (
     hasScrollableOverflow &&
     scrollContainer.scrollTop + scrollContainer.clientHeight <
-      scrollContainer.scrollHeight - PUBLIC_ROOM_SCROLL_EDGE_TOLERANCE_PX
+      scrollContainer.scrollHeight - ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX
   );
 }
 

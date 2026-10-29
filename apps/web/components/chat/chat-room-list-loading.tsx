@@ -7,8 +7,8 @@ import { PlatformHeader, PlatformShell } from "@/components/platform-shell";
 const SCROLLABLE_ROOM_LIST_CLASS_NAME =
   "grid scroll-p-1 gap-3 overflow-y-auto overscroll-auto focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]";
 
-export const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[252px]`;
-export const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[384px]`;
+export const PARTICIPATING_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[280px]`;
+export const PUBLIC_ROOM_LIST_CLASS_NAME = `${SCROLLABLE_ROOM_LIST_CLASS_NAME} max-h-[412px]`;
 export const PARTICIPATING_ROOM_SKELETON_KEYS = [
   "participating-first",
   "participating-second",

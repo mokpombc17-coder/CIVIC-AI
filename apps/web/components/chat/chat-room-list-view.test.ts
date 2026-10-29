@@ -14,7 +14,7 @@ import {
   MyRoomCard,
   PublicRoomCard,
   scrollPublicRoomIntoView,
-  shouldShowPublicRoomBottomGradient,
+  shouldShowRoomListBottomGradient,
 } from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
@@ -182,27 +182,37 @@ describe("chat room list publishing layout", () => {
 
   it("공개 방 목록 아래에 더 볼 내용이 있을 때 하단 gradient만 표시한다", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, undefined, [PUBLIC_ROOM]);
-    const indicatorClassName = /class="([^"]+)" data-public-room-scroll-indicator="down"/.exec(
+    const indicatorClassName = /class="([^"]+)" data-room-list-scroll-indicator="down"/.exec(
       html,
     )?.[1];
     const roomListClassName = /aria-label="공개 토론방" class="([^"]+)"/.exec(html)?.[1] ?? "";
 
-    expect(html).toContain('data-public-room-scroll-indicator="down"');
-    expect(html).not.toContain('data-public-room-scroll-indicator="up"');
-    expect(html).toMatch(/data-public-room-scroll-indicator="down"><\/div>/);
+    expect(html).toContain('data-room-list-scroll-indicator="down"');
+    expect(html).not.toContain('data-room-list-scroll-indicator="up"');
+    expect(html).toMatch(/data-room-list-scroll-indicator="down"><\/div>/);
     expect(indicatorClassName).toContain("h-6");
     expect(indicatorClassName).not.toContain("h-8");
     expect(` ${roomListClassName} `).not.toContain(" pr-1 ");
     expect(roomListClassName).not.toContain("scrollbar-gutter");
     expect(
-      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 0 }),
+      shouldShowRoomListBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 0 }),
     ).toBe(true);
     expect(
-      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 200 }),
+      shouldShowRoomListBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 200 }),
     ).toBe(true);
     expect(
-      shouldShowPublicRoomBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 416 }),
+      shouldShowRoomListBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 416 }),
     ).toBe(false);
+  });
+
+  it("참여한 방 목록에도 공개 방 목록과 같은 하단 gradient를 표시한다", () => {
+    const html = renderChatRoomListView("ALL", false, "empty", null, undefined, [], false, [
+      createRoomInboxItem(),
+    ]);
+
+    expect(html).toMatch(
+      /aria-label="참여 중인 토론방"[^>]*>.*<\/ul><div aria-hidden="true" class="[^"]+" data-room-list-scroll-indicator="down"><\/div>/,
+    );
   });
 
   it("목록 조회 오류는 상태 카드로, 각 목록 로딩은 실제 개수의 skeleton으로 표시한다", () => {
@@ -221,8 +231,8 @@ describe("chat room list publishing layout", () => {
     expect(loadingHtml.match(/data-chat-room-card-skeleton="true"/g)).toHaveLength(5);
     expect(loadingHtml).toContain('aria-label="참여 중인 토론방을 불러오는 중"');
     expect(loadingHtml).toContain('aria-label="참여 가능한 토론방을 불러오는 중"');
-    expect(loadingHtml).toContain("max-h-[252px]");
-    expect(loadingHtml).toContain("max-h-[384px]");
+    expect(loadingHtml).toContain("max-h-[280px]");
+    expect(loadingHtml).toContain("max-h-[412px]");
     expect(loadingHtml).toContain("motion-safe:animate-pulse");
     expect(loadingHtml).not.toContain("animate-spin");
     expect(loadingHtml).toContain("bg-[var(--chat-publishing-color-neutral-soft)]");
@@ -508,6 +518,7 @@ function renderChatRoomListView(
   appliedPublicRoomQuery?: string,
   publicRoomItems: readonly PublicRoomListItem[] = [],
   hasReachedActiveRoomLimit = false,
+  participatingRoomItems: readonly RoomInboxListItem[] = [],
 ): string {
   const queryClient = new QueryClient({
     defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
@@ -541,7 +552,7 @@ function renderChatRoomListView(
         hasReachedActiveRoomLimit,
         isCreateRoomOpen,
         participatingRoomFilter: { select: vi.fn(), value: filter },
-        participatingRooms: emptyListState,
+        participatingRooms: { ...emptyListState, rooms: participatingRoomItems },
         publicRoomSearch: createPublicRoomSearchController(appliedPublicRoomQuery),
         publicRooms: { ...emptyListState, rooms: publicRoomItems },
         roomDetail: { close: vi.fn(), open: vi.fn(), selection: roomDetailSelection },
