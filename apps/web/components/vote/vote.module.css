@@ -214,12 +214,12 @@
   transform: scale(0.9);
 }
 
-/* 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 터치 기기에서만 누를 때 색은 즉시 채우고 크기는 60Hz 화면 2프레임(33ms) 동안 줄인 뒤 뗄 때만 서서히 되돌림 */
+/* 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 터치 기기에서만 누를 때 색은 즉시 채우고 크기는 짧은 탭에서도 거의 끝까지 줄어들면서 줄어드는 과정이 보이는 60Hz 화면 4프레임(67ms) 동안 줄인 뒤 뗄 때만 서서히 되돌림 */
 @media (hover: none) and (pointer: coarse) {
   .taskCardLink:active + .taskCardSurface {
     transition:
       background-color 0s,
-      transform 33ms ease-out;
+      transform 67ms ease-out;
   }
 }
 

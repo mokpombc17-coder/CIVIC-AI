@@ -532,10 +532,10 @@ function RoomCardInteractionSurface({
   children: ReactNode;
   highlighted?: boolean;
 }>) {
-  // 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 터치 기기에서만 누를 때 색은 즉시 채우고 크기는 60Hz 화면 2프레임(33ms) 동안 줄인 뒤 뗄 때만 서서히 되돌림
+  // 모바일에서 짧게 탭하면 손을 떼기 전에 180ms 전환이 끝나지 않아 눌림 효과가 안 보였으므로, 터치 기기에서만 누를 때 색은 즉시 채우고 크기는 짧은 탭에서도 거의 끝까지 줄어들면서 줄어드는 과정이 보이는 60Hz 화면 4프레임(67ms) 동안 줄인 뒤 뗄 때만 서서히 되돌림
   return (
     <div
-      className={`pointer-events-none absolute inset-0 z-[1] isolate grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--chat-publishing-radius-card)] border border-transparent bg-white px-5 py-4 transition-[background-color,transform] duration-[180ms] ease-in-out after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:bg-[var(--chat-publishing-color-accent-soft)] after:transition-opacity after:duration-700 after:content-[''] peer-hover:bg-[var(--chat-publishing-color-accent-soft)] peer-focus-visible:border-[var(--chat-publishing-color-primary)] peer-active:[transform:scale(0.90)] peer-active:!border-transparent peer-active:bg-[var(--chat-publishing-color-accent-soft)] [@media(hover:none)_and_(pointer:coarse)]:peer-active:[transition:background-color_0s,transform_33ms_ease-out] motion-reduce:!transform-none motion-reduce:transition-none motion-reduce:after:transition-none [&>*]:relative [&>*]:z-[1] ${
+      className={`pointer-events-none absolute inset-0 z-[1] isolate grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 overflow-hidden rounded-[var(--chat-publishing-radius-card)] border border-transparent bg-white px-5 py-4 transition-[background-color,transform] duration-[180ms] ease-in-out after:pointer-events-none after:absolute after:inset-0 after:z-0 after:rounded-[inherit] after:bg-[var(--chat-publishing-color-accent-soft)] after:transition-opacity after:duration-700 after:content-[''] peer-hover:bg-[var(--chat-publishing-color-accent-soft)] peer-focus-visible:border-[var(--chat-publishing-color-primary)] peer-active:[transform:scale(0.90)] peer-active:!border-transparent peer-active:bg-[var(--chat-publishing-color-accent-soft)] [@media(hover:none)_and_(pointer:coarse)]:peer-active:[transition:background-color_0s,transform_67ms_ease-out] motion-reduce:!transform-none motion-reduce:transition-none motion-reduce:after:transition-none [&>*]:relative [&>*]:z-[1] ${
         highlighted ? "after:opacity-100" : "after:opacity-0"
       }`}
     >
