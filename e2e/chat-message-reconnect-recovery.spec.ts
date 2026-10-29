@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -18,7 +19,7 @@ test("네트워크 단절 중 누락된 메시지를 afterSequence로 재연결 
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-reconnect-${uniqueId}`;
+  const roomName = createE2ERoomName("reconnect");
   const ownerSubject = `e2e-reconnect-owner-${uniqueId}`;
   const memberSubject = `e2e-reconnect-member-${uniqueId}`;
   const baselineMessage = `단절 전 메시지 ${uniqueId}`;

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -12,7 +13,7 @@ test("작성자 메시지를 수정·삭제하고 두 사용자가 현재 snapsh
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-message-mutation-${uniqueId}`;
+  const roomName = createE2ERoomName("msg-mut");
   const ownerSubject = `e2e-mutation-owner-${uniqueId}`;
   const memberSubject = `e2e-mutation-member-${uniqueId}`;
   const originalMessage = `수정 전 메시지 ${uniqueId}`;

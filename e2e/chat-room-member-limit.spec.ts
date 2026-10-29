@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   findPublicRoomCard,
   issueLocalE2EAuthenticationSession,
@@ -26,7 +27,7 @@ test("정원이 가득 찬 방은 참여를 거절하고 새 클릭에는 새 Id
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-member-limit-${uniqueId}`;
+  const roomName = createE2ERoomName("mem-limit");
   const ownerContext = await browser.newContext({ baseURL });
   const candidateContext = await browser.newContext({ baseURL });
   const ownerPage = await ownerContext.newPage();

@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   authenticateLocalE2EUser,
+  createE2ERoomName,
   createRoomAndEnter,
   waitForLocalE2EAuthenticationSessionResponse,
 } from "./chat-e2e-helpers";
@@ -43,7 +44,7 @@ test("인증 실패는 terminal 상태를 유지하고 로컬 E2E 로그인 성�
         context,
         `e2e-authentication-required-${crypto.randomUUID()}`,
       );
-      await createRoomAndEnter(page, `e2e-authentication-required-${crypto.randomUUID()}`);
+      await createRoomAndEnter(page, createE2ERoomName("auth-req"));
 
       await expect(page.getByRole("status").filter({ hasText: ACTIVE_ROOM_LABEL })).toBeVisible();
       await expect(page.getByRole("textbox", { name: "메시지" })).toBeEnabled();

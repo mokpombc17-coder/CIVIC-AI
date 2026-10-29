@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Request } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -13,7 +14,7 @@ test("메시지를 검색해 live cache 위치로 이동하고 실시간 수정�
   test.setTimeout(120_000);
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-message-search-${uniqueId}`;
+  const roomName = createE2ERoomName("msg-srch");
   const searchQuery = `검색표적-${uniqueId.slice(0, 8)}`;
   const beforeMessage = `검색 이전 대화 ${uniqueId}`;
   const targetMessage = `${searchQuery} 원문`;

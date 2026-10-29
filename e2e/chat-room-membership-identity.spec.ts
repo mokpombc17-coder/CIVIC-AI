@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Response } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -10,7 +11,7 @@ test("Room 관리와 메시지 작성자 판정을 membershipId 기반으로 처
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-membership-identity-${uniqueId}`;
+  const roomName = createE2ERoomName("identity");
   const ownerSubject = `e2e-membership-owner-${uniqueId}`;
   const memberSubject = `e2e-membership-member-${uniqueId}`;
   const ownerMessage = `membership owner message ${uniqueId}`;

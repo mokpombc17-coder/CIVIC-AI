@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 test("USER_RATE_LIMITED 중에도 composer를 열어 두고 FIFO로 자동 재전송한다", async ({
   context,
@@ -7,7 +11,7 @@ test("USER_RATE_LIMITED 중에도 composer를 열어 두고 FIFO로 자동 재�
 }) => {
   const uniqueId = crypto.randomUUID();
   const subject = `e2e-rate-limit-${uniqueId}`;
-  const roomName = `e2e-rate-limit-room-${uniqueId}`;
+  const roomName = createE2ERoomName("rate-lim");
   const firstMessage = createMaximumCostMessage(`첫 번째 ${uniqueId}`);
   const retriedMessage = createMaximumCostMessage(`자동 재전송 ${uniqueId}`);
   const queuedMessage = createMaximumCostMessage(`대기열 메시지 ${uniqueId}`);

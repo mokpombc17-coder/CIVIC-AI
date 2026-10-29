@@ -9,7 +9,11 @@ import {
   type Locator,
   type Page,
 } from "@playwright/test";
-import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 // 채팅 메시지 목록을 스크롤할 때 스크롤 이벤트 처리 시간과 그 안의 강제 레이아웃을 Chromium trace로 잼
 // 결과 해석과 실행 순서는 docs/architecture/chat-message-viewport.md의 성능 판단 항목에 둠
@@ -93,7 +97,7 @@ async function prepareRoom(context: BrowserContext, page: Page): Promise<void> {
   const uniqueId = crypto.randomUUID();
   const searchQuery = `성능표적-${uniqueId.slice(0, 8)}`;
   await authenticateLocalE2EUserAs(page, context, `e2e-scroll-performance-${uniqueId}`);
-  const roomId = await createRoomAndEnter(page, `e2e-scroll-performance-${uniqueId}`);
+  const roomId = await createRoomAndEnter(page, createE2ERoomName("perf"));
   const messageLog = page.getByRole("log", { name: `${roomId} 메시지` });
   const messageInput = page.getByRole("textbox", { name: "메시지" });
   await expect(messageInput).toBeEnabled();

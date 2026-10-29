@@ -1,5 +1,9 @@
 import { expect, test, type Locator } from "@playwright/test";
-import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 test("토론방 생성 sheet는 키보드로 열고 닫아도 논리적인 포커스를 유지한다", async ({
   context,
@@ -65,7 +69,7 @@ test("참여 중인 방 목록은 제한된 높이 안에서 키보드로 탐색
 }) => {
   await authenticateLocalE2EUserAs(page, context, `e2e-room-list-scroll-${crypto.randomUUID()}`);
 
-  const roomName = `키보드 스크롤 방 ${crypto.randomUUID()}`;
+  const roomName = createE2ERoomName("키보드 스크롤 방");
   await createRoomAndEnter(page, roomName);
   await page.goto("/chat");
 

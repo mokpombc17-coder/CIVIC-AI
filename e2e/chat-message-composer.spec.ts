@@ -1,9 +1,13 @@
 import { expect, test } from "@playwright/test";
-import { authenticateLocalE2EUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUser,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 test("Enter 전송, Shift+Enter 줄바꿈, IME 조합 보호 정책을 적용한다", async ({ context, page }) => {
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-composer-${uniqueId}`;
+  const roomName = createE2ERoomName("composer");
 
   await authenticateLocalE2EUser(page, context, `e2e-composer-${uniqueId}`);
   const roomId = await createRoomAndEnter(page, roomName);

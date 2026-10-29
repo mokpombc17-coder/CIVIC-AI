@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import { authenticateLocalE2EUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUser,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const CONNECTED_STATUS_SELECTOR = '[data-chat-connection-status="connected"]';
@@ -22,7 +26,7 @@ test("같은 사용자의 새 브라우저 연결이 기존 연결을 교체하�
     const roomUrl =
       await test.step("첫 번째 브라우저가 방에서 같은 사용자의 활성 WebSocket 연결을 소유한다", async () => {
         await authenticateLocalE2EUser(firstPage, firstContext, subject);
-        await createRoomAndEnter(firstPage, `e2e-connection-replaced-${uniqueId}`);
+        await createRoomAndEnter(firstPage, createE2ERoomName("conn-repl"));
 
         await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
         await expect(firstPage.locator(CONNECTED_STATUS_SELECTOR)).toHaveCount(1);

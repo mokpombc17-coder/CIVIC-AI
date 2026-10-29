@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -28,7 +29,7 @@ test("두 사용자의 read cursor로 내 메시지의 안 읽은 인원을 표�
   test.setTimeout(120_000);
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-read-receipt-${uniqueId}`;
+  const roomName = createE2ERoomName("receipt");
   const ownerMessage = `방장 Read Receipt ${uniqueId}`;
   const memberMessage = `참여자 Read Receipt ${uniqueId}`;
   const deletedMessage = `삭제 전 Read Receipt ${uniqueId}`;

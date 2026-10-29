@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -30,7 +31,7 @@ test("최신 이력 밖의 검색 결과와 실패한 과거 이력 조회를 vi
   test.setTimeout(300_000);
 
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-viewport-history-${uniqueId}`;
+  const roomName = createE2ERoomName("vp-hist");
   const searchQuery = `오래된표적-${uniqueId.slice(0, 8)}`;
   const messages = Array.from({ length: MESSAGE_COUNT }, (_, index) =>
     index === 0
@@ -409,7 +410,7 @@ test("Direct STOMP transport에서도 연결이 끊긴 사이의 수정·삭제�
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-viewport-direct-${uniqueId}`;
+  const roomName = createE2ERoomName("vp-direct");
   const searchQuery = `직접연결표적-${uniqueId.slice(0, 8)}`;
   const targetMessage = `${searchQuery} 첫 메시지`;
   const memberEditMessage = `vd-member-edit-${uniqueId.slice(0, 8)}`;

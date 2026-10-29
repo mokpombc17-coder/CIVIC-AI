@@ -1,12 +1,16 @@
 import { expect, test, type Request } from "@playwright/test";
-import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const CLOSED_ROOM_LABEL = "종료된 토론방입니다.";
 
 test("종료된 방은 지난 대화를 조회하지 않고 종료 안내만 표시한다", async ({ context, page }) => {
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-room-closed-${uniqueId}`;
+  const roomName = createE2ERoomName("closed");
   const sentMessage = `종료 전에 보낸 메시지 ${uniqueId}`;
 
   await test.step("방장으로 로그인하고 공개 방에서 메시지를 보낸다", async () => {

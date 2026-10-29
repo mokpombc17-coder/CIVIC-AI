@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -21,7 +22,7 @@ test("과거 메시지를 읽는 동안 새 메시지 수를 안내하고 요청
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-viewport-${uniqueId}`;
+  const roomName = createE2ERoomName("viewport");
   const ownerContext = await browser.newContext({ baseURL });
   const memberContext = await browser.newContext({
     baseURL,
@@ -224,7 +225,7 @@ test("내 메시지와 입장 안내는 viewport 위치 상태에 따라 최신 
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-viewport-follow-${uniqueId}`;
+  const roomName = createE2ERoomName("vp-follow");
   const ownerContext = await browser.newContext({ baseURL });
   const memberContext = await browser.newContext({
     baseURL,

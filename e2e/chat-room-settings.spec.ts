@@ -1,6 +1,7 @@
 import { expect, test } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   findPublicRoomCard,
   joinPublicRoomAndEnter,
@@ -11,7 +12,7 @@ test("방장은 이름과 설명을 수정하고 참여자는 실시간 반영�
 }, testInfo) => {
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const initialName = `e2e-settings-${uniqueId}`;
+  const initialName = createE2ERoomName("settings");
   const initialDescription = `설정 변경 전 설명 ${uniqueId}`;
   const updatedName = `e2e-settings-updated-${uniqueId}`;
   const updatedDescription = `설정 변경 후 설명\n두 번째 줄 ${uniqueId}`;

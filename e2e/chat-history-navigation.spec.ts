@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   findPublicRoomCard,
 } from "./chat-e2e-helpers";
@@ -166,7 +167,7 @@ async function createFixtureRoom(
   try {
     const ownerPage = await ownerContext.newPage();
     await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-history-back-owner-${uniqueId}`);
-    const roomName = `e2e-history-back-${uniqueId}`;
+    const roomName = createE2ERoomName("hist-back");
     const roomId = await createRoomAndEnter(ownerPage, roomName);
     return { roomId, roomName };
   } finally {

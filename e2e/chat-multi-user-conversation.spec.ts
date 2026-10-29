@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -13,7 +14,7 @@ test("세 사용자가 같은 채팅방에서 실시간으로 대화한다", asy
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `시민 교통 정책 대화 ${uniqueId.slice(0, 8)}`;
+  const roomName = createE2ERoomName("시민 교통 대화");
   const ownerContext = await browser.newContext({ baseURL });
   const firstMemberContext = await browser.newContext({ baseURL });
   const secondMemberContext = await browser.newContext({ baseURL });

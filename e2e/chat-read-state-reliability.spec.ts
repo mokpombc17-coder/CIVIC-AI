@@ -8,6 +8,7 @@ import {
 } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -174,7 +175,7 @@ async function createReadStateFixture(
   baseURL: string,
 ): Promise<ReadStateFixture> {
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-read-state-${uniqueId}`;
+  const roomName = createE2ERoomName("readstate");
   const ownerContext = await browser.newContext({ baseURL });
   const memberContext = await browser.newContext({ baseURL });
   const ownerPage = await ownerContext.newPage();

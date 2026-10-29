@@ -10,6 +10,8 @@ import { AUTHENTICATION_SUCCEEDED_EVENT } from "../apps/web/lib/auth/authenticat
 import { registerE2EWindow } from "./chat-e2e-window-layout";
 
 const AUTH_COOKIE_NAME = "civic_ai_access_token";
+// 토론방 생성 요청 폼의 제목 제한(CREATE_ROOM_NAME_MAX_LENGTH)과 같은 값
+const CREATE_ROOM_FORM_NAME_MAX_LENGTH = 16;
 const LOCAL_E2E_AUTH_SESSION_PATH = "/api/dev/auth/session";
 
 export async function authenticateLocalE2EUser(
@@ -93,6 +95,19 @@ export function waitForLocalE2EAuthenticationSessionResponse(page: Page): Promis
       response.request().method() === "POST" &&
       new URL(response.url()).pathname === LOCAL_E2E_AUTH_SESSION_PATH,
   );
+}
+
+// 생성 요청 폼이 제목을 16자까지만 받으므로, 폼으로 만드는 방 이름도 그 안에서 실행마다 겹치지 않게 용도 label 뒤에 무작위 6자를 붙임
+export function createE2ERoomName(label: string): string {
+  const roomName = `${label}-${crypto.randomUUID().slice(0, 6)}`;
+
+  if (roomName.length > CREATE_ROOM_FORM_NAME_MAX_LENGTH) {
+    throw new Error(
+      `e2e 방 이름 label은 ${CREATE_ROOM_FORM_NAME_MAX_LENGTH - 7}자 이하여야 합니다: ${label}`,
+    );
+  }
+
+  return roomName;
 }
 
 export async function createRoomAndEnter(

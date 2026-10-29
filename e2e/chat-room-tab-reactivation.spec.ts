@@ -1,5 +1,9 @@
 import { expect, test, type Page } from "@playwright/test";
-import { authenticateLocalE2EUser, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUser,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const TAB_REPLACED_TITLE = "다른 탭에서 채팅 중이에요.";
@@ -9,7 +13,7 @@ test("같은 브라우저의 두 탭이 같은 방을 열면 돌아온 탭이 �
   page: firstPage,
 }) => {
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-tab-room-${uniqueId}`;
+  const roomName = createE2ERoomName("tab-room");
   const preservedDraft = `탭 전환 중 보존할 초안 ${uniqueId}`;
   const firstMessageInput = firstPage.getByRole("textbox", { name: "메시지" });
 
@@ -71,7 +75,7 @@ test("활성 탭이 닫힌 뒤 남은 탭은 돌아왔을 때 자동으로 사�
   const firstMessageInput = firstPage.getByRole("textbox", { name: "메시지" });
 
   await authenticateLocalE2EUser(firstPage, context, `e2e-tab-close-${uniqueId}`);
-  await createRoomAndEnter(firstPage, `e2e-tab-close-${uniqueId}`);
+  await createRoomAndEnter(firstPage, createE2ERoomName("tab-close"));
   await expect(firstPage.getByText(ACTIVE_ROOM_LABEL, { exact: true })).toBeVisible();
 
   const secondPage = await context.newPage();

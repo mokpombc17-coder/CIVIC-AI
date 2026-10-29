@@ -1,6 +1,7 @@
 import { expect, test, type BrowserContext } from "@playwright/test";
 import {
   authenticateLocalE2EUser,
+  createE2ERoomName,
   createRoomAndEnter,
   renewLocalE2EAuthenticationSession,
 } from "./chat-e2e-helpers";
@@ -10,7 +11,7 @@ test("로컬 E2E 로그인부터 메시지 새로고침 복구까지 실제 채�
   page,
 }) => {
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-room-${uniqueId}`;
+  const roomName = createE2ERoomName("smoke");
   const message = `Playwright 메시지 ${uniqueId}`;
   const subject = `e2e-smoke-${uniqueId}`;
 

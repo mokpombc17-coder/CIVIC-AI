@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Route } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   findPublicRoomCard,
   joinPublicRoomAndEnter,
@@ -16,7 +17,7 @@ test("개인 inbox 이벤트로 unread를 갱신하고 실제 확인 위치를 �
   test.setTimeout(90_000);
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-room-inbox-${uniqueId}`;
+  const roomName = createE2ERoomName("inbox");
   const ownerSubject = `e2e-inbox-owner-${uniqueId}`;
   const memberSubject = `e2e-inbox-member-${uniqueId}`;
   const readMessage = `읽음 처리 메시지 ${uniqueId}`;
@@ -179,7 +180,7 @@ test("목록 재조회가 끝나지 않아도 방 생성과 참여는 바로 방
   test.setTimeout(90_000);
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-list-refresh-held-${uniqueId}`;
+  const roomName = createE2ERoomName("list-held");
   const ownerContext = await browser.newContext({ baseURL });
   const memberContext = await browser.newContext({ baseURL });
   const ownerPage = await ownerContext.newPage();

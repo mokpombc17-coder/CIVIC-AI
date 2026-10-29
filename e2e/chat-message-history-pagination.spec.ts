@@ -1,5 +1,9 @@
 import { expect, test } from "@playwright/test";
-import { authenticateLocalE2EUserAs, createRoomAndEnter } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+} from "./chat-e2e-helpers";
 
 const ACTIVE_ROOM_LABEL = "채팅 가능";
 const MESSAGE_COUNT = 52;
@@ -11,7 +15,7 @@ test("메시지 상단 접근이 beforeSequence 이력을 자동 조회하고 �
   test.setTimeout(120_000);
 
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-history-${uniqueId}`;
+  const roomName = createE2ERoomName("history");
   const messages = Array.from(
     { length: MESSAGE_COUNT },
     (_, index) => `pagination-${String(index + 1).padStart(2, "0")}-${uniqueId}`,

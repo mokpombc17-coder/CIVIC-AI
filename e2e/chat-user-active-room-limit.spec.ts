@@ -8,7 +8,11 @@ import {
   type Page,
   type Response,
 } from "@playwright/test";
-import { authenticateLocalE2EUserAs, findPublicRoomCard } from "./chat-e2e-helpers";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  findPublicRoomCard,
+} from "./chat-e2e-helpers";
 
 const CHAT_RESOURCE_SERVER_URL =
   process.env.CHAT_E2E_RESOURCE_SERVER_URL ?? "http://localhost:8082";
@@ -55,7 +59,7 @@ test("사용자별 ACTIVE Room quota는 CREATE와 JOIN을 거절하고 새 opera
     });
 
     await test.step("CREATE quota 거절, replay와 새 operation 성공을 확인한다", async () => {
-      const roomName = `e2e-active-room-create-${uniqueId}`;
+      const roomName = createE2ERoomName("act-room");
       await openCreateRoomForm(candidatePage, roomName);
 
       const createButton = candidatePage.getByRole("button", {

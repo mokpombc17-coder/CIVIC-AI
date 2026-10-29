@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -15,7 +16,7 @@ test("재진입 시 저장된 읽음 위치로 바로 이동하고 실패한 위
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-entry-position-${uniqueId}`;
+  const roomName = createE2ERoomName("entry-pos");
   const messages = Array.from(
     { length: MESSAGE_COUNT },
     (_, index) => `entry-position-${String(index + 1).padStart(2, "0")}-${uniqueId}`,

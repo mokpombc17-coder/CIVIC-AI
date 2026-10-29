@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type Locator, type Page } from "@playwright/test";
 import {
   authenticateLocalE2EUserAs,
+  createE2ERoomName,
   createRoomAndEnter,
   joinPublicRoomAndEnter,
 } from "./chat-e2e-helpers";
@@ -22,7 +23,7 @@ test("신규 참여자는 참여 직전 메시지부터 보고 참여 이후 메
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-visibility-${uniqueId}`;
+  const roomName = createE2ERoomName("visible");
   const ownerSubject = `e2e-owner-${uniqueId}`;
   const memberSubject = `e2e-member-${uniqueId}`;
   // 가장 오래된 1개는 보이는 범위 밖, 나머지 N개는 범위 안
@@ -129,7 +130,7 @@ test("재참여자는 재참여 직전 메시지부터 보고 4002 이후 다시
 
   const baseURL = String(testInfo.project.use.baseURL);
   const uniqueId = crypto.randomUUID();
-  const roomName = `e2e-rejoin-${uniqueId}`;
+  const roomName = createE2ERoomName("rejoin");
   const ownerSubject = `e2e-rejoin-owner-${uniqueId}`;
   const memberSubject = `e2e-rejoin-member-${uniqueId}`;
   const previousParticipationMessage = `첫 참여 구간 메시지 ${uniqueId}`;
