@@ -1,5 +1,5 @@
 import { createServer, type Server } from "node:http";
-import { expect, test, type BrowserContext, type Locator } from "@playwright/test";
+import { expect, test, type BrowserContext, type Locator, type Page } from "@playwright/test";
 import { voteSurveyCurrentFixture, voteSurveyLatestFixture } from "./fixtures/vote-survey";
 
 const WEB_BASE_URL = process.env.CIVIC_E2E_WEB_BASE_URL ?? "https://localhost:3109";
@@ -258,7 +258,7 @@ test.beforeAll(async () => {
       return json(response, queryResultFixture);
     }
     if (
-      /^\/internal\/v1\/rag\/sources\/version-1\/pages\/3\/document\/pages\/\d+\.png$/u.test(
+      /^\/internal\/v1\/rag\/sources\/0d7d9db6-6352-48f3-b2e1-222cd34069c9\/pages\/3\/document\/pages\/\d+\.png$/u.test(
         url.pathname,
       )
     ) {
@@ -846,12 +846,18 @@ test("참여자 Platform Shell 헤더는 자격 확인 전후와 주요 경로�
 test("RAG 대화에서는 메시지 목록만 세로 스크롤을 소유한다", async ({ context, page }) => {
   await authenticate(context, "participant.payload.signature");
   await page.goto("/rag");
+  await waitForStreamingSettled(page);
 
   const shellContent = page.locator('[data-platform-shell-content="true"]');
   const messages = page.locator(".civic-rag-messages");
   await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
   await expect(shellContent).toHaveAttribute("data-scroll", "child");
   await expect(shellContent).toHaveCSS("overflow-y", "hidden");
+  // 스트리밍 fallback 사본이 교체된 뒤에 측정해야 fixture가 실제 목록에 붙는다.
+  await expect(
+    page.getByPlaceholder("궁금한 내용을 입력해 주세요").filter({ visible: true }),
+  ).toBeEnabled();
+  await expect(messages).toHaveCount(1);
 
   await messages.evaluate((element) => {
     const filler = document.createElement("div");
@@ -915,12 +921,16 @@ test("RAG와 계정 루트 헤더의 뒤로 가기는 홈으로 이동한다", a
 
   for (const route of ["/rag", "/mypage"]) {
     await page.goto(route);
+    await waitForStreamingSettled(page);
     const back = page.getByRole("link", { name: "이전 화면으로 돌아가기" });
     await expect(back).toBeVisible();
     await expect(back).toHaveAttribute("href", "/home");
     await back.click();
     await expect(page).toHaveURL(/\/home$/u);
-    await expect(page.locator('[data-wireflow-layout="participant-home"]')).toBeVisible();
+    // 스트리밍 중 React가 잠깐 숨겨 둔 사본이 함께 잡히지 않도록 보이는 화면만 확인한다.
+    await expect(
+      page.locator('[data-wireflow-layout="participant-home"]').filter({ visible: true }),
+    ).toBeVisible();
   }
 });
 
@@ -1096,6 +1106,7 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   await page.setViewportSize({ width: 1440, height: 900 });
   await authenticate(context, "admin.payload.signature");
   await page.goto("/admin/rag?folderId=welfare");
+  await waitForStreamingSettled(page);
 
   await expect(page.getByRole("heading", { name: "문서 관리" })).toBeVisible();
   await expect(page.getByRole("link", { name: "폴더 추가" })).toBeVisible();
@@ -1140,8 +1151,12 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
   await expectBox(page.locator(".civic-folder-tree"), { width: [218, 222] });
   await expect(page.locator(".civic-rag-admin-workspace")).toBeVisible();
   await expect(page.locator(".civic-document-inspector")).toHaveCount(0);
-  const inlineUpload = page.locator("[data-rag-inline-upload]");
-  await expect(inlineUpload).not.toHaveAttribute("open", "");
+  await expect(page.locator("[data-rag-inline-upload]")).toHaveCount(0);
+  await expect(page.locator('input[type="file"]')).toHaveCount(0);
+  await expect(page.getByRole("link", { name: "+ 문서 업로드" })).toHaveAttribute(
+    "href",
+    "/admin/rag/upload?folderId=welfare&mode=NEW_DOCUMENT",
+  );
   const documentRowsScroller = page.locator(".civic-document-ledger > .civic-table-scroll");
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toHaveCSS(
     "overflow",
@@ -1153,18 +1168,14 @@ test("A-RAG-001은 2단 문서 작업공간과 필요 시 여는 미리보기를
     await page.evaluate(() => document.body.scrollHeight > document.body.clientHeight + 1),
   ).toBe(false);
 
-  const documentRow = page.getByRole("row", { name: /2026_복지정책_기본계획\.pdf/u });
-  await expect(documentRow.getByRole("button", { name: "미리보기" })).toBeVisible();
-  const documentMenu = documentRow.locator('summary[aria-label$="추가 작업"]');
-  await documentMenu.click();
-  await expect(documentRow.getByRole("link", { name: "문서 삭제" })).toBeVisible();
-  await documentMenu.click();
-  await documentRow.getByRole("button", { name: "미리보기" }).click();
+  const documentRow = page.getByRole("row", { name: "2026_복지정책_기본계획.pdf 미리보기" });
+  await documentRow.getByRole("cell", { name: "12쪽" }).click();
 
-  const inspector = page.getByRole("dialog", { name: "2026_복지정책_기본계획.pdf" });
+  const inspector = page.getByRole("dialog", { name: "2026_복지정책_기본계획.pdf 문서 미리보기" });
   await expect(inspector).toBeVisible();
   await expect(inspector.getByText("rag-admin@example.com")).toBeVisible();
   await expect(inspector.getByText("12쪽")).toBeVisible();
+  await expect(inspector.getByRole("link", { name: "문서 삭제" })).toBeVisible();
   await expect(page.getByTitle("2026_복지정책_기본계획.pdf 미리보기")).toHaveAttribute(
     "src",
     /disposition=inline$/,
@@ -1177,6 +1188,7 @@ test("A-RAG-001은 새 폴더 문서 조회가 실패하면 이전 폴더 문서
 }) => {
   await authenticate(context, "admin.payload.signature");
   await page.goto("/admin/rag?folderId=general");
+  await waitForStreamingSettled(page);
   const previousDocument = page.getByText("2026_복지정책_기본계획.pdf", { exact: true });
   await expect(previousDocument.first()).toBeVisible();
   await page.route(
@@ -1257,8 +1269,9 @@ test("A-RAG-001은 처리 상태 자동 갱신 중 기존 문서 표를 유지�
   );
 
   await page.goto("/admin/rag?folderId=welfare");
+  await waitForStreamingSettled(page);
   const documentName = page.getByText("2026_복지정책_기본계획.pdf", { exact: true });
-  const documentTable = page.getByRole("region", { name: "RAG 작업 목록 표" });
+  const documentTable = page.getByRole("region", { name: "문서 목록 표" });
   await expect(documentName.first()).toBeVisible();
   await expect(page.getByText("상태 확인 중", { exact: true })).toBeVisible();
 
@@ -1272,7 +1285,7 @@ test("A-RAG-001은 처리 상태 자동 갱신 중 기존 문서 표를 유지�
     releasePollResponse();
   }
 
-  await expect(page.locator(".civic-job-state", { hasText: "처리 완료" }).first()).toBeVisible();
+  await expect(documentTable.locator(".console-badge", { hasText: "처리 완료" })).toBeVisible();
   expect(documentRequestCount).toBe(2);
   expect(folderRequestCount).toBe(1);
   expect(userLabelRequestCount).toBe(1);
@@ -1288,6 +1301,7 @@ test("A-RAG 자동 재시도 대기 작업은 실패 대신 재시도 예정으�
   await page.goto(
     "/admin/rag/jobs?jobId=job-retry-wait-1&filename=downloads-02.hwpx&folderId=general",
   );
+  await waitForStreamingSettled(page);
   await expect(page.locator(".civic-job-document").getByText("재시도 대기")).toBeVisible();
   await expect(page.getByText("자동 재시도 예정", { exact: true })).toBeVisible();
   await expect(
@@ -1308,12 +1322,14 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await authenticate(context, "admin.payload.signature");
 
   await page.goto("/admin/rag/folders?folderId=welfare");
+  await waitForStreamingSettled(page);
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();
   const folderDialog = page.getByRole("dialog", { name: "폴더 수정" });
   await expect(folderDialog).toBeVisible();
   await expect(folderDialog.getByRole("textbox", { name: "폴더명" })).toHaveValue("복지정책");
 
   await page.goto("/admin/rag/folders?folderId=welfare&mode=DELETE");
+  await waitForStreamingSettled(page);
   const folderDeleteDialog = page.getByRole("dialog", { name: "폴더 삭제 확인" });
   await expect(folderDeleteDialog).toBeVisible();
   await expect(folderDeleteDialog.getByText("포함 문서 1개", { exact: true })).toBeVisible();
@@ -1323,10 +1339,16 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(folderDeleteDialog).toHaveCount(0);
 
   await page.goto("/admin/rag/upload?folderId=welfare&mode=NEW_DOCUMENT");
-  await expect(page.getByRole("heading", { name: "복지정책 폴더에 문서 업로드" })).toBeVisible();
-  await expect(page.locator('[data-wireflow-layout="rag-upload"]')).toBeVisible();
-  await expect(page.getByRole("heading", { name: "파일 선택" })).toBeVisible();
-  const uploadInput = page.locator('[data-wireflow-layout="rag-upload"] input[type="file"]');
+  await waitForStreamingSettled(page);
+  await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();
+  const uploadDialog = page.getByRole("dialog", { name: "문서 업로드" });
+  await expect(uploadDialog).toBeVisible();
+  await expect(uploadDialog.locator('[data-wireflow-layout="rag-admin-modal"]')).toBeVisible();
+  await expect(
+    uploadDialog.getByText("복지정책 폴더에 새 문서를 업로드합니다.", { exact: true }),
+  ).toBeVisible();
+  await expect(uploadDialog.getByRole("button", { name: "업로드 시작" })).toBeDisabled();
+  const uploadInput = uploadDialog.locator('input[type="file"]');
   await expect(uploadInput).toHaveAttribute("multiple", "");
   await uploadInput.setInputFiles([
     { name: "첫번째.pdf", mimeType: "application/pdf", buffer: Buffer.from("%PDF-1.4") },
@@ -1345,7 +1367,8 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   ).toBeVisible();
 
   await page.goto("/admin/rag/jobs?jobId=job-1");
-  await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
+  await waitForStreamingSettled(page);
+  await expect(page.getByRole("dialog", { name: "업로드한 문서" })).toBeVisible();
   await expect(page.locator('[data-wireflow-layout="rag-job-status"]')).toBeVisible();
   await expect(page.getByText("문서 준비 진행 상태", { exact: true })).toBeVisible();
   await expect(page.getByText("policy.pdf", { exact: true })).toBeVisible();
@@ -1382,7 +1405,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
       new URL(request.url()).searchParams.get("failed_job_id") === "job-1",
   );
   await page.getByRole("button", { name: "업로드 취소" }).click();
-  const uploadCancelDialog = page.getByRole("alertdialog", { name: "업로드를 취소할까요?" });
+  const uploadCancelDialog = page.getByRole("alertdialog", { name: "업로드를 취소하시겠습니까?" });
   await expect(uploadCancelDialog).toBeVisible();
   await expect(
     uploadCancelDialog.getByText("실패한 업로드를 취소하면 이 문서와 처리 결과가 삭제됩니다.", {
@@ -1397,7 +1420,8 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await page.goto(
     "/admin/rag/jobs?jobId=job-retry-wait-1&filename=downloads-02.hwpx&folderId=general",
   );
-  await expect(page.locator(".civic-job-status-badge", { hasText: "재시도 대기" })).toBeVisible();
+  await waitForStreamingSettled(page);
+  await expect(page.locator(".civic-job-document").getByText("재시도 대기")).toBeVisible();
   await expect(page.getByText("자동 재시도 예정", { exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "업로드 취소" })).toBeVisible();
   const retryWaitCancellationRequestPromise = page.waitForRequest(
@@ -1407,7 +1431,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   );
   await page.getByRole("button", { name: "업로드 취소" }).click();
   const retryWaitUploadCancelDialog = page.getByRole("alertdialog", {
-    name: "업로드를 취소할까요?",
+    name: "업로드를 취소하시겠습니까?",
   });
   await expect(retryWaitUploadCancelDialog).toBeVisible();
   await expect(
@@ -1422,6 +1446,7 @@ test("A-RAG 폴더·업로드·상태·삭제 화면은 최신 Wire Flow 계층�
   await expect(page).toHaveURL(/\/admin\/rag\?folderId=general$/u);
 
   await page.goto("/admin/rag/delete?folderId=general&documentId=document-1");
+  await waitForStreamingSettled(page);
   await expect(page.locator('[data-wireflow-layout="rag-workspace"]')).toBeVisible();
   const deleteDialog = page.getByRole("dialog", { name: "문서를 삭제하시겠습니까?" });
   await expect(deleteDialog).toBeVisible();
@@ -1439,13 +1464,14 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
 }) => {
   await authenticate(context, "participant.payload.signature");
   await page.goto("/rag");
+  await waitForStreamingSettled(page);
 
   await expect(page.getByRole("heading", { exact: true, name: "AI" })).toBeVisible();
   await expect(page.getByText("궁금한 내용을 AI에게 질문해 보세요.")).toBeVisible();
   await expect(page.getByText("등록된 자료를 바탕으로 근거와 함께 답변해 드려요.")).toBeVisible();
   await expect(page.locator(".civic-rag-session-bar")).toHaveCSS(
     "background-color",
-    "rgb(244, 247, 255)",
+    "rgb(237, 242, 247)",
   );
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(shell).toHaveCount(1);
@@ -1474,67 +1500,80 @@ test("U-RAG-001 질문부터 읽기 전용 문서까지 기준 GUI와 직결 경
 
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const citation = page.getByRole("link", { name: "원문 보기" });
+  const citation = page
+    .getByRole("region", { name: "답변 출처" })
+    .getByRole("button", { name: "출처 1, 2026 복지정책 기본계획 p.3 열기" });
   await expect(citation).toBeVisible();
-  await expectBox(page.locator(".civic-rag-question"), {
-    x: [80, 83],
-    width: [294, 297],
-  });
+  const questionBox = await page.locator(".civic-rag-question").boundingBox();
+  const answerBox = await page.locator(".civic-rag-answer:not(.is-live)").boundingBox();
+  expect(questionBox).not.toBeNull();
+  expect(answerBox).not.toBeNull();
+  // 질문 말풍선은 내용 너비에 맞추되 답변과 같은 오른쪽 끝에 붙고 82%를 넘지 않는다.
+  expect(
+    Math.abs(questionBox!.x + questionBox!.width - (answerBox!.x + answerBox!.width)),
+  ).toBeLessThanOrEqual(1);
+  expect(questionBox!.width).toBeLessThanOrEqual(answerBox!.width * 0.82 + 1);
   await expectBox(page.locator(".civic-rag-answer:not(.is-live)"), {
     x: [16, 18],
     width: [359, 362],
   });
-  await expectBox(page.locator(".civic-rag-citation-card"), {
-    x: [16, 18],
-    width: [359, 362],
-    height: [64, 68],
+  await expectBox(page.locator(".civic-rag-source-item"), {
+    x: [17, 19],
+    width: [357, 359],
+    height: [37, 40],
   });
 
   await page.reload();
+  await waitForStreamingSettled(page);
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  await expect(page.getByRole("link", { name: "원문 보기" })).toBeVisible();
+  await expect(
+    page
+      .getByRole("region", { name: "답변 출처" })
+      .getByRole("button", { name: "출처 1, 2026 복지정책 기본계획 p.3 열기" }),
+  ).toBeVisible();
 
-  await page.getByRole("button", { name: "새 질문" }).click();
+  await page.getByRole("button", { name: "새 대화" }).click();
+  await page
+    .getByRole("alertdialog", { name: "새 대화를 시작할까요?" })
+    .getByRole("button", { name: "새 대화 시작" })
+    .click();
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
   await page.reload();
+  await waitForStreamingSettled(page);
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toHaveCount(0);
 
-  await page
-    .getByPlaceholder("궁금한 내용을 입력해 주세요")
-    .fill("복지정책 문서의 핵심 내용을 알려줘.");
+  const composer = page.getByPlaceholder("궁금한 내용을 입력해 주세요").filter({ visible: true });
+  await expect(composer).toBeEnabled();
+  await composer.fill("복지정책 문서의 핵심 내용을 알려줘.");
   await page.getByRole("button", { name: "질문 전송" }).click();
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
-  const restoredCitation = page.getByRole("link", { name: "원문 보기" });
+  const restoredCitation = page
+    .getByRole("region", { name: "답변 출처" })
+    .getByRole("button", { name: "출처 1, 2026 복지정책 기본계획 p.3 열기" });
   await expect(restoredCitation).toBeVisible();
   await restoredCitation.click();
 
   await expect(page).toHaveURL(/\/rag$/);
-  await expect(page.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "2026 복지정책 기본계획" })).toBeVisible();
+  const referenceSurface = page.getByRole("region", { name: "참조 문서" });
+  await expect(referenceSurface).toBeVisible();
+  await expect(
+    referenceSurface.getByRole("heading", { name: "2026 복지정책 기본계획 미리보기" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("region", { name: "2026 복지정책 기본계획 읽기 전용 문서" }),
   ).toBeVisible();
-  const documentViewer = page.locator('[data-document-zoom="100%"]');
-  await expect(documentViewer).toBeVisible();
-  await page.getByRole("button", { name: "문서 확대" }).click();
-  await expect(page.locator('[data-document-zoom="125%"]')).toBeVisible();
-  await expect
-    .poll(() =>
-      page
-        .locator(".civic-pdf-canvas")
-        .evaluate((canvas) => canvas.scrollWidth > canvas.clientWidth),
-    )
-    .toBe(true);
-  await page.getByRole("button", { name: "화면 맞춤" }).click();
-  await expect(page.locator('[data-document-zoom="100%"]')).toBeVisible();
+  await expect(page.locator('[data-pdf-zoom-mode="pinch"]')).toHaveCount(1);
+  await expect(page.locator("[data-document-zoom]")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "문서 확대" })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "화면 맞춤" })).toHaveCount(0);
   await expect(page.locator("a[download], [target='_blank']")).toHaveCount(0);
   await expect(page.getByRole("button", { name: /다운로드|저장/ })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "다음 페이지" })).toHaveCount(0);
   await expect(page.getByRole("button", { name: "이전 페이지" })).toHaveCount(0);
   await expect(page.locator('[data-pdf-scroll-mode="continuous"]')).toHaveCount(1);
   await expect(page.locator(".civic-pdf-page")).toHaveCount(12);
-  await expect(page.locator('[data-pdf-page="3"]')).toHaveClass(/is-cited/u);
+  await expect(page.getByRole("article", { name: "3페이지, 인용 페이지" })).toBeVisible();
   await expect(page.getByRole("img", { name: "2026 복지정책 기본계획 3페이지" })).toHaveAttribute(
     "src",
     /\/pages\/3\/document\/pages\/3\.png$/u,
@@ -1552,6 +1591,7 @@ test("U-RAG-001 새 대화 확인창은 데스크톱에서 platform shell 안에
   await page.setViewportSize({ height: 853, width: 1200 });
   await authenticate(context, "participant.payload.signature");
   await page.goto("/rag");
+  await waitForStreamingSettled(page);
 
   const shell = page.locator('[data-platform-shell="true"]');
   await expect(page.getByPlaceholder("궁금한 내용을 입력해 주세요")).toBeEnabled();
@@ -1595,6 +1635,7 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
     });
   });
   await page.goto("/rag");
+  await waitForStreamingSettled(page);
 
   await page
     .getByPlaceholder("궁금한 내용을 입력해 주세요")
@@ -1606,6 +1647,7 @@ test("U-RAG-001은 답변 처리 중 새로고침해도 기존 작업을 이어�
     .toContain("query-job-1");
 
   await page.reload();
+  await waitForStreamingSettled(page);
   await expect(page.getByText("복지정책 문서의 핵심 내용을 알려줘.")).toBeVisible();
   complete = true;
   await expect(page.getByText("지원 대상과 신청 기준을 확인할 수 있습니다.")).toBeVisible();
@@ -1627,6 +1669,14 @@ async function expectBox(
       range[1],
     );
   }
+}
+
+async function waitForStreamingSettled(page: Page): Promise<void> {
+  // Next 스트리밍은 교체 직전까지 숨긴 화면 사본을 잠깐 남기므로, 사본이 사라진 뒤에 화면을 검사한다.
+  await page.waitForFunction(
+    () =>
+      !document.querySelector("[hidden] [data-wireflow-screen], [hidden][data-wireflow-screen]"),
+  );
 }
 
 async function authenticate(context: BrowserContext, token: string): Promise<void> {
@@ -1817,14 +1867,16 @@ const currentSimulationTaskFixture = {
   },
 };
 
+const queryCitationVersionId = "0d7d9db6-6352-48f3-b2e1-222cd34069c9";
+
 const queryResultFixture = {
   job_id: "query-job-1",
   status: "SUCCEEDED",
   submitted_question: "복지정책 문서의 핵심 내용을 알려줘.",
-  answer: "지원 대상과 신청 기준을 확인할 수 있습니다.",
+  answer: `지원 대상과 신청 기준을 확인할 수 있습니다 [${queryCitationVersionId}#3].`,
   citations: [
     {
-      document_version_id: "version-1",
+      document_version_id: queryCitationVersionId,
       page_number: 3,
       page_count: 12,
       source_object_sha256: "a".repeat(64),

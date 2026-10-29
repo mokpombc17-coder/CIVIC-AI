@@ -203,8 +203,10 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
         return (await fetch("/api/v1/rag/documents", { method: "POST", body: form })).status;
       }, canaries.document),
     ).toBeGreaterThanOrEqual(400);
-    await admin.locator("details[data-rag-inline-upload] > summary").click();
-    await admin.locator('input[type="file"]').setInputFiles(fixture);
+    await admin.getByRole("link", { name: "+ 문서 업로드" }).click();
+    const uploadDialog = admin.getByRole("dialog", { name: "문서 업로드" });
+    await expect(uploadDialog).toBeVisible();
+    await uploadDialog.locator('input[type="file"]').setInputFiles(fixture);
     const [completedUpload] = await Promise.all([
       admin.waitForResponse(
         (response) =>
@@ -212,7 +214,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
           /^\/api\/v1\/rag\/uploads\/[^/]+\/complete$/u.test(new URL(response.url()).pathname),
         { timeout: 30_000 },
       ),
-      admin.getByRole("button", { name: "업로드 시작" }).click(),
+      uploadDialog.getByRole("button", { name: "업로드 시작" }).click(),
     ]);
     expect(completedUpload.status()).toBe(202);
     await expect(admin).toHaveURL(/\/admin\/rag\/jobs\?.*jobId=/u);
@@ -227,6 +229,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await participant.goto("/rag");
     await participant
       .getByPlaceholder("궁금한 내용을 입력해 주세요")
+      .filter({ visible: true })
       .fill(`${canaries.rag} 합성 CIVIC 정책 문서의 근거를 알려주세요.`);
     const [queryResponse] = await Promise.all([
       participant.waitForResponse(
@@ -244,16 +247,18 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await expect(
       participant.getByText("합성 문서에 근거한 CIVIC 정책 내용을 확인했습니다."),
     ).toBeVisible({ timeout: 120_000 });
-    const citation = participant.getByRole("button", {
-      name: /출처 synthetic\.pdf p\.1 열기/u,
-    });
+    const citation = participant
+      .getByRole("region", { name: "답변 출처" })
+      .getByRole("button", { name: /^출처 \d+, synthetic p\.1 열기$/u });
     await expect(citation).toBeVisible();
     await citation.click();
     await expect(participant).toHaveURL(/\/rag$/u);
-    await expect(participant.getByRole("dialog", { name: "참조 문서" })).toBeVisible();
-    await expect(participant.getByText("이 화면은 읽기 전용입니다")).toBeVisible();
+    await expect(participant.getByRole("region", { name: "참조 문서" })).toBeVisible();
+    await expect(
+      participant.getByRole("region", { name: /^synthetic(?:\.pdf)? 읽기 전용 문서$/u }),
+    ).toBeVisible();
     const source = await participant
-      .getByRole("img", { name: "synthetic.pdf 1페이지" })
+      .getByRole("img", { name: /^synthetic(?:\.pdf)? 1페이지$/u })
       .getAttribute("src");
     expect(source).toMatch(/\/api\/v1\/rag\/sources\/[^/]+\/pages\/1\/document\/pages\/1\.png/u);
     expect((await participant.request.get(source!)).status()).toBe(200);
