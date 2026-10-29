@@ -229,6 +229,7 @@ test("Wire Flow critical actor chain runs against real Main/Auth and RAG service
     await participant.goto("/rag");
     await participant
       .getByPlaceholder("궁금한 내용을 입력해 주세요")
+      .filter({ visible: true })
       .fill(`${canaries.rag} 합성 CIVIC 정책 문서의 근거를 알려주세요.`);
     const [queryResponse] = await Promise.all([
       participant.waitForResponse(
