@@ -468,7 +468,7 @@ export function MyRoomCard({
           aria-expanded={isDetailOpen}
           aria-haspopup="dialog"
           aria-label={`${room.name} 상세 정보 보기`}
-          className="pointer-events-auto relative z-[2] inline-flex h-12 min-w-[108px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
+          className="pointer-events-auto relative z-[2] inline-flex h-12 w-[89px] shrink-0 cursor-pointer items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white text-sm font-bold leading-5 [@media(max-width:392px)]:w-[82px] text-[var(--chat-publishing-color-primary-emphasis)] transition hover:text-[var(--chat-publishing-color-primary-emphasis)] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--chat-publishing-color-primary)]"
           id={getChatRoomListDetailTriggerId(room.roomId)}
           onClick={(event) => onOpenDetails(event.currentTarget)}
           type="button"
@@ -516,7 +516,7 @@ export function PublicRoomCard({
         </span>
         <span
           aria-hidden="true"
-          className="inline-flex h-12 min-w-[108px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white px-4 text-base font-bold leading-5 text-[var(--chat-publishing-color-primary-emphasis)]"
+          className="inline-flex h-12 w-[89px] shrink-0 items-center justify-center rounded-[var(--chat-publishing-radius-control)] border border-[var(--chat-publishing-color-primary)] bg-white text-sm font-bold leading-5 [@media(max-width:392px)]:w-[82px] text-[var(--chat-publishing-color-primary-emphasis)]"
         >
           참여하기
         </span>

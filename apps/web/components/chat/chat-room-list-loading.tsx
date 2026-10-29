@@ -161,7 +161,7 @@ export function ChatRoomListSkeleton({
                 <span className="mt-2 block h-6 w-3/4 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
                 <span className="mt-2 block h-5 w-1/2 rounded-md bg-[var(--chat-publishing-color-neutral-soft)]" />
               </span>
-              <span className="h-12 min-w-[108px] rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)]" />
+              <span className="h-12 w-[89px] shrink-0 rounded-[var(--chat-publishing-radius-control)] bg-[var(--chat-publishing-color-neutral-soft)] [@media(max-width:392px)]:w-[82px]" />
             </article>
           </li>
         ))}
