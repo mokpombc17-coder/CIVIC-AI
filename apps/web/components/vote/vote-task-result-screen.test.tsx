@@ -57,6 +57,27 @@ describe("VoteTaskResultScreen", () => {
     expect(html).not.toContain(">질의</dt>");
   });
 
+  it("결과 주제에 제목과 배경을 각각 표시하고 배경이 비어 있으면 배경 행을 숨긴다", () => {
+    const html = renderApiOpinionMap(apiResultFixture.opinionMap);
+
+    expect(html).toContain(`<dt>제목</dt><dd>${apiResultFixture.title}</dd>`);
+    expect(html).toContain(`<dt>배경</dt><dd>${apiResultFixture.description}</dd>`);
+
+    useTaskResultQueryMock.mockReturnValue({
+      data: { ...apiResultFixture, description: "" },
+      error: null,
+      isError: false,
+      isPending: false,
+      refetch: vi.fn(),
+    });
+    const withoutBackground = renderToStaticMarkup(
+      <VoteTaskResultScreen taskId={apiResultFixture.taskId} />,
+    );
+
+    expect(withoutBackground).toContain(`<dt>제목</dt><dd>${apiResultFixture.title}</dd>`);
+    expect(withoutBackground).not.toContain("<dt>배경</dt>");
+  });
+
   it("정량 결과 아래에 정성 요약 영역을 안내한다", () => {
     const html = renderToStaticMarkup(<VoteTaskResultScreen source="mock" taskId="task-01" />);
 

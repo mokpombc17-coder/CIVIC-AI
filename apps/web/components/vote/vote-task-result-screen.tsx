@@ -20,7 +20,8 @@ import styles from "./vote.module.css";
 type VoteResultSource = "api" | "mock";
 type VoteResultMockOpinionMapStatus = "AVAILABLE" | "PENDING";
 type VoteResultPresentation = Readonly<{
-  background: string;
+  title: string;
+  background: string | null;
   question: string;
   responseCount: number;
   mySubmission: Readonly<{
@@ -168,9 +169,15 @@ function VoteTaskResultContent({
         <h2>주제</h2>
         <dl className={styles.resultTaskCard}>
           <div>
-            <dt>배경</dt>
-            <dd>{result.background}</dd>
+            <dt>제목</dt>
+            <dd>{result.title}</dd>
           </div>
+          {result.background ? (
+            <div>
+              <dt>배경</dt>
+              <dd>{result.background}</dd>
+            </div>
+          ) : null}
           <div>
             <dt>질문</dt>
             <dd>{result.question}</dd>
@@ -347,8 +354,12 @@ function presentPublishingResult(
     ({ id }) => id === votePublishingResult.mySubmission.selectedOptionId,
   );
 
+  // 디자인 샘플은 제목과 배경을 한 문자열에 줄바꿈으로 이어 두었으므로, 실제 API 결과와 같은 제목·배경 행으로 보이도록 첫 줄을 제목으로 나눔
+  const [title = "", ...backgroundLines] = votePublishingResult.title.split("\n");
+
   return {
-    background: votePublishingResult.title,
+    title,
+    background: backgroundLines.join("\n") || null,
     question: votePublishingResult.question,
     responseCount: votePublishingResult.responseCount,
     mySubmission: {
@@ -381,7 +392,8 @@ function presentApiResult(result: MyTaskResult): VoteResultPresentation {
   const options = [...result.options].sort((left, right) => left.displayOrder - right.displayOrder);
 
   return {
-    background: result.description || result.title,
+    title: result.title,
+    background: result.description || null,
     question: result.question.content,
     responseCount: result.responseCount,
     mySubmission: {

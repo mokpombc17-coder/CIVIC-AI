@@ -268,7 +268,10 @@ function TaskOverview({
       <section className={styles.flowSection}>
         <h2 className={styles.sectionTitle}>주제</h2>
         <dl className={`${styles.infoCard} ${styles.overviewInfoCard}`}>
-          <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
+          <InfoRow label="제목" value={detail.task.title} />
+          {detail.task.description ? (
+            <InfoRow label="배경" value={detail.task.description} />
+          ) : null}
           <InfoRow field="question" label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
         </dl>
@@ -412,7 +415,10 @@ function SubmittedTaskResponse({
       <section className={styles.flowSection}>
         <h2 className={styles.sectionTitle}>주제</h2>
         <dl className={styles.infoCard}>
-          <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
+          <InfoRow label="제목" value={detail.task.title} />
+          {detail.task.description ? (
+            <InfoRow label="배경" value={detail.task.description} />
+          ) : null}
           <InfoRow label="질문" value={detail.task.question.content} />
           <InfoRow label="마감" value={formatVoteDateTime(detail.closesAt)} />
         </dl>
@@ -657,7 +663,8 @@ function VoteCompleted({ detail }: { detail: UserTaskDetail }) {
         </div>
       </div>
       <dl className={`${styles.infoCard} ${styles.completionInfoCard}`}>
-        <InfoRow label="배경" value={detail.task.description ?? detail.task.title} />
+        <InfoRow label="제목" value={detail.task.title} />
+        {detail.task.description ? <InfoRow label="배경" value={detail.task.description} /> : null}
         <InfoRow label="질문" value={detail.task.question.content} />
       </dl>
       <Link className={`${styles.compactPrimaryButton} ${styles.completionAction}`} href="/vote">

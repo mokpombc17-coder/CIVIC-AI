@@ -64,6 +64,31 @@ describe("VoteTaskScreen", () => {
     expect(html).not.toContain(">다시 시도</button>");
   });
 
+  it("투표 확인 단계의 주제에 목록 카드와 같은 제목을 배경과 함께 표시한다", () => {
+    useVoteTaskControllerMock.mockReturnValue(
+      createController({ model: { step: 1, taskDetail: createTaskDetail() } }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskScreen taskId="task-a" />);
+
+    expect(html).toContain("<dt>제목</dt><dd>교통 정책 투표</dd>");
+    expect(html).toContain("<dt>배경</dt><dd>지역 교통 개선 방향을 선택해 주세요.</dd>");
+  });
+
+  it("배경이 없는 투표는 제목을 배경 자리에 반복하지 않고 배경 행을 숨긴다", () => {
+    const detail = createTaskDetail();
+    useVoteTaskControllerMock.mockReturnValue(
+      createController({
+        model: { step: 1, taskDetail: { ...detail, task: { ...detail.task, description: null } } },
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskScreen taskId="task-a" />);
+
+    expect(html).toContain("<dt>제목</dt><dd>교통 정책 투표</dd>");
+    expect(html).not.toContain("<dt>배경</dt>");
+  });
+
   it("AI 예상 답변 준비가 실패하면 안내와 함께 다시 시도 버튼을 표시한다", () => {
     useVoteTaskControllerMock.mockReturnValue(
       createController({
