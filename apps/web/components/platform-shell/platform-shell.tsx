@@ -13,6 +13,7 @@ export type PlatformShellProps = Readonly<{
   headerSize?: "compact";
   overlay?: ReactNode;
   scroll?: PlatformShellScroll;
+  scrollResetKey?: string | number;
 }>;
 
 export function PlatformShell(props: PlatformShellProps) {

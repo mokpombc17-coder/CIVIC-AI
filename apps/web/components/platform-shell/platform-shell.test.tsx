@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+
+import { cleanup, render } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
 import {
   PlatformBottomNavigation,
   PlatformBottomNavigationItem,
@@ -9,6 +12,10 @@ import {
 } from "./index";
 
 describe("PlatformShell", () => {
+  afterEach(() => {
+    cleanup();
+  });
+
   it("기본적으로 공통 콘텐츠 영역이 스크롤을 소유한다", () => {
     const markup = renderShell();
 
@@ -25,6 +32,24 @@ describe("PlatformShell", () => {
     const markup = renderShell("child");
 
     expect(markup.match(/data-scroll="child"/g)).toHaveLength(2);
+  });
+
+  it("scrollResetKey가 바뀌면 content 스크롤을 맨 위로 되돌린다", () => {
+    const renderStep = (step: number) => (
+      <PlatformShell header={<header>공통 헤더</header>} scrollResetKey={step}>
+        {step}단계 콘텐츠
+      </PlatformShell>
+    );
+    const { container, rerender } = render(renderStep(1));
+    const content = container.querySelector<HTMLElement>('[data-platform-shell-content="true"]')!;
+    // jsdom은 scrollTop을 항상 0으로 돌려주므로, 이전 단계에서 내려간 위치를 쓸 수 있는 값으로 대신함
+    Object.defineProperty(content, "scrollTop", { value: 480, writable: true });
+
+    rerender(renderStep(1));
+    expect(content.scrollTop).toBe(480);
+
+    rerender(renderStep(2));
+    expect(content.scrollTop).toBe(0);
   });
 
   it("compact header 크기를 요청한 route를 표시한다", () => {

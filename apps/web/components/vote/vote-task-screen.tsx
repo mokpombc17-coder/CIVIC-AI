@@ -61,6 +61,7 @@ export function VoteTaskScreen({ taskId }: { taskId: string }) {
       }
       headerSize="compact"
       overlay={model.cancelOpen ? <CancelSheet onClose={actions.closeCancel} /> : null}
+      scrollResetKey={model.step}
     >
       <div className={`${styles.surface} ${styles.flowSurface}`} data-task-id={taskId}>
         {model.taskIsError ? (

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
 import type { PlatformShellProps } from "./platform-shell";
 import styles from "./platform-shell.module.css";
 import {
@@ -19,10 +19,13 @@ export function PlatformShellVisualViewportBoundary({
   headerSize,
   overlay,
   scroll = "self",
+  scrollResetKey,
 }: PlatformShellProps) {
   const shellRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLElement>(null);
 
   usePlatformShellVisualViewport(shellRef);
+  usePlatformShellScrollReset(contentRef, scrollResetKey);
 
   return (
     <div className={styles.stage} data-platform-shell-stage="true">
@@ -45,6 +48,7 @@ export function PlatformShellVisualViewportBoundary({
             className={joinClassNames(styles.content, contentClassName)}
             data-platform-shell-content="true"
             data-scroll={scroll}
+            ref={contentRef}
           >
             {children}
           </main>
@@ -65,6 +69,20 @@ export function PlatformShellVisualViewportBoundary({
       </div>
     </div>
   );
+}
+
+function usePlatformShellScrollReset(
+  contentRef: RefObject<HTMLElement | null>,
+  scrollResetKey: PlatformShellProps["scrollResetKey"],
+): void {
+  // 같은 route 안에서 단계만 바뀌는 화면은 content 스크롤이 이전 단계 위치에 남으므로, 호출자가 key를 바꾸면 새 내용이 그려지기 전에 맨 위로 되돌림. 본문에서 읽지 않는 scrollResetKey가 이 effect의 실행 계기임
+  useLayoutEffect(() => {
+    const content = contentRef.current;
+
+    if (content) {
+      content.scrollTop = 0;
+    }
+  }, [contentRef, scrollResetKey]);
 }
 
 function usePlatformShellVisualViewport(shellRef: RefObject<HTMLDivElement | null>): void {
