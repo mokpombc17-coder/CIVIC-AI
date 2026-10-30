@@ -1014,7 +1014,7 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   expect(twoFactorEnableRequestBodies).toEqual([{ code: null }, { code: "123456" }]);
 });
 
-test("A-HOME은 채팅방 승인 대기 목록에서 검토 화면으로 이동한다", async ({ context, page }) => {
+test("A-HOME은 토론방 승인 대기 목록에서 검토 화면으로 이동한다", async ({ context, page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await authenticate(context, "admin.payload.signature");
 
