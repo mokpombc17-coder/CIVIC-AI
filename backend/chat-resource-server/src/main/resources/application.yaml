@@ -1,0 +1,156 @@
+spring:
+  application:
+    name: chat-server
+  lifecycle:
+    timeout-per-shutdown-phase: 30s
+
+chat:
+  export:
+    temp-root: ${CHAT_EXPORT_TEMP_ROOT:/tmp/chat-export-tmp}
+    max-concurrent-exports: ${CHAT_EXPORT_MAX_CONCURRENT_EXPORTS:1}
+    audit-page-size: ${CHAT_EXPORT_AUDIT_PAGE_SIZE:1000}
+    max-events-per-export: ${CHAT_EXPORT_MAX_EVENTS_PER_EXPORT:100000}
+    max-distinct-messages-full: ${CHAT_EXPORT_MAX_DISTINCT_MESSAGES_FULL:50000}
+    max-replay-content-bytes: ${CHAT_EXPORT_MAX_REPLAY_CONTENT_BYTES:134217728}
+    max-artifact-bytes: ${CHAT_EXPORT_MAX_ARTIFACT_BYTES:268435456}
+    max-work-directory-bytes: ${CHAT_EXPORT_MAX_WORK_DIRECTORY_BYTES:536870912}
+    max-generation-duration: ${CHAT_EXPORT_MAX_GENERATION_DURATION:120s}
+    min-free-disk-bytes: ${CHAT_EXPORT_MIN_FREE_DISK_BYTES:1073741824}
+    cleanup-interval: ${CHAT_EXPORT_CLEANUP_INTERVAL:15m}
+    orphan-ttl: ${CHAT_EXPORT_ORPHAN_TTL:1h}
+    snapshot-max-attempts: ${CHAT_EXPORT_SNAPSHOT_MAX_ATTEMPTS:3}
+    max-conversation-export-range: ${CHAT_EXPORT_MAX_CONVERSATION_RANGE:31d}
+
+  room:
+    creation:
+      mode: ${CHAT_ROOM_CREATION_MODE:APPROVAL_REQUIRED}
+      max-pending-requests-per-user: ${CHAT_ROOM_CREATION_MAX_PENDING_REQUESTS_PER_USER:3}
+    command:
+      receipt-ttl: 1h
+      max-attempts: 3
+      retry-backoff: 10ms
+    membership:
+      max-active-members-per-room: ${CHAT_ROOM_MAX_ACTIVE_MEMBERS_PER_ROOM:50}
+      max-active-rooms-per-user: ${CHAT_ROOM_MAX_ACTIVE_ROOMS_PER_USER:20}
+      join-history-message-count: ${CHAT_ROOM_JOIN_HISTORY_MESSAGE_COUNT:10}
+      active-room-count-query-max-time: ${CHAT_ROOM_ACTIVE_ROOM_COUNT_QUERY_MAX_TIME:1s}
+    authorization:
+      max-consistency-attempts: 3
+    read-receipt:
+      flush-interval: ${CHAT_ROOM_READ_RECEIPT_FLUSH_INTERVAL:200ms}
+      max-updates-per-event: ${CHAT_ROOM_READ_RECEIPT_MAX_UPDATES_PER_EVENT:50}
+      max-event-bytes: ${CHAT_ROOM_READ_RECEIPT_MAX_EVENT_BYTES:12288}
+      max-pending-rooms: ${CHAT_ROOM_READ_RECEIPT_MAX_PENDING_ROOMS:1000}
+      snapshot-max-consistency-attempts: ${CHAT_ROOM_READ_RECEIPT_SNAPSHOT_MAX_CONSISTENCY_ATTEMPTS:3}
+      snapshot-max-positions: ${CHAT_ROOM_READ_RECEIPT_SNAPSHOT_MAX_POSITIONS:100}
+
+  room-query:
+    listed-room-page-query-max-time: ${CHAT_LISTED_ROOM_PAGE_QUERY_MAX_TIME:1s}
+
+  message:
+    search:
+      default-result-limit: ${CHAT_MESSAGE_SEARCH_DEFAULT_RESULT_LIMIT:20}
+      max-result-limit: ${CHAT_MESSAGE_SEARCH_MAX_RESULT_LIMIT:50}
+      candidate-chunk-size: ${CHAT_MESSAGE_SEARCH_CANDIDATE_CHUNK_SIZE:500}
+      max-scanned-per-request: ${CHAT_MESSAGE_SEARCH_MAX_SCANNED_PER_REQUEST:2000}
+      request-deadline: ${CHAT_MESSAGE_SEARCH_REQUEST_DEADLINE:1s}
+      mongo-query-max-time: ${CHAT_MESSAGE_SEARCH_MONGO_QUERY_MAX_TIME:500ms}
+      cursor-ttl: ${CHAT_MESSAGE_SEARCH_CURSOR_TTL:10m}
+      max-concurrent-searches: ${CHAT_MESSAGE_SEARCH_MAX_CONCURRENT_SEARCHES:4}
+      user-rate-limit-per-second: ${CHAT_MESSAGE_SEARCH_USER_RATE_LIMIT_PER_SECOND:1}
+      user-rate-limit-burst: ${CHAT_MESSAGE_SEARCH_USER_RATE_LIMIT_BURST:3}
+
+  message-pipeline:
+    queue-capacity: ${CHAT_MESSAGE_PIPELINE_QUEUE_CAPACITY:100}
+    shutdown-drain-timeout-ms: ${CHAT_MESSAGE_PIPELINE_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}
+
+  outbox:
+    poll-interval-ms: ${CHAT_OUTBOX_POLL_INTERVAL_MS:100}
+    claim-timeout-ms: ${CHAT_OUTBOX_CLAIM_TIMEOUT_MS:30000}
+    batch-size: ${CHAT_OUTBOX_BATCH_SIZE:100}
+    shutdown-drain-timeout-ms: ${CHAT_OUTBOX_SHUTDOWN_DRAIN_TIMEOUT_MS:10000}
+    metrics-sample-interval-ms: ${CHAT_OUTBOX_METRICS_SAMPLE_INTERVAL_MS:10000}
+    retry:
+      initial-backoff-ms: ${CHAT_OUTBOX_RETRY_INITIAL_BACKOFF_MS:250}
+      max-backoff-ms: ${CHAT_OUTBOX_RETRY_MAX_BACKOFF_MS:30000}
+
+  room-inbox:
+    unread-count-cap: ${CHAT_ROOM_INBOX_UNREAD_COUNT_CAP:200}
+    count-query-max-time: ${CHAT_ROOM_INBOX_COUNT_QUERY_MAX_TIME:1s}
+    page-query-max-time: ${CHAT_ROOM_INBOX_PAGE_QUERY_MAX_TIME:1s}
+    notification:
+      queue-capacity: ${CHAT_ROOM_INBOX_NOTIFICATION_QUEUE_CAPACITY:1000}
+      coalescing-window-ms: ${CHAT_ROOM_INBOX_COALESCING_WINDOW_MS:100}
+      max-events-per-room-batch: ${CHAT_ROOM_INBOX_MAX_EVENTS_PER_BATCH:100}
+      max-recipient-snapshot-size: ${CHAT_ROOM_INBOX_MAX_RECIPIENT_SNAPSHOT_SIZE:100}
+      shutdown-drain-timeout-ms: ${CHAT_ROOM_INBOX_NOTIFICATION_DRAIN_TIMEOUT_MS:1000}
+      public-rooms-coalescing-window-ms: ${CHAT_ROOM_INBOX_PUBLIC_ROOMS_COALESCING_WINDOW_MS:1000}
+
+  websocket:
+    endpoint: /ws
+
+    connection:
+      max-active-authenticated: 500
+      max-per-user: 1
+      replace-existing-connection: true
+
+    heartbeat:
+      interval-ms: 10000
+      client-outgoing-min-ms: 1
+      client-outgoing-max-ms: 10000
+      client-incoming-min-ms: 1
+      client-incoming-max-ms: 10000
+
+    subscription:
+      max-active-rooms-per-connection: 1
+      max-subscriptions-per-connection: 6
+      max-subscribers-per-room: 50
+      reject-duplicate-destination: true
+      allow-wildcard-destination: false
+
+    rate-limit:
+      user:
+        capacity: 5
+        refill-tokens: 1
+        refill-period-ms: 1000
+        token-cost-tiers:
+          - { max-code-points: 50, cost: 1 }
+          - { max-code-points: 100, cost: 2 }
+          - { max-code-points: 200, cost: 3 }
+          - { max-code-points: 500, cost: 4 }
+          - { max-code-points: 2000, cost: 5 }
+
+      global-source:
+        sustained-window-ms: 10000
+        sustained-max-accepted: 500
+        burst-window-ms: 1000
+        burst-max-accepted: 100
+
+    message:
+      room-id-regex: "^[A-Za-z0-9_-]{1,64}$"
+      max-content-code-points: 2000
+      max-content-utf8-bytes: 8192
+      max-stomp-message-bytes: 32768
+      normalize-content-with-strip: true
+      reject-c0-control-characters-except: [TAB, LF, CR]
+
+    transport:
+      time-to-first-message-ms: 10000
+      send-buffer-size-limit-per-connection-bytes: 262144
+      send-time-limit-per-connection-ms: 10000
+
+management:
+  endpoint:
+    health:
+      probes:
+        enabled: true
+      group:
+        liveness:
+          include:
+            - livenessState
+        readiness:
+          include:
+            - readinessState
+            - chatPipeline
+            - chatOutbox
+            - mongodb

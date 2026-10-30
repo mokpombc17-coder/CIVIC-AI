@@ -1,0 +1,74 @@
+services:
+  mongodb:
+    image: mongo:7.0.14
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+    ports:
+      - "127.0.0.1:27017:27017"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --eval "
+          try {
+            const expectedHost = 'mongodb:27017';
+            const config = rs.conf();
+            if (config.members.length !== 1
+                || config.members[0].host !== expectedHost) {
+              config.members = [{ _id: 0, host: expectedHost }];
+              rs.reconfig(config, { force: true });
+              quit(1);
+            }
+            const status = rs.status();
+            quit(status.myState === 1 ? 0 : 1);
+          } catch (error) {
+            if (error.code === 94
+                || error.codeName === 'NotYetInitialized') {
+              try {
+                rs.initiate({
+                  _id: 'rs0',
+                  members: [{ _id: 0, host: 'mongodb:27017' }]
+                });
+              } catch (ignored) {
+              }
+            }
+            quit(1);
+          }"
+      interval: 30s
+      start_interval: 2s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  chat-resource-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    logging:
+      driver: local
+      options:
+        max-size: "10m"
+        max-file: "5"
+    init: true
+    environment:
+      SPRING_PROFILES_ACTIVE: local,auth-fixture
+      CHAT_MONGODB_URI: >-
+        mongodb://mongodb:27017/chat_local?replicaSet=rs0&retryWrites=true&w=majority
+    depends_on:
+      mongodb:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8082:8082"
+
+volumes:
+  mongodb-data:

@@ -1,0 +1,58 @@
+package com.hamcheeze.chat.room.api.dto;
+
+import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.query.RoomParticipationStatus;
+import com.hamcheeze.chat.room.query.model.RoomDetailView;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+public record RoomDetailResponse(
+        String roomId,
+        String name,
+        String description,
+        List<String> categoryIds,
+        List<RoomCategorySummaryResponse> categorySummaries,
+        String ownerMembershipId,
+        RoomStatus status,
+        RoomVisibility visibility,
+        JoinPolicy joinPolicy,
+        int activeMemberCount,
+        Instant createdAt,
+        Instant closedAt,
+        long version,
+        RoomParticipationStatus participationStatus,
+        MembershipResponse myMembership
+) {
+
+    public static RoomDetailResponse from(
+            RoomDetailView view,
+            Map<String, RoomCategorySummaryResponse>
+                    categorySummariesById
+    ) {
+        return new RoomDetailResponse(
+                view.roomId(),
+                view.name(),
+                view.description(),
+                view.categoryIds(),
+                RoomCategorySummaryResponse.resolve(
+                        view.categoryIds(),
+                        categorySummariesById),
+                view.ownerMembershipId(),
+                view.status(),
+                view.visibility(),
+                view.joinPolicy(),
+                view.activeMemberCount(),
+                view.createdAt(),
+                view.closedAt(),
+                view.version(),
+                view.participationStatus(),
+                view.myMembership() == null
+                        ? null
+                        : MembershipResponse.from(
+                                view.myMembership()));
+    }
+}

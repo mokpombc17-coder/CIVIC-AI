@@ -1,0 +1,32 @@
+spring:
+  mongodb:
+    uri: "${CHAT_MONGODB_URI:mongodb://localhost:27017/chat_local?replicaSet=rs0&retryWrites=true&w=majority}"
+
+server:
+  port: 8082
+
+civic:
+  auth:
+    issuer: ${CHAT_JWT_ISSUER_URI:http://localhost:8080}
+    jwks-uri: ${CHAT_JWT_JWKS_URI:http://localhost:8080/.well-known/jwks.json}
+    browser-origin: ${CHAT_BROWSER_ORIGIN:http://localhost:8080}
+    allow-insecure-loopback: true
+
+chat:
+  room:
+    creation:
+      mode: APPROVAL_REQUIRED
+
+  websocket:
+    allowed-origins:
+      - http://localhost:3000
+
+  security:
+    cookie-authentication-enabled: true
+    cors:
+      allowed-origins:
+        - http://localhost:3000
+    local-jwt:
+      secret: ${CHAT_LOCAL_JWT_SECRET:civic-ai-local-auth-fixture-signing-key-v1-public-do-not-use-in-production}
+      issuer: ${CHAT_LOCAL_JWT_ISSUER:http://localhost:3000/api/dev/auth}
+      audience: ${CHAT_LOCAL_JWT_AUDIENCE:civic-ai-api}

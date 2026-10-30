@@ -1,0 +1,183 @@
+package com.hamcheeze.chat.websocket.config;
+
+import com.hamcheeze.chat.room.api.RoomApiSecurityProblemWriter;
+import com.hamcheeze.chat.security.ChatScopes;
+import com.hamcheeze.chat.security.CookieOrHeaderBearerTokenResolver;
+import com.hamcheeze.civic.auth.CivicCookieMutationSameOriginFilter;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Profile;
+import org.springframework.core.annotation.Order;
+import org.springframework.http.HttpMethod;
+import org.springframework.security.config.Customizer;
+import org.springframework.security.config.annotation.web.builders.HttpSecurity;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
+import org.springframework.security.oauth2.server.resource.web.BearerTokenResolver;
+import org.springframework.security.web.SecurityFilterChain;
+
+@Configuration(proxyBeanMethods = false)
+public class WebSocketSecurityConfig {
+
+    @Bean
+    @Order(1)
+    SecurityFilterChain webSocketHandshakeSecurityFilterChain(
+            HttpSecurity http,
+            WebSocketEndpointProperties properties,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
+    ) throws Exception {
+        String endpoint = properties.getEndpoint();
+        http
+                .securityMatcher(endpoint, endpoint + "/**")
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.disable())
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .anyRequest()
+                        .permitAll());
+        addSameOriginFilter(http, sameOriginFilterProvider);
+        return http.build();
+    }
+
+    @Bean
+    @Order(2)
+    SecurityFilterChain apiSecurityFilterChain(
+            HttpSecurity http,
+            RoomApiSecurityProblemWriter problemWriter,
+            BearerTokenResolver bearerTokenResolver,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
+    ) throws Exception {
+        http
+                .cors(Customizer.withDefaults())
+                .csrf(csrf -> csrf.ignoringRequestMatchers(
+                        "/api/v1/**"))
+                .sessionManagement(session -> session
+                        .sessionCreationPolicy(
+                                SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(authorize -> authorize
+                        .requestMatchers(
+                                "/actuator/health",
+                                "/actuator/health/**")
+                        .permitAll()
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/me/room-inbox")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/me/room-creation-requests/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/me/room-creation-requests/*/cancel")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_WRITE))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/room-categories")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                "/api/v1/admin/room-categories/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CATEGORIES_MANAGE))
+                        .requestMatchers(
+                                "/api/v1/admin/room-creation-requests/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_APPROVE))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/admin/rooms/*/commands/close")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_APPROVE))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/admin/rooms")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CATEGORIES_MANAGE))
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/admin/rooms/*/categories")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CATEGORIES_MANAGE))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/admin/rooms/*/conversation-exports")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CHAT_AUDIT_EXPORTS))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/admin/rooms/*/exports")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CHAT_AUDIT_EXPORTS))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/research/rooms/*/exports")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.CHAT_RESEARCH_EXPORTS))
+                        .requestMatchers(
+                                HttpMethod.PUT,
+                                "/api/v1/rooms/*/read-state")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.READ_STATE_WRITE))
+                        .requestMatchers(
+                                HttpMethod.GET,
+                                "/api/v1/rooms/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/rooms/*/messages/search")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_READ))
+                        .requestMatchers(
+                                HttpMethod.POST,
+                                "/api/v1/rooms/**")
+                        .hasAuthority(ChatScopes.authority(
+                                ChatScopes.ROOMS_WRITE))
+                        .requestMatchers("/api/v1/**")
+                        .authenticated()
+                        .anyRequest()
+                        .authenticated())
+                .exceptionHandling(exceptions -> exceptions
+                        .authenticationEntryPoint(problemWriter)
+                        .accessDeniedHandler(problemWriter))
+                .oauth2ResourceServer(resourceServer ->
+                        resourceServer
+                                .bearerTokenResolver(bearerTokenResolver)
+                                .jwt(Customizer.withDefaults())
+                                .authenticationEntryPoint(
+                                        problemWriter));
+        addSameOriginFilter(http, sameOriginFilterProvider);
+        return http.build();
+    }
+
+    @Bean
+    @Profile("!auth-main")
+    BearerTokenResolver chatBearerTokenResolver(
+            @Value("${chat.security.cookie-authentication-enabled:false}")
+            boolean cookieAuthenticationEnabled
+    ) {
+        return new CookieOrHeaderBearerTokenResolver(
+                cookieAuthenticationEnabled);
+    }
+
+    private static void addSameOriginFilter(
+            HttpSecurity http,
+            ObjectProvider<CivicCookieMutationSameOriginFilter>
+                    sameOriginFilterProvider
+    ) {
+        sameOriginFilterProvider.ifAvailable(filter ->
+                http.addFilterBefore(
+                        filter,
+                        BearerTokenAuthenticationFilter.class));
+    }
+}

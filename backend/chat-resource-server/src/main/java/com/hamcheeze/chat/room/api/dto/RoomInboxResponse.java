@@ -1,0 +1,70 @@
+package com.hamcheeze.chat.room.api.dto;
+
+import com.hamcheeze.chat.room.JoinPolicy;
+import com.hamcheeze.chat.room.MembershipRole;
+import com.hamcheeze.chat.room.MembershipStatus;
+import com.hamcheeze.chat.room.RoomStatus;
+import com.hamcheeze.chat.room.RoomVisibility;
+import com.hamcheeze.chat.room.inbox.model.RoomInboxView;
+
+import java.time.Instant;
+import java.util.List;
+import java.util.Map;
+
+public record RoomInboxResponse(
+        String roomId,
+        String name,
+        String description,
+        List<String> categoryIds,
+        List<RoomCategorySummaryResponse> categorySummaries,
+        String ownerMembershipId,
+        RoomStatus status,
+        RoomVisibility visibility,
+        JoinPolicy joinPolicy,
+        int activeMemberCount,
+        Instant createdAt,
+        long version,
+        String membershipId,
+        MembershipRole membershipRole,
+        MembershipStatus membershipStatus,
+        Instant joinedAt,
+        long membershipVersion,
+        long readThroughSequence,
+        int unreadCount,
+        boolean unreadCountCapped,
+        RoomInboxLastMessageResponse lastMessage,
+        Instant lastActivityAt
+) {
+    public static RoomInboxResponse from(
+            RoomInboxView view,
+            Map<String, RoomCategorySummaryResponse>
+                    categorySummariesById
+    ) {
+        return new RoomInboxResponse(
+                view.roomId(),
+                view.name(),
+                view.description(),
+                view.categoryIds(),
+                RoomCategorySummaryResponse.resolve(
+                        view.categoryIds(),
+                        categorySummariesById),
+                view.ownerMembershipId(),
+                view.status(),
+                view.visibility(),
+                view.joinPolicy(),
+                view.activeMemberCount(),
+                view.createdAt(),
+                view.version(),
+                view.membershipId(),
+                view.membershipRole(),
+                view.membershipStatus(),
+                view.joinedAt(),
+                view.membershipVersion(),
+                view.readThroughSequence(),
+                view.unreadCount(),
+                view.unreadCountCapped(),
+                RoomInboxLastMessageResponse.from(
+                        view.lastMessage()),
+                view.lastActivityAt());
+    }
+}

@@ -1,0 +1,9 @@
+{"changeSequence":1,"messageSequence":1,"userId":"user-9","changeType":"CREATED","content":"이 정책에 찬성합니다.","changedAt":"2026-08-24T02:20:00Z"}
+{"changeSequence":2,"messageSequence":2,"userId":"user-4","changeType":"CREATED","content":"시범 운영이 필요합니다.","changedAt":"2026-08-24T02:21:00Z"}
+{"changeSequence":3,"messageSequence":3,"userId":"user-12","changeType":"CREATED","content":"부서별 선택형 운영에 찬성합니다.","changedAt":"2026-08-24T02:22:00Z"}
+{"changeSequence":4,"messageSequence":1,"userId":"user-9","changeType":"UPDATED","content":"이 정책에는 돌봄 대상자를 위한 예외 조건이 필요합니다.","changedAt":"2026-08-24T02:25:00Z"}
+{"changeSequence":5,"messageSequence":2,"userId":"user-4","changeType":"UPDATED","content":"최소 3개월의 시범 운영 기간이 필요합니다.","changedAt":"2026-08-24T02:26:00Z"}
+{"changeSequence":6,"messageSequence":2,"userId":"user-4","changeType":"UPDATED","content":"시범 운영 기간을 두고 참여율과 만족도를 함께 평가해야 합니다.","changedAt":"2026-08-24T02:27:00Z"}
+{"changeSequence":7,"messageSequence":2,"userId":"user-4","changeType":"DELETED","content":"시범 운영 기간을 두고 참여율과 만족도를 함께 평가해야 합니다.","changedAt":"2026-08-24T02:29:00Z"}
+{"changeSequence":8,"messageSequence":3,"userId":"user-12","changeType":"UPDATED","content":"부서별 업무 특성을 반영한 선택형 운영에 찬성합니다.","changedAt":"2026-08-24T02:30:00Z"}
+

@@ -1,0 +1,10 @@
+package com.hamcheeze.chat.room.creation;
+
+public enum RoomCreationRequestErrorCode {
+    ROOM_CREATION_REQUEST_NOT_FOUND,
+    ROOM_CREATION_DECISION_CONFLICT,
+    ROOM_CREATION_PENDING_LIMIT_EXCEEDED,
+    USER_ACTIVE_ROOM_LIMIT_EXCEEDED,
+    IDEMPOTENCY_CONFLICT,
+    INVALID_CURSOR
+}

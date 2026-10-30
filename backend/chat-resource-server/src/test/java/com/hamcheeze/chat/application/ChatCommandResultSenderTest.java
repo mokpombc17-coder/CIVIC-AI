@@ -1,0 +1,118 @@
+package com.hamcheeze.chat.application;
+
+import com.hamcheeze.chat.metrics.ThrowingMeterRegistry;
+import com.hamcheeze.chat.websocket.connection.ActiveConnectionRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.messaging.MessageHeaders;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
+
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
+
+class ChatCommandResultSenderTest {
+
+    @Test
+    void sendsResultToEstablishedCommandResultsDestination() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SimpMessagingTemplate> provider =
+                mock(ObjectProvider.class);
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+        ActiveConnectionRegistry activeConnections =
+                mock(ActiveConnectionRegistry.class);
+        when(provider.getObject()).thenReturn(messagingTemplate);
+        when(activeConnections.isActive(
+                "user-1", "connection-1")).thenReturn(true);
+        ChatCommandResultSender sender = new ChatCommandResultSender(
+                provider,
+                new ChatCommandResultMapper(),
+                activeConnections,
+                new SimpleMeterRegistry());
+        ChatCommandOutcome result = new ChatCommandOutcome(
+                "550e8400-e29b-41d4-a716-446655440000",
+                ChatCommandOutcomeCode.ACCEPTED,
+                "message-1",
+                1L);
+
+        sender.send("user-1", "connection-1", result);
+
+        verify(messagingTemplate).convertAndSendToUser(
+                eq("user-1"),
+                eq("/queue/command-results"),
+                eq(new ChatCommandResultEnvelope(
+                        "550e8400-e29b-41d4-a716-446655440000",
+                        "ACCEPTED",
+                        null,
+                        false,
+                        null,
+                        "message-1",
+                        1L)),
+                any(MessageHeaders.class));
+    }
+
+    @Test
+    void resultMetricFailureDoesNotChangeSendSuccess() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SimpMessagingTemplate> provider =
+                mock(ObjectProvider.class);
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+        ActiveConnectionRegistry activeConnections =
+                mock(ActiveConnectionRegistry.class);
+        when(provider.getObject()).thenReturn(messagingTemplate);
+        when(activeConnections.isActive(
+                "user-1", "connection-1")).thenReturn(true);
+        ChatCommandResultSender sender = new ChatCommandResultSender(
+                provider,
+                new ChatCommandResultMapper(),
+                activeConnections,
+                ThrowingMeterRegistry.counter(
+                        "chat.command.rejected"));
+        ChatCommandRejected result = new ChatCommandRejected(
+                "550e8400-e29b-41d4-a716-446655440001",
+                ChatCommandRejectedCode.SERVER_BUSY,
+                true,
+                100L);
+
+        sender.send("user-1", "connection-1", result);
+
+        verify(messagingTemplate).convertAndSendToUser(
+                eq("user-1"),
+                eq("/queue/command-results"),
+                any(ChatCommandResultEnvelope.class),
+                any(MessageHeaders.class));
+    }
+
+    @Test
+    void doesNotSendResultToReplacementConnection() {
+        @SuppressWarnings("unchecked")
+        ObjectProvider<SimpMessagingTemplate> provider =
+                mock(ObjectProvider.class);
+        SimpMessagingTemplate messagingTemplate =
+                mock(SimpMessagingTemplate.class);
+        ActiveConnectionRegistry activeConnections =
+                mock(ActiveConnectionRegistry.class);
+        when(provider.getObject()).thenReturn(messagingTemplate);
+        ChatCommandResultSender sender = new ChatCommandResultSender(
+                provider,
+                new ChatCommandResultMapper(),
+                activeConnections,
+                new SimpleMeterRegistry());
+        ChatCommandOutcome result = new ChatCommandOutcome(
+                "550e8400-e29b-41d4-a716-446655440000",
+                ChatCommandOutcomeCode.ACCEPTED,
+                "message-1",
+                1L);
+
+        sender.send("user-1", "old-connection", result);
+
+        verify(messagingTemplate, never()).convertAndSendToUser(
+                any(), any(), any(), any(MessageHeaders.class));
+    }
+}
