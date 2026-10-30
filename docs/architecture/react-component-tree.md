@@ -373,7 +373,7 @@ Browser /api/v1/admin/room-creation-requests/** | /api/v1/admin/room-categories/
 
 Browser /api/v1/me/service-eligibility | /api/v1/me/surveys/current | /api/v1/me/survey-responses
         | /api/v1/me/survey-responses/latest
-├── A1: nginx direct ingress
+├── production: nginx direct ingress
 │   └── Vote Resource Server :8082
 └── Next.js participant Vote BFF [local/standalone Frontend2]
     ├── path·method allowlist

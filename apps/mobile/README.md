@@ -261,8 +261,7 @@ foreground로 돌아올 때 `/api/mobile/config`를 다시 조회하고, 현재 
 4. Next.js를 다시 배포한다.
 
 스토어에서 새 build를 받을 수 있기 전에 최소값을 올리면 사용자가 앱에 진입할 수 없으므로,
-단계적 배포 중에는 최소값을 올리지 않는다. Production EAS build는 `eas.json`의
-`autoIncrement` 설정으로 build version을 증가시킨다.
+단계적 배포 중에는 최소값을 올리지 않는다.
 
 ## 프로덕션 체크리스트
 

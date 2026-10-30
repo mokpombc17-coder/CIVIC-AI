@@ -21,7 +21,7 @@ Next.js `apps/web/proxy.ts`가 페이지 요청마다 nonce를 생성하고 차�
 
 ## Edge 정책
 
-`deploy/nginx/next-webview.conf`는 TLS 응답에 다음 HSTS를 항상 추가한다.
+HTTPS edge는 TLS 응답에 다음 HSTS를 항상 추가한다.
 
 ```text
 Strict-Transport-Security: max-age=31536000

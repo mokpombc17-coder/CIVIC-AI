@@ -300,7 +300,7 @@ describe("initialRunSetup", () => {
 });
 
 describe("loadLatestRunSettings", () => {
-  // deploy/nginx/next-webview.conf가 시뮬레이션 서버로 보내는 경로여야 한다.
+  // 공개 edge가 시뮬레이션 서버로 보내는 경로여야 한다.
   const SIMULATION_INGRESS =
     /^\/api\/v1\/admin\/(simulations(?:\/.*)?|simulation-options|simulation-capacity|simulation-tasks(?:\/.*)?|simulation-scenarios(?:\/.*)?|simulation-billing(?:\/.*)?)$/;
 
