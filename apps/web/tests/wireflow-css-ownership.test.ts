@@ -113,4 +113,26 @@ describe("wireflow CSS ownership", () => {
     expect(adminBase).toContain('[data-wireflow-layout="task-detail"].civic-domain-console');
     expect(adminConsole).toContain(".console-workspace");
   });
+
+  it("A-RAG 폴더 펼치기 버튼은 WCAG 2.2 최소 대상 크기 24×24를 지킨다", () => {
+    const wireflow = readFileSync(join(appRoot, "wireflow.css"), "utf8").replace(
+      /\/\*[\s\S]*?\*\//gu,
+      "",
+    );
+    const expanderRules = [
+      ...wireflow.matchAll(
+        /\[data-wireflow-screen\^="A-RAG"\] \.civic-folder-tree li > \.civic-folder-expander \{([^{}]*)\}/gu,
+      ),
+    ].map((match) => match[1] ?? "");
+    expect(expanderRules.length).toBeGreaterThan(0);
+    const lastValue = (property: string) =>
+      expanderRules
+        .flatMap((rule) => [
+          ...rule.matchAll(new RegExp(`(?:^|;|\\s)${property}:\\s*(\\d+)px`, "gu")),
+        ])
+        .map((match) => Number(match[1]))
+        .at(-1);
+    expect(lastValue("width")).toBeGreaterThanOrEqual(24);
+    expect(lastValue("min-height")).toBeGreaterThanOrEqual(24);
+  });
 });

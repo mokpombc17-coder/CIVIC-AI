@@ -1,6 +1,7 @@
 import type { Route } from "next";
 import { redirect } from "next/navigation";
 import "../admin-shell.css";
+import "../wireflow.css";
 import { loadCurrentUser } from "@/lib/auth/require-access";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";

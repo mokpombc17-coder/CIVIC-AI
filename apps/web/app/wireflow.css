@@ -5561,17 +5561,18 @@
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-folder-tree li {
-  grid-template-columns: 20px minmax(0, 1fr);
+  grid-template-columns: 24px minmax(0, 1fr);
   padding-left: calc(var(--folder-depth, 0) * 10px);
 }
 
+/* 펼치기 버튼은 WCAG 2.2 최소 대상 크기(24×24)를 지킨다. */
 [data-wireflow-screen^="A-RAG"] .civic-folder-tree li > .civic-folder-expander {
-  width: 20px;
+  width: 24px;
   min-height: 28px;
 }
 
 [data-wireflow-screen^="A-RAG"] .civic-folder-expander-placeholder {
-  width: 20px;
+  width: 24px;
 }
 
 [data-wireflow-screen^="A-RAG"]

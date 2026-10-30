@@ -152,6 +152,10 @@ describe("home route import boundary", () => {
       "utf8",
     );
     const forbiddenPage = readFileSync(join(webRoot, "app", "forbidden", "page.tsx"), "utf8");
+    const serviceUnavailablePage = readFileSync(
+      join(webRoot, "app", "service-unavailable", "page.tsx"),
+      "utf8",
+    );
     const homeStyles = readFileSync(join(webRoot, "app", "home", "home.css"), "utf8");
     const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
 
@@ -165,6 +169,9 @@ describe("home route import boundary", () => {
     expect(adminLayout).toContain('import "..\/..\/wireflow.css"');
     expect(adminLayout).toContain('import "..\/..\/admin-console.css"');
     expect(forbiddenPage).toContain('import "..\/admin-shell.css"');
+    // route group 밖 공통 화면도 Wire Flow 화면 제목·카드 스타일을 받아야 제목 h1이 한 번만 보인다.
+    expect(forbiddenPage).toContain('import "..\/wireflow.css"');
+    expect(serviceUnavailablePage).toContain('import "..\/wireflow.css"');
     expect(homeStyles).toContain('@import "../wireflow-core.css"');
     expect(homeStyles).not.toContain("wireflow-base.css");
     expect(homeStyles).toContain(".civic-opinion-hero-question");
