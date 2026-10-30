@@ -52,6 +52,19 @@ CIVIC_DEV_SIMULATION_UPSTREAM=http://127.0.0.1:8090
 production Next.js에서는 무시되며, 운영 트래픽은 nginx가 각 Resource Server로 직접 전달한다.
 브라우저에는 내부 서비스 URL이나 비밀 키를 노출하지 않는다. 외부 OAuth 로그인은 사용하지 않는다.
 
+## 배포 전 도메인 교체
+
+이 저장소의 공개 URL은 `example.com`으로 채워져 있다. 그대로 배포하면 `canonical`, `robots`,
+`sitemap`, `llms.txt`가 `example.com`을 가리키므로, 배포 전에 다음 파일의 값을 자기 도메인으로 바꾼다.
+
+- `apps/web/app/robots.ts`
+- `apps/web/app/sitemap.ts`
+- `apps/web/lib/home-search.ts`
+- `apps/web/public/llms.txt`
+
+테스트도 같은 URL을 검사하므로 `apps/web/lib/home-search.test.ts`, `apps/web/tests/robots.test.ts`,
+`apps/web/tests/sitemap.test.ts`, `apps/web/tests/llms-txt.test.ts`도 함께 바꾼다.
+
 ## 실행과 검증
 
 Node.js `24.18.0`, pnpm `11.15.1`을 사용한다.
