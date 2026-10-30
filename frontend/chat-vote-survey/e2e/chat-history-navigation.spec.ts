@@ -1,0 +1,176 @@
+import {
+  expect,
+  test,
+  type Browser,
+  type Page,
+  type Request,
+  type TestInfo,
+} from "@playwright/test";
+import {
+  authenticateLocalE2EUserAs,
+  createE2ERoomName,
+  createRoomAndEnter,
+  findPublicRoomCard,
+} from "./chat-e2e-helpers";
+
+test("채팅방 조회 중 browser history back은 진행 중인 요청을 오류 표시 없이 취소한다", async ({
+  browser,
+  context,
+  page,
+}, testInfo) => {
+  const uniqueId = crypto.randomUUID();
+  let releaseRoomDetails: (() => void) | undefined;
+  const roomDetailsRelease = new Promise<void>((resolve) => {
+    releaseRoomDetails = resolve;
+  });
+  let notifyRoomDetailsStarted: ((request: Request) => void) | undefined;
+  const roomDetailsStarted = new Promise<Request>((resolve) => {
+    notifyRoomDetailsStarted = resolve;
+  });
+
+  await authenticateLocalE2EUserAs(page, context, `e2e-history-back-member-${uniqueId}`);
+  const fixture = await createFixtureRoom(browser, testInfo, uniqueId);
+  await page.goto("/chat");
+  await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
+  const roomCard = await findPublicRoomCard(page, fixture.roomName);
+  const roomId = fixture.roomId;
+
+  await page.route("**/api/v1/rooms/*", async (route) => {
+    const request = route.request();
+    const url = new URL(request.url());
+    const isRoomDetails =
+      request.method() === "GET" && /^\/api\/v1\/rooms\/[^/]+$/.test(url.pathname);
+
+    if (!isRoomDetails) {
+      await route.continue();
+      return;
+    }
+
+    notifyRoomDetailsStarted?.(request);
+    await roomDetailsRelease;
+    await route.continue().catch(() => undefined);
+  });
+
+  await roomCard.getByRole("button", { name: /참여하기$/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "참여하기", exact: true }).click();
+
+  await roomDetailsStarted;
+  await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
+  await expect(page.locator('[data-chat-room-entry-state="initializing"]')).toBeVisible();
+  await expect(page.getByText("실시간 방 구독이 준비되면 최근 메시지를 불러옵니다.")).toHaveCount(
+    0,
+  );
+  await expect(page.getByText("채팅 준비가 끝나면 입력할 수 있습니다.")).toHaveCount(0);
+  await startTransientChatAlertRecorder(page);
+
+  const backNavigation = page.goBack();
+  await expect(page).toHaveURL(/\/chat$/);
+  releaseRoomDetails?.();
+  await backNavigation;
+  await page.waitForTimeout(200);
+
+  const transientErrors = await stopTransientChatAlertRecorder(page);
+
+  expect(transientErrors).toEqual([]);
+  await expect(page.locator('[data-chat-room-list-state="error"]')).toHaveCount(0);
+  await expect(page.locator('[data-chat-message-history-state="sync-error"]')).toHaveCount(0);
+  await expect(
+    page.getByRole("heading", { name: "토론방 정보를 불러오지 못했습니다." }),
+  ).toHaveCount(0);
+});
+
+test("활성 채팅방의 browser history back은 세션 복구 안내를 잠깐 노출하지 않는다", async ({
+  browser,
+  context,
+  page,
+}, testInfo) => {
+  const uniqueId = crypto.randomUUID();
+
+  await authenticateLocalE2EUserAs(page, context, `e2e-history-back-active-${uniqueId}`);
+  const fixture = await createFixtureRoom(browser, testInfo, uniqueId);
+  await page.goto("/chat");
+  await expect(page.getByRole("heading", { name: "토론방", exact: true })).toBeVisible();
+  const roomCard = await findPublicRoomCard(page, fixture.roomName);
+  const roomId = fixture.roomId;
+
+  await roomCard.getByRole("button", { name: /참여하기$/ }).click();
+  await page.getByRole("dialog").getByRole("button", { name: "참여하기", exact: true }).click();
+
+  await expect(page).toHaveURL(new RegExp(`/chat/${roomId}$`));
+  await expect(page.getByRole("textbox", { name: "메시지", exact: true })).toBeEnabled();
+  await startTransientChatAlertRecorder(page);
+
+  await page.goBack();
+  await expect(page).toHaveURL(/\/chat$/);
+  await page.waitForTimeout(200);
+
+  expect(await stopTransientChatAlertRecorder(page)).toEqual([]);
+});
+
+async function startTransientChatAlertRecorder(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const seen = new Set<string>();
+    const captureTransientChatErrors = () => {
+      const selectors = [
+        '[data-chat-room-list-state="error"]',
+        '[data-chat-message-history-state="sync-error"]',
+        "[data-chat-session-notice]",
+      ];
+
+      for (const element of document.querySelectorAll(selectors.join(","))) {
+        seen.add(element.textContent?.trim() ?? "unknown chat error");
+      }
+
+      for (const alert of document.querySelectorAll('[role="alert"]')) {
+        const text = alert.textContent?.trim() ?? "";
+        if (
+          text.includes("토론방 정보를 불러오지 못했습니다.") ||
+          text.includes("메시지 이력을 불러오지 못했습니다.") ||
+          text.includes("참여 중인 방을 불러오지 못했습니다.")
+        ) {
+          seen.add(text);
+        }
+      }
+
+      for (const status of document.querySelectorAll(
+        '[data-chat-message-composer-state="disabled"]',
+      )) {
+        const text = status.textContent?.trim() ?? "";
+        if (text.includes("채팅 준비가 끝나면 입력할 수 있습니다.")) {
+          seen.add(text);
+        }
+      }
+    };
+    const observer = new MutationObserver(captureTransientChatErrors);
+    observer.observe(document.body, { childList: true, subtree: true });
+    Reflect.set(window, "__chatHistoryBackAlertRecorder", { observer, seen });
+  });
+}
+
+async function stopTransientChatAlertRecorder(page: Page): Promise<string[]> {
+  return page.evaluate(() => {
+    const recorder = Reflect.get(window, "__chatHistoryBackAlertRecorder") as
+      { observer: MutationObserver; seen: Set<string> } | undefined;
+
+    recorder?.observer.disconnect();
+    return recorder ? [...recorder.seen] : [];
+  });
+}
+
+async function createFixtureRoom(
+  browser: Browser,
+  testInfo: TestInfo,
+  uniqueId: string,
+): Promise<{ roomId: string; roomName: string }> {
+  const ownerContext = await browser.newContext({ baseURL: String(testInfo.project.use.baseURL) });
+
+  try {
+    const ownerPage = await ownerContext.newPage();
+    await authenticateLocalE2EUserAs(ownerPage, ownerContext, `e2e-history-back-owner-${uniqueId}`);
+    const roomName = createE2ERoomName("hist-back");
+    const roomId = await createRoomAndEnter(ownerPage, roomName);
+    return { roomId, roomName };
+  } finally {
+    await ownerContext.close();
+  }
+}

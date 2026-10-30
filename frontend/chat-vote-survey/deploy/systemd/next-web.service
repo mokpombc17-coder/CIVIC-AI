@@ -1,0 +1,20 @@
+[Unit]
+Description=Next.js web and BFF
+After=network.target
+
+[Service]
+Type=simple
+User=nextjs
+Group=nextjs
+WorkingDirectory=/srv/next-expo-webview-starter
+Environment=NODE_ENV=production
+Environment=PORT=3000
+EnvironmentFile=/etc/next-web.env
+ExecStart=/usr/bin/corepack pnpm --filter @app/web start
+Restart=on-failure
+RestartSec=5
+NoNewPrivileges=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,12 @@
+node_modules
+.pnpm-store
+.next
+out
+dist
+coverage
+e2e/.artifacts
+.expo
+android
+ios
+*.lock
+pnpm-lock.yaml

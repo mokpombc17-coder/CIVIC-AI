@@ -1,0 +1,42 @@
+{
+  "name": "next-expo-webview-starter",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": "11.15.1"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @app/web --filter @app/mobile run dev",
+    "dev:web": "pnpm --filter @app/web run dev",
+    "dev:mobile": "pnpm --filter @app/mobile run dev",
+    "build": "pnpm run build:web",
+    "build:web": "pnpm --filter @app/web run build",
+    "start:web": "pnpm --filter @app/web run start",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "vitest run",
+    "test:e2e": "node scripts/run-e2e.mjs",
+    "test:e2e:survey": "playwright test --config playwright.survey.config.ts",
+    "test:e2e:webkit": "playwright test --config playwright.webkit.config.ts",
+    "test:e2e:headed": "CHAT_E2E_NATIVE_VIEWPORT=true playwright test --headed",
+    "test:e2e:chat-demo": "CHAT_E2E_NATIVE_VIEWPORT=true CHAT_E2E_TILE_WINDOWS=true CHAT_E2E_DEMO_DELAY_MS=700 playwright test e2e/chat-multi-user-conversation.spec.ts --headed",
+    "test:e2e:debug": "CHAT_E2E_NATIVE_VIEWPORT=true playwright test --debug",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "clean": "pnpm -r --if-present run clean",
+    "codegraph": "codegraph",
+    "codegraph:init": "codegraph init",
+    "codegraph:status": "codegraph status",
+    "codegraph:sync": "codegraph sync"
+  },
+  "devDependencies": {
+    "@colbymchenry/codegraph": "1.5.0",
+    "@playwright/test": "^1.62.0",
+    "prettier": "3.9.6",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

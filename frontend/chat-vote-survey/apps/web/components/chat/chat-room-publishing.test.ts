@@ -1,0 +1,50 @@
+import { describe, expect, it } from "vitest";
+import {
+  CHAT_ROOM_PUBLISHING_COPY,
+  hasReachedChatUserActiveRoomLimit,
+  getChatRoomMemberCountPresentation,
+  TEMPORARY_CHAT_ROOM_MEMBER_LIMIT,
+  TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT,
+} from "./chat-room-publishing";
+
+describe("chat room publishing presentation", () => {
+  it("백엔드 최대 정원 필드가 생기기 전까지 50명을 기본 정원으로 표시한다", () => {
+    expect(TEMPORARY_CHAT_ROOM_MEMBER_LIMIT).toBe(50);
+    expect(getChatRoomMemberCountPresentation(8)).toEqual({
+      ariaLabel: "현재 참여 인원 8명, 최대 50명",
+      text: "8 / 50명",
+    });
+  });
+
+  it("향후 서버 정원이 제공되면 같은 표현 함수에 값을 전달할 수 있다", () => {
+    expect(getChatRoomMemberCountPresentation(6, 10)).toEqual({
+      ariaLabel: "현재 참여 인원 6명, 최대 10명",
+      text: "6 / 10명",
+    });
+  });
+
+  it("확정한 목록 화면 문구를 한곳에서 제공한다", () => {
+    expect(CHAT_ROOM_PUBLISHING_COPY).toEqual({
+      activeRoomLimitReached: "토론방은 동시에 최대 20개까지 참여할 수 있어요.",
+      createRoom: "토론방 생성 요청",
+      noAvailableRooms: "현재 참여 가능한 방이 없어요",
+      noAvailableRoomsDescription: "원하는 주제로 토론방 생성을 요청해 보세요.",
+      noPublicRoomSearchResults: "검색어와 일치하는 토론방이 없어요",
+    });
+  });
+
+  it("현재 운영 기본값인 20개부터 사용자 ACTIVE Room 한도 도달로 판단한다", () => {
+    expect(TEMPORARY_CHAT_USER_ACTIVE_ROOM_LIMIT).toBe(20);
+    expect(hasReachedChatUserActiveRoomLimit(19)).toBe(false);
+    expect(hasReachedChatUserActiveRoomLimit(20)).toBe(true);
+  });
+
+  it.each([
+    [-1, 50],
+    [1.5, 50],
+    [0, 0],
+    [0, Number.MAX_SAFE_INTEGER + 1],
+  ])("잘못된 인원 값은 거절한다: active=%s, limit=%s", (active, limit) => {
+    expect(() => getChatRoomMemberCountPresentation(active, limit)).toThrow(RangeError);
+  });
+});

@@ -1,0 +1,43 @@
+export const SURVEY_PATH = "/survey" as const;
+export const DEFAULT_SURVEY_RETURN_PATH = "/home" as const;
+// 설문을 마치지 않은 사용자도 들어갈 수 있는 곳. 채팅·투표는 서비스 관문이 다시 설문으로 보냄
+export const SURVEY_EXIT_PATH = "/home" as const;
+
+const SURVEY_RETURN_PATH_BASE_URL = "https://civic-ai.invalid";
+
+export type SurveyReturnPathInput = string | readonly string[] | null | undefined;
+
+export function createSurveyHref(returnTo: string): string {
+  const searchParams = new URLSearchParams({
+    returnTo: resolveSurveyReturnPath(returnTo),
+  });
+
+  return `${SURVEY_PATH}?${searchParams.toString()}`;
+}
+
+export function resolveSurveyReturnPath(value: SurveyReturnPathInput): string {
+  if (typeof value !== "string" || !value.startsWith("/") || value.startsWith("//")) {
+    return DEFAULT_SURVEY_RETURN_PATH;
+  }
+
+  try {
+    const url = new URL(value, SURVEY_RETURN_PATH_BASE_URL);
+
+    if (url.origin !== SURVEY_RETURN_PATH_BASE_URL || isBlockedReturnPath(url.pathname)) {
+      return DEFAULT_SURVEY_RETURN_PATH;
+    }
+
+    return `${url.pathname}${url.search}${url.hash}`;
+  } catch {
+    return DEFAULT_SURVEY_RETURN_PATH;
+  }
+}
+
+function isBlockedReturnPath(pathname: string): boolean {
+  const normalizedPathname = pathname.toLowerCase();
+
+  return [SURVEY_PATH, "/login", "/signup", "/auth", "/api/auth"].some(
+    (blockedPath) =>
+      normalizedPathname === blockedPath || normalizedPathname.startsWith(`${blockedPath}/`),
+  );
+}

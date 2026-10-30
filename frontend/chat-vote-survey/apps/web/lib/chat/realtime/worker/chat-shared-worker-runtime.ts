@@ -1,0 +1,1885 @@
+import type { Client, IFrame, IMessage } from "@stomp/stompjs";
+import {
+  ChatMessageDeliveryScheduler,
+  createChatMessageDeliveryStateLifecycleEvent,
+  createChatMessageDeliveryTerminalLifecycleEvent,
+  getChatMessageDeliveryFailureMessage,
+  type ChatMessageDeliverySnapshot,
+  type ChatMessageDeliveryTerminalEvent,
+} from "../chat-message-delivery-scheduler";
+import {
+  ChatMessageMutationScheduler,
+  createChatMessageMutationStateLifecycleEvent,
+  createChatMessageMutationTerminalLifecycleEvent,
+  getChatMessageMutationFailureMessage,
+  type ChatMessageMutationSnapshot,
+  type ChatMessageMutationTerminalEvent,
+} from "../chat-message-mutation-scheduler";
+import {
+  CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+  CHAT_CONNECTION_REPLACED_MESSAGE,
+  CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+  CHAT_ROOM_CLOSED_MESSAGE,
+  isChatConnectionReplacedCloseEvent,
+  isChatRoomAccessRevokedCloseEvent,
+  isChatRoomClosedCloseEvent,
+  type ChatConnectionSnapshot,
+  type ChatConnectionStatus,
+  type ChatRealtimeError,
+} from "../chat-realtime-transport";
+import {
+  getChatRoomEventsDestination,
+  getChatRoomMessagesDestination,
+  getChatRoomReadReceiptsDestination,
+} from "../chat-stomp-destinations";
+import {
+  parseChatMessageEvent,
+  parseChatMessageCommandResult,
+  parseChatMessageMutationCommandResult,
+  parseChatRoomInboxEvent,
+  parseChatRoomEventEnvelope,
+  parseChatRoomReadReceiptEvent,
+  parseChatRoomSubscriptionSyncRejected,
+  parseChatRoomSubscriptionsReady,
+  parseChatStompError,
+  parseChatSubscriptionRejection,
+  type ChatRoomEventEnvelope,
+  type ChatRoomInboxEvent,
+  type ChatRoomReadReceiptEventEnvelope,
+  type ChatRoomSubscriptionSyncRejected,
+  type ChatRoomSubscriptionsReady,
+} from "../chat-stomp-contracts";
+import {
+  ChatRealtimeEventBuffer,
+  type ChatRealtimeEventDelivery,
+  type ChatRealtimeEventBufferSnapshot,
+} from "../chat-realtime-event-buffer";
+import { ChatStompSubscriptionManager } from "../chat-stomp-subscription-manager";
+import {
+  isChatSharedWorkerCommand,
+  type ChatSharedWorkerCommand,
+  type ChatSharedWorkerEvent,
+} from "../chat-shared-worker-protocol";
+import {
+  ChatConnectionAttemptDiagnostics,
+  sanitizeDiagnosticText,
+  type ConnectionAttemptTrigger,
+} from "../diagnostics/chat-connection-attempt-diagnostics";
+import { ChatRealtimeDiagnosticStore } from "../diagnostics/chat-realtime-diagnostic-store";
+
+export type ChatSharedWorkerStompClient = Pick<
+  Client,
+  | "active"
+  | "activate"
+  | "beforeConnect"
+  | "deactivate"
+  | "forceDisconnect"
+  | "onConnect"
+  | "onStompError"
+  | "onWebSocketClose"
+  | "onWebSocketError"
+  | "publish"
+  | "subscribe"
+>;
+
+type ChatSharedWorkerMessageListener = (event: MessageEvent<unknown>) => void;
+
+export type ChatSharedWorkerPort = {
+  addEventListener(type: "message", listener: ChatSharedWorkerMessageListener): void;
+  close(): void;
+  postMessage(event: ChatSharedWorkerEvent): void;
+  removeEventListener(type: "message", listener: ChatSharedWorkerMessageListener): void;
+  start(): void;
+};
+
+type ConnectedPort = {
+  attached: boolean;
+  listener: ChatSharedWorkerMessageListener;
+  port: ChatSharedWorkerPort;
+  portId: string | null;
+};
+
+type ActiveRoomLease = Readonly<{
+  requestId: string;
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type PendingRoomActivation = Readonly<{
+  requestId: string;
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type PendingRoomSync = Readonly<{
+  requestId: string;
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type RealtimeDeliverySession = Readonly<{
+  roomId: string;
+  ownerPortId: string;
+  generation: number;
+}>;
+
+type PendingRealtimeDelivery = ChatRealtimeEventDelivery &
+  Readonly<{
+    ownerPortId: string;
+  }>;
+
+const INITIAL_SNAPSHOT: ChatConnectionSnapshot = {
+  status: "idle",
+  error: null,
+};
+
+const ROOM_ID_PATTERN = /^[A-Za-z0-9_-]{1,64}$/;
+
+type ChatRealtimeRuntimeKind = "shared-worker" | "leader-tab";
+
+export class ChatSharedWorkerRuntime {
+  private activeRoomLease: ActiveRoomLease | null = null;
+  private readonly connectionAttempts: ChatConnectionAttemptDiagnostics;
+  private deactivation: Promise<void> | null = null;
+  private generation = 0;
+  private principalGeneration = 0;
+  private readonly messageDeliveries: ChatMessageDeliveryScheduler;
+  private readonly messageMutations: ChatMessageMutationScheduler;
+  private pendingRoomActivation: PendingRoomActivation | null = null;
+  private pendingRoomSync: PendingRoomSync | null = null;
+  private pendingRealtimeDelivery: PendingRealtimeDelivery | null = null;
+  private pendingConnectionTrigger: ConnectionAttemptTrigger | null = null;
+  private readonly ports = new Map<ChatSharedWorkerPort, ConnectedPort>();
+  private readyRoomSession: RealtimeDeliverySession | null = null;
+  private realtimeDeliverySession: RealtimeDeliverySession | null = null;
+  private snapshot: ChatConnectionSnapshot = INITIAL_SNAPSHOT;
+  private readonly subscriptions: ChatStompSubscriptionManager;
+
+  constructor(
+    private readonly client: ChatSharedWorkerStompClient,
+    private readonly workerInstanceId = crypto.randomUUID(),
+    private readonly createId = () => crypto.randomUUID(),
+    private readonly realtimeBuffer = new ChatRealtimeEventBuffer(),
+    private readonly runtimeKind: ChatRealtimeRuntimeKind = "shared-worker",
+    private readonly diagnostics = new ChatRealtimeDiagnosticStore({
+      runtimeInstanceId: workerInstanceId,
+    }),
+    createDiagnosticId = () => crypto.randomUUID(),
+    monotonicNow = () => performance.now(),
+  ) {
+    this.connectionAttempts = new ChatConnectionAttemptDiagnostics(
+      this.diagnostics,
+      createDiagnosticId,
+      monotonicNow,
+    );
+    this.diagnostics.emit({
+      event: "runtime.started",
+      transportKind: this.runtimeKind,
+    });
+    this.subscriptions = new ChatStompSubscriptionManager(this.client, {
+      onCommandResult: this.handleMessageCommandResult,
+      onRoomInboxEvent: this.handleRoomInboxEvent,
+      onRoomEvent: this.handleRoomEvent,
+      onRoomMessage: this.handleRoomMessage,
+      onRoomReadReceiptEvent: this.handleRoomReadReceiptEvent,
+      onSystemEvent: this.handleSystemEvent,
+    });
+    this.messageDeliveries = new ChatMessageDeliveryScheduler({
+      isContextCurrent: (snapshot) => this.isMessageDeliveryContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.sendToPort(snapshot.ownerId, {
+          type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",
+          event: createChatMessageDeliveryStateLifecycleEvent(snapshot),
+        });
+      },
+      onTerminal: (event) => this.handleMessageDeliveryTerminal(event),
+      publish: ({ request, roomId }) => {
+        this.subscriptions.sendRoomMessage(roomId, request);
+      },
+    });
+    this.messageMutations = new ChatMessageMutationScheduler({
+      isContextCurrent: (snapshot) => this.isMessageMutationContextCurrent(snapshot),
+      onStateChange: (snapshot) => {
+        this.sendToPort(snapshot.ownerId, {
+          type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+          event: createChatMessageMutationStateLifecycleEvent(snapshot),
+        });
+      },
+      onTerminal: (event) => this.handleMessageMutationTerminal(event),
+      publish: ({ commandType, request, roomId }) => {
+        if (commandType === "EDIT_MESSAGE") {
+          this.subscriptions.editRoomMessage(roomId, request);
+          return;
+        }
+        this.subscriptions.deleteRoomMessage(roomId, request);
+      },
+    });
+    this.client.beforeConnect = () => {
+      if (!this.connectionAttempts.currentAttemptId) {
+        this.connectionAttempts.beginAttempt(
+          this.pendingConnectionTrigger ?? "transport-reconnect",
+          this.snapshot.status,
+        );
+      }
+      this.pendingConnectionTrigger = null;
+    };
+    this.client.onConnect = () => {
+      if (this.connectionAttempts.currentAttemptId) {
+        this.diagnostics.emit({
+          event: "stomp.connected",
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
+          connectionDurationMs: this.connectionAttempts.getConnectionDurationMs(),
+        });
+      }
+      this.handleConnected();
+    };
+    this.client.onStompError = (frame) => {
+      if (this.getAttachedPortCount() === 0) {
+        return;
+      }
+
+      const stompError = parseChatStompError(frame);
+      const stompErrorCode = stompError?.code ?? frame.headers.message?.trim() ?? null;
+      this.diagnostics.emit({
+        event: "stomp.error",
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
+        code: stompErrorCode ? sanitizeDiagnosticText(stompErrorCode) : null,
+        retryable: stompError?.retryable ?? null,
+      });
+
+      if (stompError?.code === "AUTHENTICATION_REQUIRED") {
+        this.diagnostics.emit({
+          event: "authentication.required",
+          connectionAttemptId: this.connectionAttempts.currentAttemptId,
+        });
+        this.stopAuthenticationRequiredReconnect();
+        return;
+      }
+
+      if (this.snapshot.status === "authentication-required") {
+        return;
+      }
+
+      this.setSnapshot("error", {
+        source: "stomp",
+        message: getStompErrorMessage(frame),
+      });
+    };
+    this.client.onWebSocketError = () => {
+      this.diagnostics.emit({
+        event: "websocket.error",
+        connectionAttemptId: this.connectionAttempts.currentAttemptId,
+      });
+      if (this.getAttachedPortCount() > 0 && this.snapshot.status !== "authentication-required") {
+        this.setSnapshot("error", {
+          source: "websocket",
+          message: "WebSocket 연결 중 오류가 발생했습니다.",
+        });
+      }
+    };
+    this.client.onWebSocketClose = (event) => {
+      const statusBefore = this.snapshot.status;
+      this.subscriptions.disconnect();
+      this.pendingRoomSync = null;
+      this.messageMutations.cancelAll("WEBSOCKET_CLOSED");
+      this.pauseRealtimeDelivery();
+      this.messageDeliveries.cancelAll("WEBSOCKET_CLOSED");
+
+      if (this.snapshot.status === "authentication-required") {
+        this.connectionAttempts.recordWebSocketClose(
+          event,
+          statusBefore,
+          "authentication-state-preserved",
+        );
+        return;
+      }
+
+      if (isChatConnectionReplacedCloseEvent(event)) {
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "connection-replaced");
+        this.stopConnectionReplacedReconnect();
+        return;
+      }
+
+      if (isChatRoomAccessRevokedCloseEvent(event)) {
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-access-revoked");
+        this.restartAfterRoomAccessRevoked();
+        return;
+      }
+
+      if (isChatRoomClosedCloseEvent(event)) {
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "room-closed");
+        this.restartAfterRoomClosed();
+        return;
+      }
+
+      if (this.getAttachedPortCount() === 0 || this.deactivation || !this.client.active) {
+        this.connectionAttempts.recordWebSocketClose(event, statusBefore, "disconnected");
+        this.snapshot = {
+          status: "disconnected",
+          error: null,
+        };
+        return;
+      }
+
+      this.connectionAttempts.recordWebSocketClose(event, statusBefore, "reconnecting");
+      const error = event.reason.trim()
+        ? {
+            source: "websocket" as const,
+            message: event.reason,
+          }
+        : this.snapshot.error;
+
+      this.setSnapshot("reconnecting", error);
+    };
+  }
+
+  connectPort(port: ChatSharedWorkerPort): void {
+    if (this.ports.has(port)) {
+      return;
+    }
+
+    const listener = (event: MessageEvent<unknown>) => {
+      if (isChatSharedWorkerCommand(event.data)) {
+        this.handleCommand(port, event.data);
+      }
+    };
+
+    this.ports.set(port, {
+      attached: false,
+      listener,
+      port,
+      portId: null,
+    });
+    port.addEventListener("message", listener);
+    port.start();
+  }
+
+  getRealtimeBufferSnapshot(): ChatRealtimeEventBufferSnapshot | null {
+    return this.realtimeBuffer.getSnapshot();
+  }
+
+  private handleCommand(port: ChatSharedWorkerPort, command: ChatSharedWorkerCommand): void {
+    const connectedPort = this.ports.get(port);
+
+    if (!connectedPort) {
+      return;
+    }
+
+    switch (command.type) {
+      case "ATTACH":
+        this.attachPort(connectedPort, command.portId);
+        return;
+      case "DETACH":
+        if (connectedPort.portId === command.portId) {
+          this.detachPort(connectedPort);
+        }
+        return;
+      case "RECONNECT":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.reconnect(command.reason);
+        }
+        return;
+      case "GET_DIAGNOSTICS":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          connectedPort.port.postMessage({
+            type: "DIAGNOSTICS_SNAPSHOT",
+            requestId: command.requestId,
+            snapshot: this.diagnostics.getSnapshot(),
+          });
+        }
+        return;
+      case "CLEAR_DIAGNOSTICS":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.diagnostics.clear();
+          connectedPort.port.postMessage({
+            type: "DIAGNOSTICS_CLEARED",
+            requestId: command.requestId,
+          });
+        }
+        return;
+      case "CLAIM_ROOM":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.claimRoom(connectedPort, command);
+        }
+        return;
+      case "RELEASE_ROOM":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.releaseRoom(connectedPort, command);
+        }
+        return;
+      case "SEND_ROOM_MESSAGE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.sendRoomMessage(connectedPort, command);
+        }
+        return;
+      case "EDIT_ROOM_MESSAGE":
+      case "DELETE_ROOM_MESSAGE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.mutateRoomMessage(connectedPort, command);
+        }
+        return;
+      case "ROOM_SNAPSHOT_APPLIED":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.markRoomSnapshotApplied(connectedPort, command);
+        }
+        return;
+      case "ROOM_EVENTS_APPLIED":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.acknowledgeRealtimeEvents(connectedPort, command);
+        }
+        return;
+      case "CONFIRM_ROOM_READ_STATE":
+        if (connectedPort.attached && connectedPort.portId === command.portId) {
+          this.confirmRoomReadState(connectedPort, command);
+        }
+        return;
+    }
+  }
+
+  private attachPort(connectedPort: ConnectedPort, portId: string): void {
+    if (connectedPort.attached) {
+      this.sendSnapshot(connectedPort);
+      return;
+    }
+
+    const hadAttachedPorts = this.getAttachedPortCount() > 0;
+    connectedPort.attached = true;
+    connectedPort.portId = portId;
+    this.diagnostics.emit({
+      event: "port.attached",
+      portId,
+      attachedPortCount: this.getAttachedPortCount(),
+    });
+
+    if (hadAttachedPorts) {
+      this.broadcastSnapshot();
+      return;
+    }
+
+    this.startConnection("initial-attach");
+  }
+
+  private detachPort(connectedPort: ConnectedPort): void {
+    const lease = this.activeRoomLease;
+    const portId = connectedPort.portId;
+
+    this.cancelMessageDeliveriesForPort(portId, "OWNER_PORT_DETACHED");
+    this.messageMutations.cancelMatching(
+      (snapshot) => snapshot.ownerId === portId,
+      "OWNER_PORT_DETACHED",
+    );
+
+    if (lease && portId === lease.ownerPortId) {
+      this.tryReleaseRoom(lease.roomId);
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.pauseRealtimeDelivery();
+      this.generation += 1;
+      this.activeRoomLease = null;
+      this.pendingRoomActivation = null;
+      this.pendingRoomSync = null;
+    }
+
+    connectedPort.attached = false;
+    connectedPort.port.removeEventListener("message", connectedPort.listener);
+    this.ports.delete(connectedPort.port);
+    connectedPort.port.close();
+    if (portId) {
+      this.diagnostics.emit({
+        event: "port.detached",
+        portId,
+        attachedPortCount: this.getAttachedPortCount(),
+      });
+    }
+
+    if (this.getAttachedPortCount() > 0) {
+      this.broadcastSnapshot();
+      return;
+    }
+
+    this.stopConnection();
+  }
+
+  private startConnection(trigger: ConnectionAttemptTrigger): void {
+    if (this.deactivation) {
+      this.pendingConnectionTrigger = trigger;
+      this.setSnapshot("connecting", null);
+      return;
+    }
+
+    if (this.client.active) {
+      this.broadcastSnapshot();
+      return;
+    }
+
+    this.connectionAttempts.beginAttempt(trigger, this.snapshot.status);
+    this.pendingConnectionTrigger = null;
+    this.setSnapshot("connecting", null);
+    this.client.activate();
+  }
+
+  private stopConnection(): void {
+    if (this.deactivation) {
+      return;
+    }
+
+    this.messageDeliveries.cancelAll("TRANSPORT_STOPPED");
+    this.messageMutations.cancelAll("CONNECTION_STOPPED");
+    this.snapshot = {
+      status: "disconnecting",
+      error: null,
+    };
+    this.subscriptions.disconnect();
+
+    let operation: Promise<void>;
+
+    try {
+      operation = this.client.deactivate();
+    } catch (cause) {
+      this.handleDeactivationFailure(cause);
+      return;
+    }
+
+    this.deactivation = operation;
+    void operation.then(
+      () => {
+        if (this.deactivation !== operation) {
+          return;
+        }
+
+        this.deactivation = null;
+
+        if (this.getAttachedPortCount() > 0) {
+          this.startConnection(this.pendingConnectionTrigger ?? "deactivation-completed");
+          return;
+        }
+
+        this.snapshot = {
+          status: "disconnected",
+          error: null,
+        };
+      },
+      (cause: unknown) => {
+        if (this.deactivation === operation) {
+          this.deactivation = null;
+          this.handleDeactivationFailure(cause);
+        }
+      },
+    );
+  }
+
+  private handleDeactivationFailure(cause: unknown): void {
+    const error = {
+      source: "worker" as const,
+      message: cause instanceof Error ? cause.message : "STOMP 연결 종료에 실패했습니다.",
+    };
+
+    if (this.getAttachedPortCount() > 0) {
+      this.setSnapshot("error", error);
+      return;
+    }
+
+    this.snapshot = {
+      status: "error",
+      error,
+    };
+  }
+
+  private reconnect(reason?: "authentication-succeeded"): void {
+    this.diagnostics.emit({
+      event: "reconnect.requested",
+      reason: reason ?? "manual",
+      statusBefore: this.snapshot.status,
+    });
+
+    if (reason === "authentication-succeeded") {
+      this.principalGeneration += 1;
+      this.broadcastSnapshot();
+      if (this.snapshot.status === "authentication-required") {
+        this.startConnection("authentication-succeeded");
+      }
+      return;
+    }
+
+    if (this.snapshot.status === "replaced" || this.snapshot.status === "authentication-required") {
+      this.diagnostics.emit({
+        event: "reconnect.suppressed",
+        reason:
+          this.snapshot.status === "replaced" ? "connection-replaced" : "authentication-required",
+        statusBefore: this.snapshot.status,
+      });
+      return;
+    }
+
+    this.messageDeliveries.cancelAll("TRANSPORT_RECONNECTING");
+
+    if (this.client.active) {
+      this.subscriptions.disconnect();
+      this.setSnapshot("reconnecting", null);
+      this.pendingConnectionTrigger = "manual";
+      this.client.forceDisconnect();
+      return;
+    }
+
+    this.startConnection("manual");
+  }
+
+  private stopAuthenticationRequiredReconnect(): void {
+    this.messageDeliveries.cancelAll("AUTHENTICATION_REQUIRED");
+    this.messageMutations.cancelAll("AUTHENTICATION_REQUIRED");
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.subscriptions.disconnect();
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear();
+    this.setSnapshot("authentication-required", {
+      source: "stomp",
+      code: "AUTHENTICATION_REQUIRED",
+      message: CHAT_AUTHENTICATION_REQUIRED_MESSAGE,
+    });
+
+    try {
+      void this.client.deactivate().catch(() => {
+        // Keep the terminal authentication state even if STOMP cleanup rejects.
+      });
+    } catch {
+      // Keep the terminal authentication state even if STOMP cleanup throws synchronously.
+    }
+  }
+
+  private stopConnectionReplacedReconnect(): void {
+    this.messageDeliveries.cancelAll("CONNECTION_REPLACED");
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear();
+
+    try {
+      void this.client.deactivate().catch(() => {
+        // deactivate flips Client.active synchronously, so a rejected cleanup must not restart it.
+      });
+    } catch {
+      // Keep the terminal replacement state even if the STOMP cleanup itself throws.
+    }
+
+    this.setSnapshot("replaced", {
+      source: "websocket",
+      code: "CONNECTION_REPLACED",
+      message: CHAT_CONNECTION_REPLACED_MESSAGE,
+    });
+  }
+
+  private restartAfterRoomAccessRevoked(): void {
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      const refreshedLease: ActiveRoomLease = {
+        ...lease,
+        generation: lease.generation + 1,
+      };
+      this.generation = refreshedLease.generation;
+      this.activeRoomLease = refreshedLease;
+      this.pendingRoomActivation = refreshedLease;
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.realtimeBuffer.begin(refreshedLease.roomId, refreshedLease.generation);
+    }
+
+    this.setSnapshot("reconnecting", {
+      source: "websocket",
+      code: "ROOM_ACCESS_REVOKED",
+      message: CHAT_ROOM_ACCESS_REVOKED_MESSAGE,
+    });
+    this.stopConnection();
+  }
+
+  private restartAfterRoomClosed(): void {
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      // onWebSocketClose에서 이미 WEBSOCKET_CLOSED로 모두 취소됨
+      // 방 종료 정리를 이 함수만으로 완결하기 위해 취소 호출을 유지함
+      this.cancelMessageDeliveriesForLease(lease, "ROOM_CLOSED");
+      this.tryReleaseRoom(lease.roomId);
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.generation = lease.generation + 1;
+      this.activeRoomLease = null;
+      this.sendToPort(lease.ownerPortId, {
+        type: "ROOM_SUBSCRIPTION_FAILED",
+        roomId: lease.roomId,
+        generation: this.generation,
+        code: "ROOM_CLOSED",
+        message: CHAT_ROOM_CLOSED_MESSAGE,
+      });
+    }
+
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.pauseRealtimeDelivery();
+    this.setSnapshot("reconnecting", {
+      source: "websocket",
+      code: "ROOM_CLOSED",
+      message: CHAT_ROOM_CLOSED_MESSAGE,
+    });
+    this.stopConnection();
+  }
+
+  private claimRoom(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "CLAIM_ROOM" }>,
+  ): void {
+    if (!ROOM_ID_PATTERN.test(command.roomId)) {
+      connectedPort.port.postMessage({
+        type: "ROOM_ACTIVATION_FAILED",
+        requestId: command.requestId,
+        roomId: command.roomId,
+        code: "INVALID_ROOM_ID",
+        message: "roomId는 영문자, 숫자, _, -로 구성된 1~64자 문자열이어야 합니다.",
+      });
+      return;
+    }
+
+    const portId = connectedPort.portId;
+
+    if (!portId) {
+      return;
+    }
+
+    const previousLease = this.activeRoomLease;
+    this.pauseRealtimeDelivery();
+
+    if (previousLease?.roomId === command.roomId && previousLease.ownerPortId === portId) {
+      const nextLease = {
+        ...previousLease,
+        requestId: command.requestId,
+      };
+      this.activeRoomLease = nextLease;
+      this.pendingRoomActivation = {
+        requestId: command.requestId,
+        roomId: command.roomId,
+        ownerPortId: portId,
+        generation: previousLease.generation,
+      };
+      this.diagnostics.emit({
+        event: "room.claim.requested",
+        portId,
+        requestId: command.requestId,
+        roomId: command.roomId,
+        generation: previousLease.generation,
+      });
+      this.activatePendingRoom();
+      return;
+    }
+
+    if (previousLease) {
+      this.cancelMessageDeliveriesForLease(previousLease, "ROOM_LEASE_REPLACED");
+      this.messageMutations.cancelMatching(
+        (snapshot) =>
+          snapshot.ownerId === previousLease.ownerPortId &&
+          snapshot.roomId === previousLease.roomId,
+        "ROOM_REPLACED",
+      );
+    }
+
+    this.generation += 1;
+    const nextLease: ActiveRoomLease = {
+      requestId: command.requestId,
+      roomId: command.roomId,
+      ownerPortId: portId,
+      generation: this.generation,
+    };
+    this.diagnostics.emit({
+      event: "room.claim.requested",
+      portId,
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: nextLease.generation,
+    });
+
+    if (previousLease && previousLease.ownerPortId !== portId) {
+      this.diagnostics.emit({
+        event: "room.replaced",
+        roomId: previousLease.roomId,
+        activatedRoomId: command.roomId,
+        generation: nextLease.generation,
+      });
+      this.sendToPort(previousLease.ownerPortId, {
+        type: "ROOM_REPLACED",
+        roomId: previousLease.roomId,
+        activatedRoomId: command.roomId,
+        generation: nextLease.generation,
+      });
+    }
+
+    this.activeRoomLease = nextLease;
+    this.pendingRoomSync = null;
+    this.pendingRoomActivation = {
+      requestId: command.requestId,
+      roomId: command.roomId,
+      ownerPortId: portId,
+      generation: nextLease.generation,
+    };
+    this.activatePendingRoom();
+  }
+
+  private releaseRoom(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "RELEASE_ROOM" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const ownsLease =
+      lease?.ownerPortId === connectedPort.portId && lease.roomId === command.roomId;
+
+    if (ownsLease && lease) {
+      this.cancelMessageDeliveriesForLease(lease, "ROOM_RELEASED");
+      this.messageMutations.cancelMatching(
+        (snapshot) => snapshot.ownerId === lease.ownerPortId && snapshot.roomId === lease.roomId,
+        "ROOM_RELEASED",
+      );
+      this.tryReleaseRoom(command.roomId);
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+      this.pauseRealtimeDelivery();
+      this.generation += 1;
+      this.activeRoomLease = null;
+      this.pendingRoomActivation = null;
+      this.pendingRoomSync = null;
+    }
+
+    this.diagnostics.emit({
+      event: "room.released",
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: this.generation,
+    });
+
+    connectedPort.port.postMessage({
+      type: "ROOM_RELEASED",
+      requestId: command.requestId,
+      roomId: command.roomId,
+      generation: this.generation,
+    });
+  }
+
+  private sendRoomMessage(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "SEND_ROOM_MESSAGE" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+    const portId = connectedPort.portId;
+
+    if (this.snapshot.status !== "connected") {
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "CONNECTION_NOT_READY",
+        true,
+        "WebSocket 연결이 준비되지 않아 메시지를 전송할 수 없습니다.",
+      );
+      return;
+    }
+
+    if (
+      !portId ||
+      !lease ||
+      !deliverySession ||
+      lease.ownerPortId !== portId ||
+      lease.roomId !== command.roomId ||
+      deliverySession.ownerPortId !== portId ||
+      deliverySession.roomId !== command.roomId ||
+      deliverySession.generation !== lease.generation
+    ) {
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "ROOM_NOT_ACTIVE",
+        true,
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 전송할 수 없습니다.",
+      );
+      return;
+    }
+
+    try {
+      this.messageDeliveries.start({
+        generation: lease.generation,
+        ownerId: portId,
+        request: command.request,
+        roomId: command.roomId,
+      });
+    } catch (cause) {
+      this.sendMessageFailure(
+        portId,
+        command.roomId,
+        command.request.clientMessageId,
+        "MESSAGE_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "STOMP 메시지 전송에 실패했습니다.",
+      );
+    }
+  }
+
+  private mutateRoomMessage(
+    connectedPort: ConnectedPort,
+    command: Extract<
+      ChatSharedWorkerCommand,
+      { type: "EDIT_ROOM_MESSAGE" | "DELETE_ROOM_MESSAGE" }
+    >,
+  ): void {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+    const portId = connectedPort.portId;
+    const clientMutationId = command.request.clientMutationId;
+
+    if (this.snapshot.status !== "connected") {
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "CONNECTION_NOT_READY",
+        true,
+        "WebSocket 연결이 준비되지 않아 메시지를 변경할 수 없습니다.",
+      );
+      return;
+    }
+
+    if (
+      !portId ||
+      !lease ||
+      !deliverySession ||
+      lease.ownerPortId !== portId ||
+      lease.roomId !== command.roomId ||
+      deliverySession.ownerPortId !== portId ||
+      deliverySession.roomId !== command.roomId ||
+      deliverySession.generation !== lease.generation
+    ) {
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "ROOM_NOT_ACTIVE",
+        true,
+        "현재 탭의 토론방 동기화가 완료되지 않아 메시지를 변경할 수 없습니다.",
+      );
+      return;
+    }
+
+    try {
+      if (command.type === "EDIT_ROOM_MESSAGE") {
+        this.messageMutations.start({
+          commandType: "EDIT_MESSAGE",
+          generation: lease.generation,
+          ownerId: portId,
+          request: command.request,
+          roomId: command.roomId,
+        });
+      } else {
+        this.messageMutations.start({
+          commandType: "DELETE_MESSAGE",
+          generation: lease.generation,
+          ownerId: portId,
+          request: command.request,
+          roomId: command.roomId,
+        });
+      }
+    } catch (cause) {
+      this.sendMessageMutationFailure(
+        portId,
+        command.roomId,
+        clientMutationId,
+        "MUTATION_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "STOMP 메시지 변경 요청 전송에 실패했습니다.",
+      );
+    }
+  }
+
+  private handleConnected(): void {
+    if (this.getAttachedPortCount() === 0) {
+      return;
+    }
+
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      this.realtimeBuffer.begin(lease.roomId, lease.generation);
+    }
+
+    try {
+      this.subscriptions.connect();
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    if (lease) {
+      this.diagnostics.emit({
+        event: "room.subscriptions.started",
+        roomId: lease.roomId,
+        generation: lease.generation,
+      });
+    }
+
+    this.setSnapshot("connected", null);
+
+    if (lease) {
+      this.startRoomSync(lease);
+    }
+  }
+
+  private activatePendingRoom(): void {
+    const pending = this.pendingRoomActivation;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pending ||
+      !lease ||
+      pending.generation !== lease.generation ||
+      pending.ownerPortId !== lease.ownerPortId ||
+      pending.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.realtimeBuffer.begin(lease.roomId, lease.generation);
+
+    try {
+      this.subscriptions.activateRoom(lease.roomId);
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+    if (!this.subscriptions.connected) {
+      return;
+    }
+
+    this.diagnostics.emit({
+      event: "room.subscriptions.started",
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
+
+    if (this.snapshot.status === "error") {
+      this.setSnapshot("connected", null);
+    }
+    this.startRoomSync(lease);
+  }
+
+  private startRoomSync(lease: ActiveRoomLease): void {
+    if (
+      !this.subscriptions.connected ||
+      this.subscriptions.activeRoomId !== lease.roomId ||
+      this.activeRoomLease !== lease
+    ) {
+      return;
+    }
+
+    this.pauseRealtimeDelivery();
+    const pendingSync: PendingRoomSync = {
+      requestId: this.createId(),
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
+    this.pendingRoomSync = pendingSync;
+    this.diagnostics.emit({
+      event: "room.sync.requested",
+      requestId: pendingSync.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SYNCING",
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
+
+    try {
+      this.subscriptions.syncRoomSubscriptions(lease.roomId, pendingSync.requestId);
+    } catch (cause) {
+      this.pendingRoomSync = null;
+      this.handleRoomSyncFailure(
+        lease,
+        pendingSync.requestId,
+        "ROOM_SUBSCRIPTION_SYNC_PUBLISH_FAILED",
+        true,
+        cause instanceof Error && cause.message.trim()
+          ? cause.message
+          : "토론방 구독 준비 sync 요청을 전송하지 못했습니다.",
+      );
+    }
+  }
+
+  private completePendingRoomActivation(ready: ChatRoomSubscriptionsReady): void {
+    const pendingActivation = this.pendingRoomActivation;
+    const pendingSync = this.pendingRoomSync;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pendingSync ||
+      !lease ||
+      this.subscriptions.activeRoomId !== lease.roomId ||
+      pendingSync.requestId !== ready.requestId ||
+      pendingSync.roomId !== ready.roomId ||
+      pendingSync.generation !== lease.generation ||
+      pendingSync.ownerPortId !== lease.ownerPortId ||
+      pendingSync.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    if (
+      pendingActivation &&
+      pendingActivation.generation === lease.generation &&
+      pendingActivation.ownerPortId === lease.ownerPortId &&
+      pendingActivation.roomId === lease.roomId
+    ) {
+      this.pendingRoomActivation = null;
+    }
+    this.pendingRoomSync = null;
+    this.readyRoomSession = {
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
+    this.diagnostics.emit({
+      event: "room.sync.ready",
+      requestId: ready.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
+      watermarkSequence: ready.watermarkSequence,
+    });
+    this.diagnostics.emit({
+      event: "room.activated",
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+    });
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_ACTIVATED",
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      messageVisibleAfterSequence: ready.messageVisibleAfterSequence,
+      watermarkSequence: ready.watermarkSequence,
+    });
+  }
+
+  private tryReleaseRoom(roomId: string): void {
+    try {
+      this.subscriptions.releaseRoom(roomId);
+    } catch (cause) {
+      this.setSnapshot("error", {
+        source: "stomp",
+        message:
+          cause instanceof Error && cause.message.trim()
+            ? cause.message
+            : "기존 토론방 STOMP 구독 해제에 실패했습니다.",
+      });
+    }
+  }
+
+  private markRoomSnapshotApplied(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "ROOM_SNAPSHOT_APPLIED" }>,
+  ): void {
+    const lease = this.activeRoomLease;
+    const readySession = this.readyRoomSession;
+
+    if (
+      !lease ||
+      !readySession ||
+      !connectedPort.portId ||
+      lease.ownerPortId !== connectedPort.portId ||
+      lease.roomId !== command.roomId ||
+      lease.generation !== command.generation ||
+      readySession.ownerPortId !== lease.ownerPortId ||
+      readySession.roomId !== lease.roomId ||
+      readySession.generation !== lease.generation ||
+      this.pendingRoomActivation ||
+      this.pendingRoomSync ||
+      this.subscriptions.activeRoomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.realtimeDeliverySession = {
+      roomId: lease.roomId,
+      ownerPortId: lease.ownerPortId,
+      generation: lease.generation,
+    };
+    this.deliverRealtimeEvents(true);
+  }
+
+  private acknowledgeRealtimeEvents(
+    connectedPort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "ROOM_EVENTS_APPLIED" }>,
+  ): void {
+    const pending = this.pendingRealtimeDelivery;
+
+    if (
+      !pending ||
+      connectedPort.portId !== pending.ownerPortId ||
+      command.deliveryId !== pending.deliveryId ||
+      command.roomId !== pending.roomId ||
+      command.generation !== pending.generation
+    ) {
+      return;
+    }
+
+    const acknowledged = this.realtimeBuffer.acknowledge(
+      pending.roomId,
+      pending.generation,
+      pending.throughBufferSequence,
+      pending.invalidEventCount,
+      pending.invalidReadReceiptEventCount,
+    );
+
+    if (!acknowledged) {
+      return;
+    }
+
+    this.pendingRealtimeDelivery = null;
+    this.deliverRealtimeEvents(false);
+  }
+
+  private deliverRealtimeEvents(force: boolean): void {
+    const session = this.realtimeDeliverySession;
+    const lease = this.activeRoomLease;
+
+    if (
+      !session ||
+      !lease ||
+      this.pendingRealtimeDelivery ||
+      session.roomId !== lease.roomId ||
+      session.ownerPortId !== lease.ownerPortId ||
+      session.generation !== lease.generation
+    ) {
+      return;
+    }
+
+    const snapshot = this.realtimeBuffer.getSnapshot();
+
+    if (
+      !snapshot ||
+      snapshot.roomId !== session.roomId ||
+      snapshot.generation !== session.generation ||
+      (!force &&
+        snapshot.events.length === 0 &&
+        !snapshot.overflowed &&
+        snapshot.invalidEventCount === 0 &&
+        snapshot.invalidReadReceiptEventCount === 0)
+    ) {
+      return;
+    }
+
+    const delivery: PendingRealtimeDelivery = {
+      ...snapshot,
+      deliveryId: this.createId(),
+      ownerPortId: session.ownerPortId,
+    };
+    this.pendingRealtimeDelivery = delivery;
+    this.sendToPort(session.ownerPortId, {
+      type: "ROOM_EVENTS_DELIVERED",
+      deliveryId: delivery.deliveryId,
+      roomId: delivery.roomId,
+      generation: delivery.generation,
+      events: delivery.events,
+      throughBufferSequence: delivery.throughBufferSequence,
+      overflowed: delivery.overflowed,
+      invalidEventCount: delivery.invalidEventCount,
+      invalidReadReceiptEventCount: delivery.invalidReadReceiptEventCount,
+    });
+  }
+
+  private pauseRealtimeDelivery(): void {
+    this.readyRoomSession = null;
+    this.realtimeDeliverySession = null;
+    this.pendingRealtimeDelivery = null;
+  }
+
+  private handleSubscriptionSetupFailure(cause: unknown): void {
+    const message =
+      cause instanceof Error && cause.message.trim()
+        ? cause.message
+        : "토론방 STOMP 구독을 설정하지 못했습니다.";
+    const pending = this.pendingRoomActivation;
+    const lease = this.activeRoomLease;
+
+    if (lease) {
+      // 전송 취소 생략함
+      // 호출 시점에는 WebSocket close, lease 교체 또는 stale 복구에서
+      // 이 lease의 전송이 이미 취소됐거나, 아직 시작된 전송이 없음
+      this.tryReleaseRoom(lease.roomId);
+      this.realtimeBuffer.clear(lease.roomId, lease.generation);
+    }
+    this.pauseRealtimeDelivery();
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+
+    if (lease) {
+      this.generation += 1;
+      this.activeRoomLease = null;
+    }
+
+    if (pending) {
+      this.sendToPort(pending.ownerPortId, {
+        type: "ROOM_ACTIVATION_FAILED",
+        requestId: pending.requestId,
+        roomId: pending.roomId,
+        code: "SUBSCRIPTION_SETUP_FAILED",
+        message,
+      });
+    } else if (lease) {
+      this.sendToPort(lease.ownerPortId, {
+        type: "ROOM_SUBSCRIPTION_FAILED",
+        roomId: lease.roomId,
+        generation: this.generation,
+        code: "SUBSCRIPTION_SETUP_FAILED",
+        message,
+      });
+    }
+
+    this.setSnapshot("error", {
+      source: "stomp",
+      message,
+    });
+  }
+
+  private handleRoomSyncFailure(
+    lease: ActiveRoomLease,
+    syncRequestId: string,
+    code: string,
+    retryable: boolean,
+    message: string,
+  ): void {
+    const currentLease = this.activeRoomLease;
+
+    if (
+      !currentLease ||
+      currentLease.generation !== lease.generation ||
+      currentLease.ownerPortId !== lease.ownerPortId ||
+      currentLease.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.pendingRoomActivation = null;
+    this.diagnostics.emit({
+      event: "room.sync.rejected",
+      requestId: syncRequestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      code: sanitizeDiagnosticText(code),
+      retryable,
+    });
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SYNC_FAILED",
+      requestId: lease.requestId,
+      roomId: lease.roomId,
+      generation: lease.generation,
+      code,
+      retryable,
+      message,
+    });
+  }
+
+  private readonly handleSystemEvent = (message: IMessage): void => {
+    const ready = parseChatRoomSubscriptionsReady(message.body);
+
+    if (ready) {
+      this.completePendingRoomActivation(ready);
+      return;
+    }
+
+    const syncRejection = parseChatRoomSubscriptionSyncRejected(message.body);
+
+    if (syncRejection) {
+      this.handleRoomSyncRejection(syncRejection);
+      return;
+    }
+
+    const roomEvent = parseChatRoomEventEnvelope(message.body);
+
+    if (roomEvent) {
+      this.bufferRoomEvent(roomEvent.payload.roomId, roomEvent);
+      return;
+    }
+
+    const rejection = parseChatSubscriptionRejection(message.body);
+    const lease = this.activeRoomLease;
+
+    if (
+      !rejection ||
+      !lease ||
+      (rejection.destination !== getChatRoomMessagesDestination(lease.roomId) &&
+        rejection.destination !== getChatRoomEventsDestination(lease.roomId) &&
+        rejection.destination !== getChatRoomReadReceiptsDestination(lease.roomId))
+    ) {
+      return;
+    }
+
+    this.cancelMessageDeliveriesForLease(lease, "ROOM_SUBSCRIPTION_REJECTED");
+    this.tryReleaseRoom(lease.roomId);
+    this.realtimeBuffer.clear(lease.roomId, lease.generation);
+    this.pauseRealtimeDelivery();
+    this.pendingRoomActivation = null;
+    this.pendingRoomSync = null;
+    this.generation += 1;
+    this.activeRoomLease = null;
+    this.sendToPort(lease.ownerPortId, {
+      type: "ROOM_SUBSCRIPTION_FAILED",
+      roomId: lease.roomId,
+      generation: this.generation,
+      code: rejection.code,
+      message: `서버가 ${rejection.destination} 구독을 거절했습니다.`,
+    });
+  };
+
+  private readonly handleMessageCommandResult = (message: IMessage): void => {
+    const result = parseChatMessageCommandResult(message.body);
+
+    if (result) {
+      this.messageDeliveries.handleCommandResult(result);
+      return;
+    }
+
+    const mutationResult = parseChatMessageMutationCommandResult(message.body);
+
+    if (!mutationResult) {
+      return;
+    }
+
+    this.messageMutations.handleCommandResult(mutationResult);
+  };
+
+  private readonly handleRoomInboxEvent = (message: IMessage): void => {
+    const event = parseChatRoomInboxEvent(message.body);
+
+    if (!event) {
+      return;
+    }
+
+    this.broadcastRoomInboxEvent(event);
+  };
+
+  private readonly handleRoomMessage = (roomId: string, message: IMessage): void => {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    const event = parseChatMessageEvent(message.body);
+
+    if (!event) {
+      if (this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation)) {
+        this.deliverRealtimeEvents(false);
+      }
+      return;
+    }
+
+    if (this.realtimeBuffer.appendMessage(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
+  };
+
+  private readonly handleRoomEvent = (roomId: string, message: IMessage): void => {
+    const event = parseChatRoomEventEnvelope(message.body);
+
+    if (!event) {
+      const lease = this.getCurrentBufferLease(roomId);
+
+      if (lease) {
+        if (this.realtimeBuffer.recordInvalidEvent(roomId, lease.generation)) {
+          this.deliverRealtimeEvents(false);
+        }
+      }
+      return;
+    }
+
+    this.bufferRoomEvent(roomId, event);
+  };
+
+  private readonly handleRoomReadReceiptEvent = (roomId: string, message: IMessage): void => {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    const event = parseChatRoomReadReceiptEvent(message.body);
+
+    if (!event || event.payload.roomId !== roomId) {
+      if (this.realtimeBuffer.recordInvalidReadReceiptEvent(roomId, lease.generation)) {
+        this.deliverRealtimeEvents(false);
+      }
+      return;
+    }
+
+    this.bufferRoomReadReceiptEvent(roomId, event);
+  };
+
+  private bufferRoomEvent(roomId: string, event: ChatRoomEventEnvelope): void {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    if (this.realtimeBuffer.appendRoomEvent(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
+  }
+
+  private bufferRoomReadReceiptEvent(
+    roomId: string,
+    event: ChatRoomReadReceiptEventEnvelope,
+  ): void {
+    const lease = this.getCurrentBufferLease(roomId);
+
+    if (!lease) {
+      return;
+    }
+
+    if (this.realtimeBuffer.appendReadReceipt(roomId, lease.generation, event)) {
+      this.deliverRealtimeEvents(false);
+    }
+  }
+
+  private getCurrentBufferLease(roomId: string): ActiveRoomLease | null {
+    const lease = this.activeRoomLease;
+
+    return lease?.roomId === roomId ? lease : null;
+  }
+
+  private handleRoomSyncRejection(rejection: ChatRoomSubscriptionSyncRejected): void {
+    const pendingSync = this.pendingRoomSync;
+    const lease = this.activeRoomLease;
+
+    if (
+      !pendingSync ||
+      !lease ||
+      pendingSync.requestId !== rejection.requestId ||
+      pendingSync.roomId !== rejection.roomId ||
+      pendingSync.generation !== lease.generation ||
+      pendingSync.ownerPortId !== lease.ownerPortId ||
+      pendingSync.roomId !== lease.roomId
+    ) {
+      return;
+    }
+
+    this.pendingRoomSync = null;
+
+    if (rejection.code === "ROOM_SUBSCRIPTION_STALE") {
+      this.diagnostics.emit({
+        event: "room.sync.rejected",
+        requestId: rejection.requestId,
+        roomId: lease.roomId,
+        generation: lease.generation,
+        code: rejection.code,
+        retryable: rejection.retryable,
+      });
+      this.recoverStaleRoomSubscriptions(lease);
+      return;
+    }
+
+    this.handleRoomSyncFailure(
+      lease,
+      rejection.requestId,
+      rejection.code,
+      rejection.retryable,
+      rejection.retryable
+        ? "토론방 구독 준비 확인에 일시적으로 실패했습니다. 이 탭에서 다시 활성화해 주세요."
+        : "토론방 구독 준비가 거절되었습니다. 방 구독 상태와 권한을 확인해 주세요.",
+    );
+  }
+
+  private recoverStaleRoomSubscriptions(lease: ActiveRoomLease): void {
+    if (this.activeRoomLease !== lease) {
+      return;
+    }
+
+    this.cancelMessageDeliveriesForLease(lease, "ROOM_SUBSCRIPTION_STALE");
+    const refreshedLease: ActiveRoomLease = {
+      ...lease,
+      generation: lease.generation + 1,
+    };
+    this.generation = refreshedLease.generation;
+    this.activeRoomLease = refreshedLease;
+    this.pendingRoomActivation = refreshedLease;
+    this.readyRoomSession = null;
+    this.pauseRealtimeDelivery();
+    this.realtimeBuffer.clear(lease.roomId, lease.generation);
+    this.realtimeBuffer.begin(refreshedLease.roomId, refreshedLease.generation);
+
+    try {
+      this.subscriptions.resubscribeRoom(refreshedLease.roomId);
+    } catch (cause) {
+      this.handleSubscriptionSetupFailure(cause);
+      return;
+    }
+
+    this.startRoomSync(refreshedLease);
+  }
+
+  private sendToPort(portId: string, event: ChatSharedWorkerEvent): void {
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached && connectedPort.portId === portId) {
+        connectedPort.port.postMessage(event);
+        return;
+      }
+    }
+  }
+
+  private confirmRoomReadState(
+    sourcePort: ConnectedPort,
+    command: Extract<ChatSharedWorkerCommand, { type: "CONFIRM_ROOM_READ_STATE" }>,
+  ): void {
+    if (command.principalGeneration !== this.principalGeneration) {
+      return;
+    }
+
+    for (const connectedPort of this.ports.values()) {
+      if (!connectedPort.attached || connectedPort === sourcePort) {
+        continue;
+      }
+
+      connectedPort.port.postMessage({
+        type: "ROOM_READ_STATE_CONFIRMED",
+        principalGeneration: this.principalGeneration,
+        roomId: command.roomId,
+        readThroughSequence: command.readThroughSequence,
+      });
+    }
+  }
+
+  private sendMessageFailure(
+    portId: string | null,
+    roomId: string,
+    clientMessageId: string,
+    code: "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MESSAGE_PUBLISH_FAILED",
+    retryable: boolean,
+    message: string,
+  ): void {
+    if (!portId) {
+      return;
+    }
+
+    this.sendToPort(portId, {
+      type: "ROOM_MESSAGE_SEND_FAILED",
+      roomId,
+      clientMessageId,
+      code,
+      retryable,
+      message,
+    });
+  }
+
+  private sendMessageMutationFailure(
+    portId: string | null,
+    roomId: string,
+    clientMutationId: string,
+    code: "CONNECTION_NOT_READY" | "ROOM_NOT_ACTIVE" | "MUTATION_PUBLISH_FAILED",
+    retryable: boolean,
+    message: string,
+  ): void {
+    if (!portId) {
+      return;
+    }
+
+    this.sendToPort(portId, {
+      type: "ROOM_MESSAGE_MUTATION_FAILED",
+      roomId,
+      clientMutationId,
+      code,
+      retryable,
+      message,
+    });
+  }
+
+  private cancelMessageDeliveriesForPort(portId: string | null, reason: string): void {
+    if (!portId) {
+      return;
+    }
+
+    this.messageDeliveries.cancelMatching(({ ownerId }) => ownerId === portId, reason);
+  }
+
+  private cancelMessageDeliveriesForLease(lease: ActiveRoomLease, reason: string): void {
+    this.messageDeliveries.cancelMatching(
+      ({ generation, ownerId, roomId }) =>
+        generation === lease.generation && ownerId === lease.ownerPortId && roomId === lease.roomId,
+      reason,
+    );
+  }
+
+  private isMessageDeliveryContextCurrent(snapshot: ChatMessageDeliverySnapshot): boolean {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      lease?.ownerPortId === snapshot.ownerId &&
+      lease.roomId === snapshot.roomId &&
+      lease.generation === snapshot.generation &&
+      deliverySession?.ownerPortId === snapshot.ownerId &&
+      deliverySession.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
+  }
+
+  private isMessageMutationContextCurrent(snapshot: ChatMessageMutationSnapshot): boolean {
+    const lease = this.activeRoomLease;
+    const deliverySession = this.realtimeDeliverySession;
+
+    return (
+      this.snapshot.status === "connected" &&
+      this.subscriptions.connected &&
+      this.subscriptions.activeRoomId === snapshot.roomId &&
+      lease?.ownerPortId === snapshot.ownerId &&
+      lease.roomId === snapshot.roomId &&
+      lease.generation === snapshot.generation &&
+      deliverySession?.ownerPortId === snapshot.ownerId &&
+      deliverySession.roomId === snapshot.roomId &&
+      deliverySession.generation === snapshot.generation
+    );
+  }
+
+  private handleMessageDeliveryTerminal(event: ChatMessageDeliveryTerminalEvent): void {
+    this.sendToPort(event.snapshot.ownerId, {
+      type: "ROOM_MESSAGE_DELIVERY_LIFECYCLE",
+      event: createChatMessageDeliveryTerminalLifecycleEvent(event),
+    });
+
+    if (event.kind === "cancelled") {
+      return;
+    }
+
+    if (event.kind === "sent") {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_COMMAND_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_COMMAND_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.sendMessageFailure(
+      event.snapshot.ownerId,
+      event.snapshot.roomId,
+      event.snapshot.request.clientMessageId,
+      "MESSAGE_PUBLISH_FAILED",
+      event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      getChatMessageDeliveryFailureMessage(event),
+    );
+  }
+
+  private handleMessageMutationTerminal(event: ChatMessageMutationTerminalEvent): void {
+    this.sendToPort(event.snapshot.ownerId, {
+      type: "ROOM_MESSAGE_MUTATION_LIFECYCLE",
+      event: createChatMessageMutationTerminalLifecycleEvent(event),
+    });
+
+    if (event.kind === "cancelled") {
+      return;
+    }
+
+    if (event.kind === "completed") {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_MUTATION_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    if (event.result) {
+      this.sendToPort(event.snapshot.ownerId, {
+        type: "ROOM_MESSAGE_MUTATION_RESULT",
+        roomId: event.snapshot.roomId,
+        result: event.result,
+      });
+      return;
+    }
+
+    this.sendMessageMutationFailure(
+      event.snapshot.ownerId,
+      event.snapshot.roomId,
+      event.snapshot.request.clientMutationId,
+      "MUTATION_PUBLISH_FAILED",
+      event.reason === "PUBLISH_FAILED" || event.reason === "COMMAND_RESULT_TIMEOUT",
+      getChatMessageMutationFailureMessage(event),
+    );
+  }
+
+  private getAttachedPortCount(): number {
+    let count = 0;
+
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached) {
+        count += 1;
+      }
+    }
+
+    return count;
+  }
+
+  private setSnapshot(status: ChatConnectionStatus, error: ChatRealtimeError | null): void {
+    this.snapshot = { status, error };
+    this.broadcastSnapshot();
+  }
+
+  private broadcastSnapshot(): void {
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached) {
+        this.sendSnapshot(connectedPort);
+      }
+    }
+  }
+
+  private broadcastRoomInboxEvent(event: ChatRoomInboxEvent): void {
+    for (const connectedPort of this.ports.values()) {
+      if (connectedPort.attached) {
+        connectedPort.port.postMessage({
+          type: "ROOM_INBOX_EVENT",
+          event,
+        });
+      }
+    }
+  }
+
+  private sendSnapshot(connectedPort: ConnectedPort): void {
+    connectedPort.port.postMessage({
+      type: "CONNECTION_SNAPSHOT",
+      workerInstanceId: this.workerInstanceId,
+      attachedPortCount: this.getAttachedPortCount(),
+      principalGeneration: this.principalGeneration,
+      snapshot: this.snapshot,
+    });
+  }
+}
+
+function getStompErrorMessage(frame: IFrame): string {
+  return (
+    frame.headers.message?.trim() || frame.body.trim() || "STOMP 서버가 연결 오류를 반환했습니다."
+  );
+}

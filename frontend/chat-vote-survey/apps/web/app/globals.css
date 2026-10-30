@@ -1,0 +1,379 @@
+@import "tailwindcss";
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Regular.subset.woff2?v=21c9e3b875c6")
+    format("woff2");
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Medium.subset.woff2?v=6a3b52d655e7") format("woff2");
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Pretendard GOV";
+  src: url("/fonts/pretendard-gov/PretendardGOV-Bold.subset.woff2?v=d09a0a9684b5") format("woff2");
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+}
+
+:root {
+  --app-viewport-height: 100vh;
+  --font-pretendard: "Pretendard GOV";
+  color-scheme: light;
+  font-family:
+    var(--font-pretendard),
+    Inter,
+    Pretendard,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+  background: #f5f7fb;
+  color: #172033;
+  font-synthesis: none;
+}
+
+@supports (height: 100dvh) {
+  :root {
+    --app-viewport-height: 100dvh;
+  }
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  min-width: 320px;
+  background: #f5f7fb;
+}
+
+body {
+  min-height: var(--app-viewport-height);
+  margin: 0;
+  background:
+    radial-gradient(circle at 10% 0%, rgba(74, 113, 255, 0.13), transparent 30rem), #f5f7fb;
+}
+
+@supports not (height: 100dvh) {
+  html {
+    height: -webkit-fill-available;
+  }
+
+  body {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+}
+
+@layer base {
+  button,
+  input {
+    font: inherit;
+  }
+}
+
+button,
+a {
+  -webkit-tap-highlight-color: transparent;
+}
+
+code,
+pre {
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", monospace;
+}
+
+code {
+  border-radius: 0.35rem;
+  background: #edf0f8;
+  padding: 0.12rem 0.35rem;
+}
+
+pre {
+  overflow-x: auto;
+  border-radius: 0.75rem;
+  background: #111827;
+  color: #e5e7eb;
+  padding: 1rem;
+  font-size: 0.82rem;
+}
+
+.app-shell {
+  min-height: var(--app-viewport-height);
+}
+
+.app-route-content {
+  min-height: var(--app-viewport-height);
+  width: 100%;
+}
+
+@media (display-mode: standalone) {
+  html,
+  body,
+  .app-shell,
+  .app-route-content {
+    height: 100%;
+    min-height: 0;
+  }
+}
+
+.page-stack {
+  display: grid;
+  gap: 1rem;
+}
+
+.hero {
+  display: grid;
+  gap: 0.8rem;
+  min-height: 19rem;
+  align-content: center;
+  border-radius: 1.5rem;
+  background: #172554;
+  color: white;
+  padding: clamp(1.5rem, 8vw, 2rem);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.18);
+}
+
+.hero-compact {
+  min-height: 13rem;
+}
+
+.hero h1,
+.hero h2 {
+  max-width: 860px;
+  margin: 0;
+  font-size: clamp(2rem, 10vw, 2.5rem);
+  line-height: 1.05;
+  letter-spacing: -0.05em;
+}
+
+.hero-compact h1 {
+  font-size: clamp(1.8rem, 4vw, 3rem);
+}
+
+.hero p:last-child {
+  max-width: 740px;
+  margin: 0;
+  color: #dbeafe;
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.75;
+}
+
+.eyebrow {
+  margin: 0 0 0.25rem;
+  color: #6d7db0;
+  font-size: 0.75rem;
+  font-weight: 800;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+}
+
+.hero .eyebrow {
+  color: #93c5fd;
+}
+
+.panel {
+  border: 1px solid #dce2ef;
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 1.25rem;
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.05);
+}
+
+.panel h1,
+.panel h2 {
+  margin: 0;
+  letter-spacing: -0.025em;
+}
+
+.panel p {
+  line-height: 1.65;
+}
+
+.panel-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  border-radius: 999px;
+  padding: 0.25rem 0.65rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.status-success {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.chat-message-delivery-pending {
+  opacity: 0;
+  animation: chat-message-delivery-pending-reveal 0s linear 700ms forwards;
+}
+
+@keyframes chat-message-delivery-pending-reveal {
+  to {
+    opacity: 1;
+  }
+}
+
+.primary-button,
+.secondary-button,
+.link-button {
+  display: inline-flex;
+  min-height: 2.6rem;
+  align-items: center;
+  justify-content: center;
+  border-radius: 0.7rem;
+  padding: 0.65rem 0.9rem;
+  font-weight: 750;
+  cursor: pointer;
+}
+
+.primary-button {
+  border: 1px solid #243b93;
+  background: #3049ae;
+  color: white;
+}
+
+.secondary-button {
+  border: 1px solid #cbd5e1;
+  background: white;
+  color: #334155;
+}
+
+.primary-button:disabled,
+.secondary-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.48;
+}
+
+.chat-room-list :where(a[href], button, input, textarea, select):focus-visible {
+  outline: 3px solid #1d4ed8;
+  outline-offset: 3px;
+}
+
+.chat-room-list input[data-focus-outline="container"]:focus-visible {
+  outline: none;
+  outline-offset: 0;
+}
+
+/*
+ * Figma CIVIC.AI Wire Flow의 채팅 화면에서만 사용하는 publishing tokens.
+ * 화면별 퍼블리싱에서는 이 class를 가장 가까운 채팅 surface에 적용한다.
+ */
+.chat-publishing-surface {
+  --chat-publishing-color-text: #121417;
+  --chat-publishing-color-muted: #59616b;
+  --chat-publishing-color-primary: #266ef5;
+  --chat-publishing-color-primary-emphasis: #0a4fd1;
+  --chat-publishing-color-border: #ccd1d6;
+  --chat-publishing-color-accent-soft: #edf2ff;
+  --chat-publishing-color-neutral-soft: #edf2f7;
+  --chat-publishing-color-overlay: rgba(18, 20, 23, 0.56);
+  --chat-publishing-color-warning-background: #fff7e8;
+  --chat-publishing-color-warning-border: #ffc95c;
+  --chat-publishing-color-warning-text: #8a4a08;
+  --chat-publishing-radius-control: 6px;
+  --chat-publishing-radius-card: 8px;
+  --chat-publishing-radius-panel: 12px;
+  --chat-publishing-radius-pill: 999px;
+  --chat-publishing-shadow-card: 0 8px 24px rgba(18, 20, 23, 0.12);
+  --chat-publishing-shadow-sheet: 0 16px 40px rgba(18, 20, 23, 0.2);
+  --chat-publishing-control-height: 48px;
+}
+
+.link-button {
+  text-decoration: none;
+}
+
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  border-bottom: 1px solid #e2e8f0;
+  padding: 0.85rem;
+  text-align: left;
+}
+
+th {
+  color: #334155;
+}
+
+.skeleton {
+  min-height: 12rem;
+  display: grid;
+  place-items: center;
+  color: #64748b;
+}
+
+@media (max-width: 880px) {
+  .site-header {
+    grid-template-columns: 1fr auto;
+  }
+
+  .site-header .secondary-button {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 560px) {
+  .app-shell {
+    padding-right: max(0.7rem, env(safe-area-inset-right));
+    padding-left: max(0.7rem, env(safe-area-inset-left));
+  }
+
+  .app-shell-chat {
+    padding-right: 0;
+    padding-left: 0;
+  }
+
+  .site-header {
+    position: static;
+    grid-template-columns: 1fr;
+  }
+
+  .site-header nav {
+    order: 3;
+  }
+
+  .site-header .secondary-button {
+    grid-column: auto;
+  }
+
+  .hero {
+    min-height: 15rem;
+  }
+}
+
+@media (max-width: 480px) {
+  .app-shell {
+    padding-right: 0;
+    padding-left: 0;
+  }
+}

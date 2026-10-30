@@ -1,0 +1,104 @@
+import { z } from "zod";
+
+// Local result bootstrap fixtures currently use canonical UUID-shaped identifiers
+// whose version/variant bits are not RFC-compliant. Keep this compatibility
+// limited to the completed-task/result contracts until Backend fixtures are fixed.
+const uuidSchema = z
+  .string()
+  .regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i);
+const timestampSchema = z.string().min(1);
+const closureTypeSchema = z.enum(["DEADLINE_REACHED", "EARLY_CLOSED"]);
+
+export const opinionMapAreaSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("AVAILABLE"),
+    body: z.string().trim().min(1),
+  }),
+  z.object({
+    status: z.literal("NO_RESPONSES"),
+    body: z.null(),
+  }),
+  z.object({
+    status: z.literal("INSUFFICIENT_REASON"),
+    body: z.null(),
+  }),
+]);
+
+export const opinionMapResponseSchema = z.discriminatedUnion("status", [
+  z.object({
+    status: z.literal("PENDING"),
+    sameChoice: z.null(),
+    otherChoices: z.null(),
+  }),
+  z.object({
+    status: z.literal("AVAILABLE"),
+    sameChoice: opinionMapAreaSchema,
+    otherChoices: opinionMapAreaSchema,
+  }),
+  z.object({
+    status: z.literal("UNAVAILABLE"),
+    sameChoice: z.null(),
+    otherChoices: z.null(),
+  }),
+]);
+
+export const completedTaskSummarySchema = z.object({
+  taskId: uuidSchema,
+  title: z.string(),
+  description: z.string(),
+  openedAt: timestampSchema,
+  closedAt: timestampSchema,
+  closureType: closureTypeSchema,
+  mySubmission: z.object({
+    submissionId: uuidSchema,
+    submittedAt: timestampSchema,
+  }),
+});
+
+export const completedTaskPageSchema = z.object({
+  items: z.array(completedTaskSummarySchema),
+  nextCursor: z.string().nullable(),
+});
+
+export const myTaskResultSchema = z.object({
+  taskId: uuidSchema,
+  title: z.string(),
+  description: z.string(),
+  closedAt: timestampSchema,
+  closureType: closureTypeSchema,
+  resultVersion: z.number().int().positive(),
+  finalizedAt: timestampSchema,
+  responseCount: z.number().int().nonnegative(),
+  question: z.object({
+    id: uuidSchema,
+    content: z.string(),
+    description: z.string().nullable(),
+  }),
+  options: z.array(
+    z.object({
+      id: uuidSchema,
+      displayOrder: z.number().int(),
+      content: z.string(),
+      count: z.number().int().nonnegative(),
+      selectedByMe: z.boolean(),
+    }),
+  ),
+  mySubmission: z.object({
+    submissionId: uuidSchema,
+    selectedOptionId: uuidSchema,
+    reasonSource: z.enum(["AI_ACCEPTED", "USER_WRITTEN"]),
+    finalReason: z.string(),
+    submittedAt: timestampSchema,
+  }),
+  opinionMap: opinionMapResponseSchema,
+});
+
+export type CompletedTaskSummary = z.infer<typeof completedTaskSummarySchema>;
+export type CompletedTaskPage = z.infer<typeof completedTaskPageSchema>;
+export type OpinionMapArea = z.infer<typeof opinionMapAreaSchema>;
+export type OpinionMapResponse = z.infer<typeof opinionMapResponseSchema>;
+export type MyTaskResult = z.infer<typeof myTaskResultSchema>;
+
+export function calculateVotePercentage(count: number, responseCount: number): number {
+  return responseCount === 0 ? 0 : (count / responseCount) * 100;
+}

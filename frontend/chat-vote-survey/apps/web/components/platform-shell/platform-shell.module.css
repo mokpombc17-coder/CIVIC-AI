@@ -1,0 +1,406 @@
+.stage {
+  --platform-shell-max-width: 393px;
+  --platform-shell-header-height: 69px;
+  --platform-shell-navigation-height: 64px;
+  --platform-shell-color-surface: #ffffff;
+  --platform-shell-color-text: #121417;
+  --platform-shell-color-muted: #59616b;
+  --platform-shell-color-primary: #266ef5;
+  --platform-shell-color-primary-emphasis: #0a4fd1;
+  --platform-shell-color-primary-alpha-12: rgb(38 110 245 / 12%);
+  --platform-shell-color-primary-alpha-22: rgb(38 110 245 / 22%);
+  --platform-shell-color-primary-alpha-35: rgb(38 110 245 / 35%);
+  --platform-shell-color-primary-soft-9: #ebf2fe;
+  --platform-shell-color-primary-soft-13: #e3ecfe;
+  --platform-shell-color-primary-border-22: #b2c5ea;
+  --platform-shell-color-text-alpha-6: rgb(18 20 23 / 6%);
+  --platform-shell-color-border: #ccd1d6;
+  --platform-shell-radius: 12px;
+  --platform-shell-shadow: 0 8px 24px rgba(18, 20, 23, 0.12);
+  --platform-z-header: 10;
+  --platform-z-navigation: 10;
+  --platform-z-overlay: 100;
+  --platform-z-toast: 200;
+
+  display: grid;
+  min-height: var(--app-viewport-height, 100vh);
+  place-items: center;
+  padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+}
+
+.shell {
+  position: relative;
+  width: 100%;
+  max-width: var(--platform-shell-max-width);
+  height: var(--app-viewport-height, 100vh);
+  overflow: hidden;
+  border-radius: var(--platform-shell-radius);
+  background: var(--platform-shell-color-surface);
+  box-shadow: var(--platform-shell-shadow);
+  color: var(--platform-shell-color-text);
+}
+
+@supports not (height: 100dvh) {
+  .stage {
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+  }
+
+  .shell {
+    height: 100vh;
+    height: -webkit-fill-available;
+  }
+}
+
+@supports (color: color-mix(in srgb, white, black)) {
+  .stage {
+    --platform-shell-color-primary-alpha-12: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 12%,
+      transparent
+    );
+    --platform-shell-color-primary-alpha-22: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 22%,
+      transparent
+    );
+    --platform-shell-color-primary-alpha-35: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 35%,
+      transparent
+    );
+    --platform-shell-color-primary-soft-9: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 9%,
+      white
+    );
+    --platform-shell-color-primary-soft-13: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 13%,
+      white
+    );
+    --platform-shell-color-primary-border-22: color-mix(
+      in srgb,
+      var(--platform-shell-color-primary) 22%,
+      #d9dee7
+    );
+    --platform-shell-color-text-alpha-6: color-mix(
+      in srgb,
+      var(--platform-shell-color-text) 6%,
+      transparent
+    );
+  }
+}
+
+.shell[data-header-size="compact"] {
+  --platform-shell-header-height: 64px;
+}
+
+@media (max-width: 480px) {
+  .stage {
+    --platform-shell-radius: 0;
+  }
+
+  .shell {
+    max-width: none;
+    box-shadow: none;
+  }
+}
+
+@media (display-mode: standalone) {
+  .stage {
+    height: 100%;
+    min-height: 0;
+  }
+
+  .shell {
+    height: 100%;
+  }
+}
+
+.surface {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
+}
+
+.content {
+  grid-row: 2;
+  grid-column: 1;
+  min-width: 0;
+  min-height: 0;
+  background: var(--platform-shell-color-surface);
+}
+
+.content[data-scroll="self"] {
+  overflow-x: hidden;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.content[data-scroll="child"] {
+  overflow: hidden;
+}
+
+/* content 위 action은 content와 같은 grid 칸에 겹쳐 header 바로 아래에 떠 있고, 스크롤해도 같은 자리에 남음 */
+.contentTopAction {
+  position: relative;
+  z-index: var(--platform-z-header);
+  grid-row: 2;
+  grid-column: 1;
+  align-self: start;
+  justify-self: center;
+  margin-top: 12px;
+  pointer-events: none;
+}
+
+.contentTopAction > * {
+  pointer-events: auto;
+}
+
+.bottomNavigationSlot {
+  min-width: 0;
+}
+
+.shell[data-keyboard-open="true"] .bottomNavigationSlot {
+  display: none;
+}
+
+.overlay {
+  position: absolute;
+  z-index: var(--platform-z-overlay);
+  inset: 0;
+}
+
+.header {
+  position: relative;
+  z-index: var(--platform-z-header);
+  flex: none;
+  min-height: calc(var(--platform-shell-header-height) + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--platform-shell-color-border);
+  background: var(--platform-shell-color-surface);
+  padding-top: env(safe-area-inset-top);
+}
+
+.headerRow {
+  display: flex;
+  min-width: 0;
+  min-height: calc(var(--platform-shell-header-height) - 1px);
+  align-items: center;
+  gap: 12px;
+  padding-inline: 16px;
+}
+
+.headerLeading {
+  display: grid;
+  width: 44px;
+  height: 44px;
+  flex: none;
+  place-items: center;
+}
+
+.headerLeading > * {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  place-items: center;
+}
+
+.headerBackControl {
+  display: grid;
+  width: 100%;
+  height: 100%;
+  padding: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--platform-shell-color-text);
+  cursor: pointer;
+  place-items: center;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.headerBackControl:disabled {
+  color: var(--platform-shell-color-muted);
+  cursor: default;
+}
+
+.headerBackControl:not(:disabled):hover {
+  background: var(--platform-shell-color-text-alpha-6);
+}
+
+.headerBackControl:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: -2px;
+}
+
+.headerBackIcon {
+  display: block;
+  width: 24px;
+  height: 24px;
+  background: currentColor;
+  mask: url("/assets/platform-shell/back.png") center / contain no-repeat;
+  -webkit-mask: url("/assets/platform-shell/back.png") center / contain no-repeat;
+  transform: rotate(90deg);
+  transform-origin: center;
+}
+
+.headerTitle {
+  min-width: 0;
+  flex: 1;
+  overflow: hidden;
+  margin: 0;
+  color: var(--platform-shell-color-text);
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  line-height: 27px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.headerActions {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.bottomNavigation {
+  position: relative;
+  z-index: var(--platform-z-navigation);
+  display: grid;
+  min-height: calc(var(--platform-shell-navigation-height) + env(safe-area-inset-bottom));
+  grid-auto-columns: minmax(0, 1fr);
+  grid-auto-flow: column;
+  border-top: 1px solid var(--platform-shell-color-border);
+  background: var(--platform-shell-color-surface);
+  padding: 4px 4px env(safe-area-inset-bottom);
+}
+
+.bottomNavigationItem {
+  position: relative;
+  display: flex;
+  min-width: 0;
+  min-height: 59px;
+  align-items: center;
+  border-top: 3px solid transparent;
+  color: var(--platform-shell-color-muted);
+  flex-direction: column;
+  gap: 2px;
+  justify-content: flex-start;
+  padding: 6px 4px 3px;
+  text-decoration: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.bottomNavigationItem[aria-current="page"] {
+  border-top-color: transparent;
+  color: var(--platform-shell-color-primary-emphasis);
+}
+
+.bottomNavigationItem[aria-current="page"]::before {
+  position: absolute;
+  top: -7px;
+  right: 0;
+  left: 0;
+  height: 3px;
+  background: var(--platform-shell-color-primary);
+  content: "";
+  pointer-events: none;
+}
+
+.bottomNavigationItem:focus-visible {
+  border-radius: 6px;
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: -2px;
+}
+
+.bottomNavigationIcon {
+  display: grid;
+  width: 24px;
+  height: 24px;
+  flex: none;
+  place-items: center;
+}
+
+.bottomNavigationIcon > * {
+  width: 100%;
+  height: 100%;
+}
+
+.navigationIcon {
+  display: block;
+  background: currentColor;
+  mask: var(--platform-navigation-icon) center / contain no-repeat;
+  -webkit-mask: var(--platform-navigation-icon) center / contain no-repeat;
+}
+
+.bottomNavigationLabel {
+  overflow: hidden;
+  max-width: 100%;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 18px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.bottomNavigationItem[aria-current="page"] .bottomNavigationLabel {
+  font-weight: 700;
+}
+
+.scrollTopButton {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 1px solid var(--platform-shell-color-border);
+  border-radius: 50%;
+  background: rgb(255 255 255 / 92%);
+  box-shadow: 0 4px 12px rgba(18, 20, 23, 0.12);
+  color: var(--platform-shell-color-primary-emphasis);
+  cursor: pointer;
+  opacity: 1;
+  transform: translateY(0);
+  transition:
+    color 160ms ease,
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 0s;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* 숨길 때는 사라지는 애니메이션이 끝난 뒤 visibility를 바꿔 포커스와 탭 대상에서도 빠지게 함 */
+.scrollTopButton[data-visible="false"] {
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-8px);
+  transition:
+    opacity 160ms ease,
+    transform 160ms ease,
+    visibility 0s linear 160ms;
+  visibility: hidden;
+}
+
+.scrollTopButton:hover {
+  color: var(--platform-shell-color-primary);
+}
+
+.scrollTopButton:focus-visible {
+  outline: 2px solid var(--platform-shell-color-primary);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .scrollTopButton,
+  .scrollTopButton[data-visible="false"] {
+    transform: none;
+    transition: none;
+  }
+}
