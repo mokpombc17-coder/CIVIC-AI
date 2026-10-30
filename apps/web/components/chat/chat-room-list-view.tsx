@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { ChatRoomCategoryBadges } from "@/components/chat/chat-room-category-badges";
 import {
+  memo,
   useCallback,
   useEffect,
+  useLayoutEffect,
   useRef,
   useState,
   type ReactNode,
@@ -51,6 +53,10 @@ import { getPublicRoomListErrorMessage } from "@/lib/chat/chat-room-list-error-p
 
 const PUBLIC_ROOM_HIGHLIGHT_DURATION_MS = 1_600;
 const ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX = 2;
+// 손가락으로 튕긴 스크롤이 목록 끝에 먼저 닿아 멈추지 않도록, 목록 끝까지 상자 높이만큼 남았을 때 다음 페이지를 미리 받음
+const ROOM_LIST_NEXT_PAGE_PREFETCH_MARGIN = "0px 0px 100% 0px";
+const ROOM_LIST_END_STATUS_CLASS_NAME =
+  "py-2 text-center text-[13px] leading-5 text-[var(--chat-publishing-color-muted)]";
 
 type PublicRoomLoadRequest = {
   observedFetching: boolean;
@@ -60,7 +66,6 @@ type PublicRoomLoadRequest = {
 
 type PublicRoomLoadFeedback = Readonly<{
   announcement: string;
-  hasLoadedAdditionalPage: boolean;
   highlightedRoomId: string | null;
   query: string | undefined;
 }>;
@@ -69,6 +74,8 @@ type RoomListState<TItem> = Readonly<{
   error: unknown;
   hasNextPage: boolean;
   isError: boolean;
+  isFetchNextPageError: boolean;
+  isFetching: boolean;
   isFetchingNextPage: boolean;
   isPending: boolean;
   loadMore: () => void;
@@ -103,15 +110,14 @@ export function ChatRoomListView({
 }: ChatRoomListViewProps) {
   const participatingRoomListRef = useRef<HTMLUListElement>(null);
   const publicRoomListRef = useRef<HTMLUListElement>(null);
-  const participatingRoomListScroll = useRoomListBottomGradient(
+  const participatingRoomListScroll = useRoomListScrollGradients(
     participatingRoomListRef,
     participatingRooms.rooms,
   );
-  const publicRoomListScroll = useRoomListBottomGradient(publicRoomListRef, publicRooms.rooms);
+  const publicRoomListScroll = useRoomListScrollGradients(publicRoomListRef, publicRooms.rooms);
   const publicRoomLoadRequestRef = useRef<PublicRoomLoadRequest | null>(null);
   const [publicRoomLoadFeedback, setPublicRoomLoadFeedback] = useState<PublicRoomLoadFeedback>({
     announcement: "",
-    hasLoadedAdditionalPage: false,
     highlightedRoomId: null,
     query: publicRoomSearch.appliedQuery,
   });
@@ -122,11 +128,37 @@ export function ChatRoomListView({
   const highlightedPublicRoomId = hasCurrentPublicRoomLoadFeedback
     ? publicRoomLoadFeedback.highlightedRoomId
     : null;
-  const hasLoadedAdditionalPublicRoomPage =
-    hasCurrentPublicRoomLoadFeedback && publicRoomLoadFeedback.hasLoadedAdditionalPage;
+  // 참여 가능한 방은 목록 끝에 가까워지면 다음 페이지를 자동으로 받되, 목록 전체를 다시 받는 중이거나 오류가 남아 있으면 자동 요청을 멈춤
+  // 다음 페이지 요청이 실패하면 공개 방 더 보기 버튼으로만 이어 받음
+  const canAutoLoadNextPublicRoomPage =
+    publicRooms.hasNextPage && !publicRooms.isFetching && !publicRooms.isError;
+  // 모든 페이지를 받았어도 방이 목록 상자 안에 다 보이면 스크롤할 일이 없으므로, 상자를 넘칠 때만 목록 끝에 마무리 문구를 보여 줌
+  const showingPublicRoomListEnd =
+    !publicRooms.hasNextPage &&
+    !publicRooms.isError &&
+    publicRooms.rooms.length > 0 &&
+    publicRoomListScroll.overflowing;
   const publicRoomLoadAnnouncement = hasCurrentPublicRoomLoadFeedback
     ? publicRoomLoadFeedback.announcement
     : "";
+  const openRoomDetailRef = useRef(roomDetail.open);
+  useEffect(() => {
+    openRoomDetailRef.current = roomDetail.open;
+  });
+  // 공개 방 card는 다음 페이지가 붙어도 이미 그린 card를 다시 그리지 않도록 memo로 감싸므로, 상세 열기 동작은 render마다 바뀌지 않는 함수로 넘김
+  const openPublicRoomDetails = useCallback(
+    (room: PublicRoomListItem, trigger: HTMLButtonElement) =>
+      openRoomDetailRef.current({ kind: "available", room }, trigger),
+    [],
+  );
+  // 검색 조건이 바뀌면 다른 목록이 보이므로 공개 방 목록 상자를 맨 위로 되돌림
+  // 이전 목록을 끝까지 내린 위치가 남으면 새 목록이 보이자마자 다음 페이지를 자동으로 받게 됨
+  // 본문에서 읽지 않는 appliedQuery가 이 effect의 실행 계기임
+  useLayoutEffect(() => {
+    const list = publicRoomListRef.current;
+
+    if (list) list.scrollTop = 0;
+  }, [publicRoomSearch.appliedQuery]);
   const overlay = isCreateRoomOpen ? (
     <CreateChatRoomForm onCancel={closeCreateRoomForm} />
   ) : roomDetail.selection ? (
@@ -155,7 +187,6 @@ export function ChatRoomListView({
       announcement: firstNewRoom
         ? "새로운 토론방을 불러왔습니다."
         : "추가로 표시할 토론방이 없습니다.",
-      hasLoadedAdditionalPage: true,
       highlightedRoomId: firstNewRoom?.roomId ?? null,
       query: publicRoomSearch.appliedQuery,
     });
@@ -199,13 +230,11 @@ export function ChatRoomListView({
       query: publicRoomSearch.appliedQuery,
       roomIds: new Set(publicRooms.rooms.map((room) => room.roomId)),
     };
-    setPublicRoomLoadFeedback((current) => ({
+    setPublicRoomLoadFeedback({
       announcement: "",
-      hasLoadedAdditionalPage:
-        current.query === publicRoomSearch.appliedQuery && current.hasLoadedAdditionalPage,
       highlightedRoomId: null,
       query: publicRoomSearch.appliedQuery,
-    }));
+    });
     publicRooms.loadMore();
   }
 
@@ -301,7 +330,8 @@ export function ChatRoomListView({
                   </li>
                 ))}
               </ul>
-              <RoomListBottomGradient visible={participatingRoomListScroll.visible} />
+              <RoomListTopGradient visible={participatingRoomListScroll.topVisible} />
+              <RoomListBottomGradient visible={participatingRoomListScroll.bottomVisible} />
             </div>
           ) : null}
 
@@ -361,31 +391,45 @@ export function ChatRoomListView({
                   tabIndex={0}
                 >
                   {publicRooms.rooms.map((room) => (
-                    <li key={room.roomId}>
-                      <PublicRoomCard
-                        highlighted={highlightedPublicRoomId === room.roomId}
-                        isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
-                        onOpenDetails={(trigger) =>
-                          roomDetail.open({ kind: "available", room }, trigger)
-                        }
-                        room={room}
-                      />
-                    </li>
+                    <PublicRoomListEntry
+                      highlighted={highlightedPublicRoomId === room.roomId}
+                      isDetailOpen={roomDetail.selection?.room.roomId === room.roomId}
+                      key={room.roomId}
+                      onOpenDetails={openPublicRoomDetails}
+                      room={room}
+                    />
                   ))}
+                  {publicRooms.hasNextPage ? (
+                    <RoomListNextPageTrigger
+                      canLoadNextPage={canAutoLoadNextPublicRoomPage}
+                      listRef={publicRoomListRef}
+                      onLoadNextPage={publicRooms.loadMore}
+                    />
+                  ) : null}
+                  {publicRooms.isFetchingNextPage && !publicRooms.isFetchNextPageError ? (
+                    <li className={ROOM_LIST_END_STATUS_CLASS_NAME} role="status">
+                      공개 방을 더 불러오는 중이에요
+                    </li>
+                  ) : null}
+                  {showingPublicRoomListEnd ? (
+                    <li className={ROOM_LIST_END_STATUS_CLASS_NAME} role="none">
+                      모든 토론방을 확인했어요.
+                    </li>
+                  ) : null}
                 </ul>
-                <RoomListBottomGradient visible={publicRoomListScroll.visible} />
+                <RoomListTopGradient visible={publicRoomListScroll.topVisible} />
+                <RoomListBottomGradient visible={publicRoomListScroll.bottomVisible} />
               </div>
             ) : null}
 
-            <PlatformLoadMoreButton
-              exhaustedLabel={
-                hasLoadedAdditionalPublicRoomPage ? "모든 토론방을 확인했어요." : undefined
-              }
-              hasNextPage={publicRooms.hasNextPage}
-              isFetching={publicRooms.isFetchingNextPage}
-              label="공개 방 더 보기"
-              onClick={loadMorePublicRooms}
-            />
+            {publicRooms.isFetchNextPageError ? (
+              <PlatformLoadMoreButton
+                hasNextPage={publicRooms.hasNextPage}
+                isFetching={publicRooms.isFetchingNextPage}
+                label="공개 방 더 보기"
+                onClick={loadMorePublicRooms}
+              />
+            ) : null}
             <p aria-atomic="true" aria-live="polite" className="sr-only">
               {publicRoomLoadAnnouncement}
             </p>
@@ -479,6 +523,30 @@ export function MyRoomCard({
     </article>
   );
 }
+
+// 다음 페이지가 붙을 때 목록 전체가 다시 render되어도 이미 그린 공개 방 card는 props가 그대로면 건너뛰어, 목록이 길어질수록 붙일 때마다 스크롤이 멈칫하던 시간을 새 card만큼으로 줄임
+const PublicRoomListEntry = memo(function PublicRoomListEntry({
+  highlighted,
+  isDetailOpen,
+  onOpenDetails,
+  room,
+}: Readonly<{
+  highlighted: boolean;
+  isDetailOpen: boolean;
+  onOpenDetails: (room: PublicRoomListItem, trigger: HTMLButtonElement) => void;
+  room: PublicRoomListItem;
+}>) {
+  return (
+    <li data-room-list-room="true">
+      <PublicRoomCard
+        highlighted={highlighted}
+        isDetailOpen={isDetailOpen}
+        onOpenDetails={(trigger) => onOpenDetails(room, trigger)}
+        room={room}
+      />
+    </li>
+  );
+});
 
 export function PublicRoomCard({
   highlighted = false,
@@ -692,16 +760,23 @@ function RoomListNotice({
   );
 }
 
-// 목록 안에서 스크롤해야 볼 수 있는 방이 남아 있을 때만 하단 gradient를 보여, 상자 높이에서 잘린 카드가 아래로 이어진다는 단서를 줌
-function useRoomListBottomGradient(
+// 목록 안에서 스크롤해야 볼 수 있는 방이 아래에 남아 있으면 하단 gradient를, 위로 지나간 방이 있으면 상단 gradient를 보여 상자 높이에서 잘린 카드가 이어진다는 단서를 줌
+function useRoomListScrollGradients(
   listRef: RefObject<HTMLUListElement | null>,
   rooms: readonly unknown[],
 ) {
-  const [visible, setVisible] = useState(false);
+  const [bottomVisible, setBottomVisible] = useState(false);
+  const [topVisible, setTopVisible] = useState(false);
+  const [overflowing, setOverflowing] = useState(false);
   const update = useCallback(() => {
-    const nextVisible = listRef.current ? shouldShowRoomListBottomGradient(listRef.current) : false;
+    const list = listRef.current;
+    const nextBottomVisible = list ? shouldShowRoomListBottomGradient(list) : false;
+    const nextTopVisible = list ? shouldShowRoomListTopGradient(list) : false;
+    const nextOverflowing = list ? hasRoomListRoomOverflow(list) : false;
 
-    setVisible((current) => (current === nextVisible ? current : nextVisible));
+    setBottomVisible((current) => (current === nextBottomVisible ? current : nextBottomVisible));
+    setTopVisible((current) => (current === nextTopVisible ? current : nextTopVisible));
+    setOverflowing((current) => (current === nextOverflowing ? current : nextOverflowing));
   }, [listRef]);
 
   // 본문에서 읽지 않는 rooms는 방 목록이 바뀌어 넘침 여부가 달라질 때 다시 계산하게 하는 실행 계기임
@@ -717,7 +792,79 @@ function useRoomListBottomGradient(
     return () => resizeObserver.disconnect();
   }, [listRef, rooms, update]);
 
-  return { update, visible };
+  return { bottomVisible, overflowing, topVisible, update };
+}
+
+// 목록 끝 안내 문구 자체가 상자를 넘치게 만들지 않도록, 안내 문구를 빼고 마지막 방 card의 아래 끝이 상자 높이를 넘는지로 판단함
+// 스크롤할 때마다 불리므로 방이 많아져도 전체 목록을 훑지 않고 끝에서부터 마지막 방 card를 찾음
+function hasRoomListRoomOverflow(list: HTMLUListElement): boolean {
+  let lastRoom = list.lastElementChild;
+
+  while (
+    lastRoom &&
+    !(lastRoom instanceof HTMLElement && lastRoom.dataset.roomListRoom === "true")
+  ) {
+    lastRoom = lastRoom.previousElementSibling;
+  }
+
+  if (!lastRoom) return false;
+
+  const lastRoomBottom =
+    lastRoom.getBoundingClientRect().bottom - list.getBoundingClientRect().top + list.scrollTop;
+
+  return lastRoomBottom > list.clientHeight + ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX;
+}
+
+function RoomListNextPageTrigger({
+  canLoadNextPage,
+  listRef,
+  onLoadNextPage,
+}: Readonly<{
+  canLoadNextPage: boolean;
+  listRef: RefObject<HTMLUListElement | null>;
+  onLoadNextPage: () => void;
+}>) {
+  const triggerRef = useRef<HTMLLIElement>(null);
+  const loadNextPageRef = useRef(onLoadNextPage);
+  const [nearListEnd, setNearListEnd] = useState(false);
+
+  useEffect(() => {
+    loadNextPageRef.current = onLoadNextPage;
+  });
+
+  // 목록 상자 안에서 목록 끝까지 상자 높이만큼 남았을 때 화면에 들어온 것으로 보도록 상자를 기준으로 지켜봄
+  // IntersectionObserver가 없는 환경에서는 자동으로 받지 않음
+  useEffect(() => {
+    const trigger = triggerRef.current;
+
+    if (!trigger || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry) setNearListEnd(entry.isIntersecting);
+      },
+      { root: listRef.current, rootMargin: ROOM_LIST_NEXT_PAGE_PREFETCH_MARGIN },
+    );
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, [listRef]);
+
+  // 받은 페이지가 짧아 표시가 계속 보이면 observer가 다시 알리지 않으므로, 요청이 끝나 다시 받을 수 있게 되는 시점에도 다음 페이지를 이어 받음
+  useEffect(() => {
+    if (nearListEnd && canLoadNextPage) loadNextPageRef.current();
+  }, [canLoadNextPage, nearListEnd]);
+
+  return <li aria-hidden="true" className="h-px" ref={triggerRef} />;
+}
+
+function RoomListTopGradient({ visible }: Readonly<{ visible: boolean }>) {
+  return (
+    <div
+      aria-hidden="true"
+      className={`pointer-events-none absolute inset-x-0 top-0 z-20 h-1 bg-gradient-to-b from-white/90 to-transparent motion-safe:transition-opacity motion-safe:duration-200 ${visible ? "opacity-100" : "opacity-0"}`}
+      data-room-list-scroll-indicator="up"
+    />
+  );
 }
 
 function RoomListBottomGradient({ visible }: Readonly<{ visible: boolean }>) {
@@ -735,6 +882,12 @@ export function findFirstNewPublicRoomIndex(
   rooms: readonly PublicRoomListItem[],
 ): number {
   return rooms.findIndex((room) => !previousRoomIds.has(room.roomId));
+}
+
+export function shouldShowRoomListTopGradient(
+  scrollContainer: Pick<HTMLElement, "scrollTop">,
+): boolean {
+  return scrollContainer.scrollTop > ROOM_LIST_SCROLL_EDGE_TOLERANCE_PX;
 }
 
 export function shouldShowRoomListBottomGradient(

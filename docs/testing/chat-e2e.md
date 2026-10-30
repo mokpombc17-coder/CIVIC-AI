@@ -229,7 +229,7 @@ OWNER가 공개 방 생성
 ```text
 검색어 입력 후 검색 버튼 제출
 → query trim, joinPolicy=OPEN, categoryId 생략과 cursor 없는 첫 page 확인
-→ 공개 방 더 보기에서 같은 조건과 서버 nextCursor 전달 확인
+→ 공개 방 목록 상자를 끝까지 내려 자동으로 이어 받을 때 같은 조건과 서버 nextCursor 전달 확인
 → REST 응답과 DOM의 21개 Room ID가 중복·누락 없이 일치하는지 확인
 → 공백 검색어 제출 시 query와 categoryId를 생략
 ```

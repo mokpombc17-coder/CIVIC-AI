@@ -104,7 +104,13 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
         return searchParams.get("cursor") === firstPage.nextCursor;
       });
 
-      await observerPage.getByRole("button", { name: "공개 방 더 보기", exact: true }).click();
+      // 공개 방 목록은 상자 끝에 가까워지면 다음 페이지를 자동으로 받으므로, 더 보기 버튼 대신 목록 상자를 끝까지 내림
+      await expect(
+        observerPage.getByRole("button", { name: "공개 방 더 보기", exact: true }),
+      ).toHaveCount(0);
+      await observerPage.getByRole("list", { name: "공개 토론방" }).evaluate((list) => {
+        list.scrollTop = list.scrollHeight;
+      });
 
       const { page: nextPage, response: nextPageResponse } = await nextPageResponsePromise;
       expectPublicRoomCriteria(nextPageResponse, {
@@ -116,6 +122,7 @@ test("공개 방 검색이 같은 조건의 cursor pagination을 유지한다", 
       expect(nextPage.items).toHaveLength(1);
       expect(nextPage.hasNext).toBe(false);
       await expect(publicRoomItems).toHaveCount(21);
+      await expect(observerPage.getByText("모든 토론방을 확인했어요.")).toBeVisible();
 
       const expectedRoomIds = fixtures.map((room) => room.roomId).sort();
       const responseRoomIds = [...firstPage.items, ...nextPage.items]

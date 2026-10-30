@@ -445,6 +445,9 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 생성 요청 sheet와 Room 상세 중 하나를 `PlatformShell`의 overlay slot에 전달하여 overlay가 열린 동안 기존 surface를 inert 처리한다.
 목록 surface는 참여 Room 필터·생성 action, 참여 Room 목록, 공개 Room 검색, 참여 가능한 Room 목록
 순서로 조립하여 검색의 적용 범위가 공개 Room 목록임을 구조로 드러낸다.
+참여 가능한 Room 목록은 목록 상자 끝에 가까워지면 다음 cursor 페이지를 자동으로 이어 받고, 다음 페이지
+요청이 실패했을 때만 공개 방 더 보기 버튼을 보여 준다. 이 버튼으로 받은 경우에만 새로 받은 첫 Room으로
+이동해 강조하며, 모든 페이지를 받았고 Room이 목록 상자를 넘칠 때만 목록 끝에 마무리 문구를 표시한다.
 `PublicRoomSearchForm`은 검색어 draft를 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query
 조건은 container hook에 둔다.
 `ChatRoomListDetailDialog`는 PlatformShell 내부의 ARIA dialog로 목록 snapshot을 Figma 기반 bottom

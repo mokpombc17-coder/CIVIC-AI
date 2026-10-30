@@ -15,6 +15,7 @@ import {
   PublicRoomCard,
   scrollPublicRoomIntoView,
   shouldShowRoomListBottomGradient,
+  shouldShowRoomListTopGradient,
 } from "./chat-room-list-view";
 
 vi.mock("next/navigation", () => ({
@@ -180,7 +181,7 @@ describe("chat room list publishing layout", () => {
     });
   });
 
-  it("공개 방 목록 아래에 더 볼 내용이 있을 때 하단 gradient만 표시한다", () => {
+  it("공개 방 목록 위아래로 더 볼 내용이 있을 때 상단·하단 gradient를 표시한다", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, undefined, [PUBLIC_ROOM]);
     const indicatorClassName = /class="([^"]+)" data-room-list-scroll-indicator="down"/.exec(
       html,
@@ -188,7 +189,7 @@ describe("chat room list publishing layout", () => {
     const roomListClassName = /aria-label="공개 토론방" class="([^"]+)"/.exec(html)?.[1] ?? "";
 
     expect(html).toContain('data-room-list-scroll-indicator="down"');
-    expect(html).not.toContain('data-room-list-scroll-indicator="up"');
+    expect(html).toContain('data-room-list-scroll-indicator="up"');
     expect(html).toMatch(/data-room-list-scroll-indicator="down"><\/div>/);
     expect(indicatorClassName).toContain("h-6");
     expect(indicatorClassName).not.toContain("h-8");
@@ -203,15 +204,17 @@ describe("chat room list publishing layout", () => {
     expect(
       shouldShowRoomListBottomGradient({ clientHeight: 384, scrollHeight: 800, scrollTop: 416 }),
     ).toBe(false);
+    expect(shouldShowRoomListTopGradient({ scrollTop: 0 })).toBe(false);
+    expect(shouldShowRoomListTopGradient({ scrollTop: 200 })).toBe(true);
   });
 
-  it("참여한 방 목록에도 공개 방 목록과 같은 하단 gradient를 표시한다", () => {
+  it("참여한 방 목록에도 공개 방 목록과 같은 상단·하단 gradient를 표시한다", () => {
     const html = renderChatRoomListView("ALL", false, "empty", null, undefined, [], false, [
       createRoomInboxItem(),
     ]);
 
     expect(html).toMatch(
-      /aria-label="참여 중인 토론방"[^>]*>.*<\/ul><div aria-hidden="true" class="[^"]+" data-room-list-scroll-indicator="down"><\/div>/,
+      /aria-label="참여 중인 토론방"[^>]*>.*<\/ul><div aria-hidden="true" class="[^"]+" data-room-list-scroll-indicator="up"><\/div><div aria-hidden="true" class="[^"]+" data-room-list-scroll-indicator="down"><\/div>/,
     );
   });
 
@@ -535,6 +538,8 @@ function renderChatRoomListView(
           : null,
     hasNextPage: false,
     isError,
+    isFetchNextPageError: false,
+    isFetching: false,
     isFetchingNextPage: false,
     isPending: listStatus === "loading",
     loadMore: vi.fn(),
