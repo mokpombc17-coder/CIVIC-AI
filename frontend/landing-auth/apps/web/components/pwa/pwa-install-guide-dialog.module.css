@@ -1,0 +1,144 @@
+.dialog::backdrop {
+  background: rgb(15 23 42 / 42%);
+}
+
+.dialog {
+  position: fixed;
+  inset: 0;
+  display: none;
+  width: min(28rem, calc(100% - 2rem));
+  max-height: calc(100dvh - 2rem);
+  margin: auto;
+  overflow: auto;
+  overscroll-behavior: contain;
+  border: 1px solid #e2e8f0;
+  border-radius: 1rem;
+  background: #fff;
+  color: var(--civic-ink, #172033);
+  padding: 1.5rem;
+  box-shadow: 0 1rem 2.5rem rgb(15 23 42 / 18%);
+}
+
+.dialog[open] {
+  display: grid;
+  gap: 0.875rem;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.header h2 {
+  margin: 0;
+  font-size: 1.2rem;
+  font-weight: 700;
+  line-height: 1.35;
+  text-wrap: balance;
+}
+
+.closeButton {
+  display: grid;
+  width: 2.5rem;
+  height: 2.5rem;
+  flex: 0 0 auto;
+  place-items: center;
+  border: 0;
+  border-radius: 999px;
+  background: transparent;
+  color: #64748b;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.steps {
+  display: grid;
+  gap: 0.35rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  display: grid;
+  grid-template-columns: 1.25rem minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.45rem 0;
+}
+
+.steps li:first-child {
+  padding-top: 0.15rem;
+}
+
+.steps li:last-child {
+  padding-bottom: 0.15rem;
+}
+
+.steps p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.92rem;
+  line-height: 1.55;
+}
+
+.steps strong {
+  color: inherit;
+  font-weight: 600;
+}
+
+.stepNumber {
+  color: #2563eb;
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  text-align: center;
+}
+
+.tip {
+  margin: 0;
+  padding: 0.2rem 0 0.1rem 1.9rem;
+  color: #94a3b8;
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.doneButton {
+  width: 100%;
+  min-height: 3rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 0.7rem;
+  background: #fff;
+  color: #334155;
+  font-weight: 600;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+.closeButton:focus-visible,
+.doneButton:focus-visible {
+  outline: 3px solid #93c5fd;
+  outline-offset: 3px;
+}
+
+.closeButton:is(:hover, :active),
+.doneButton:is(:hover, :active) {
+  background: #f8fafc;
+}
+
+@media (max-width: 640px) {
+  .dialog {
+    inset: auto 0 0;
+    width: 100%;
+    max-width: none;
+    max-height: calc(100dvh - max(1rem, env(safe-area-inset-top)));
+    margin: 0;
+    border-right: 0;
+    border-bottom: 0;
+    border-left: 0;
+    border-radius: 1rem 1rem 0 0;
+    padding: 1.25rem 1.25rem calc(1.25rem + env(safe-area-inset-bottom));
+  }
+}

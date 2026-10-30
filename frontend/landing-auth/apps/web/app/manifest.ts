@@ -1,0 +1,38 @@
+import type { MetadataRoute } from "next";
+
+export default function manifest(): MetadataRoute.Manifest {
+  return {
+    id: "/",
+    name: "CIVIC.AI",
+    short_name: "CIVIC.AI",
+    description:
+      "자료를 살펴보고, 다양한 생각을 나누며, 투표로 의견을 더하는 AI 기반 시민 참여 플랫폼 CIVIC.AI",
+    start_url: "/pwa/start",
+    scope: "/",
+    display: "standalone",
+    orientation: "portrait",
+    background_color: "#f5f7fb",
+    theme_color: "#f5f7fb",
+    lang: "ko",
+    icons: [
+      {
+        src: "/icons/civic-ai-192.png",
+        sizes: "192x192",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/civic-ai-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "any",
+      },
+      {
+        src: "/icons/civic-ai-512.png",
+        sizes: "512x512",
+        type: "image/png",
+        purpose: "maskable",
+      },
+    ],
+  };
+}

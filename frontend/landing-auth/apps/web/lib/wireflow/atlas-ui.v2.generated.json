@@ -1,0 +1,1840 @@
+{
+  "version": 2,
+  "screens": [
+    {
+      "id": "AUTH-001",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "인증",
+        "title": "로그인",
+        "meta": "이메일 인증을 완료한 계정으로 접속합니다."
+      },
+      "blocks": [
+        {
+          "key": "credentials",
+          "type": "fields",
+          "actions": ["login"],
+          "title": "계정 정보",
+          "fields": [
+            {
+              "label": "이메일",
+              "type": "email",
+              "placeholder": "name@example.com"
+            },
+            {
+              "label": "비밀번호",
+              "type": "password",
+              "placeholder": "비밀번호 입력"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "login-links",
+          "type": "cards",
+          "actions": ["two-factor", "reset", "signup"],
+          "records": [
+            {
+              "badge": "복구",
+              "title": "비밀번호 재설정",
+              "meta": "등록 이메일로 인증 코드 발송",
+              "actionId": "reset"
+            },
+            {
+              "badge": "신규",
+              "title": "회원가입",
+              "meta": "계정 정보부터 입력",
+              "actionId": "signup"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "입력 가능" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "로그인 실패",
+        "body": "이메일 또는 비밀번호를 확인하세요. 반복해서 실패하면 잠시 기다린 뒤 다시 시도해야 합니다."
+      }
+    },
+    {
+      "id": "AUTH-002",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "회원가입 1/3",
+        "title": "계정 정보",
+        "meta": "로그인 이메일은 가입 후 변경할 수 없습니다."
+      },
+      "blocks": [
+        {
+          "key": "signup-account",
+          "type": "fields",
+          "actions": ["continue"],
+          "title": "필수 입력",
+          "fields": [
+            {
+              "label": "이메일",
+              "type": "email",
+              "placeholder": "name@example.com",
+              "help": "로그인에 사용할 이메일"
+            },
+            {
+              "label": "비밀번호",
+              "type": "password",
+              "help": "최소 8자 · 영문·숫자·특수문자 포함 (!@#$%^&*()_+-=)"
+            },
+            { "label": "비밀번호 확인", "type": "password" },
+            { "label": "만 14세 이상입니다", "type": "checkbox" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "existing-account",
+          "type": "notice",
+          "actions": ["reactivate", "back-login"],
+          "tone": "info",
+          "title": "기존 계정이 있나요?",
+          "body": "비활성 계정은 별도의 이메일 인증 후 복원할 수 있습니다.",
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "account-identity-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "중복 가입 안내",
+          "body": "가입할 때 이메일의 앞뒤 공백이나 대소문자만 다른 기존 계정이 있으면 새 계정을 만들지 않고 로그인 또는 계정 복구를 안내합니다. +alias가 붙은 주소는 다른 이메일로 구분하며, 가입한 로그인 이메일은 이후 변경할 수 없습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "신규 계정 입력" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "이미 가입된 이메일",
+        "body": "대소문자를 무시한 동일 이메일이 있습니다. 비활성 계정이면 재활성화를 선택하세요."
+      }
+    },
+    {
+      "id": "AUTH-003",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "회원가입 2/3",
+        "title": "개인정보·설문 입력",
+        "meta": "가입에 필요한 개인정보와 설문을 입력합니다."
+      },
+      "blocks": [
+        {
+          "key": "profile",
+          "type": "fields",
+          "actions": [],
+          "title": "일반 개인정보",
+          "fields": [
+            { "label": "출생연도", "type": "text", "placeholder": "YYYY" },
+            { "label": "성별", "type": "select", "value": "선택" },
+            { "label": "거주 지역", "type": "select", "value": "선택" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "survey",
+          "type": "fields",
+          "actions": ["consent", "back-account"],
+          "title": "설문 · 민감정보",
+          "fields": [
+            {
+              "label": "정치적 견해 등 설문",
+              "type": "select",
+              "value": "응답 선택",
+              "help": "가입에 필요한 필수 설문 항목"
+            },
+            {
+              "label": "필수 민감정보 항목 확인",
+              "type": "checkbox",
+              "help": "실제 투표 집계·결과 분석에 필요한 최소 항목"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "profile-schema-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "설문 저장 기준",
+          "body": "가입할 때는 현재 안내된 개인정보·설문 항목을 기준으로 입력 내용을 확인합니다. 나중에 항목이 바뀌어도 당시 제출 내용과 적용 기준을 함께 확인할 수 있도록 보관합니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "설문 작성 중" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "필수 응답 누락",
+        "body": "누락된 항목을 화면에서 표시하고 입력 내용은 유지합니다."
+      }
+    },
+    {
+      "id": "AUTH-004",
+      "layout": "mobile-detail",
+      "header": {
+        "eyebrow": "회원가입 3/3",
+        "title": "필수 동의 및 가입 확인",
+        "meta": "약관별 전문과 동의 상태를 한 화면에서 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "consents",
+          "type": "cards",
+          "actions": [],
+          "records": [
+            {
+              "badge": "필수",
+              "title": "이용약관",
+              "meta": "전문 보기 · 동의 체크"
+            },
+            {
+              "badge": "필수",
+              "title": "개인정보 수집·이용",
+              "meta": "목적과 항목 확인"
+            },
+            {
+              "badge": "필수·별도",
+              "title": "민감정보 필수·별도 동의",
+              "meta": "목적·항목·보유 기준·거부 영향 확인"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "consent-decision",
+          "type": "notice",
+          "actions": ["create-account", "back-profile"],
+          "tone": "warning",
+          "title": "필수 동의 확인",
+          "body": "동의를 거부할 수 있으나, 거부 시 가입할 수 없습니다.",
+          "visibility": "default",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "필수 동의 확인" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "필수 동의 미완료",
+        "body": "이용약관과 필수 개인정보·민감정보 동의를 모두 확인해야 가입할 수 있습니다."
+      }
+    },
+    {
+      "id": "AUTH-005",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "이메일 인증",
+        "title": "6자리 인증 코드",
+        "meta": "가장 최근에 발송된 코드만 1회 사용할 수 있습니다."
+      },
+      "blocks": [
+        {
+          "key": "verification-code",
+          "type": "fields",
+          "actions": ["verify"],
+          "title": "인증 코드 입력",
+          "fields": [
+            {
+              "label": "6자리 인증 코드",
+              "type": "text",
+              "placeholder": "0 0 0 0 0 0",
+              "help": "유효시간 10:00 · 최신 코드만 유효"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "verification-help",
+          "type": "notice",
+          "actions": ["resend", "cancel"],
+          "tone": "info",
+          "title": "코드가 오지 않았나요?",
+          "body": "60초 뒤 코드를 다시 보낼 수 있습니다.",
+          "visibility": "default",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "코드 입력 대기" },
+      "exceptionState": {
+        "kind": "locked",
+        "label": "5회 실패 시 5분 대기",
+        "body": "입력 횟수를 초과했습니다. 남은 차단 시간을 표시하고 입력을 잠급니다."
+      }
+    },
+    {
+      "id": "AUTH-006",
+      "layout": "progress",
+      "header": {
+        "eyebrow": "회원가입",
+        "title": "가입 이메일 인증 대기",
+        "meta": "이메일 인증 전에는 로그인과 서비스 이용이 불가합니다."
+      },
+      "blocks": [
+        {
+          "key": "signup-mail-progress",
+          "type": "progress",
+          "actions": ["verify-signup"],
+          "steps": [
+            { "label": "계정 생성", "status": "done", "statusLabel": "완료" },
+            {
+              "label": "인증 이메일 발송",
+              "status": "active",
+              "statusLabel": "처리 중"
+            },
+            {
+              "label": "이메일 인증",
+              "status": "waiting",
+              "statusLabel": "대기"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "signup-mail-status",
+          "type": "notice",
+          "actions": ["check-mail"],
+          "tone": "info",
+          "title": "발송 상태 확인",
+          "body": "메일함과 스팸함을 확인한 뒤 현재 발송 결과를 다시 조회할 수 있습니다.",
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "signup-mail-retrying",
+          "type": "notice",
+          "actions": [],
+          "visibility": "exception",
+          "state": "background-retrying",
+          "stateLabel": "자동 재시도 중",
+          "tone": "info",
+          "title": "인증 이메일을 다시 보내고 있습니다",
+          "body": "잠시만 기다려 주세요. 발송 상태는 자동으로 갱신됩니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "signup-mail-retry-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "가입 이메일 처리 안내",
+          "body": "인증 이메일 발송이 처음 실패하면 서비스가 최대 2회 자동으로 다시 시도합니다. 사용자는 메일함과 스팸함을 확인한 뒤 화면에서 현재 발송 상태를 다시 확인할 수 있습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "pending", "label": "인증 대기" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "발송 실패",
+        "body": "인증 이메일을 보내지 못했습니다. 잠시 후 발송 상태를 다시 확인하세요."
+      }
+    },
+    {
+      "id": "AUTH-007",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "계정 복구",
+        "title": "비밀번호 재설정 요청",
+        "meta": "가입 때 사용한 등록 이메일을 입력합니다."
+      },
+      "blocks": [
+        {
+          "key": "reset-email",
+          "type": "fields",
+          "actions": ["send-reset", "cancel-reset"],
+          "title": "등록 이메일",
+          "fields": [
+            {
+              "label": "등록 이메일",
+              "type": "email",
+              "placeholder": "name@example.com"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "reset-request-result",
+          "type": "dialog",
+          "actions": [],
+          "visibility": "action",
+          "triggerActionId": "send-reset",
+          "title": "이메일을 확인하세요",
+          "body": "가입되어 있다면 인증 코드를 발송했습니다. 메일함과 스팸함을 확인하세요.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "이메일 입력" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "발송 실패",
+        "body": "발송 실패 시 이 화면에서 재발송할 수 있습니다."
+      }
+    },
+    {
+      "id": "AUTH-008",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "계정 복구",
+        "title": "인증 코드 확인·새 비밀번호",
+        "meta": "이메일 버튼으로 진입 · 코드 입력됨"
+      },
+      "blocks": [
+        {
+          "key": "new-password",
+          "type": "fields",
+          "actions": ["save-password"],
+          "title": "비밀번호 재설정",
+          "attrs": { "data-reset-code-state": "prefilled" },
+          "fields": [
+            {
+              "label": "인증 코드",
+              "type": "text",
+              "value": "1 2 3 4 5 6",
+              "help": "이메일 버튼으로 들어온 경우 자동 입력"
+            },
+            {
+              "label": "새 비밀번호",
+              "type": "password",
+              "help": "최소 8자 · 영문·숫자·특수문자"
+            },
+            { "label": "새 비밀번호 확인", "type": "password" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "reset-resend",
+          "type": "notice",
+          "actions": ["resend-reset"],
+          "tone": "info",
+          "title": "새 코드가 필요한가요?",
+          "body": "인증 코드가 만료되었거나 일치하지 않으면 이메일로 다시 받을 수 있습니다.",
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "reset-session",
+          "type": "notice",
+          "actions": [],
+          "visibility": "action",
+          "triggerActionId": "save-password",
+          "tone": "warning",
+          "title": "비밀번호를 변경하시겠습니까?",
+          "body": "변경을 완료하면 현재 기기를 포함한 모든 로그인 세션이 종료됩니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "코드 확인 및 변경" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "코드 만료 또는 불일치",
+        "body": "최신 인증 코드를 다시 입력하거나 이메일을 재발송하세요."
+      }
+    },
+    {
+      "id": "AUTH-009",
+      "layout": "mobile-detail",
+      "header": {
+        "eyebrow": "계정 복구",
+        "title": "계정 재활성화 안내",
+        "meta": "이전 계정과 이용 이력을 다시 연결합니다."
+      },
+      "blocks": [
+        {
+          "key": "restore-scope",
+          "type": "key-values",
+          "actions": ["start-reactivate", "cancel-reactivate"],
+          "items": [
+            { "label": "복원 항목", "value": "계정·응답·과거 참여 이력" },
+            { "label": "본인 확인", "value": "비밀번호 확인·등록 이메일 인증" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "reactivation-data-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "재활성화 결과 안내",
+          "body": "계정을 다시 활성화하면 비활성 기간에 보관한 계정·응답·과거 참여 이력을 다시 연결하고 개인 AI 갱신을 재개합니다. 이미 삭제된 문서의 인용과 종료된 로그인 상태는 복원하지 않습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "재활성화 안내" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "재활성화 불가",
+        "body": "등록 이메일 인증에 실패하면 계정을 활성화하지 않습니다."
+      }
+    },
+    {
+      "id": "AUTH-010",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "계정 복구",
+        "title": "재활성화 확인",
+        "meta": "비밀번호와 등록 이메일을 모두 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "reactivate-auth",
+          "type": "fields",
+          "actions": ["activate", "cancel-activate"],
+          "title": "재활성화 본인 확인",
+          "fields": [
+            {
+              "label": "이메일",
+              "type": "email",
+              "placeholder": "등록 이메일"
+            },
+            { "label": "비밀번호 확인", "type": "password" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "reactivate-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "재활성화 후 이용 안내",
+          "body": "재활성화하면 로그인과 일반 기능을 이용할 수 있습니다. 다만 필수 민감정보나 동의가 완료되지 않았으면 실제 투표는 제출할 수 없고, 홈에서 필요한 항목을 보완하도록 안내합니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "본인 확인" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "본인 확인 실패",
+        "body": "비밀번호 또는 이메일 인증에 실패했습니다. 입력 내용은 유지합니다."
+      }
+    },
+    {
+      "id": "COMMON-001",
+      "layout": "state",
+      "header": {
+        "eyebrow": "공통 상태",
+        "title": "권한 없음",
+        "meta": "요청한 관리 기능에 필요한 역할이 없습니다."
+      },
+      "blocks": [
+        {
+          "key": "permission-denied",
+          "type": "key-values",
+          "actions": ["return-admin-home"],
+          "items": [
+            { "label": "필요 권한", "value": "사용자 권한 관리" },
+            { "label": "현재 권한", "value": "일반 참여자" },
+            { "label": "상태", "value": "권한 없음" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "blocked", "label": "접근 차단" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "세션 권한 변경",
+        "body": "권한이 방금 변경된 경우 최신 권한을 다시 확인합니다."
+      }
+    },
+    {
+      "id": "COMMON-002",
+      "layout": "state",
+      "header": {
+        "eyebrow": "공통 상태",
+        "title": "상태 변경 충돌",
+        "meta": "다른 요청이 먼저 완료되어 화면의 정보가 오래되었습니다."
+      },
+      "blocks": [
+        {
+          "key": "conflict-values",
+          "type": "key-values",
+          "actions": ["refresh-current", "return-safe"],
+          "items": [
+            { "label": "불러온 상태", "value": "진행 중" },
+            { "label": "현재 상태", "value": "마감 완료" },
+            { "label": "해결 방법", "value": "최신 상태 새로고침" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "conflict", "label": "새로고침 필요" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "반복 충돌",
+        "body": "최신 상태를 다시 불러온 뒤에도 충돌하면 안전한 목록으로 이동합니다."
+      }
+    },
+    {
+      "id": "COMMON-003",
+      "layout": "progress",
+      "header": {
+        "eyebrow": "공통 상태",
+        "title": "처리 결과 확인 중",
+        "meta": "중복 실행 없이 기존 요청의 결과를 조회합니다."
+      },
+      "blocks": [
+        {
+          "key": "job-meta",
+          "type": "key-values",
+          "actions": [],
+          "items": [
+            { "label": "작업 ID", "value": "JOB-20260720-0042" },
+            { "label": "처리 단계", "value": "결과 저장" },
+            { "label": "완료 확인", "value": "서버 응답 대기" }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "job-progress",
+          "type": "progress",
+          "actions": ["check-result", "return-safe"],
+          "steps": [
+            { "label": "요청 접수", "status": "done", "statusLabel": "완료" },
+            { "label": "처리 실행", "status": "done", "statusLabel": "완료" },
+            {
+              "label": "결과 확인",
+              "status": "active",
+              "statusLabel": "조회 중"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "pending", "label": "처리 중" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "확인 지연",
+        "body": "처리 결과를 알 수 없으면 같은 작업 ID로 다시 조회합니다."
+      }
+    },
+    {
+      "id": "COMMON-004",
+      "layout": "state",
+      "header": {
+        "eyebrow": "공통 상태",
+        "title": "서비스 오류·점검",
+        "meta": "사용자가 다음 행동을 판단할 수 있도록 오류 식별자를 제공합니다."
+      },
+      "blocks": [
+        {
+          "key": "service-error",
+          "type": "key-values",
+          "actions": ["retry-service", "safe-home"],
+          "items": [
+            { "label": "오류 ID", "value": "ERR-9F31" },
+            { "label": "입력 내용 유지", "value": "예" },
+            { "label": "현재 상태", "value": "일시적인 서비스 오류" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "error", "label": "일시 오류" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "재시도 실패",
+        "body": "동일 오류가 반복되면 안전한 홈으로 이동하고 입력 내용은 로컬에 유지합니다."
+      }
+    },
+    {
+      "id": "U-HOME-001",
+      "layout": "mobile-list",
+      "header": {
+        "eyebrow": "참여자",
+        "title": "홈",
+        "meta": "해야 할 일과 자주 쓰는 기능을 우선순위대로 보여줍니다."
+      },
+      "blocks": [
+        {
+          "key": "profile-reminder",
+          "type": "notice",
+          "actions": ["complete-profile"],
+          "visibility": "exception",
+          "state": "profile-incomplete",
+          "stateLabel": "필수 정보 미완료",
+          "tone": "warning",
+          "title": "필수 정보를 완료해 주세요",
+          "body": "투표하려면 민감정보 항목과 필수 동의를 완료해야 합니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "profile-reminder-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "필수 정보 보완 안내",
+          "body": "필수 민감정보나 동의가 완료되지 않은 사용자에게만 홈에서 보완할 항목을 보여줍니다. 모두 완료하기 전에는 실제 투표를 제출할 수 없습니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "home-shortcuts",
+          "type": "cards",
+          "actions": ["open-task", "open-chat", "new-rag"],
+          "records": [
+            {
+              "badge": "투표",
+              "title": "진행 중 과업",
+              "meta": "마감 임박 순으로 확인",
+              "actionId": "open-task"
+            },
+            {
+              "badge": "채팅",
+              "title": "내 채팅",
+              "meta": "참여 중인 방과 새 메시지",
+              "actionId": "open-chat"
+            },
+            {
+              "badge": "지식",
+              "title": "RAG 새 대화",
+              "meta": "공개 문서를 근거로 질문",
+              "actionId": "new-rag"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "서비스 이용 가능" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "필수 민감정보·동의 미완료",
+        "body": "로그인은 유지하지만 필수 보완을 완료할 때까지 실제 투표 제출을 차단합니다."
+      }
+    },
+    {
+      "id": "U-ACCOUNT-001",
+      "layout": "mobile-list",
+      "header": {
+        "eyebrow": "참여자",
+        "title": "계정 홈",
+        "meta": "개인정보와 보안, 계정 상태를 관리합니다."
+      },
+      "blocks": [
+        {
+          "key": "account-menu",
+          "type": "cards",
+          "actions": ["edit-profile", "security", "deactivate"],
+          "records": [
+            {
+              "badge": "프로필",
+              "title": "계정 정보",
+              "meta": "개인정보·설문 응답 확인",
+              "actionId": "edit-profile"
+            },
+            {
+              "badge": "보안",
+              "title": "보안 설정",
+              "meta": "비밀번호 변경 · 2단계 인증",
+              "actionId": "security"
+            },
+            {
+              "badge": "위험",
+              "title": "계정 비활성화",
+              "meta": "영향을 확인한 뒤 직접 진행",
+              "actionId": "deactivate"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "계정 활성" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "이메일 인증 필요",
+        "body": "민감한 변경을 완료하기 전에 등록 이메일 인증을 요청합니다."
+      }
+    },
+    {
+      "id": "U-ACCOUNT-002",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "계정",
+        "title": "개인정보·설문 응답",
+        "meta": "현재 개인정보와 설문 응답을 확인하고 수정합니다."
+      },
+      "blocks": [
+        {
+          "key": "profile-edit",
+          "type": "fields",
+          "actions": ["save-profile", "cancel-profile"],
+          "title": "일반 개인정보 · 민감정보",
+          "fields": [
+            {
+              "label": "일반 개인정보",
+              "type": "text",
+              "value": "출생연도 · 성별 · 지역"
+            },
+            {
+              "label": "필수 민감정보",
+              "type": "select",
+              "value": "응답 선택"
+            },
+            {
+              "label": "민감정보 필수·별도 동의",
+              "type": "checkbox",
+              "help": "필수 항목"
+            },
+            {
+              "label": "설문 추가 응답",
+              "type": "textarea",
+              "placeholder": "응답 입력"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "profile-version-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "응답·동의 보관 기준",
+          "body": "저장할 때 적용된 개인정보·설문 항목과 동의 내용을 각각 함께 보관합니다. 기준이 바뀌어도 이전 응답과 동의 기록을 덮어쓰지 않아 당시 내용을 확인할 수 있습니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "profile-required-consent",
+          "type": "notice",
+          "actions": [],
+          "visibility": "exception",
+          "triggerActionId": "save-profile",
+          "state": "required-consent",
+          "stateLabel": "필수 항목 미완료",
+          "tone": "warning",
+          "title": "필수 항목을 확인해 주세요",
+          "body": "민감정보 응답과 필수 동의를 완료한 뒤 저장하세요.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "응답 편집" },
+      "exceptionState": {
+        "kind": "warning",
+        "label": "저장 충돌",
+        "body": "다른 곳에서 먼저 변경된 내용이 있으면 현재 입력을 유지하고 달라진 내용을 안내합니다."
+      }
+    },
+    {
+      "id": "U-ACCOUNT-003",
+      "layout": "mobile-detail",
+      "header": {
+        "eyebrow": "계정",
+        "title": "보안 설정",
+        "meta": "비밀번호와 선택형 2단계 인증을 관리합니다."
+      },
+      "blocks": [
+        {
+          "key": "security-menu",
+          "type": "cards",
+          "actions": ["enable-2fa", "change-password", "back-account"],
+          "records": [
+            {
+              "badge": "비밀번호",
+              "title": "비밀번호 변경",
+              "meta": "새 비밀번호 설정",
+              "actionId": "change-password"
+            },
+            {
+              "badge": "선택",
+              "title": "2단계 인증",
+              "meta": "사용 안 함 · 이메일 코드로 활성화",
+              "actionId": "enable-2fa"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "session-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "action",
+          "triggerActionId": "change-password",
+          "tone": "warning",
+          "title": "비밀번호 변경 후 모든 세션 종료",
+          "body": "비밀번호 변경을 완료하면 현재 기기를 포함한 모든 로그인 세션이 종료됩니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "보안 설정 확인" },
+      "exceptionState": {
+        "kind": "error",
+        "label": "인증 실패",
+        "body": "이메일 코드 확인에 실패했습니다. 입력을 유지하고 재발송할 수 있습니다."
+      }
+    },
+    {
+      "id": "U-ACCOUNT-004",
+      "layout": "mobile-form",
+      "header": {
+        "eyebrow": "계정",
+        "title": "계정 비활성화",
+        "meta": "비활성화 영향과 복원 가능 범위를 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "deactivate-impact",
+          "type": "key-values",
+          "actions": [],
+          "items": [
+            {
+              "label": "비활성화 영향",
+              "value": "CIVIC AI 데이터 활용·개인 AI 갱신 중단"
+            },
+            {
+              "label": "보관 데이터",
+              "value": "기간 없이 유지 · 재활성화 시 다시 연결"
+            },
+            { "label": "로그인 세션", "value": "모든 기기 즉시 종료" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "deactivate-confirm",
+          "type": "dialog",
+          "actions": ["confirm-deactivate", "cancel-deactivate"],
+          "overlayKind": "sheet",
+          "title": "계정을 비활성화하시겠습니까?",
+          "body": "모든 기기에서 로그아웃되며 CIVIC AI의 데이터 활용과 개인 AI 갱신이 중단됩니다.",
+          "fields": [
+            { "label": "위 내용을 확인했습니다", "type": "checkbox" },
+            { "label": "비밀번호 확인", "type": "password" }
+          ],
+          "visibility": "default",
+          "emphasis": "critical"
+        }
+      ],
+      "primaryState": { "kind": "danger", "label": "최종 확인" },
+      "exceptionState": {
+        "kind": "blocked",
+        "label": "마지막 활성 최고 관리자",
+        "body": "다른 최고 관리자를 지정하기 전에는 자기 계정을 비활성화할 수 없습니다."
+      }
+    },
+    {
+      "id": "A-HOME-001",
+      "layout": "desktop-workspace",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "관리 업무",
+        "meta": "부여된 권한에 따라 접근 가능한 업무만 표시합니다."
+      },
+      "blocks": [
+        {
+          "key": "inbox",
+          "type": "metrics",
+          "actions": [],
+          "items": [
+            {
+              "label": "토론방 승인 대기",
+              "value": "4건"
+            },
+            {
+              "label": "문서 처리 실패",
+              "value": "2건"
+            },
+            { "label": "마감 임박", "value": "1건", "meta": "오늘 마감 과업" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "workspaces",
+          "type": "cards",
+          "actions": ["manage-users", "manage-rag", "manage-chat", "manage-task", "manage-sim"],
+          "records": [
+            {
+              "badge": "부여된 권한",
+              "title": "사용자·권한",
+              "meta": "관리자 역할과 변경 이력",
+              "actionId": "manage-users"
+            },
+            {
+              "badge": "부여된 권한",
+              "title": "RAG 문서 관리",
+              "meta": "폴더·업로드·처리 상태",
+              "actionId": "manage-rag"
+            },
+            {
+              "badge": "부여된 권한",
+              "title": "채팅 운영",
+              "meta": "요청 승인과 방 운영",
+              "actionId": "manage-chat"
+            },
+            {
+              "badge": "부여된 권한",
+              "title": "과업 관리",
+              "meta": "생성·마감·결과",
+              "actionId": "manage-task"
+            },
+            {
+              "badge": "부여된 권한",
+              "title": "시뮬레이션",
+              "meta": "실행·상태·결과",
+              "actionId": "manage-sim"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "업무 선택 가능" },
+      "exceptionState": {
+        "kind": "permission-changed",
+        "label": "권한 변경됨",
+        "body": "현재 권한을 다시 불러와 접근 가능한 메뉴를 갱신합니다."
+      }
+    },
+    {
+      "id": "A-USER-001",
+      "layout": "desktop-table",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "사용자 목록",
+        "meta": "이메일과 계정·인증·관리자 상태를 한 표에서 검색합니다."
+      },
+      "blocks": [
+        {
+          "key": "user-search",
+          "type": "toolbar",
+          "actions": [],
+          "searchLabel": "이메일 또는 표시 ID 검색",
+          "filters": ["전체", "활성", "비활성", "관리자"],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "user-table",
+          "type": "table",
+          "actions": ["open-user", "admin-home"],
+          "columns": ["이메일", "계정 상태", "이메일 인증", "관리자 역할", "최근 활동"],
+          "rows": [
+            {
+              "cells": [
+                "admin01@example.com",
+                "활성",
+                "인증 완료",
+                "최고 관리자",
+                "2026-07-20 14:20"
+              ],
+              "actionId": "open-user"
+            },
+            {
+              "cells": ["user42@example.com", "활성", "인증 완료", "없음", "2026-07-20 13:58"]
+            },
+            {
+              "cells": [
+                "staff03@example.com",
+                "비활성",
+                "인증 완료",
+                "운영 관리자",
+                "2026-07-01 09:10"
+              ]
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "loaded", "label": "사용자 검색 가능" },
+      "exceptionState": {
+        "kind": "empty",
+        "label": "검색 결과 없음",
+        "body": "검색어와 필터를 유지한 빈 상태를 보여줍니다."
+      }
+    },
+    {
+      "id": "A-USER-002",
+      "layout": "desktop-detail",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "사용자·관리자 상세",
+        "meta": "계정 상태와 권한, 최근 변경 이력을 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "user-summary",
+          "type": "key-values",
+          "actions": ["edit-permission"],
+          "items": [
+            { "label": "이메일", "value": "admin01@example.com" },
+            { "label": "이메일 인증", "value": "인증 완료" },
+            { "label": "계정 상태", "value": "활성" },
+            { "label": "관리자 역할", "value": "최고 관리자" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "permission-timeline",
+          "type": "timeline",
+          "actions": ["audit-user", "user-list"],
+          "items": [
+            {
+              "title": "최고 관리자 지정",
+              "meta": "2026-06-01 10:22 KST · system-admin"
+            },
+            {
+              "title": "권한 변경 이력",
+              "meta": "운영 권한 추가 · 사유 기록됨"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "detail", "label": "상세 조회" },
+      "exceptionState": {
+        "kind": "version-conflict",
+        "label": "정보가 변경됨",
+        "body": "최신 사용자·권한 상태를 다시 불러옵니다."
+      }
+    },
+    {
+      "id": "A-USER-003",
+      "layout": "desktop-form",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "관리자 전환·권한 편집",
+        "meta": "선택한 사용자의 관리자 역할과 운영 권한을 편집합니다."
+      },
+      "blocks": [
+        {
+          "key": "permission-current",
+          "type": "key-values",
+          "actions": [],
+          "items": [
+            { "label": "대상 계정", "value": "admin01@example.com · 활성" },
+            { "label": "현재 역할", "value": "운영 관리자" }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "permission-edit",
+          "type": "fields",
+          "actions": ["save-permission", "review-revoke", "cancel-permission"],
+          "title": "권한 변경",
+          "fields": [
+            { "label": "최고 관리자 지정", "type": "checkbox" },
+            {
+              "label": "운영 권한",
+              "type": "select",
+              "value": "사용자 권한 관리"
+            },
+            {
+              "label": "변경 사유 (필수)",
+              "type": "textarea",
+              "placeholder": "권한 변경이 필요한 이유"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "permission-warning",
+          "type": "notice",
+          "actions": [],
+          "visibility": "exception",
+          "triggerActionId": "save-permission",
+          "state": "last-active-superadmin-blocked",
+          "stateLabel": "마지막 활성 최고 관리자",
+          "tone": "warning",
+          "title": "권한을 변경할 수 없습니다",
+          "body": "다른 활성 최고 관리자를 지정한 뒤 다시 시도하세요.",
+          "emphasis": "none"
+        },
+        {
+          "key": "permission-concurrency-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "info",
+          "title": "권한 변경 기준",
+          "body": "활성 계정에만 최고 관리자 권한을 줄 수 있으며, 마지막 최고 관리자의 권한은 다른 최고 관리자를 지정하기 전까지 회수할 수 없습니다. 여러 관리자가 동시에 변경하면 먼저 완료된 내용을 반영하고 나머지 관리자에게 최신 상태를 다시 확인하도록 안내합니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "editing", "label": "권한 변경 작성 중" },
+      "exceptionState": {
+        "kind": "last-active-superadmin-blocked",
+        "label": "마지막 활성 최고 관리자",
+        "body": "다른 최고 관리자를 지정하기 전에는 권한을 회수할 수 없습니다."
+      }
+    },
+    {
+      "id": "A-USER-004",
+      "layout": "desktop-detail",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "권한 회수 영향 확인",
+        "meta": "회수 대상과 영향, 필수 사유를 최종 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "revoke-summary",
+          "type": "key-values",
+          "actions": [],
+          "items": [
+            { "label": "대상", "value": "admin01@example.com" },
+            { "label": "회수 권한", "value": "사용자 권한 관리" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "revoke-reason",
+          "type": "fields",
+          "actions": [],
+          "title": "필수 입력",
+          "fields": [
+            {
+              "label": "변경 사유 (필수)",
+              "type": "textarea",
+              "placeholder": "회수 사유 입력"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "revoke-dialog",
+          "type": "dialog",
+          "actions": ["confirm-revoke", "cancel-revoke"],
+          "title": "권한을 회수하시겠습니까?",
+          "body": "대상 권한과 영향을 확인한 뒤 회수를 확정하세요.",
+          "visibility": "default",
+          "emphasis": "critical"
+        },
+        {
+          "key": "revoke-retention-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "비활성 계정 권한·이력 보관 기준",
+          "body": "계정이 비활성화되어도 기존 운영 권한은 유지됩니다. 최고 관리자와 운영 권한의 변경 사유와 이력은 기간 제한 없이 보관해 운영자가 확인할 수 있습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "review", "label": "회수 영향 검토" },
+      "exceptionState": {
+        "kind": "concurrent-version-conflict",
+        "label": "동시 변경 충돌",
+        "body": "동시에 여러 변경이 진행되면 먼저 완료된 변경만 반영됩니다. 최신 상태를 확인하세요."
+      }
+    },
+    {
+      "id": "A-USER-005",
+      "layout": "desktop-table",
+      "header": {
+        "eyebrow": "관리자 · 사용자·권한",
+        "title": "권한 변경 이력",
+        "meta": "최고 관리자·운영 권한 변경 내역과 사유를 조회합니다."
+      },
+      "blocks": [
+        {
+          "key": "audit-filter",
+          "type": "toolbar",
+          "actions": [],
+          "searchLabel": "대상 이메일 검색",
+          "filters": ["전체", "지정", "회수"],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "audit-table",
+          "type": "table",
+          "actions": ["open-audit-user", "back-user-list"],
+          "columns": ["실행자", "대상", "변경 전", "변경 후", "사유", "시각 KST"],
+          "rows": [
+            {
+              "cells": [
+                "super01@example.com",
+                "admin01@example.com",
+                "운영 관리자",
+                "최고 관리자",
+                "조직 운영 책임자 지정",
+                "2026-07-20 11:42 KST"
+              ],
+              "actionId": "open-audit-user"
+            },
+            {
+              "cells": [
+                "super02@example.com",
+                "staff03@example.com",
+                "문서 관리",
+                "권한 없음",
+                "담당 업무 종료",
+                "2026-07-18 16:05 KST"
+              ]
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "audit-retention-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "권한 변경 이력 보관 기준",
+          "body": "최고 관리자와 운영 권한의 변경 사유와 이력은 기간 제한 없이 보관합니다. 운영자는 화면에서 조회할 수 있지만 파일로 내보내는 기능은 제공하지 않습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "loaded", "label": "감사 이력 조회" },
+      "exceptionState": {
+        "kind": "audit-unavailable",
+        "label": "이력 조회 실패",
+        "body": "감사 원본은 유지하고 목록 조회만 다시 시도합니다."
+      }
+    },
+    {
+      "id": "U-RAG-001",
+      "layout": "mobile-chat",
+      "header": {
+        "eyebrow": "참여자",
+        "title": "RAG 대화",
+        "meta": "문서 기반 답변과 참조 페이지를 함께 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "rag-chat",
+          "type": "chat",
+          "actions": ["send-question"],
+          "variant": "rag",
+          "messages": [
+            {
+              "side": "mine",
+              "author": "나",
+              "body": "복지정책 문서의 핵심 내용을 알려줘.",
+              "time": "09:41"
+            },
+            {
+              "side": "other",
+              "author": "AI · 문서 기반 답변",
+              "body": "지원 대상과 신청 기준을 확인할 수 있습니다. 근거: 📄3",
+              "time": "09:42"
+            }
+          ],
+          "placeholder": "문서에 대해 질문하세요",
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "rag-evidence",
+          "type": "notice",
+          "actions": ["open-evidence", "new-session"],
+          "variant": "citation",
+          "documentId": "welfare-plan-2026",
+          "page": "3",
+          "tone": "info",
+          "title": "참조 문서 📄3",
+          "body": "2026_복지정책_기본계획.pdf · 3페이지",
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "rag-citation-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "문서 인용 이용 안내",
+          "body": "인용 버튼을 누르면 답변을 만들 때 사용한 문서 내용과 페이지를 그대로 엽니다. 해당 문서가 삭제되면 과거 답변에서도 인용을 표시하지 않아 더 이상 열 수 없습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": {
+        "kind": "ready",
+        "label": "질문 입력 가능",
+        "body": ""
+      },
+      "exceptionState": {
+        "kind": "insufficient-evidence",
+        "label": "근거 부족",
+        "body": "문서 근거가 부족하면 iKMS 답변 정책에 따라 안내합니다."
+      }
+    },
+    {
+      "id": "U-RAG-002",
+      "layout": "mobile-detail",
+      "header": {
+        "eyebrow": "참여자",
+        "title": "참조 PDF 열람",
+        "meta": "채팅 답변의 인용에서 연 문서입니다."
+      },
+      "blocks": [
+        {
+          "key": "pdf",
+          "type": "pdf",
+          "actions": ["open-source", "back-rag"],
+          "fileName": "2026_복지정책_기본계획.pdf",
+          "page": "3",
+          "total": "12",
+          "zoom": "100%",
+          "heading": "복지정책 기본계획",
+          "body": "지원 대상 및 신청 절차가 표시되는 인용 페이지입니다.",
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "viewer-version-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "인용 문서 공개 기준",
+          "body": "문서 보기는 인용이 가리킨 당시 문서와 페이지를 열며, 나중에 바뀐 문서로 대신 보여주지 않습니다. 문서가 삭제되면 인용과 열기 기능을 함께 숨깁니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": {
+        "kind": "viewer",
+        "label": "3 / 12 열람 중",
+        "body": ""
+      },
+      "exceptionState": {
+        "kind": "viewer-load-failed",
+        "label": "PDF를 불러올 수 없음",
+        "body": "문서 화면을 닫은 뒤 인용을 다시 선택하세요."
+      }
+    },
+    {
+      "id": "U-RAG-003",
+      "layout": "mobile-detail",
+      "header": {
+        "eyebrow": "참여자",
+        "title": "참조 PDF 페이지 이동",
+        "meta": "인용에서 연 페이지를 기준으로 다른 페이지를 탐색합니다."
+      },
+      "blocks": [
+        {
+          "key": "pdf-page",
+          "type": "pdf",
+          "actions": ["change-page", "close-source"],
+          "fileName": "2026_복지정책_기본계획.pdf",
+          "page": "4",
+          "total": "12",
+          "zoom": "100%",
+          "heading": "세부 신청 절차",
+          "body": "인용에서 연 페이지 다음의 관련 내용을 확인합니다.",
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": {
+        "kind": "viewer",
+        "label": "4 / 12 · 인용에서 연 페이지",
+        "body": ""
+      },
+      "exceptionState": {
+        "kind": "page-error",
+        "label": "페이지를 열 수 없음",
+        "body": "현재 문서 버전에서 해당 페이지를 찾을 수 없습니다."
+      }
+    },
+    {
+      "id": "A-RAG-001",
+      "layout": "desktop-workspace",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "폴더·문서 관리",
+        "meta": "폴더 트리와 선택 폴더의 문서 목록을 같은 화면에 배치합니다."
+      },
+      "blocks": [
+        {
+          "key": "folder-context",
+          "type": "key-values",
+          "actions": ["edit-folder"],
+          "variant": "rag-context",
+          "items": [
+            {
+              "label": "현재 폴더",
+              "value": "전체 문서 / 정책자료 / 복지정책"
+            },
+            { "label": "포함 문서", "value": "12개 · 처리 중 1개" }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "folder-documents",
+          "type": "table",
+          "actions": ["folder-docs", "admin-home"],
+          "variant": "rag-doc-list",
+          "columns": ["문서명", "처리 상태", "업로드 관리자", "업로드 시각"],
+          "rows": [
+            {
+              "cells": ["2026_복지정책_기본계획.pdf", "처리 완료", "admin01", "2026-07-20 09:12"],
+              "actionId": "folder-docs"
+            },
+            {
+              "cells": ["청년지원사업.xlsx", "인덱싱 중", "admin02", "2026-07-20 09:32"]
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "복지정책 폴더 선택" },
+      "exceptionState": {
+        "kind": "folder-load-failed",
+        "label": "폴더 조회 실패",
+        "body": "현재 경로를 유지하고 트리와 문서 목록을 다시 불러옵니다."
+      }
+    },
+    {
+      "id": "A-RAG-002",
+      "layout": "desktop-form",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "폴더 추가·수정·삭제",
+        "meta": "선택한 폴더의 이름과 위치를 편집합니다."
+      },
+      "blocks": [
+        {
+          "key": "folder-current",
+          "type": "key-values",
+          "actions": ["view-docs"],
+          "variant": "rag-context",
+          "items": [
+            {
+              "label": "선택 경로",
+              "value": "전체 문서 / 정책자료 / 복지정책"
+            },
+            { "label": "포함 문서", "value": "12개" }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "folder-fields",
+          "type": "fields",
+          "actions": ["save-folder", "delete-folder"],
+          "title": "폴더 정보",
+          "fields": [
+            { "label": "폴더명", "type": "text", "value": "복지정책" },
+            { "label": "상위 폴더", "type": "select", "value": "정책자료" },
+            {
+              "label": "폴더 설명",
+              "type": "text",
+              "value": "복지정책 관련 문서"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "folder-delete",
+          "type": "dialog",
+          "actions": ["delete-folder"],
+          "visibility": "action",
+          "triggerActionId": "delete-folder",
+          "title": "폴더 삭제",
+          "body": "포함된 문서와 하위 폴더의 이동 위치를 확인한 뒤 폴더를 삭제합니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "folder-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "폴더 운영 기준",
+          "body": "운영자가 폴더를 만들거나 옮기거나 삭제할 때 이름 중복, 만들 수 있는 하위 단계, 삭제 가능 여부는 현재 iKMS 운영 기준을 따릅니다. 기준에 맞지 않으면 작업을 막고 수정할 내용을 안내합니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "폴더 편집" },
+      "exceptionState": {
+        "kind": "folder-policy-blocked",
+        "label": "폴더 작업 차단",
+        "body": "iKMS 정책상 삭제할 수 없는 상태입니다."
+      }
+    },
+    {
+      "id": "A-RAG-003",
+      "layout": "desktop-workspace",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "선택 폴더 문서 목록",
+        "meta": "선택한 복지정책 폴더의 문서와 처리 상태를 관리합니다."
+      },
+      "blocks": [
+        {
+          "key": "document-filter",
+          "type": "toolbar",
+          "actions": ["upload-doc"],
+          "searchLabel": "문서명 검색",
+          "filters": ["전체", "처리 완료", "처리 중", "실패"],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "document-context",
+          "type": "key-values",
+          "actions": [],
+          "variant": "rag-context",
+          "items": [{ "label": "현재 폴더", "value": "전체 문서 / 정책자료 / 복지정책" }],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "documents",
+          "type": "table",
+          "actions": ["processing-doc", "delete-doc"],
+          "variant": "rag-doc-list",
+          "columns": ["문서명", "처리 상태", "업로드 관리자", "업로드 시각"],
+          "rows": [
+            {
+              "cells": ["2026_복지정책_기본계획.pdf", "처리 완료", "admin01", "2026-07-20 09:12"],
+              "actionId": "processing-doc"
+            },
+            {
+              "cells": ["청년지원사업.xlsx", "처리 완료", "admin02", "2026-07-19 16:04"],
+              "actionId": "delete-doc"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "document-publication-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "문서 검색 공개 안내",
+          "body": "업로드한 문서의 처리가 완료되면 별도 승인 없이 즉시 모든 사용자의 검색 대상에 포함됩니다. 아직 처리 중이거나 실패한 문서는 완료될 때까지 검색 결과에 나오지 않습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "복지정책 문서 조회" },
+      "exceptionState": {
+        "kind": "document-list-failed",
+        "label": "문서 목록 조회 실패",
+        "body": "선택 폴더는 유지하고 목록만 다시 불러옵니다."
+      }
+    },
+    {
+      "id": "A-RAG-004",
+      "layout": "desktop-workspace",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "선택 폴더 문서 업로드",
+        "meta": "선택된 폴더 안에서 업로드 대상과 파일별 결과를 함께 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "upload-context",
+          "type": "key-values",
+          "actions": [],
+          "variant": "rag-context",
+          "items": [
+            {
+              "label": "업로드 대상 폴더",
+              "value": "전체 문서 / 정책자료 / 복지정책"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "upload-picker",
+          "type": "fields",
+          "actions": ["start-upload", "cancel-upload"],
+          "variant": "rag-upload",
+          "title": "이 폴더에 업로드",
+          "fields": [
+            {
+              "label": "파일 선택",
+              "type": "text",
+              "value": "3개 파일 선택됨"
+            },
+            {
+              "label": "지원 형식",
+              "type": "text",
+              "value": "PDF · TXT/MD/CSV · 이미지 · Word/Excel/PPT · HWP/HWPX"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "upload-queue",
+          "type": "table",
+          "actions": ["retry-failed-upload"],
+          "variant": "rag-upload-queue",
+          "columns": ["파일명", "중복 파일 검사", "결과"],
+          "rows": [
+            ["복지계획.pdf", "신규", "업로드 완료"],
+            ["지원사업.xlsx", "중복 파일", "업로드 안 함"],
+            ["정책자료.hwpx", "신규", "재시도 필요"]
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "partial-result",
+          "type": "notice",
+          "actions": [],
+          "visibility": "exception",
+          "triggerActionId": "start-upload",
+          "state": "partial-failure",
+          "stateLabel": "일부 파일 업로드 실패",
+          "tone": "warning",
+          "title": "일부 파일을 업로드하지 못했습니다",
+          "body": "성공 파일은 유지됩니다. 실패한 파일만 다시 시도할 수 있습니다.",
+          "emphasis": "none"
+        },
+        {
+          "key": "upload-publication-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "업로드 문서 공개 안내",
+          "body": "운영자가 업로드한 문서는 처리가 완료되는 즉시 별도 승인 없이 모든 사용자의 검색 대상에 포함됩니다. 처리에 실패한 파일은 운영자가 해당 파일만 다시 시도할 수 있습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "업로드 파일 선택" },
+      "exceptionState": {
+        "kind": "partial-failure",
+        "label": "일부 파일 실패",
+        "body": "성공 파일 유지 · 실패 파일 재시도"
+      }
+    },
+    {
+      "id": "A-RAG-005",
+      "layout": "desktop-workspace",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "문서 처리 상태",
+        "meta": "파일별 변환·추출·인덱싱 단계를 추적합니다."
+      },
+      "blocks": [
+        {
+          "key": "pipeline",
+          "type": "progress",
+          "actions": [],
+          "steps": [
+            { "label": "변환", "status": "done", "statusLabel": "완료" },
+            { "label": "추출·OCR", "status": "done", "statusLabel": "완료" },
+            { "label": "인덱싱", "status": "active", "statusLabel": "처리 중" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "file-status",
+          "type": "table",
+          "actions": ["retry-processing", "finish-processing"],
+          "columns": ["파일명", "현재 단계", "재시도", "결과"],
+          "rows": [
+            { "cells": ["복지계획.pdf", "인덱싱", "자동 1/2", "처리 중"] },
+            {
+              "cells": ["정책자료.hwpx", "추출·OCR", "자동 2회 재시도 완료", "수동 재시도 필요"],
+              "actionId": "retry-processing"
+            }
+          ],
+          "visibility": "default",
+          "emphasis": "none"
+        },
+        {
+          "key": "processing-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "info",
+          "title": "문서 처리 문제 안내",
+          "body": "문서 처리의 각 단계가 실패하면 서비스가 최대 2회 자동으로 다시 시도합니다. 그래도 완료되지 않으면 운영자에게 수동 재시도 상태를 보여주며, 실패한 파일만 다시 처리할 수 있습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "처리 단계 추적" },
+      "exceptionState": {
+        "kind": "manual-retry-required",
+        "label": "수동 재시도 필요",
+        "body": "자동 재시도를 모두 사용한 파일만 다시 처리할 수 있습니다."
+      }
+    },
+    {
+      "id": "A-RAG-006",
+      "layout": "desktop-detail",
+      "header": {
+        "eyebrow": "관리자 · 콘텐츠 운영",
+        "title": "선택 폴더 문서 삭제 확인",
+        "meta": "삭제할 문서 버전과 검색 반영 범위를 확인합니다."
+      },
+      "blocks": [
+        {
+          "key": "delete-scope",
+          "type": "key-values",
+          "actions": [],
+          "items": [
+            { "label": "문서", "value": "2026_복지정책_기본계획.pdf · v3" },
+            { "label": "원본", "value": "삭제" },
+            { "label": "검색 데이터", "value": "검색 인덱스에서 제거" }
+          ],
+          "visibility": "default",
+          "emphasis": "core"
+        },
+        {
+          "key": "delete-document-dialog",
+          "type": "dialog",
+          "actions": ["confirm-delete-doc", "cancel-delete-doc"],
+          "title": "문서를 삭제하시겠습니까?",
+          "body": "선택한 문서 버전과 검색용 데이터가 삭제됩니다.",
+          "visibility": "default",
+          "emphasis": "critical"
+        },
+        {
+          "key": "deleted-citation-policy",
+          "type": "notice",
+          "actions": [],
+          "visibility": "spec-only",
+          "tone": "plain",
+          "title": "삭제 문서 이용 안내",
+          "body": "운영자가 문서를 삭제하면 그 문서를 사용한 과거 답변에서도 인용과 문서 열기 기능을 표시하지 않습니다. 사용자는 삭제된 문서로 더 이상 이동할 수 없습니다.",
+          "emphasis": "none"
+        }
+      ],
+      "primaryState": { "kind": "ready", "label": "삭제 영향 확인" },
+      "exceptionState": {
+        "kind": "delete-conflict",
+        "label": "문서 상태 변경됨",
+        "body": "처리 중인 문서는 최신 상태를 확인한 뒤 삭제합니다."
+      }
+    }
+  ]
+}

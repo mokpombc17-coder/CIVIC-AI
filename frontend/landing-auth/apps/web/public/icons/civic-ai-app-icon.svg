@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-labelledby="title">
+  <title id="title">CIVIC.AI</title>
+  <rect width="512" height="512" fill="#ffffff" />
+  <text
+    x="256"
+    y="282"
+    fill="#0a4fd1"
+    font-family="Arial, Helvetica, sans-serif"
+    font-size="88"
+    font-weight="700"
+    letter-spacing="-2.4"
+    text-anchor="middle"
+  >CIVIC.AI</text>
+</svg>

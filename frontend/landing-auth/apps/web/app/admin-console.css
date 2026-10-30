@@ -1,0 +1,1731 @@
+/*
+ * Admin console layer — unified wireframe look for all /admin workspaces.
+ * Built on the wireflow tokens (--wf-*) defined in wireflow.css.
+ * wireflow.css partially overrides globals.css, so every layout rule here
+ * declares its full property set instead of relying on inherited values.
+ */
+
+:root {
+  /* 관리자 콘솔 레이아웃 상수 — 화면별 매직 넘버 대신 이 값을 사용한다. */
+  --console-gutter: 32px;
+  --console-list-min: 280px;
+  --console-detail-min: 420px;
+  --console-header-offset: 126px; /* 공통 관리자 헤더(64px) + 화면 내부 여백 기준 */
+  --console-pane-header-height: 72px;
+  --console-table-offset: 320px;
+  --console-stack-gap: 24px; /* 카드(섹션) 컨테이너 사이 수직 리듬 */
+}
+
+/* ---- Compact, consistent administrator page heading ---- */
+
+[data-wireflow-shell="admin"] [data-wireflow-screen] > .wf-screen-heading,
+[data-wireflow-shell="admin"] [data-wireflow-screen^="A-RAG"] > .wf-screen-heading {
+  box-sizing: border-box;
+  min-height: 64px;
+  padding: 12px 24px;
+}
+
+[data-wireflow-shell="admin"] [data-wireflow-screen] > .wf-screen-heading h1 {
+  font-size: 21px;
+  line-height: 1.25;
+}
+
+/* 카드 스택 리듬 통일: 큰 섹션 카드들이 서로 딱 붙어 보이지 않게
+   화면별로 12~20px로 제각각이던 간격을 24px 하나로 맞춘다. */
+[data-wireflow-shell="admin"]
+  :is(
+    .civic-domain-detail,
+    .civic-domain-form,
+    .civic-domain-result,
+    .civic-domain-console,
+    .civic-admin-workbench,
+    .civic-admin-home,
+    .civic-home-column
+  ) {
+  gap: var(--console-stack-gap);
+}
+
+.console-workspace {
+  display: grid;
+  grid-template-columns: minmax(var(--console-list-min), 2fr) minmax(var(--console-detail-min), 3fr);
+  gap: 0;
+  align-items: start;
+  width: 100%;
+  min-width: 0;
+}
+
+/* 목록·상세는 카드로 감싸지 않고 중앙 세퍼레이터로만 나눈다.
+   stretch로 두 컬럼 높이를 맞춰 구분선이 중간에서 끊기지 않게 한다. */
+.console-workspace:not(.is-single) {
+  align-items: stretch;
+}
+
+.console-workspace:not(.is-single) > .console-pane + .console-pane {
+  border-left: 1px solid var(--wf-line);
+}
+
+.console-workspace.is-single {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 1100px) {
+  .console-workspace {
+    grid-template-columns: 1fr;
+  }
+
+  .console-workspace:not(.is-single) > .console-pane + .console-pane {
+    border-left: none;
+    border-top: 1px solid var(--wf-line);
+  }
+}
+
+.console-pane {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: transparent;
+  border: none;
+  border-radius: 0;
+}
+
+.console-pane-header {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  box-sizing: border-box;
+  min-height: var(--console-pane-header-height);
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wf-line);
+}
+
+.console-pane-header h2,
+.console-pane-header h3 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wf-ink);
+}
+
+.console-pane-header small {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wf-muted);
+}
+
+.console-pane-body {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  flex: 1 1 auto;
+  padding: 16px;
+  min-height: 0;
+  min-width: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-detail-actions .civic-task-results-action {
+  margin-left: auto;
+}
+
+/* 수정이 잠긴 버튼은 흐리게 보이되, 누르면 잠긴 이유를 안내하도록 클릭은 받는다. */
+[data-wireflow-shell="admin"] .civic-detail-actions .civic-content-locked-action {
+  opacity: 0.5;
+}
+
+[data-wireflow-shell="admin"] .civic-user-summary-grid .civic-detail-fallback {
+  color: var(--wf-muted);
+  opacity: 0.55;
+}
+
+.console-toolbar {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+.console-toolbar input[type="search"],
+.console-toolbar input[type="text"] {
+  flex: 1 1 180px;
+  min-width: 0;
+}
+
+/* vote의 filterPills와 동일한 알약형 필터 */
+.console-filter-group {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.console-filter-group button {
+  min-width: 50px;
+  height: 40px;
+  margin: 0;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 999px;
+  background: #fff;
+  padding: 0 15px;
+  color: var(--wf-ink);
+  font-size: 13px;
+  font-weight: 700;
+  font-family: var(--wf-font);
+  cursor: pointer;
+}
+
+.console-filter-group button[aria-pressed="true"] {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+}
+
+.console-tabs {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: 2px;
+  margin: 0;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--wf-line);
+}
+
+.console-tab {
+  margin: 0;
+  padding: 10px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  background: transparent;
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-family: var(--wf-font);
+  font-weight: 500;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.console-tab[aria-selected="true"],
+.console-tab[aria-current="page"] {
+  border-bottom-color: var(--wf-blue);
+  color: var(--wf-blue-dark);
+  font-weight: 700;
+}
+
+.console-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+}
+
+.console-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  min-width: 0;
+}
+
+.console-metric small {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  color: var(--wf-muted);
+  text-transform: uppercase;
+}
+
+.console-metric strong {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wf-ink);
+  line-height: 1.3;
+}
+
+.console-metric span {
+  font-size: 12px;
+  color: var(--wf-muted);
+}
+
+.console-metric.is-alert strong {
+  color: var(--wf-danger);
+}
+
+.console-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  min-width: 0;
+}
+
+.console-section > h3,
+.console-section > h4 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wf-ink);
+}
+
+.console-empty {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 16px;
+  border: 1px dashed var(--wf-line);
+  border-radius: var(--wf-radius);
+  color: var(--wf-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+.console-field-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 10px 16px;
+  margin: 0;
+  min-width: 0;
+}
+
+.console-field-grid > div {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+/* 인라인 스타일 대신 쓰는 변형: 1열 스택 필드 그리드 */
+.console-field-grid.is-stacked {
+  grid-template-columns: 1fr;
+}
+
+.console-field-grid dt,
+.console-field-grid span:first-child {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--wf-muted);
+  letter-spacing: 0.02em;
+}
+
+.console-field-grid dd,
+.console-field-grid strong {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wf-ink);
+  overflow-wrap: anywhere;
+}
+
+.console-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 999px;
+  background: #fff;
+  color: var(--wf-muted);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 1.2;
+  white-space: nowrap;
+}
+
+.console-badge.is-active {
+  border-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+}
+
+.console-badge.is-danger {
+  border-color: var(--wf-danger);
+  background: var(--wf-danger-soft);
+  color: var(--wf-danger);
+}
+
+.console-badge.is-success {
+  border-color: var(--wf-success);
+  background: var(--wf-success-soft);
+  color: var(--wf-success);
+}
+
+.console-actions {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+/* 팬 헤더의 액션 버튼이 두 줄로 꺾여 거대해지지 않게 한다. */
+.console-pane-header :is(a, button) {
+  white-space: nowrap;
+}
+
+.console-actions.is-start {
+  justify-content: flex-start;
+}
+
+.console-grid {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.console-grid .ag-row.is-console-selected {
+  background: var(--wf-blue-soft);
+}
+
+.console-grid.is-row-clickable .ag-row {
+  cursor: pointer;
+}
+
+/* AG Grid 셀의 행 line-height를 배지가 상속해 세로로 늘어나지 않게 고정한다. */
+.console-grid .console-badge {
+  min-height: 20px;
+  max-height: 20px;
+  vertical-align: middle;
+}
+
+/* 과업 상세의 마지막 16px 패딩이 화면 하단에 빈 띠처럼 남지 않게 한다. */
+[data-wireflow-layout="admin-task-console"] > .console-pane:last-child > .console-pane-body {
+  flex: 1 1 auto;
+  padding-bottom: 0;
+}
+
+/* 편집기 저장 버튼이 패널 하단에 붙지 않도록 아래 여유를 둔다. */
+[data-wireflow-layout="admin-task-console"] .civic-domain-form > .civic-form-actions {
+  padding-bottom: 32px;
+}
+
+@media (min-width: 1101px) {
+  /* 화면별 높이 계산 대신 ScreenFrame의 남은 행을 작업공간이 정확히 채운다. */
+  [data-wireflow-screen]:has(
+    > [data-chat-operations-layout] > [data-wireflow-layout="admin-chat-insights-console"]
+  ),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="admin-user-console"]),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="admin-task-console"]),
+  [data-wireflow-screen]:has(> [data-wireflow-layout="rag-workspace"]) {
+    height: 100dvh;
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-chat-operations-layout]:has(> [data-wireflow-layout="admin-chat-insights-console"]) {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+
+  :is(
+    [data-wireflow-layout="admin-user-console"],
+    [data-wireflow-layout="admin-task-console"],
+    [data-wireflow-layout="admin-chat-insights-console"],
+    [data-wireflow-layout="room-category-admin-console"]
+  ) {
+    align-self: stretch;
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen] > [data-wireflow-layout="admin-user-console"],
+  [data-wireflow-screen] > [data-wireflow-layout="admin-task-console"],
+  [data-wireflow-screen] > [data-wireflow-layout="rag-workspace"] {
+    flex: 1 1 auto;
+  }
+}
+
+/* 통합 신청 상세는 예전 drawer 전용 레이아웃을 사용하지 않으므로 카드 간격을 명시한다. */
+[data-wireflow-layout="chat-request-admin"]
+  :is(.civic-chat-request-detail-grid, .civic-chat-request-context, .civic-chat-request-decision) {
+  display: grid;
+  gap: var(--console-stack-gap);
+  min-width: 0;
+}
+
+/* ---- 공용 오버레이(ConsoleModal / ConsoleDrawer) ---- */
+
+.console-dialog {
+  margin: auto;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  max-width: min(720px, calc(100vw - 32px));
+  max-height: calc(100dvh - 32px);
+  overflow: visible;
+}
+
+/* 예전 오버레이가 주던 폭을 dialog가 대신 준다 — 내부 패널의 width:100%가
+   dialog 폭 기준으로 풀리도록 명시 폭이 필요하다(없으면 내용 크기로 쪼그라든다). */
+.console-dialog:not(.is-drawer) {
+  width: min(560px, calc(100vw - 40px));
+}
+
+.console-dialog:not(.is-drawer) > * {
+  width: 100%;
+}
+
+.console-dialog::backdrop {
+  background: rgb(16 17 20 / 45%);
+}
+
+.console-dialog.is-drawer {
+  margin: 0 0 0 auto;
+  width: min(480px, 100%);
+  max-width: none;
+  height: 100dvh;
+  max-height: 100dvh;
+  overflow-y: auto;
+  background: #fff;
+  border-left: 1px solid var(--wf-line);
+}
+
+.console-status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--wf-muted);
+}
+
+.console-status.is-error {
+  color: var(--wf-danger);
+}
+
+/* ---- Internal scrolling: long panes scroll themselves, not the page ---- */
+
+@media (min-width: 1101px) {
+  .console-workspace:not(.is-single) > .console-pane {
+    height: 100%;
+    max-height: calc(100dvh - var(--console-header-offset));
+  }
+
+  .console-workspace:is(
+      [data-wireflow-layout="admin-user-console"],
+      [data-wireflow-layout="admin-task-console"],
+      [data-wireflow-layout="admin-chat-insights-console"]
+    )
+    > .console-pane {
+    height: auto;
+    min-height: 0;
+    max-height: none;
+    overflow: hidden;
+  }
+
+  .console-workspace:not(.is-single) > .console-pane > .console-pane-body {
+    overflow-y: auto;
+    min-height: 0;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"]
+    > .console-pane:first-child
+    > .console-pane-body {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"] > .console-pane:last-child {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-wireflow-layout="admin-chat-insights-console"] > .console-pane:last-child > .console-tabs {
+    position: sticky;
+    z-index: 2;
+    top: 0;
+    min-height: var(--console-pane-header-height);
+    flex: 0 0 var(--console-pane-header-height);
+    align-items: flex-end;
+    background: #fff;
+  }
+}
+
+/* ---- RAG document table: uniform row height, quiet version cell ---- */
+
+[data-wireflow-layout="rag-workspace"] .civic-table-scroll {
+  max-height: calc(100dvh - var(--console-table-offset));
+  overflow-y: auto;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-document-ledger table td {
+  vertical-align: middle;
+  height: 56px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy strong,
+[data-wireflow-layout="rag-workspace"] .civic-doc-cell-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 260px;
+}
+
+.civic-version-single {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px 8px;
+  border: 1px solid var(--wf-line);
+  border-radius: 999px;
+  color: var(--wf-muted);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+/* ---- Admin sidebar color ---- */
+
+.civic-admin-sidebar {
+  background: var(--wf-navy-deep);
+}
+
+/* ---- RAG workspace: drop the outer card, panel-per-column like other screens ---- */
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
+  background: transparent;
+  gap: 0;
+}
+
+[data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > .civic-folder-tree {
+  border: none;
+  border-right: 1px solid var(--wf-line);
+  border-radius: 0;
+  background: var(--wf-surface);
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+  gap: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-rag-workspace-overview {
+  padding-bottom: 4px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-bulk-action-row {
+  display: grid;
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: stretch;
+  gap: 8px;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-upload-dialog-trigger {
+  display: inline-flex;
+  min-height: 42px;
+  align-items: center;
+  justify-content: center;
+  padding-inline: 14px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+[data-wireflow-screen^="A-RAG"] .civic-bulk-toolbar :is(button, select) {
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  padding-block: 0;
+  line-height: 1;
+}
+
+/* ---- Admin home metric cards double as domain shortcuts ---- */
+
+.civic-admin-metric-link {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.civic-admin-metric-link:hover strong {
+  color: var(--wf-blue-dark);
+}
+
+/* ---- Admin home action columns ---- */
+
+.civic-home-columns {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  align-items: start;
+  min-width: 0;
+}
+
+@media (max-width: 1100px) {
+  .civic-home-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+.civic-home-column {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  min-width: 0;
+}
+
+/* ---- Admin home unified section pattern ---- */
+
+.civic-home-section {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  min-width: 0;
+}
+
+.civic-home-section-header {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wf-line);
+}
+
+.civic-home-section-header h2 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wf-ink);
+}
+
+.civic-home-section-count {
+  margin-left: 6px;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.civic-home-section-action {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wf-blue-dark);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.civic-home-section-action--dark {
+  color: var(--wf-ink);
+}
+
+.civic-home-list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.civic-home-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 16px;
+  min-width: 0;
+}
+
+.civic-home-row + .civic-home-row {
+  border-top: 1px solid var(--wf-line);
+}
+
+.civic-home-row-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.civic-home-row-copy strong {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wf-ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.civic-home-row-copy small {
+  font-size: 12px;
+  color: var(--wf-muted);
+}
+
+.civic-home-row > a {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--wf-blue-dark);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.civic-opinion-map-retry-panel {
+  grid-column: 1 / -1;
+}
+
+.civic-opinion-map-retry-button {
+  flex: 0 0 auto;
+  border: 0;
+  background: transparent;
+  padding: 4px 0;
+  color: var(--wf-blue-dark);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.civic-opinion-map-retry-button:disabled {
+  color: var(--wf-muted);
+  cursor: not-allowed;
+  opacity: 0.7;
+}
+
+.civic-opinion-map-retry-footer {
+  display: flex;
+  justify-content: flex-end;
+  padding: 8px 16px;
+  border-top: 1px solid var(--wf-line);
+}
+
+.civic-opinion-map-retry-notice {
+  margin: 0;
+  padding: 0 16px 12px;
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.civic-home-empty {
+  margin: 0;
+  padding: 14px 16px;
+  font-size: 13px;
+  color: var(--wf-muted);
+}
+
+/* 진행 중 작업 블록도 동일한 카드 톤으로 맞춘다. */
+.civic-admin-home .civic-current-operations {
+  grid-column: 1 / -1;
+  background: #fff;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  box-shadow: none;
+  padding: 0;
+}
+
+.civic-admin-home .civic-current-operations > header {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--wf-line);
+  margin: 0;
+}
+
+.civic-admin-home .civic-current-operations > header h2 {
+  font-size: 14px;
+}
+
+.civic-admin-home .civic-current-operations > header small {
+  display: none;
+}
+
+.civic-admin-home .civic-current-operations > ul {
+  margin: 0;
+  padding: 4px 16px 12px;
+}
+
+/* 투표 AI 예상 답변 생성 실패는 홈 최상단에서 바로 조치하도록 알린다. */
+.civic-admin-home .civic-preparation-alert {
+  display: grid;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--wf-danger);
+  border-radius: var(--wf-radius);
+  background: var(--wf-danger-soft);
+}
+
+.civic-admin-home .civic-preparation-alert > header {
+  display: grid;
+  gap: 4px;
+}
+
+.civic-admin-home .civic-preparation-alert > header strong {
+  color: var(--wf-danger);
+  font-size: 14px;
+}
+
+.civic-admin-home .civic-preparation-alert > header p {
+  margin: 0;
+  color: var(--wf-ink);
+  font-size: 13px;
+}
+
+.civic-admin-home .civic-preparation-alert ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.civic-admin-home .civic-preparation-alert li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.civic-admin-home .civic-preparation-alert li > div {
+  display: grid;
+  min-width: 0;
+  gap: 2px;
+}
+
+.civic-admin-home .civic-preparation-alert li > div strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+}
+
+.civic-admin-home .civic-preparation-alert li > div span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.civic-admin-home .civic-preparation-alert li > .wf-button {
+  flex: none;
+}
+
+@media (max-width: 640px) {
+  .civic-admin-home .civic-preparation-alert li {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+
+/* ---- Unified search control (vote 검색 UI와 동일한 패턴) ---- */
+
+.console-search-control {
+  display: flex;
+  width: 100%;
+  max-width: 720px;
+  height: 48px;
+  flex: 1 1 220px;
+  align-items: center;
+  overflow: hidden;
+  box-sizing: border-box;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  min-width: 0;
+}
+
+.console-search-control:focus-within {
+  border-color: var(--wf-blue);
+}
+
+.console-search-icon {
+  width: 22px;
+  height: 22px;
+  flex: none;
+  margin-left: 12px;
+  background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2359616b' stroke-width='2' stroke-linecap='round'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-4.3-4.3'/%3E%3C/svg%3E")
+    center / contain no-repeat;
+}
+
+.console-search-control > input.console-search-input {
+  width: auto;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex: 1;
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+  padding: 0 10px;
+  appearance: none;
+  background: transparent;
+  color: var(--wf-ink);
+  font: inherit;
+  font-size: 14px;
+}
+
+.console-search-control > input.console-search-input:focus-visible {
+  border: 0;
+  border-radius: 0;
+  outline: 0;
+  box-shadow: none;
+}
+
+.console-search-control > input.console-search-input::-webkit-search-cancel-button {
+  display: none;
+}
+
+.console-search-control > input.console-search-input::placeholder {
+  color: var(--wf-muted);
+}
+
+/* civic-domain-console의 범용 input 테두리 규칙이 검색 컨트롤 내부 input에
+   이중 테두리를 씌우지 않게 한다. (globals.css 규칙보다 뒤에 로드되어 이긴다) */
+[data-wireflow-shell="admin"] .console-search-control :is(input) {
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  padding: 0 10px;
+  min-height: 0;
+}
+
+[data-wireflow-shell="admin"] .console-search-control :is(input):focus-visible {
+  outline: 0;
+}
+
+.console-search-control > button.console-search-button {
+  min-width: 56px;
+  min-height: 0;
+  height: 100%;
+  flex: none;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  background: var(--wf-blue);
+  color: #fff;
+  cursor: pointer;
+  font-family: var(--wf-font);
+  font-size: 14px;
+  font-weight: 700;
+  padding: 0 12px;
+}
+
+.console-search-control > button.console-search-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.62;
+}
+
+/* ---- Operations tables and compact edit surfaces ---- */
+
+.civic-simulation-state-cell {
+  display: inline-flex;
+  width: 76px;
+  justify-content: center;
+  vertical-align: middle;
+}
+
+.civic-simulation-state-cell > .console-badge {
+  width: 100%;
+  justify-content: center;
+  box-sizing: border-box;
+}
+
+.console-grid .civic-grid-row-action {
+  min-height: 28px;
+  padding: 3px 10px;
+  font-size: 12px;
+  line-height: 1.2;
+}
+
+.console-grid .civic-grid-row-actions {
+  height: 100%;
+  flex-wrap: nowrap;
+  align-items: center;
+}
+
+[data-wireflow-layout="room-category-admin-console"] {
+  grid-template-columns: minmax(320px, 0.9fr) minmax(520px, 1.4fr);
+}
+
+[data-wireflow-layout="room-category-admin-console"] .civic-category-create {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor > header > div {
+  display: grid;
+  gap: 4px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor-form.civic-domain-action-panel {
+  gap: 16px;
+  padding: 16px;
+}
+
+.console-dialog:not(.is-drawer) .civic-category-editor-actions {
+  margin: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-action-panel .civic-category-selector-fieldset {
+  gap: 0;
+  overflow: hidden;
+  padding: 0;
+}
+
+[data-wireflow-shell="admin"]
+  .civic-domain-action-panel
+  .civic-category-selector-fieldset
+  > legend {
+  margin-left: 12px;
+  padding: 0 5px;
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector > label {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--wf-line);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-category-selector > label:last-of-type {
+  border-bottom: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-domain-action-panel .civic-category-selector-fieldset > small {
+  display: block;
+  padding: 8px 12px;
+  border-top: 1px solid var(--wf-line);
+  color: var(--wf-muted);
+}
+
+/* ---- RAG: keep the page fixed and scroll only the document rows ---- */
+
+@media (min-width: 1101px) {
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"].civic-rag-admin-layout {
+    height: 100%;
+    min-height: 0;
+    max-height: none;
+    flex: 1 1 auto;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] [data-wireflow-layout="rag-workspace"] > * {
+    min-height: 0;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-folder-tree ul {
+    max-height: none;
+    overflow: visible;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-rag-admin-workspace {
+    display: flex;
+    min-height: 0;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger {
+    display: grid;
+    min-height: 0;
+    flex: 1 1 auto;
+    grid-template-rows: auto auto minmax(0, 1fr) auto;
+    overflow: hidden;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger > .civic-table-scroll {
+    align-self: start;
+    min-height: 0;
+    max-height: 100%;
+    width: 100%;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-document-ledger > .civic-admin-empty {
+    align-self: start;
+  }
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-screen^="A-RAG"] .civic-bulk-action-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  [data-wireflow-screen^="A-RAG"] .civic-upload-dialog-trigger {
+    justify-self: end;
+  }
+}
+
+.civic-upload-batch-progress,
+.civic-job-batch-navigation {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border: 1px solid var(--wf-line);
+  border-radius: 7px;
+  background: var(--wf-surface-soft, #f7f9fc);
+  padding: 10px 12px;
+}
+
+.civic-upload-batch-progress > b,
+.civic-job-batch-navigation > strong {
+  color: var(--wf-blue-dark);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.civic-job-batch-navigation {
+  justify-content: flex-end;
+  margin-inline: 12px;
+}
+
+.civic-job-batch-navigation > button {
+  min-height: 34px;
+  border: 1px solid var(--wf-line-strong);
+  border-radius: 6px;
+  background: #fff;
+  padding: 6px 10px;
+  color: var(--wf-ink);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.civic-job-batch-navigation > button:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+
+@media (max-width: 1100px) {
+  [data-wireflow-layout="room-category-admin-console"] {
+    grid-template-columns: minmax(0, 1fr);
+    height: auto;
+    max-height: none;
+  }
+}
+
+/* 투표 생성 상태: 실제 진행률 없이 상태와 다음 행동을 함께 보여준다. */
+[data-wireflow-shell="admin"] .civic-task-preparation {
+  border-left: 3px solid #94a3b8;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-running {
+  border-left-color: #2563eb;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-attention {
+  border-left-color: #d97706;
+}
+
+[data-wireflow-shell="admin"] .civic-task-preparation.is-completed {
+  border-left-color: #15803d;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-badge {
+  width: fit-content;
+  padding: 5px 9px;
+  border-radius: 6px;
+  background: #eff6ff;
+  color: #1d4ed8;
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .is-attention .civic-preparation-badge,
+[data-wireflow-shell="admin"] .civic-preparation-badge.is-attention {
+  background: #fffbeb;
+  color: #92400e;
+}
+
+[data-wireflow-shell="admin"] .is-completed .civic-preparation-badge {
+  background: #f0fdf4;
+  color: #166534;
+}
+
+[data-wireflow-shell="admin"] .is-idle .civic-preparation-badge {
+  background: #f1f5f9;
+  color: #475569;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-description {
+  color: var(--civic-muted);
+  font-size: 13px;
+  line-height: 1.7;
+  word-break: keep-all;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-metadata {
+  margin: 0;
+  font-size: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error {
+  border-top: 1px solid var(--civic-line);
+  padding-top: 10px;
+  color: #92400e;
+  font-size: 12px;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error summary {
+  cursor: pointer;
+  font-weight: 650;
+}
+
+[data-wireflow-shell="admin"] .civic-preparation-error p {
+  padding-block: 10px;
+  line-height: 1.6;
+}
+
+[data-wireflow-shell="admin"] .civic-operation-kind.is-prediction {
+  background: #eef2ff;
+  color: #3730a3;
+}
+
+/* ---- 투표 결과 · AI 시뮬레이션 병렬 비교 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-compare {
+  display: grid;
+  gap: 14px;
+  margin-top: 16px;
+  padding: 20px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare > header h2 {
+  margin: 4px 0 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-run {
+  min-width: 240px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-sides {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side {
+  display: grid;
+  align-content: start;
+  gap: 12px;
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--wf-line);
+  border-top-width: 4px;
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-vote {
+  border-top-color: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side.is-simulation {
+  border-top-color: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header h3 {
+  margin: 0;
+  font-size: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side ol {
+  display: grid;
+  gap: 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side li {
+  display: grid;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-side li > strong {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar {
+  display: grid;
+  gap: 6px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar strong {
+  color: var(--wf-ink);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border: 0;
+  border-radius: 999px;
+  appearance: none;
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar progress::-webkit-progress-bar {
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-webkit-progress-value {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-vote progress::-moz-progress-bar {
+  background: var(--wf-blue);
+}
+
+[data-wireflow-shell="admin"]
+  .civic-vote-compare-bar.is-simulation
+  progress::-webkit-progress-value {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-bar.is-simulation progress::-moz-progress-bar {
+  background: #f0643b;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-diff {
+  flex: none;
+  color: var(--wf-muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-note {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  padding: 18px;
+  border: 1px dashed var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-compare-empty p {
+  margin: 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* ---- 독립 시뮬레이션 목록·작성 ---- */
+
+[data-wireflow-shell="admin"] .civic-simulation-create-action {
+  flex: none;
+  min-height: 48px;
+}
+
+/* 투표 기반 시뮬레이션(좌)과 직접 작성한 시뮬레이션(우)을 나란히 둔다. */
+[data-wireflow-shell="admin"] .civic-simulation-list-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  align-items: start;
+  gap: 20px;
+  margin-top: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section {
+  display: grid;
+  grid-template-rows: minmax(64px, auto) auto;
+  gap: 12px;
+  min-width: 0;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header h2 {
+  margin: 0;
+  font-size: 17px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header > span {
+  color: var(--wf-muted);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+/* A count followed by an action button sits next to the button, not mid-row. */
+[data-wireflow-shell="admin"] .civic-simulation-list-section > header > span:not(:last-child) {
+  margin-left: auto;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-scenario-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-simulation-target-kind {
+  display: inline-flex;
+  width: fit-content;
+  margin-bottom: 6px;
+  padding: 4px 8px;
+  border-radius: 6px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-navy);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog {
+  display: grid;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-import-dialog header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+@media (max-width: 1100px) {
+  [data-wireflow-shell="admin"] .civic-simulation-list-columns {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  [data-wireflow-shell="admin"] .civic-vote-compare-sides {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---- 투표 기반 시뮬레이션 전용 화면 ---- */
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-workspace {
+  display: grid;
+  gap: 16px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading span {
+  color: var(--wf-blue);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading h2 {
+  margin: 4px 0 0;
+  font-size: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-heading p {
+  margin: 6px 0 0;
+  color: var(--wf-muted);
+  font-size: 14px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side {
+  padding: 20px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-sides .civic-vote-compare-side > .wf-button {
+  justify-self: start;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-side-heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  font-size: 13px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-progress progress {
+  width: 100%;
+  height: 8px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run {
+  display: grid;
+  gap: 12px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wf-line);
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header h2 {
+  margin: 0;
+  font-size: 18px;
+}
+
+[data-wireflow-shell="admin"] .civic-vote-simulation-run > header p {
+  margin: 4px 0 0;
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* Shared admin list pager (ConsolePager); extends the RAG ledger pager look. */
+.console-pager {
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+
+.console-pager .console-pager-size {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.console-pager .console-pager-size span {
+  margin-right: 0;
+  white-space: nowrap;
+}
+
+/* Outranks form-wide rules such as `.civic-domain-console select { width: 100% }`. */
+[data-wireflow-shell="admin"] .civic-ledger-pagination.console-pager select {
+  width: auto;
+  min-height: 34px;
+  border: 1px solid #cbd5e1;
+  border-radius: 6px;
+  background: #fff;
+  padding: 4px 8px;
+  color: #234b83;
+  font: inherit;
+  font-weight: 750;
+}

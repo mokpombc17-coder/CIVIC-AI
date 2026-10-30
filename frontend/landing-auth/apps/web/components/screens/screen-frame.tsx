@@ -1,0 +1,156 @@
+import type { ReactNode } from "react";
+import type { Route } from "next";
+import type { ScreenDefinition } from "@/lib/screens/registry";
+import { WireflowScreenHeading } from "@/components/wireflow/wireflow-screen-heading";
+
+export function ScreenFrame({
+  screen,
+  children,
+  backHref,
+  headingAction,
+  platformHeading = "HIDDEN",
+  signupStep,
+  title,
+}: Readonly<{
+  screen: ScreenDefinition;
+  children: ReactNode;
+  backHref?: Route;
+  headingAction?: ReactNode;
+  platformHeading?: "HIDDEN" | "SECONDARY";
+  signupStep?: 1 | 2 | 3 | null;
+  title?: string;
+}>) {
+  const resolvedSignupStep = signupStep === undefined ? getSignupStep(screen.id) : signupStep;
+  const heading = screenFrameHeading(screen);
+  const resolvedBackHref = backHref ?? heading.backHref;
+  return (
+    <section
+      aria-labelledby="civic-screen-title"
+      className={`civic-functional-screen${screen.audience === "PUBLIC" ? " civic-public-screen" : ""}`}
+      data-wireflow-screen={screen.id}
+    >
+      <WireflowScreenHeading
+        action={headingAction}
+        {...heading}
+        {...(resolvedBackHref ? { backHref: resolvedBackHref } : {})}
+        secondary={platformHeading === "SECONDARY"}
+        title={title ?? heading.title}
+      />
+      {resolvedSignupStep ? <SignupStepIndicator current={resolvedSignupStep} /> : null}
+      {children}
+    </section>
+  );
+}
+
+export function screenFrameHeading(
+  screen: ScreenDefinition,
+): Readonly<{ backHref?: Route; subtitle?: string; title: string }> {
+  const auth = authHeadings[screen.id];
+  const participant = participantHeadings[screen.id];
+  const admin = adminHeadings[screen.id];
+  return auth ?? participant ?? admin ?? { title: screen.canonical_title };
+}
+
+const authHeadings: Readonly<
+  Record<string, Readonly<{ backHref?: Route; subtitle?: string; title: string }>>
+> = Object.freeze({
+  "AUTH-001": { title: "로그인" },
+  "AUTH-002": { backHref: "/login" as Route, title: "회원가입" },
+  "AUTH-003": { title: "회원가입" },
+  "AUTH-004": { title: "회원가입" },
+  "AUTH-005": { backHref: "/signup/account" as Route, title: "이메일 인증" },
+  "AUTH-006": {
+    backHref: "/signup/account" as Route,
+    subtitle: "등록 이메일로 코드를 보냈습니다.",
+    title: "이메일 인증",
+  },
+  "AUTH-007": { backHref: "/login" as Route, title: "비밀번호 재설정" },
+  "AUTH-008": { title: "비밀번호 재설정" },
+  "AUTH-009": { backHref: "/login" as Route, title: "계정 재활성화" },
+  "AUTH-010": { backHref: "/login" as Route, title: "계정 재활성화" },
+});
+
+const participantHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title: string }>>> =
+  Object.freeze({
+    "U-HOME-001": { title: "홈" },
+    "U-ACCOUNT-001": { title: "계정" },
+    "U-ACCOUNT-002": { title: "계정" },
+    "U-ACCOUNT-003": { backHref: "/account" as Route, title: "설문 참여" },
+    "U-ACCOUNT-004": { title: "계정" },
+    "U-RAG-001": { title: "AI" },
+    "U-RAG-002": { title: "AI" },
+    "U-RAG-003": { title: "AI" },
+    "COMMON-002": { subtitle: "다른 요청으로 상태가 변경되었습니다.", title: "투표 상태" },
+    "COMMON-003": { title: "처리 결과 확인" },
+    "COMMON-004": { title: "서비스 일시 오류" },
+  });
+
+const adminHeadings: Readonly<Record<string, Readonly<{ backHref?: Route; title: string }>>> =
+  Object.freeze({
+    // Every legacy admin route now renders its domain's consolidated
+    // workspace, so headings are per-domain; the specific state shows as a
+    // tab or dialog inside the workspace.
+    "A-HOME-001": { title: "관리 홈" },
+    "A-USER-001": { title: "사용자·권한" },
+    "A-USER-002": { title: "사용자·권한" },
+    "A-USER-003": { title: "사용자·권한" },
+    "A-USER-004": { title: "사용자·권한" },
+    "A-USER-005": { title: "사용자·권한" },
+    "A-RAG-001": { title: "문서 관리" },
+    "A-RAG-002": { title: "문서 관리" },
+    "A-RAG-003": { title: "문서 관리" },
+    "A-RAG-004": { title: "문서 관리" },
+    "A-RAG-005": { title: "문서 관리" },
+    "A-RAG-006": { title: "문서 관리" },
+    "A-CHAT-001": { title: "토론방 운영" },
+    "A-CHAT-002": { title: "토론방 운영" },
+    "A-CHAT-004": { title: "토론방 운영" },
+    "A-CHAT-005": { title: "토론방 운영" },
+    "A-CHAT-006": { title: "토론방 운영" },
+    "A-CHAT-007": { title: "토론방 운영" },
+    "A-CHAT-008": { title: "토론방 운영" },
+    "A-CHAT-009": { title: "토론방 운영" },
+    "A-TASK-001": { title: "투표 관리" },
+    "A-TASK-002": { title: "투표 관리" },
+    "A-TASK-003": { title: "투표 관리" },
+    "A-TASK-004": { title: "투표 관리" },
+    "A-TASK-005": { title: "투표 관리" },
+    "A-SIM-001": { title: "시뮬레이션" },
+    "A-SIM-002": { title: "시뮬레이션 실행" },
+    "A-SIM-003": { title: "시뮬레이션 실행" },
+    "A-SIM-004": { title: "시뮬레이션 실행" },
+    "A-SIM-005": { title: "시뮬레이션 실행" },
+    "A-SIM-006": { title: "시뮬레이션 실행" },
+    "A-SIM-007": { title: "시뮬레이션 실행" },
+  });
+
+function SignupStepIndicator({ current }: Readonly<{ current: 1 | 2 | 3 }>) {
+  const steps = ["계정 정보", "이메일 인증", "약관 동의·필수정보"];
+  return (
+    <nav aria-label="회원가입 단계" className="civic-step-indicator">
+      <p>
+        <strong>{current}/3</strong>
+        <span>{steps[current - 1]}</span>
+      </p>
+      <ol>
+        {steps.map((label, index) => {
+          const step = index + 1;
+          return (
+            <li
+              aria-current={step === current ? "step" : undefined}
+              className={step < current ? "is-done" : step === current ? "is-current" : ""}
+              key={label}
+            >
+              <b className="sr-only">{label}</b>
+            </li>
+          );
+        })}
+      </ol>
+    </nav>
+  );
+}
+
+function getSignupStep(id: string): 1 | null {
+  if (id === "AUTH-002") return 1;
+  return null;
+}

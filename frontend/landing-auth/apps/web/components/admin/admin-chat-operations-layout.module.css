@@ -1,0 +1,5 @@
+.layout {
+  display: grid;
+  gap: 1rem;
+  color: var(--wf-ink);
+}

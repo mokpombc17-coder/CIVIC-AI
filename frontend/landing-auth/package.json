@@ -1,0 +1,47 @@
+{
+  "name": "next-expo-webview-starter",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.15.1",
+  "engines": {
+    "node": ">=24.18.0 <25",
+    "pnpm": "11.15.1"
+  },
+  "scripts": {
+    "dev": "pnpm --parallel --filter @app/web --filter @app/mobile run dev",
+    "dev:web": "pnpm --filter @app/web run dev",
+    "dev:mobile": "pnpm --filter @app/mobile run dev",
+    "build": "pnpm run build:web",
+    "build:web": "pnpm --filter @app/web run build",
+    "start:web": "pnpm --filter @app/web run start",
+    "lint": "pnpm -r --if-present run lint",
+    "typecheck": "pnpm -r --if-present run typecheck",
+    "test": "vitest run",
+    "test:e2e": "pnpm run test:e2e:wireflow",
+    "test:e2e:legacy": "playwright test",
+    "test:e2e:placeholders": "playwright test --config=playwright.placeholder.config.ts",
+    "test:e2e:wireflow": "playwright test --config=playwright.wireflow.config.ts",
+    "test:e2e:actual-browsers": "playwright test --config=playwright.actual-browsers.config.ts",
+    "test:e2e:safari-installed": "node scripts/run-installed-safari-smoke.mjs",
+    "sync:wireflow-ui": "node scripts/sync-wireflow-ui-assets.mjs",
+    "check:wireflow-ui": "node scripts/sync-wireflow-ui-assets.mjs --check",
+    "test:e2e:headed": "playwright test --headed",
+    "test:e2e:debug": "playwright test --debug",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check": "pnpm run format:check && pnpm run lint && pnpm run typecheck && pnpm run test",
+    "clean": "pnpm -r --if-present run clean",
+    "codegraph": "codegraph",
+    "codegraph:init": "codegraph init",
+    "codegraph:status": "codegraph status",
+    "codegraph:sync": "codegraph sync"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.13.0",
+    "@colbymchenry/codegraph": "1.5.0",
+    "@playwright/test": "^1.62.0",
+    "prettier": "3.9.6",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

@@ -1,0 +1,14 @@
+node_modules
+.DS_STORE
+.next
+.expo/
+.env
+.env*.local
+*.tsbuildinfo
+next-env.d.ts
+/apps/web/certificates/
+
+# Expo-generated files
+/apps/mobile/expo-env.d.ts
+/apps/mobile/android/
+/apps/mobile/ios/

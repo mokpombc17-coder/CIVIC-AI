@@ -1,0 +1,182 @@
+@import "./wireflow-core.css";
+
+/* Full wireflow foundations used outside the standalone /home route. */
+
+.app-shell:has([data-wireflow-shell]) {
+  display: block;
+  min-height: 100dvh;
+  padding: 0;
+}
+
+.wf-product-surface,
+.civic-shell {
+  color: var(--wf-ink);
+  font-family: var(--wf-font);
+}
+
+.civic-public-screen {
+  width: min(100%, 394px);
+  min-height: min(853px, 100dvh);
+  margin: 0 auto;
+  border: 1px solid var(--wf-line);
+  border-radius: 12px;
+  box-shadow: none;
+}
+
+[data-wireflow-screen].civic-public-screen {
+  width: min(100%, 24.6rem);
+  min-height: min(53.25rem, 100dvh);
+  margin: 0 auto;
+  border-radius: 0.75rem;
+  box-shadow: var(--civic-shadow);
+}
+
+@media (max-width: 720px) {
+  [data-wireflow-screen].civic-public-screen {
+    width: 100%;
+    min-height: 100dvh;
+    border-radius: 0;
+  }
+}
+
+.wf-screen-heading-action {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+[data-platform-shell="true"] .civic-public-screen {
+  width: 100%;
+  min-height: 100%;
+  border: 0;
+  border-radius: 0;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"],
+    [data-wireflow-screen="AUTH-005"],
+    [data-wireflow-screen="AUTH-006"]
+  )
+  .civic-step-indicator {
+  gap: 10px;
+  margin: 16px 16px 0;
+  padding: 12px 16px;
+}
+
+:is(
+    [data-wireflow-screen="AUTH-002"],
+    [data-wireflow-screen="AUTH-003"],
+    [data-wireflow-screen="AUTH-004"],
+    [data-wireflow-screen="AUTH-005"],
+    [data-wireflow-screen="AUTH-006"]
+  )
+  .civic-step-indicator
+  > p {
+  gap: 6px;
+  line-height: 1;
+}
+
+.wf-auth-form,
+.civic-form-card,
+.civic-action-panel,
+.civic-user-detail {
+  display: grid;
+  gap: 16px;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 20px;
+  box-shadow: none;
+}
+
+.civic-auth-support article > span {
+  display: inline-flex;
+  width: fit-content;
+  min-height: 22px;
+  align-items: center;
+  border-radius: 5px;
+  background: var(--wf-blue-soft);
+  color: var(--wf-blue-dark);
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+
+.civic-primary-action,
+.civic-secondary-action,
+.civic-danger-action,
+.civic-icon-action,
+.civic-admin-search button {
+  display: inline-flex;
+  min-height: 48px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  padding: 10px 14px;
+  font: inherit;
+  font-size: 16px;
+  font-weight: 800;
+  text-align: center;
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.civic-primary-action,
+.civic-admin-search button {
+  background: var(--wf-blue);
+  color: #fff;
+}
+
+.civic-primary-action,
+.civic-admin-search button {
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease;
+}
+
+.wf-button-secondary,
+.civic-secondary-action,
+.civic-icon-action {
+  border-color: var(--wf-blue);
+  background: #fff;
+  color: var(--wf-blue-dark);
+}
+
+.civic-secondary-action,
+.civic-icon-action {
+  transition: background-color 140ms ease;
+}
+
+.wf-button-danger,
+.civic-danger-action {
+  background: var(--wf-danger);
+  color: #fff;
+}
+
+.civic-danger-action {
+  transition:
+    transform 130ms ease,
+    box-shadow 130ms ease;
+}
+
+[data-wireflow-screen] .civic-danger-action {
+  background: var(--civic-danger);
+}
+
+.civic-shell :where(a, button, input, textarea, select):focus-visible {
+  outline: 3px solid #8eb4ff;
+  outline-offset: 2px;
+}
+
+:where([data-wireflow-shell="admin"]) h2 {
+  font-size: 20px;
+  font-weight: 800;
+}
+
+:where([data-wireflow-shell="admin"], [data-wireflow-screen]) h3 {
+  font-size: 16px;
+  font-weight: 700;
+}

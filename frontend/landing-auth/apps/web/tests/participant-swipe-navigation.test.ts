@@ -1,0 +1,122 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+import { describe, expect, it } from "vitest";
+import {
+  hasParticipantSwipeBlockingOverlay,
+  isParticipantSwipeNavigation,
+  normalizeParticipantLandingRoute,
+  participantSwipeBlockingOverlaySelector,
+  participantSwipeDestination,
+  participantSwipeDirectionSlop,
+  participantSwipeMaximumVisualDistance,
+  participantSwipeReactReadyEvent,
+  participantSwipeSoftCapStart,
+  participantSwipeVisualOffset,
+} from "@/lib/participant-swipe-navigation";
+
+const webRoot = join(__dirname, "..");
+
+describe("participant bottom navigation swipe", () => {
+  it("열린 modal과 bottom sheet가 있으면 swipe 시작을 차단한다", () => {
+    const openOverlayRoot = {
+      querySelector: () => ({ nodeType: 1 }),
+    } as unknown as ParentNode;
+    const emptyRoot = {
+      querySelector: () => null,
+    } as unknown as ParentNode;
+
+    expect(participantSwipeBlockingOverlaySelector).toContain("dialog[open]");
+    expect(participantSwipeBlockingOverlaySelector).toContain('[aria-modal="true"]');
+    expect(participantSwipeBlockingOverlaySelector).toContain("[data-swipe-navigation-blocking]");
+    expect(hasParticipantSwipeBlockingOverlay(openOverlayRoot)).toBe(true);
+    expect(hasParticipantSwipeBlockingOverlay(emptyRoot)).toBe(false);
+  });
+
+  it("12px 이동 이후에 swipe 방향 판정을 시작한다", () => {
+    expect(participantSwipeDirectionSlop).toBe(12);
+  });
+
+  it("활성화 대상을 하단 메뉴의 정확한 landing route로 제한한다", () => {
+    expect(normalizeParticipantLandingRoute("/home")).toBe("/home");
+    expect(normalizeParticipantLandingRoute("/account")).toBe("/mypage");
+    expect(normalizeParticipantLandingRoute("/rag/documents")).toBeNull();
+    expect(normalizeParticipantLandingRoute("/login")).toBeNull();
+  });
+
+  it("하단 메뉴 순서에 따라 인접 route만 선택하고 양 끝을 넘지 않는다", () => {
+    expect(participantSwipeDestination("/rag", -100)).toBe("/chat");
+    expect(participantSwipeDestination("/rag", 100)).toBe("/home");
+    expect(participantSwipeDestination("/home", 100)).toBeNull();
+    expect(participantSwipeDestination("/mypage", -100)).toBeNull();
+  });
+
+  it("28px 이후 저항을 점진적으로 높여 화면 이동을 40px에 부드럽게 수렴시킨다", () => {
+    expect(participantSwipeSoftCapStart).toBe(28);
+    expect(participantSwipeMaximumVisualDistance).toBe(40);
+    expect(participantSwipeVisualOffset(80)).toBe(28);
+    expect(participantSwipeVisualOffset(-80)).toBe(-28);
+
+    const offsetAt120 = participantSwipeVisualOffset(120);
+    const offsetAt160 = participantSwipeVisualOffset(160);
+    const offsetAt200 = participantSwipeVisualOffset(200);
+    expect(offsetAt120).toBeGreaterThan(28);
+    expect(offsetAt160).toBeGreaterThan(offsetAt120);
+    expect(offsetAt200).toBeGreaterThan(offsetAt160);
+    expect(offsetAt200).toBeLessThan(40);
+    expect(participantSwipeVisualOffset(-200)).toBeCloseTo(-offsetAt200);
+  });
+
+  it("충분한 거리 또는 짧고 빠른 gesture만 navigation으로 판정한다", () => {
+    expect(isParticipantSwipeNavigation(80, 0)).toBe(true);
+    expect(isParticipantSwipeNavigation(40, 0.5)).toBe(true);
+    expect(isParticipantSwipeNavigation(40, 0.49)).toBe(false);
+    expect(isParticipantSwipeNavigation(39, 1)).toBe(false);
+  });
+
+  it("hydration 전 bootstrap은 동일한 pointer 입력을 처리하고 React takeover를 기다린다", () => {
+    const bootstrap = readFileSync(
+      join(webRoot, "public", "assets", "participant-swipe-bootstrap.js"),
+      "utf8",
+    );
+    const controller = readFileSync(
+      join(webRoot, "components", "shell", "participant-swipe-navigation-controller.tsx"),
+      "utf8",
+    );
+
+    expect(participantSwipeReactReadyEvent).toBe("civic:participant-swipe-react-ready");
+    expect(bootstrap).toContain("civic-participant-swipe-bootstrap-ready");
+    expect(bootstrap).toContain(participantSwipeReactReadyEvent);
+    for (const eventName of [
+      "pointerdown",
+      "pointermove",
+      "pointerup",
+      "pointercancel",
+      "click",
+      "dragstart",
+    ]) {
+      expect(bootstrap).toContain(`addEventListener(\"${eventName}\"`);
+      expect(bootstrap).toContain(`removeEventListener(\"${eventName}\"`);
+    }
+    expect(bootstrap).toContain("targetLink.click()");
+    expect(bootstrap).not.toContain("history.pushState");
+    expect(bootstrap).not.toContain("router.push");
+    expect(bootstrap).not.toMatch(/localhost|127\.0\.0\.1|pointerType === "mouse"/u);
+    expect(controller).not.toMatch(/localhost|127\.0\.0\.1|pointerType === "mouse"/u);
+  });
+
+  it("RAG 메시지 스크롤 영역은 세로 스크롤을 유지하며 수평 pointer gesture를 허용한다", () => {
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(wireflowStyles).toMatch(
+      /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-messages \{[^}]*touch-action: pan-y pinch-zoom;/u,
+    );
+  });
+
+  it("RAG 안내 배너는 swipe 중 보이는 좌우 경계선을 유지한다", () => {
+    const wireflowStyles = readFileSync(join(webRoot, "app", "wireflow.css"), "utf8");
+
+    expect(wireflowStyles).toMatch(
+      /\[data-wireflow-screen="U-RAG-001"\] \.civic-rag-session-bar \{[^}]*border-inline: 1px solid #d9e2f2;/u,
+    );
+  });
+});

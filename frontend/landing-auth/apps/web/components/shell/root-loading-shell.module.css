@@ -1,0 +1,83 @@
+.content {
+  display: grid;
+  min-height: 0;
+  place-items: center;
+}
+
+.brand {
+  display: inline-flex;
+  max-width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 7px;
+  vertical-align: middle;
+}
+
+.brandTitle {
+  color: #0a4fd1;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.6px;
+  line-height: 20px;
+}
+
+.regionBadge {
+  display: inline-flex;
+  height: 22px;
+  min-height: 22px;
+  flex: none;
+  align-items: center;
+  border-radius: 4px;
+  background: #edf2ff;
+  color: #0a4fd1;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 18px;
+  padding: 2px 6px;
+}
+
+.status {
+  display: grid;
+  width: 100%;
+  justify-items: center;
+  gap: 12px;
+  padding: 24px;
+  text-align: center;
+}
+
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 3px solid #d8e0f2;
+  border-top-color: #266ef5;
+  border-radius: 50%;
+  animation: root-loading-spin 0.8s linear infinite;
+}
+
+.title {
+  margin: 4px 0 0;
+  color: #121417;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  line-height: 1.5;
+}
+
+.description {
+  margin: -4px 0 0;
+  color: #59616b;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+@keyframes root-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spinner {
+    animation: none;
+  }
+}

@@ -1,0 +1,44 @@
+# Main/Auth·RAG·관리자 도메인 통합 구현 위치
+
+실제 UI 위에 인증과 RAG를 연결한 코드 위치를 빠르게 찾기 위한 문서다. 인증 규격은
+[`../contracts/platform-auth.md`](../contracts/platform-auth.md)를 따른다.
+
+## Route
+
+- `apps/web/app/(participant)/[feature]/[[...screen]]/page.tsx`: 공개·참여자 Main/Auth와 RAG 화면
+- `apps/web/app/(admin)/admin/[feature]/[[...screen]]/page.tsx`: 관리자 Main/Auth, RAG, Chat 승인, Vote 과업 화면
+- `apps/web/app/api/v1/[...path]/route.ts`: 허용 목록 기반 Main/Auth BFF
+- 공개 nginx `/api/v1/rag/**`: RAG Resource Server 직결 경로
+- `apps/web/app/api/v1/admin/room-creation-requests/**`: Chat 관리자 allowlist BFF
+- `apps/web/app/api/v1/admin/tasks/**`: Vote 관리자 allowlist BFF
+- `apps/web/app/auth/refresh/page.tsx`: path-scoped Refresh Token을 이용하는 갱신 화면
+- 공개 nginx `/stream/rag/queries/[jobId]`: RAG Resource Server 직결 SSE 경로
+
+## 인증 코드
+
+- `apps/web/lib/auth/require-access.ts`: Server Component의 현재 사용자 조회와 참여자 접근 확인
+- `apps/web/lib/auth/require-admin.ts`: role·permission 기반 관리자 접근 확인
+- `apps/web/lib/auth/current-user-client.ts`: Main/Auth `/me` 응답을 최소 `CurrentUser` 모델로 변환
+- `apps/web/lib/auth/authenticated-fetch.ts`: `401 -> refresh -> 1회 재시도`
+- `apps/web/lib/api/main-auth-client.ts`: Main/Auth same-origin 프록시와 CSRF 처리
+- `apps/web/lib/server/civic-auth/production-credential-adapter.ts`: 동일 Access Token 전달 경계
+
+## UI 코드
+
+- `apps/web/components/platform-shell/**`: `frontend2` 원본 `393 × 852` 참여자 레이아웃
+- `apps/web/components/shell/participant-shell.tsx`: 원본 Platform Shell에 이관 UI를 넣는 adapter
+- `apps/web/components/screens/auth-functional-screen.tsx`: 로그인·가입·복구
+- `apps/web/components/screens/account-functional-screen.tsx`: 계정·보안
+- `apps/web/components/screens/admin-functional-screen.tsx`: 사용자·역할·permission 관리
+- `apps/web/components/rag/participant-rag-screen.tsx`: 문서 기반 사용자 질의
+- `apps/web/components/rag/admin-rag-screen.tsx`: 폴더·문서·업로드·작업 관리
+- `apps/web/components/rag/admin-rag-analytics.tsx`: RAG 분석
+- `apps/web/components/rag/admin-rag-crawler.tsx`: 수집 소스 관리
+- `apps/web/components/admin/admin-chat-request-screen.tsx`: 채팅방 생성 신청 조회·승인·반려
+- `apps/web/components/admin/admin-task-screen.tsx`: Vote 과업 작성·수명주기·결과 관리
+
+참여자 Chat·Vote는 현재 placeholder다. Chat 관리자 중 현재 서버 계약이 있는 생성 신청 관리와 Vote
+관리자 과업 관리, Simulation 관리자 실행 화면은 실제 API를 사용한다. RAG와 Simulation 요청은 Web
+BFF를 거치지 않고 공개 nginx에서 각 Resource Server로 전달된다. 세부 경계는
+[`../contracts/admin-domain-integration.md`](../contracts/admin-domain-integration.md)를 따른다.
+참여자·공개 사용자 화면은 기능과 관계없이 정확히 하나의 `PlatformShell` 안에서 렌더링한다.

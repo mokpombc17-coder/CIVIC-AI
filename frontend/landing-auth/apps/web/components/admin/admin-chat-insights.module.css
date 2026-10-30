@@ -1,0 +1,501 @@
+/* 관리자 대화 인사이트(토론방 운영·통계) 화면.
+   문서 관리와 동일하게 목록·분석을 카드로 감싸지 않고 세퍼레이터로 나눈다.
+   좌우 패널의 16px 거터는 admin-console.css의 .console-pane-body(16px)와 맞춘다. */
+
+.analysisPanel {
+  display: flex;
+  min-height: 0;
+  flex-direction: column;
+  gap: 1rem;
+  min-width: 0;
+  padding: 0 16px 16px;
+}
+
+.analysisPanel > :global(.console-tabs) {
+  width: auto;
+  margin-inline: -16px;
+  padding-inline: 16px;
+}
+
+/* ---- 안내·오류 메시지 ---- */
+
+.problem,
+.statusMessage {
+  margin: 0;
+  border-left: 3px solid var(--wf-danger);
+  background: var(--wf-danger-soft);
+  color: var(--wf-danger);
+  padding: 0.75rem;
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.statusMessage {
+  border-left-color: var(--wf-blue);
+  background: var(--wf-blue-soft);
+  color: var(--wf-navy-deep);
+}
+
+/* ---- 분석 조건 카드 ---- */
+
+.rangeForm,
+.snapshot,
+.conversation,
+.barCard {
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: #fff;
+}
+
+.rangeForm {
+  display: grid;
+  gap: 0.75rem;
+  padding: 14px 16px;
+}
+
+.rangeForm > header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+}
+
+.rangeForm > header > div:first-child {
+  display: grid;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.rangeForm header small,
+.rangeForm > p,
+.rangeFields label span {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.rangeForm header strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.rangeForm header :global(.console-badge) {
+  flex: 0 0 auto;
+}
+
+.rangeActions {
+  display: flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 8px;
+}
+
+.rangeForm > p {
+  margin: 0;
+}
+
+.periodPicker {
+  display: inline-flex;
+  width: fit-content;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  padding: 2px;
+}
+
+.periodPicker button {
+  min-height: 28px;
+  border: 0;
+  border-radius: var(--wf-radius);
+  background: transparent;
+  color: var(--wf-muted);
+  padding: 3px 9px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.periodPicker button[aria-pressed="true"] {
+  background: #fff;
+  color: var(--wf-navy-deep);
+  box-shadow: 0 1px 4px rgb(30 33 36 / 12%);
+}
+
+.rangeFields {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 0.65rem;
+  align-items: end;
+}
+
+.rangeFields label {
+  display: grid;
+  gap: 0.3rem;
+}
+
+.rangeFields > span {
+  padding-bottom: 0.75rem;
+  color: var(--wf-muted);
+}
+
+.rangeFields input {
+  width: 100%;
+  min-height: 2.65rem;
+  border: 1px solid var(--wf-muted);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  color: var(--wf-ink);
+  padding: 0.6rem 0.7rem;
+}
+
+/* ---- 빈 상태 ---- */
+
+.empty {
+  display: grid;
+  place-items: center;
+  min-height: 20rem;
+  border: 1px dashed var(--wf-muted);
+  border-radius: var(--wf-radius);
+  background:
+    linear-gradient(135deg, rgb(37 110 244 / 4%) 25%, transparent 25%) 0 0 / 1rem 1rem,
+    #fff;
+  padding: 2rem;
+  text-align: center;
+}
+
+.empty span {
+  display: grid;
+  place-items: center;
+  width: 3.25rem;
+  height: 3.25rem;
+  border-radius: 50%;
+  background: var(--wf-navy-deep);
+  color: var(--wf-focus-ring);
+  font-size: 1.5rem;
+}
+
+.empty h2 {
+  margin: 0.85rem 0 0;
+  font-size: 1.15rem;
+}
+
+.empty p {
+  max-width: 34rem;
+  margin: 0.4rem 0 0;
+  color: var(--wf-muted);
+  line-height: 1.65;
+}
+
+/* ---- 분석 결과 ---- */
+
+.result {
+  display: grid;
+  gap: 1rem;
+}
+
+.snapshot {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 1rem;
+  padding: 16px;
+}
+
+.snapshot h2 {
+  margin: 0.35rem 0;
+  font-size: 1.45rem;
+  letter-spacing: -0.035em;
+}
+
+.snapshot p {
+  margin: 0;
+  color: var(--wf-muted);
+  line-height: 1.55;
+}
+
+.snapshotMeta {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+/* 경고(무결성 확인) 톤은 --wf-* 토큰에 대응 색이 없어 앰버 색상을 유지한다. */
+.warnings {
+  margin: 0;
+  border: 1px solid #e8bb74;
+  border-radius: var(--wf-radius);
+  background: #fff8e8;
+  color: #8a4b08;
+  padding: 0.8rem 0.8rem 0.8rem 1.8rem;
+  font-size: 13px;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.kpis article {
+  display: grid;
+  gap: 0.25rem;
+  border: 1px solid var(--wf-line);
+  border-top: 3px solid var(--wf-blue);
+  border-radius: var(--wf-radius);
+  background: #fff;
+  padding: 1rem;
+}
+
+.kpis article span,
+.kpis article small {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.kpis article strong {
+  color: var(--wf-navy-deep);
+  font-size: 18px;
+}
+
+.kpis .dangerMetric {
+  border-top-color: var(--wf-danger);
+}
+
+.kpis .dangerMetric strong {
+  color: var(--wf-danger);
+}
+
+/* ---- 대화 상세 ---- */
+
+.conversation {
+  padding: 16px;
+}
+
+.conversation > header,
+.barCard header {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: end;
+  margin-bottom: 0.85rem;
+}
+
+.conversation h3,
+.barCard h3 {
+  margin: 0.25rem 0 0;
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.conversation header small {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.conversation ol {
+  display: grid;
+  gap: 0.75rem;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.conversation li {
+  display: grid;
+  justify-items: start;
+  gap: 0.2rem;
+}
+
+.conversation li > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+  padding-left: 0.75rem;
+}
+
+.conversation time {
+  color: var(--wf-muted);
+  font-size: 12px;
+}
+
+.conversation li > div > span {
+  border-radius: 999px;
+  background: var(--wf-danger-soft);
+  color: var(--wf-danger);
+  padding: 0.15rem 0.45rem;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.conversation .messageBubble {
+  position: relative;
+  max-width: min(100%, 44rem);
+  margin: 0;
+  border: 1px solid #c9d9ef;
+  border-radius: 4px 14px 14px;
+  background: var(--wf-blue-soft);
+  padding: 0.7rem 0.9rem;
+  line-height: 1.6;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.conversation .messageBubble::before {
+  position: absolute;
+  top: -1px;
+  left: -9px;
+  width: 10px;
+  height: 12px;
+  background: var(--wf-blue-soft);
+  clip-path: polygon(100% 0, 100% 100%, 0 0);
+  content: "";
+}
+
+.conversation .deletedMessage .messageBubble {
+  border-color: #efc5c5;
+  background: var(--wf-danger-soft);
+  color: var(--wf-muted);
+  text-decoration: line-through;
+}
+
+.conversation .deletedMessage .messageBubble::before {
+  background: var(--wf-danger-soft);
+}
+
+/* ---- 일자별 추이 ---- */
+
+.barCard {
+  min-width: 0;
+  padding: 16px;
+}
+
+.barCard ol {
+  display: grid;
+  gap: 0.7rem;
+  max-height: 18rem;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.barCard li div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.3rem;
+  font-size: 12px;
+}
+
+.barCard li div span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.barCard li i {
+  display: block;
+  width: var(--bar-width);
+  min-width: 2px;
+  height: 0.4rem;
+  border-radius: 999px;
+  background: linear-gradient(90deg, var(--wf-blue), var(--wf-focus-ring));
+}
+
+.barCard > p {
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+/* ---- 토론방 운영 설정 ---- */
+
+.roomSettings {
+  border-top: 1px solid var(--wf-line);
+  color: var(--wf-muted);
+  font-size: 13px;
+}
+
+.roomSettings summary {
+  width: fit-content;
+  padding: 0.65rem 0;
+  color: var(--wf-muted);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.roomSettings > div {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  align-items: center;
+  border: 1px solid var(--wf-line);
+  border-radius: var(--wf-radius);
+  background: var(--wf-surface);
+  padding: 0.75rem 0.85rem;
+}
+
+.roomSettings > div > button {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.roomSettings p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+/* ---- 상호작용 상태 ---- */
+
+.analysisPanel button:disabled {
+  cursor: not-allowed;
+  opacity: 0.52;
+}
+
+.rangeFields input:focus-visible,
+.periodPicker button:focus-visible,
+.roomSettings summary:focus-visible {
+  outline: 3px solid var(--wf-focus-ring);
+  outline-offset: 2px;
+}
+
+/* ---- 반응형 ---- */
+
+@media (max-width: 1100px) {
+  .analysisPanel {
+    padding: 16px 16px 0;
+  }
+
+  .roomSettings > div {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 720px) {
+  .snapshot,
+  .rangeFields {
+    grid-template-columns: 1fr;
+  }
+
+  .snapshotMeta {
+    justify-content: flex-start;
+  }
+
+  .rangeFields > span {
+    display: none;
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .rangeForm > header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .rangeActions {
+    flex-wrap: wrap;
+  }
+}

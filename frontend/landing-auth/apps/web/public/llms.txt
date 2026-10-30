@@ -1,0 +1,11 @@
+# CIVIC.AI
+
+> CIVIC.AI는 자료를 살펴보고, 다양한 생각을 나누며, 투표로 의견을 더하는 AI 기반 시민 참여 플랫폼입니다.
+
+## 주요 페이지
+
+- [CIVIC.AI 홈](https://example.com/home): 시민 참여 서비스의 공개 홈입니다.
+
+## 사이트 탐색
+
+- [사이트맵](https://example.com/sitemap.xml): 검색 노출이 허용된 공개 페이지 목록입니다.

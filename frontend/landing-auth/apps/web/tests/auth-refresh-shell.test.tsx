@@ -1,0 +1,69 @@
+import { renderToStaticMarkup } from "react-dom/server";
+import { describe, expect, it } from "vitest";
+import RefreshPage from "@/app/auth/refresh/page";
+import ForbiddenLoading from "@/app/forbidden/loading";
+
+describe("authentication transition shells", () => {
+  it("keeps the common platform shell while the forbidden route is loading", () => {
+    const markup = renderToStaticMarkup(<ForbiddenLoading />);
+
+    expect(markup).toContain('data-platform-shell="true"');
+    expect(markup).toContain('aria-label="CIVIC.AI 전남광주"');
+    expect(markup).toContain('role="status"');
+    expect(markup).toContain('aria-busy="true"');
+    expect(markup).toContain("화면을 준비 중입니다.");
+    expect(markup).toContain("잠시만 기다려 주세요.");
+    expect(markup).toContain(">홈</span>");
+    expect(markup).toContain(">AI</span>");
+    expect(markup).toContain(">토론방</span>");
+    expect(markup).toContain(">투표</span>");
+    expect(markup).toContain(">계정</span>");
+    expect(markup).not.toContain('aria-current="page"');
+    expect(markup).not.toContain('data-fullscreen-status="true"');
+  });
+
+  it.each([
+    { activeHref: "/rag", returnTo: "/rag?question=local", title: "AI" },
+    { activeHref: "/mypage", returnTo: "/mypage", title: "계정" },
+  ])(
+    "$returnTo 토큰 갱신 중에는 목적지 participant shell을 유지한다",
+    async ({ activeHref, returnTo, title }) => {
+      const page = await RefreshPage({ searchParams: Promise.resolve({ returnTo }) });
+      const markup = renderToStaticMarkup(page);
+
+      expect(markup).toContain('data-platform-shell="true"');
+      expect(markup).toContain('data-participant-surface="true"');
+      expect(markup).toContain(`>${title}</h1>`);
+      expect(markup).toMatch(
+        new RegExp(`aria-current="page"[^>]*href="${activeHref.replace("/", "\\/")}"`),
+      );
+      expect(markup).not.toContain('data-fullscreen-status="true"');
+      expect(markup).not.toContain("로그인 상태를 확인하고 있습니다.");
+    },
+  );
+
+  it.each(["/account", "/chat", "/vote/results"])(
+    "%s 토큰 갱신 중에도 participant shell을 사용한다",
+    async (returnTo) => {
+      const page = await RefreshPage({ searchParams: Promise.resolve({ returnTo }) });
+      const markup = renderToStaticMarkup(page);
+
+      expect(markup).toContain('data-platform-shell="true"');
+      expect(markup).toContain('data-participant-surface="true"');
+      expect(markup).not.toContain('data-fullscreen-status="true"');
+      expect(markup).not.toContain("로그인 상태를 확인하고 있습니다.");
+    },
+  );
+
+  it("does not render the participant mobile shell while an admin token refreshes", async () => {
+    const page = await RefreshPage({
+      searchParams: Promise.resolve({ returnTo: "/admin/rag" }),
+    });
+    const markup = renderToStaticMarkup(page);
+
+    expect(markup).toContain('data-fullscreen-status="true"');
+    expect(markup).toContain("로그인 상태를 확인하고 있습니다.");
+    expect(markup).not.toContain('data-platform-shell="true"');
+    expect(markup).not.toContain("civic-platform-participant");
+  });
+});
