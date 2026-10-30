@@ -1,3 +1,4 @@
+import "../wireflow.css";
 import { MainFunctionalScreen } from "@/components/screens/main-functional-screen";
 import { getScreenByRoute } from "@/lib/screens/registry";
 import { PlatformPageShell } from "@/components/platform-page-shell";
