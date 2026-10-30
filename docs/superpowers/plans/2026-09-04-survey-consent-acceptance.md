@@ -328,7 +328,7 @@ Expected: GitHub reports the PR merged and local `main` resolves to the merged c
 - No repository source changes. Server-side deployment state changes are limited to the existing Main/Auth release and the exact-path edge route when authorized by the workspace allowlist.
 
 **Interfaces:**
-- Consumes: merged `origin/main` SHA and existing A1 server-side secrets/Compose configuration.
+- Consumes: merged `origin/main` SHA and existing server-side secrets/Compose configuration.
 - Produces: `main-auth` and `main-worker` on one recorded image digest, Flyway V22 applied, exact public route reachable, and rollback evidence retained.
 
 - [ ] **Step 1: Capture pre-deployment evidence**
@@ -341,7 +341,7 @@ Build from the merged SHA using Docker Buildx with `--platform linux/arm64`, SHA
 
 - [ ] **Step 3: Validate migration and Compose cutover**
 
-Compare production Flyway history with V1-V22, validate fully merged Compose, run V22 before cutover, and update both `main-auth` and `main-worker` to the same exact image reference. Use `docker compose up -d --no-build`; do not build on A1.
+Compare production Flyway history with V1-V22, validate fully merged Compose, run V22 before cutover, and update both `main-auth` and `main-worker` to the same exact image reference. Use `docker compose up -d --no-build`; do not build on the target server.
 
 - [ ] **Step 4: Add only the explicit edge route when needed and allowed**
 

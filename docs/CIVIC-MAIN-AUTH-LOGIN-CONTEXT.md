@@ -242,20 +242,15 @@ discovery 응답은 `issuer`와 `jwks_uri`를 제공한다. 정상 배포의 JWK
 각 active·retiring RSA JWK 파일에는 서로 다른 비어 있지 않은 `kid`를 설정한다. unknown
 `kid`를 받으면 JWKS를 한 번 다시 읽은 뒤 검증 실패를 `401`로 처리한다.
 
-OCI A1 개발 주소:
+공개 주소 예시:
 
 ```text
-Public origin / issuer: https://140-238-17-223.sslip.io
-Discovery:              https://140-238-17-223.sslip.io/.well-known/openid-configuration
-JWKS:                   https://140-238-17-223.sslip.io/.well-known/jwks.json
-Auth API:               https://140-238-17-223.sslip.io/api/v1/auth/*
+Public origin / issuer: https://auth.example.com
+Discovery:              https://auth.example.com/.well-known/openid-configuration
+JWKS:                   https://auth.example.com/.well-known/jwks.json
+Auth API:               https://auth.example.com/api/v1/auth/*
 Audience:               civic-ai-api
 ```
-
-2026-08-26 OCI A1 개발 서버에 `feat/refresh-token-auth` 구현과 영속 RSA private JWK를
-배포했다. 공개 JWKS는 `kty=RSA`, `alg=RS256`, 비어 있지 않은 `kid`를 제공한다. 공개 Auth
-경로에서 로그인, `/me`, Refresh Token 회전, 로그아웃을 실행했고 실제 발급 Access JWT의
-서명을 위 JWKS로 검증했다. 이 주소는 현재 연동 시험에 바로 사용할 수 있다.
 
 컨테이너가 JWKS를 내부 주소로 읽더라도 JWT의 `iss` 검증값은 공개 issuer와 정확히 같아야
 한다.

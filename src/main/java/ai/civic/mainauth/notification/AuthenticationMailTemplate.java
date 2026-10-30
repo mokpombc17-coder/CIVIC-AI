@@ -53,7 +53,7 @@ final class AuthenticationMailTemplate {
                 감사합니다.
                 CIVIC AI 드림
 
-                문의 사항은 CIVIC AI 서비스(https://civic-ai.co.kr)에서 확인해 주세요.
+                문의 사항은 CIVIC AI 서비스(https://example.com)에서 확인해 주세요.
                 본 메일은 발신 전용입니다.
                 """.formatted(copy.heading(), copy.introduction(), code);
     }
@@ -107,7 +107,7 @@ final class AuthenticationMailTemplate {
                             </tr>
                             <tr>
                               <td style="padding-top:22px;border-top:1px solid #e8eaed;font-size:12px;line-height:1.65;color:#80868b;">
-                                문의 사항은 <a href="https://civic-ai.co.kr" style="color:#1a73e8;text-decoration:underline;">CIVIC AI 서비스</a>에서 확인해 주세요.<br>
+                                문의 사항은 <a href="https://example.com" style="color:#1a73e8;text-decoration:underline;">CIVIC AI 서비스</a>에서 확인해 주세요.<br>
                                 본 메일은 발신 전용입니다.
                               </td>
                             </tr>
