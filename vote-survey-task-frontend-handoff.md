@@ -939,7 +939,7 @@ Frontend E2E 계정의 JWT에는 3.2의 사용자 scope가 모두 있어야 한�
 Backend 전체 참여 흐름의 참고 smoke script:
 
 ```text
-vote-resource-server/scripts/local-task-smoke.sh
+scripts/local-task-smoke.sh
 ```
 
 이 script가 검증하는 순서도 Survey 조회·제출 -> Persona 준비 -> Task 조회 -> prediction -> Task 제출이다.
@@ -957,16 +957,16 @@ vote-resource-server/scripts/local-task-smoke.sh
 
 주요 source:
 
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/survey/api/SurveyUserController.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/survey/api/SurveyApiModels.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/task/api/TaskUserController.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/task/api/TaskSubmissionController.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/task/api/TaskApiModels.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/task/application/query/TaskPredictionQueryService.java`
-- `vote-resource-server/src/main/java/com/hamcheeze/vote/security/VoteSecurityConfig.java`
+- `src/main/java/com/hamcheeze/vote/survey/api/SurveyUserController.java`
+- `src/main/java/com/hamcheeze/vote/survey/api/SurveyApiModels.java`
+- `src/main/java/com/hamcheeze/vote/task/api/TaskUserController.java`
+- `src/main/java/com/hamcheeze/vote/task/api/TaskSubmissionController.java`
+- `src/main/java/com/hamcheeze/vote/task/api/TaskApiModels.java`
+- `src/main/java/com/hamcheeze/vote/task/application/query/TaskPredictionQueryService.java`
+- `src/main/java/com/hamcheeze/vote/security/VoteSecurityConfig.java`
 - `survey-api.md`
 - `task-domain.md`
-- `vote-resource-server/docs/vote-auth-scope-handoff.md`
+- `docs/vote-auth-scope-handoff.md`
 
 ---
 

@@ -54,7 +54,7 @@ Nginx에서 TLS를 종료한 뒤 동일 인스턴스 내부에서 8082·9000으�
 
 ## 배포 설정
 
-8082의 `compose.stage.yaml`은 다음 두 배포 환경 변수를 사용한다.
+8082는 다음 두 배포 환경 변수를 사용한다.
 
 ```text
 VOTE_AI_RUNTIME_BASE_URL=https://civic-ai.co.kr
