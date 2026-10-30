@@ -1,0 +1,90 @@
+# 로컬 실행 전용 인프라입니다. 비밀번호는 모두 로컬 전용 값입니다.
+name: civic-ai-local
+
+services:
+  auth-postgres:
+    image: postgres:16.9-alpine
+    environment:
+      POSTGRES_DB: civic_main
+      POSTGRES_USER: civic_main
+      POSTGRES_PASSWORD: civic-main-local-only
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_AUTH_DB_PORT}:5432"
+    volumes:
+      - auth-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U civic_main -d civic_main"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_REDIS_PORT}:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  vote-postgres:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: vote
+      POSTGRES_USER: vote
+      POSTGRES_PASSWORD: vote
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_VOTE_DB_PORT}:5432"
+    volumes:
+      - vote-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U vote -d vote"]
+      interval: 2s
+      timeout: 3s
+      retries: 30
+
+  mongodb:
+    image: mongo:7.0.14
+    command:
+      - mongod
+      - --replSet
+      - rs0
+      - --bind_ip_all
+      - --port
+      - "${CIVIC_LOCAL_MONGO_PORT}"
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_MONGO_PORT}:${CIVIC_LOCAL_MONGO_PORT}"
+    volumes:
+      - mongodb-data:/data/db
+    healthcheck:
+      # 복제 세트 주소를 호스트와 컨테이너가 함께 쓸 수 있는 localhost로 맞춥니다.
+      test:
+        - CMD-SHELL
+        - >-
+          mongosh --quiet --port ${CIVIC_LOCAL_MONGO_PORT} --eval "
+          const host = 'localhost:${CIVIC_LOCAL_MONGO_PORT}';
+          try {
+            quit(rs.status().myState === 1 ? 0 : 1);
+          } catch (error) {
+            try { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host }] }); } catch (ignored) {}
+            quit(1);
+          }"
+      interval: 3s
+      timeout: 10s
+      retries: 40
+
+  mailpit:
+    image: axllent/mailpit:v1.27.11
+    ports:
+      - "127.0.0.1:${CIVIC_LOCAL_SMTP_PORT}:1025"
+      - "127.0.0.1:${CIVIC_LOCAL_MAIL_UI_PORT}:8025"
+
+volumes:
+  auth-postgres-data:
+  redis-data:
+  vote-postgres-data:
+  mongodb-data:
