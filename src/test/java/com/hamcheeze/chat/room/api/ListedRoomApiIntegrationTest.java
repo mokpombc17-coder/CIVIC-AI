@@ -56,6 +56,10 @@ class ListedRoomApiIntegrationTest
     @Autowired
     private RoomCategoryStore categoryStore;
 
+    // Each insert is one second older than the previous one, so rooms
+    // appear in insertion order under createdAt DESC.
+    private int insertedRooms;
+
     @Test
     void listsOnlyActiveListedRoomsWithCursor()
             throws Exception {
@@ -396,6 +400,44 @@ class ListedRoomApiIntegrationTest
     }
 
     @Test
+    void ordersNewestFirstAndBreaksCreatedAtTiesByRoomIdDescending()
+            throws Exception {
+        insertCreatedAt("recent-a", CREATED_AT.minusSeconds(10));
+        insertCreatedAt("recent-b", CREATED_AT);
+        insertCreatedAt("recent-c", CREATED_AT.minusSeconds(5));
+        insertCreatedAt("recent-d", CREATED_AT.minusSeconds(5));
+        insertCreatedAt("recent-e", CREATED_AT.minusSeconds(5));
+
+        List<String> seen = new ArrayList<>();
+        String cursor = null;
+        do {
+            MockHttpServletRequestBuilder request =
+                    get("/api/v1/rooms")
+                            .with(jwt(ChatScopes.ROOMS_READ))
+                            .queryParam("limit", "2");
+            if (cursor != null) {
+                request.queryParam("cursor", cursor);
+            }
+            MvcResult page = mockMvc.perform(request)
+                    .andExpect(status().isOk())
+                    .andReturn();
+            seen.addAll(roomIds(page));
+            cursor = page.getResponse()
+                    .getContentAsString()
+                    .contains("\"hasNext\":true")
+                    ? nextCursor(page)
+                    : null;
+        } while (cursor != null);
+
+        assertThat(seen).containsExactly(
+                "recent-b",
+                "recent-e",
+                "recent-d",
+                "recent-c",
+                "recent-a");
+    }
+
+    @Test
     void treatsRegexMetacharactersAsLiteralText()
             throws Exception {
         insert(
@@ -510,7 +552,7 @@ class ListedRoomApiIntegrationTest
                 joinPolicy,
                 status == RoomStatus.ACTIVE ? 1 : 0,
                 Math.max(2L, (long) (status == RoomStatus.ACTIVE ? 1 : 0) + 1L),
-                CREATED_AT,
+                nextCreatedAt(),
                 status == RoomStatus.CLOSED
                         ? CREATED_AT.plusSeconds(60)
                         : null,
@@ -540,10 +582,34 @@ class ListedRoomApiIntegrationTest
                 Math.max(
                         2L,
                         (long) (status == RoomStatus.ACTIVE ? 1 : 0) + 1L),
-                CREATED_AT,
+                nextCreatedAt(),
                 status == RoomStatus.CLOSED
                         ? CREATED_AT.plusSeconds(60)
                         : null,
+                0));
+    }
+
+    private Instant nextCreatedAt() {
+        return CREATED_AT.minusSeconds(insertedRooms++);
+    }
+
+    private void insertCreatedAt(String roomId, Instant createdAt) {
+        ensureCategoryIds(LegacyRoomCategoryMapping.categoryIds(
+                List.of(RoomCategory.POLICY)));
+        roomStore.insert(Room.restore(
+                roomId,
+                "Recent " + roomId,
+                "Description " + roomId,
+                java.util.List.of(RoomCategory.POLICY),
+                "membership-owner-" + roomId,
+                "owner-" + roomId,
+                RoomStatus.ACTIVE,
+                RoomVisibility.LISTED,
+                JoinPolicy.OPEN,
+                1,
+                2L,
+                createdAt,
+                null,
                 0));
     }
 

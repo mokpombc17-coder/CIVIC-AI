@@ -1029,8 +1029,10 @@ Room 계약에는 이를 노출하지 않는다.
 필요하면 프론트에서 `name` 기준으로 정렬한다.
 
 `hasNext`가 `true`이면 동일한 검색·필터 조건과 함께 다음 요청의 `cursor`에
-`nextCursor`를 전달한다. 정렬은 검색 관련도가 아니라 기존 `roomId ASC`를
-유지한다. Mongo 조회 실패나 timeout은 빈 목록으로 변환하지 않고 요청
+`nextCursor`를 전달한다. 정렬은 검색 관련도가 아니라 최신 생성 순
+(`createdAt DESC`, 같은 시각이면 `roomId DESC`)이다. 정렬 기준 변경으로 cursor
+버전이 4로 바뀌었으며, 이전 버전 cursor는 `400 INVALID_CURSOR`로 거절되므로
+첫 페이지부터 다시 조회한다. Mongo 조회 실패나 timeout은 빈 목록으로 변환하지 않고 요청
 실패로 처리한다.
 
 ### 방 상세 조회

@@ -635,6 +635,15 @@ class MongoRoomStoresIntegrationTest {
         assertIndex(
                 roomIndexes,
                 MongoRoomSchemaInitializer
+                        .LISTED_ROOM_RECENT_CURSOR_INDEX_NAME,
+                new Document("status", 1)
+                        .append("visibility", 1)
+                        .append("createdAt", -1)
+                        .append("_id", -1),
+                false);
+        assertIndex(
+                roomIndexes,
+                MongoRoomSchemaInitializer
                         .ROOM_CATEGORY_CURSOR_INDEX_NAME,
                 new Document("categoryIds", 1)
                         .append("_id", 1),

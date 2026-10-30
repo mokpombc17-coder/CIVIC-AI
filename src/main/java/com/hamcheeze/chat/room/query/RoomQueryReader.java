@@ -31,7 +31,7 @@ public interface RoomQueryReader {
 
     CursorSlice<Room> findListedRooms(
             ListedRoomQueryCriteria criteria,
-            String afterRoomId,
+            ListedRoomPosition after,
             int limit);
 
     CursorSlice<Room> findAdminRooms(

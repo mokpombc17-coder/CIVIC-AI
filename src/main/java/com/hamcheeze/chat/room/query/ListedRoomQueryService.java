@@ -35,7 +35,11 @@ public final class ListedRoomQueryService {
                 criteria);
         CursorSlice<Room> rooms = reader.findListedRooms(
                 criteria,
-                decoded == null ? null : decoded.lastRoomId(),
+                decoded == null
+                        ? null
+                        : new ListedRoomPosition(
+                                decoded.lastCreatedAt(),
+                                decoded.lastRoomId()),
                 limit);
         List<ListedRoomView> views = rooms.items().stream()
                 .map(ListedRoomQueryService::view)
@@ -48,6 +52,7 @@ public final class ListedRoomQueryService {
                             ListedRoomQueryCursor.CURRENT_VERSION,
                             ListedRoomQueryCursor.Scope.LISTED_ROOMS,
                             criteria,
+                            last.createdAt(),
                             last.roomId()));
         }
         return new CursorPage<>(

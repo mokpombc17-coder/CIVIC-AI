@@ -1,5 +1,6 @@
 package com.hamcheeze.chat.room.query;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.regex.Pattern;
 
@@ -7,10 +8,11 @@ public record ListedRoomQueryCursor(
         int version,
         Scope scope,
         ListedRoomQueryCriteria criteria,
+        Instant lastCreatedAt,
         String lastRoomId
 ) {
 
-    public static final int CURRENT_VERSION = 3;
+    public static final int CURRENT_VERSION = 4;
     private static final Pattern ROOM_ID =
             Pattern.compile("^[A-Za-z0-9_-]{1,64}$");
 
@@ -21,6 +23,7 @@ public record ListedRoomQueryCursor(
         }
         Objects.requireNonNull(scope, "scope");
         Objects.requireNonNull(criteria, "criteria");
+        Objects.requireNonNull(lastCreatedAt, "lastCreatedAt");
         if (scope != Scope.LISTED_ROOMS) {
             throw new IllegalArgumentException(
                     "Unsupported cursor scope");

@@ -25,6 +25,8 @@ public final class MongoRoomSchemaInitializer {
             "ix_chat_membership_room_status_cursor";
     public static final String LISTED_ROOM_CURSOR_INDEX_NAME =
             "ix_chat_room_status_visibility_cursor";
+    public static final String LISTED_ROOM_RECENT_CURSOR_INDEX_NAME =
+            "ix_chat_room_status_visibility_recent_cursor";
     public static final String ROOM_CATEGORY_CURSOR_INDEX_NAME =
             "ix_chat_room_category_cursor";
     public static final String MEMBERSHIP_OWNER_INDEX_NAME =
@@ -65,6 +67,14 @@ public final class MongoRoomSchemaInitializer {
                         .on("visibility", Sort.Direction.ASC)
                         .on("_id", Sort.Direction.ASC)
                         .named(LISTED_ROOM_CURSOR_INDEX_NAME));
+        mongoOperations
+                .indexOps(MongoRoomDocument.COLLECTION_NAME)
+                .createIndex(new Index()
+                        .on("status", Sort.Direction.ASC)
+                        .on("visibility", Sort.Direction.ASC)
+                        .on("createdAt", Sort.Direction.DESC)
+                        .on("_id", Sort.Direction.DESC)
+                        .named(LISTED_ROOM_RECENT_CURSOR_INDEX_NAME));
         mongoOperations
                 .indexOps(MongoRoomDocument.COLLECTION_NAME)
                 .createIndex(new Index()

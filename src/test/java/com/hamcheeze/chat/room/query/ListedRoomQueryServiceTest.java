@@ -20,6 +20,8 @@ class ListedRoomQueryServiceTest {
 
     private static final ListedRoomQueryCriteria UNFILTERED =
             new ListedRoomQueryCriteria(null, null, null);
+    private static final Instant CREATED_AT =
+            Instant.parse("2026-07-29T00:00:00Z");
 
     private final RoomQueryReader reader =
             mock(RoomQueryReader.class);
@@ -61,7 +63,8 @@ class ListedRoomQueryServiceTest {
                         first.nextCursor(),
                         UNFILTERED);
         assertThat(cursor.lastRoomId()).isEqualTo("room-b");
-        assertThat(cursor.version()).isEqualTo(3);
+        assertThat(cursor.lastCreatedAt()).isEqualTo(CREATED_AT);
+        assertThat(cursor.version()).isEqualTo(4);
         verify(reader).findListedRooms(
                 UNFILTERED,
                 null,
@@ -75,11 +78,12 @@ class ListedRoomQueryServiceTest {
                         ListedRoomQueryCursor.CURRENT_VERSION,
                         ListedRoomQueryCursor.Scope.LISTED_ROOMS,
                         UNFILTERED,
+                        CREATED_AT,
                         "room-a");
         String token = cursorCodec.encode(cursor);
         when(reader.findListedRooms(
                 UNFILTERED,
-                "room-a",
+                new ListedRoomPosition(CREATED_AT, "room-a"),
                 20))
                 .thenReturn(new CursorSlice<>(
                         List.of(room("room-b", "Beta")),
@@ -109,7 +113,7 @@ class ListedRoomQueryServiceTest {
                 JoinPolicy.OPEN,
                 1,
                 Math.max(2L, (long) (1) + 1L),
-                Instant.parse("2026-07-29T00:00:00Z"),
+                CREATED_AT,
                 null,
                 0);
     }

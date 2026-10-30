@@ -8,6 +8,7 @@ import tools.jackson.databind.ObjectReader;
 import tools.jackson.databind.ObjectWriter;
 
 import java.nio.charset.StandardCharsets;
+import java.time.Instant;
 import java.util.Base64;
 import java.util.Objects;
 
@@ -73,6 +74,7 @@ public final class ListedRoomQueryCursorCodec {
             int version,
             Scope scope,
             CriteriaPayload criteria,
+            Instant lastCreatedAt,
             String lastRoomId
     ) {
 
@@ -83,6 +85,7 @@ public final class ListedRoomQueryCursorCodec {
                     cursor.version(),
                     cursor.scope(),
                     CriteriaPayload.from(cursor.criteria()),
+                    cursor.lastCreatedAt(),
                     cursor.lastRoomId());
         }
 
@@ -95,6 +98,7 @@ public final class ListedRoomQueryCursorCodec {
                     version,
                     scope,
                     criteria.toCriteria(),
+                    lastCreatedAt,
                     lastRoomId);
         }
     }

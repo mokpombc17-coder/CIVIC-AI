@@ -7,6 +7,7 @@ import com.hamcheeze.chat.room.RoomStatus;
 import com.hamcheeze.chat.room.RoomVisibility;
 import com.hamcheeze.chat.room.query.AdminRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.CursorSlice;
+import com.hamcheeze.chat.room.query.ListedRoomPosition;
 import com.hamcheeze.chat.room.query.ListedRoomQueryCriteria;
 import com.hamcheeze.chat.room.query.RoomQueryReader;
 import org.springframework.data.domain.Sort;
@@ -123,7 +124,7 @@ public final class MongoRoomQueryReader
     @Override
     public CursorSlice<Room> findListedRooms(
             ListedRoomQueryCriteria listedCriteria,
-            String afterRoomId,
+            ListedRoomPosition after,
             int limit
     ) {
         Objects.requireNonNull(listedCriteria, "listedCriteria");
@@ -149,14 +150,21 @@ public final class MongoRoomQueryReader
                     Pattern.CASE_INSENSITIVE
                             | Pattern.UNICODE_CASE));
         }
-        if (afterRoomId != null) {
-            requireText(afterRoomId, "afterRoomId");
-            criteria = criteria.and("_id").gt(afterRoomId);
+        if (after != null) {
+            requireText(after.roomId(), "after.roomId");
+            criteria = criteria.orOperator(
+                    Criteria.where("createdAt")
+                            .lt(after.createdAt()),
+                    Criteria.where("createdAt")
+                            .is(after.createdAt())
+                            .and("_id")
+                            .lt(after.roomId()));
         }
         List<Room> found = mongoOperations.find(
                         Query.query(criteria)
                                 .with(Sort.by(
-                                        Sort.Direction.ASC,
+                                        Sort.Direction.DESC,
+                                        "createdAt",
                                         "_id"))
                                 .limit(limit + 1)
                                 .maxTime(
