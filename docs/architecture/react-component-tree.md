@@ -105,7 +105,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
 │                   │       ├── PlatformHeader [Server-compatible] [View] (apps/web/components/platform-shell/platform-header.tsx)
 │                   │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
 │                   │           ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
-│                   │           └── PlatformNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+│                   │           └── PlatformNavigation [Client] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
 │                   │               └── PlatformBottomNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
 │                   ├── ParticipantHome [Server] [View] (apps/web/components/participant-home.tsx)
 │                   └── LocalE2ELoginControl [Client] [Feature] [conditional: non-production] (apps/web/components/local-e2e-login-control.tsx)
@@ -344,7 +344,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     │       │               │   └── JoinChatRoomControl [Client] [Feature] [conditional] (apps/web/components/chat/join-chat-room-control.tsx) — 참여 가능한 Room
                                     │       │               └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                                     │       │                   ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
-                                    │       │                   └── PlatformNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                                    │       │                   └── PlatformNavigation [Client] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                                     │       │                       └── PlatformBottomNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                                     │       ├── route /chat/creation-requests: LegacyRoomCreationRequestsPage [Server] [Route] [redirect: /chat] (apps/web/app/chat/creation-requests/page.tsx)
                                     │       ├── route /chat/creation-requests/[creationRequestId]: RoomCreationRequestPage [Server] [Route] (apps/web/app/chat/creation-requests/[creationRequestId]/page.tsx)
@@ -362,7 +362,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                     │                   │       ├── ChatMessageViewport [Client] [Feature] [conditional: Room 오류 없음] (apps/web/components/chat/chat-message-viewport.tsx)
                                     │                   │       └── PlatformNavigationClient [Client] [View] (apps/web/components/platform-navigation-client.tsx)
                                     │                   │           ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**] (apps/web/components/participant-swipe-navigation-controller.tsx)
-                                    │                   │           └── PlatformNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
+                                    │                   │           └── PlatformNavigation [Client] [View] (apps/web/components/platform-shell/platform-navigation.tsx)
                                     │                   │               └── PlatformBottomNavigation [Client graph] [View] (apps/web/components/platform-shell/platform-bottom-navigation.tsx)
                                     │                   ├── ChatRoomSessionNotice [Client graph] [Feature] [conditional] [slot: sessionNotice] (apps/web/components/chat/chat-room-session-status.tsx)
                                     │                   ├── ChatRealtimeSyncStatus [Client] [Feature] [conditional] [slot: syncStatus] (apps/web/components/chat/chat-realtime-sync-status.tsx)
@@ -390,15 +390,18 @@ View는 공통 `PlatformShell`을 조립해 480px 이하에서는 가용 너비�
 제공한다. 이 Client adapter는 Next.js의 현재
 pathname을 읽어 router-independent `PlatformNavigation`에 전달한다. `PlatformNavigation`은 3001이
 소유하는 토론방·투표에는 Next Link client navigation을, 3000이 소유하는 홈·AI·계정에는 document
-navigation anchor를 제공하며 현재 도메인에만 `aria-current="page"`를 설정한다. 목록은
+navigation anchor를 제공하며 현재 도메인에만 `aria-current="page"`를 설정한다. pathname이 정확히
+`/vote`일 때 투표 항목을 다시 누르면 이동하지 않고 shell content 스크롤만 맨 위로 올려 선택한 탭과
+검색어를 유지한다. 목록은
 `scroll="self"`로 Shell content가
 스크롤을 소유하고, 채팅방은 `scroll="child"`로 `ChatMessageViewport`에 스크롤 책임을 위임한다.
 일반 플랫폼 화면은 `PlatformPageShell`을 사용하고, 채팅방처럼
 scroll·overlay 제어가 필요한 화면은 `PlatformShell`을 직접 조립한다.
 
-`PlatformShell`은 header, content, bottom navigation과 overlay slot의 배치, safe area, 공통
-z-index를 책임지고 내부 `PlatformShellVisualViewportBoundary`에 모바일 키보드 viewport 보정을
-위임한다. 이 runtime은 shell 내부의 편집 가능한 요소에 포커스가 있고 visual viewport가 기준보다
+`PlatformShell`은 header, content, content top action, bottom navigation과 overlay slot의 배치, safe area, 공통
+z-index를 책임지고 내부 `PlatformShellVisualViewportBoundary`에 모바일 키보드 viewport 보정과
+content 스크롤을 맨 위로 올리는 context를 위임한다. `PlatformNavigation`과 `PlatformScrollTopButton`은
+이 context로 shell element에 직접 접근하지 않고 content 스크롤을 올린다. 이 runtime은 shell 내부의 편집 가능한 요소에 포커스가 있고 visual viewport가 기준보다
 80px 이상 줄었을 때만 shell을 가시 영역에 맞추고 bottom navigation slot을 숨긴다. modal overlay가
 열리면 `contentInert`가 header·content·navigation surface를 함께 비활성화한다. `PlatformHeader`는
 공통 back icon의 link/button/disabled 표현을 소유하지만,
@@ -611,7 +614,9 @@ Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경�
 `PlatformShell`, `PlatformHeader`, `PlatformNavigationClient`를 조립한다. `/vote`의
 `VotePage`는 `tab`, `query`, `view` search param을 검증해 진행 중·완료 탭, 검색어와 목록·검색 결과
 view 초기값을 정규화한다.
-`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터 및 URL 동기화를 소유한다. `view`가 지정되지 않으면
+`VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터 및 URL 동기화를 소유한다. 목록을 내려 검색창과 탭 form이
+화면 밖으로 나가면 shell의 `contentTopAction` slot에 전달한 `PlatformScrollTopButton`이 header 아래에
+나타나고, 누르면 content 스크롤을 맨 위로 올린다. `view`가 지정되지 않으면
 검색어가 있을 때 검색 결과 view, 없을 때 목록 view로 시작한다. 목록 view에서는 선택한 탭의 목록 Query를
 카드 view model로 변환하고, 검색 결과 view에서는 두 탭의 Query를 비활성화한 뒤 통합 검색 Infinite Query로
 서버 정렬 순서대로 진행 중·완료 결과와 cursor pagination을 표시한다. 통합 검색 Query는 view와 관계없이
@@ -666,6 +671,7 @@ RootLayout [Server] [Route] (apps/web/app/layout.tsx)
                                 ├── route /vote: VotePage [Server] [Route] (apps/web/app/vote/page.tsx) — `tab`, `query`, `view` search param 정규화
                                 │   └── VoteTaskListScreen [Client] [Container] (apps/web/components/vote/vote-task-list-screen.tsx)
                                 │       └── PlatformShell [Server-compatible] [View]
+                                │           └── PlatformScrollTopButton [Client] [Feature] [slot: contentTopAction] (apps/web/components/platform-shell/platform-scroll-top-button.tsx) — 검색창·탭이 화면 밖일 때 표시
                                 └── segment /vote/[taskId]
                                     ├── route segment loading: VoteTaskLoading [Server] [Route] (apps/web/app/vote/[taskId]/loading.tsx) — `/result`에도 적용
                                     │   └── VoteTaskScreenLoading [Server-compatible] [View]
@@ -696,7 +702,7 @@ NotFound [Server] [Route] [conditional: unmatched route 또는 notFound()]
         ├── PlatformHeader [Server-compatible] [View]
         └── PlatformNavigationClient [Client] [View]
             ├── ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**]
-            └── PlatformNavigation [Client graph] [View]
+            └── PlatformNavigation [Client] [View]
                 └── PlatformBottomNavigation [Client graph] [View]
 ```
 
@@ -743,7 +749,7 @@ flowchart TD
     PlatformHeader["PlatformHeader [Server-compatible] [View]<br/>apps/web/components/platform-shell/platform-header.tsx"]
     PlatformNavigationClient["PlatformNavigationClient [Client] [View]<br/>apps/web/components/platform-navigation-client.tsx"]
     ParticipantSwipeNavigationController["ParticipantSwipeNavigationController [Client] [Adapter] [active: /chat/**, /vote/**]<br/>apps/web/components/participant-swipe-navigation-controller.tsx"]
-    PlatformNavigation["PlatformNavigation [Client graph] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
+    PlatformNavigation["PlatformNavigation [Client] [View]<br/>apps/web/components/platform-shell/platform-navigation.tsx"]
     PlatformBottomNavigation["PlatformBottomNavigation [Client graph] [View]<br/>apps/web/components/platform-shell/platform-bottom-navigation.tsx"]
 
     ChatLayout["ChatLayout [Server] [Route]<br/>apps/web/app/chat/layout.tsx"]
@@ -804,6 +810,7 @@ flowchart TD
     VoteTaskScreenLoading["VoteTaskScreenLoading [Server-compatible] [View] [conditional]<br/>apps/web/components/vote/vote-task-screen-loading.tsx"]
     VotePage["VotePage [Server] [Route]<br/>apps/web/app/vote/page.tsx"]
     VoteTaskListScreen["VoteTaskListScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-list-screen.tsx"]
+    PlatformScrollTopButton["PlatformScrollTopButton [Client] [Feature] [slot: contentTopAction]<br/>apps/web/components/platform-shell/platform-scroll-top-button.tsx"]
     VoteTaskLoading["VoteTaskLoading [Server] [Route]<br/>apps/web/app/vote/[taskId]/loading.tsx"]
     VoteTaskPage["VoteTaskPage [Server] [Route]<br/>apps/web/app/vote/[taskId]/page.tsx"]
     VoteTaskScreen["VoteTaskScreen [Client] [Container]<br/>apps/web/components/vote/vote-task-screen.tsx"]
@@ -933,6 +940,7 @@ flowchart TD
     VoteChildrenSlot -. "route /vote" .-> VotePage
     VotePage --> VoteTaskListScreen
     VoteTaskListScreen --> SelfScrollPlatformShell
+    VoteTaskListScreen -->|"contentTopAction"| PlatformScrollTopButton
     VoteChildrenSlot -. "route segment loading /vote/[taskId]; also /result" .-> VoteTaskLoading
     VoteTaskLoading --> VoteTaskScreenLoading
     VoteChildrenSlot -. "route /vote/[taskId]" .-> VoteTaskPage
@@ -978,8 +986,8 @@ flowchart TD
     classDef framework fill:#f3f4f6,stroke:#6b7280,color:#111827,stroke-dasharray:5 5;
 
     class RootLayout,AppShell,IndexPage,HomePage,ParticipantHome,ChatLayout,ChatPage,LegacyRoomCreationRequestsPage,RoomCreationRequestPage,ChatRoomLoading,ChatRoomPage,VoteLayout,VotePage,VoteTaskLoading,VoteTaskPage,VoteTaskResultPage,SurveyLayout,SurveyLoading,SurveyPage,Loading,NotFound server;
-    class GoogleAnalytics,GoogleAnalyticsUserIdentity,NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformShellVisualViewportBoundary,PlatformNavigationClient,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatAuthenticationRecoveryView,ChatServiceEligibilityGuard,ServiceEligibilityStatus,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatLoading,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,ChatRoomListDetailDialog,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatMessageComposer,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomMembershipPanelView,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRoomSettingsControlView,VoteQueryProvider,VoteServiceEligibilityGuard,VoteLoading,VoteTaskListScreen,VoteTaskScreen,VoteTaskResultScreen,SurveyQueryProvider,SurveyScreen,SurveyForm,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,ResidenceAddressField,KakaoPostcodeDialog,SurveyConfirmation,ErrorPage client;
-    class PlatformNavigation,PlatformBottomNavigation,ChatRoomEntryError,ChatRoomSessionNotice,SurveyHeaderProgress,SurveySectionFields,SurveySubmissionCompletion clientGraph;
+    class GoogleAnalytics,GoogleAnalyticsUserIdentity,NativeBridgeRuntime,AppUpdateGate,AuthenticationLifecycleBoundary,LocalE2ELoginControl,PlatformShellVisualViewportBoundary,PlatformNavigationClient,PlatformNavigation,ParticipantSwipeNavigationController,ChatQueryProvider,ChatAuthenticationBoundary,ChatAuthenticationRecoveryView,ChatServiceEligibilityGuard,ServiceEligibilityStatus,ChatRealtimeProvider,ChatRoomReadStateProvider,ChatRealtimeDiagnosticsPanel,ChatRoomInboxRuntime,ChatRoomInboxToastList,ChatLoading,ChatRoomListScreen,ChatRoomListView,PublicRoomSearchForm,CreateChatRoomForm,RoomCreationRequestListContent,ChatRoomListDetailDialog,JoinChatRoomControl,RoomCreationRequestScreen,RoomCreationRequestView,ChatRoomScreen,ChatRoomView,ChatMessageViewport,ChatRealtimeSyncStatus,ChatRoomSessionControls,ChatMessageComposer,ChatRoomScreenHeaderActions,ChatRoomScreenMessageSearchPanel,ChatRoomMessageSearchPanel,ChatRoomScreenOverlay,ChatMessageActionsBottomSheet,ChatRoomMembershipDialog,ChatRoomMembershipPanel,ChatRoomMembershipPanelView,ChatRoomInformationSection,ChatRoomSettingsControl,ChatRoomSettingsControlView,VoteQueryProvider,VoteServiceEligibilityGuard,VoteLoading,VoteTaskListScreen,PlatformScrollTopButton,VoteTaskScreen,VoteTaskResultScreen,SurveyQueryProvider,SurveyScreen,SurveyForm,SurveySelect,SurveyMultiSelect,SurveyDropdownSurface,ResidenceAddressField,KakaoPostcodeDialog,SurveyConfirmation,ErrorPage client;
+    class PlatformBottomNavigation,ChatRoomEntryError,ChatRoomSessionNotice,SurveyHeaderProgress,SurveySectionFields,SurveySubmissionCompletion clientGraph;
     class PlatformPageShell,SelfScrollPlatformShell,ChildScrollPlatformShell,SurveyPlatformShell,PlatformHeader,ChatRoomListLoading,ChatRoomScreenLoading,VoteTaskListLoading,VoteTaskScreenLoading,SurveyScreenLoading,SurveyLoadingStatus serverCompatible;
     class ChildrenSlot,ChatChildrenSlot,VoteChildrenSlot,SurveyChildrenSlot,SpecialBoundary framework;
 ```

@@ -157,6 +157,26 @@ root layout에는 HTML, 전역 runtime과 provider만 두며 완성된 시각 sh
 `aria-current="page"`로 표시한다. 아직 구현되지 않은 경로도 정상 anchor를 유지하며 Next.js의
 404 화면으로 이동한다.
 
+투표 목록(`/vote`)에서 투표 항목을 다시 누르면 같은 주소로 다시 이동해 탭과 검색어를 초기화하지
+않고 content 스크롤만 맨 위로 올린다. 투표 상세 같은 하위 경로에서는 그대로 목록으로 이동한다.
+
+## 맨 위로 버튼
+
+긴 `scroll="self"` 목록은 `contentTopAction` slot에 `PlatformScrollTopButton`을 전달한다. 버튼은
+header 바로 아래 가운데에 떠 있고, `anchorRef`로 지정한 화면 위쪽 요소(예: 검색창과 탭)가 화면 밖으로
+나갔을 때만 나타난다. 누르면 shell이 content 스크롤을 맨 위로 올린다.
+
+```tsx
+const searchSectionRef = useRef<HTMLFormElement>(null);
+
+<PlatformShell
+  contentTopAction={<PlatformScrollTopButton anchorRef={searchSectionRef} />}
+  header={<PlatformHeader title="투표" />}
+>
+  <form ref={searchSectionRef}>…</form>
+</PlatformShell>;
+```
+
 ## overlay와 키보드 viewport
 
 modal이나 bottom sheet는 `overlay` slot에 전달한다. overlay가 열릴 때 `contentInert`를 함께

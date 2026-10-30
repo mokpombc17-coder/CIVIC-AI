@@ -3,9 +3,14 @@
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
-import { PlatformHeader, PlatformLoadMoreButton, PlatformShell } from "@/components/platform-shell";
+import {
+  PlatformHeader,
+  PlatformLoadMoreButton,
+  PlatformScrollTopButton,
+  PlatformShell,
+} from "@/components/platform-shell";
 import { useFeatureFailureAnalytics } from "@/components/use-feature-failure-analytics";
 import { usePressFeedbackNavigation } from "@/components/use-press-feedback-navigation";
 import { getFeatureFailureDetails } from "@/lib/analytics/feature-failure-analytics";
@@ -60,6 +65,8 @@ export function VoteTaskListScreen({
     showingSearchResults ? "task-list:search" : `task-list:${tab}`,
   );
   const [searchInput, setSearchInput] = useState(query);
+  // 목록을 내려 검색창과 진행 중·완료·검색 결과 탭이 화면 위로 사라지면 맨 위로 버튼을 보여 줌
+  const searchSectionRef = useRef<HTMLFormElement>(null);
   const openTasksQuery = useOpenTasksQuery(!showingSearchResults && tab === "active");
   const completedTasksQuery = useCompletedTasksQuery(
     20,
@@ -233,6 +240,7 @@ export function VoteTaskListScreen({
     <PlatformShell
       bottomNavigation={<PlatformNavigationClient />}
       contentClassName={styles.voteContent!}
+      contentTopAction={<PlatformScrollTopButton anchorRef={searchSectionRef} />}
       header={
         <PlatformHeader
           backAction={{ ariaLabel: "홈으로", href: "/home" }}
@@ -243,7 +251,12 @@ export function VoteTaskListScreen({
       headerSize="compact"
     >
       <div className={`${styles.surface} ${styles.listSurface}`}>
-        <form className={styles.searchSection} onSubmit={submitSearch} role="search">
+        <form
+          className={styles.searchSection}
+          onSubmit={submitSearch}
+          ref={searchSectionRef}
+          role="search"
+        >
           <label className={styles.searchLabel} htmlFor="vote-task-search">
             주제 검색
           </label>

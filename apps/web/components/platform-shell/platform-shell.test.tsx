@@ -1,13 +1,15 @@
 // @vitest-environment jsdom
 
-import { cleanup, render } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { useRef } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import {
   PlatformBottomNavigation,
   PlatformBottomNavigationItem,
   PlatformHeader,
   PlatformNavigation,
+  PlatformScrollTopButton,
   PlatformShell,
 } from "./index";
 
@@ -190,6 +192,128 @@ describe("PlatformNavigation", () => {
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/vote"/);
   });
 });
+
+describe("content 맨 위로 이동", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("anchor가 화면에서 사라지면 header 아래 맨 위로 버튼을 보여 주고, 누르면 content를 맨 위로 올린다", () => {
+    const intersectionObserver = stubIntersectionObserver();
+    const { container } = render(<ScrollTopButtonFixture />);
+    const content = container.querySelector<HTMLElement>('[data-platform-shell-content="true"]')!;
+    const scrollTo = stubElementScrollTo(content);
+    const button = screen.getByRole("button", { hidden: true, name: "맨 위로" });
+
+    expect(
+      container.querySelector('[data-platform-shell-content-top-action="true"]')?.contains(button),
+    ).toBe(true);
+    expect(button.dataset.visible).toBe("false");
+
+    act(() => intersectionObserver.report(false));
+    expect(button.dataset.visible).toBe("true");
+
+    fireEvent.click(button);
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 0 });
+
+    act(() => intersectionObserver.report(true));
+    expect(button.dataset.visible).toBe("false");
+  });
+
+  it("움직임 줄이기를 켠 사용자에게는 애니메이션 없이 바로 맨 위로 이동한다", () => {
+    const intersectionObserver = stubIntersectionObserver();
+    vi.stubGlobal("matchMedia", vi.fn().mockReturnValue({ matches: true }));
+    const { container } = render(<ScrollTopButtonFixture />);
+    const content = container.querySelector<HTMLElement>('[data-platform-shell-content="true"]')!;
+    const scrollTo = stubElementScrollTo(content);
+
+    act(() => intersectionObserver.report(false));
+    fireEvent.click(screen.getByRole("button", { name: "맨 위로" }));
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "auto", top: 0 });
+  });
+
+  it("투표 목록에서 하단 투표 메뉴를 다시 누르면 이동하지 않고 content를 맨 위로 올린다", () => {
+    const { container } = render(
+      <PlatformShell
+        bottomNavigation={<PlatformNavigation currentPathname="/vote" />}
+        header={<header>공통 헤더</header>}
+      >
+        도메인 콘텐츠
+      </PlatformShell>,
+    );
+    const content = container.querySelector<HTMLElement>('[data-platform-shell-content="true"]')!;
+    const scrollTo = stubElementScrollTo(content);
+
+    fireEvent.click(screen.getByRole("link", { name: "투표" }));
+
+    expect(scrollTo).toHaveBeenCalledWith({ behavior: "smooth", top: 0 });
+  });
+
+  it("투표 상세 같은 하위 경로에서는 하단 투표 메뉴가 스크롤을 올리지 않고 목록으로 이동한다", () => {
+    const { container } = render(
+      <PlatformShell
+        bottomNavigation={<PlatformNavigation currentPathname="/vote/task-1" />}
+        header={<header>공통 헤더</header>}
+      >
+        도메인 콘텐츠
+      </PlatformShell>,
+    );
+    const content = container.querySelector<HTMLElement>('[data-platform-shell-content="true"]')!;
+    const scrollTo = stubElementScrollTo(content);
+    // 메뉴가 막지 않은 클릭은 jsdom이 구현하지 않은 문서 이동으로 이어지므로, 메뉴 처리가 끝난 뒤 문서 이동만 막음
+    container.addEventListener("click", (event) => event.preventDefault());
+
+    fireEvent.click(screen.getByRole("link", { name: "투표" }));
+
+    expect(scrollTo).not.toHaveBeenCalled();
+  });
+});
+
+function ScrollTopButtonFixture() {
+  const anchorRef = useRef<HTMLDivElement>(null);
+
+  return (
+    <PlatformShell
+      contentTopAction={<PlatformScrollTopButton anchorRef={anchorRef} />}
+      header={<header>공통 헤더</header>}
+    >
+      <div ref={anchorRef}>검색 영역</div>
+      <div>도메인 콘텐츠</div>
+    </PlatformShell>
+  );
+}
+
+function stubIntersectionObserver(): { report: (isIntersecting: boolean) => void } {
+  let callback: IntersectionObserverCallback | null = null;
+
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(nextCallback: IntersectionObserverCallback) {
+        callback = nextCallback;
+      }
+
+      disconnect() {}
+
+      observe() {}
+    },
+  );
+
+  return {
+    report: (isIntersecting) => {
+      callback?.([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver);
+    },
+  };
+}
+
+// jsdom은 element.scrollTo로 스크롤 위치를 바꾸지 않으므로, 호출 인자만 확인할 수 있게 대신함
+function stubElementScrollTo(element: HTMLElement) {
+  const scrollTo = vi.fn();
+  Object.defineProperty(element, "scrollTo", { configurable: true, value: scrollTo });
+  return scrollTo;
+}
 
 function renderShell(scroll?: "self" | "child"): string {
   return renderToStaticMarkup(

@@ -1,11 +1,22 @@
-import type { CSSProperties } from "react";
+"use client";
+
+import type { CSSProperties, MouseEvent } from "react";
 import {
   PlatformBottomNavigation,
   PlatformBottomNavigationItem,
 } from "./platform-bottom-navigation";
+import { usePlatformShellContentScroll } from "./platform-shell-content-scroll";
 import styles from "./platform-shell.module.css";
 
-const PLATFORM_NAVIGATION_ITEMS = [
+type PlatformNavigationItem = Readonly<{
+  href: string;
+  iconSrc: string;
+  label: string;
+  navigationMode: "client" | "document";
+  scrollToTopOnReselect?: boolean;
+}>;
+
+const PLATFORM_NAVIGATION_ITEMS: readonly PlatformNavigationItem[] = [
   {
     href: "/home",
     iconSrc: "/assets/platform-navigation/home.png?v=18ffbf61c717",
@@ -29,6 +40,7 @@ const PLATFORM_NAVIGATION_ITEMS = [
     iconSrc: "/assets/platform-navigation/vote.png?v=21e61dc6c498",
     label: "투표",
     navigationMode: "client",
+    scrollToTopOnReselect: true,
   },
   {
     href: "/mypage",
@@ -36,27 +48,45 @@ const PLATFORM_NAVIGATION_ITEMS = [
     label: "계정",
     navigationMode: "document",
   },
-] as const;
+];
 
 export type PlatformNavigationProps = Readonly<{
   currentPathname: string;
 }>;
 
 export function PlatformNavigation({ currentPathname }: PlatformNavigationProps) {
+  const { scrollToTop } = usePlatformShellContentScroll();
+
   return (
     <PlatformBottomNavigation>
-      {PLATFORM_NAVIGATION_ITEMS.map((item) => (
-        <PlatformBottomNavigationItem
-          aria-current={
-            isPlatformNavigationItemActive(currentPathname, item.href) ? "page" : undefined
+      {PLATFORM_NAVIGATION_ITEMS.map((item) => {
+        // 목록 화면에 있을 때 같은 메뉴를 다시 누르면, 목록 주소로 다시 이동해 선택한 탭과 검색어를 초기화하는 대신 content 스크롤만 맨 위로 올림
+        // 하위 경로(예: 투표 상세)에서 누르면 지금처럼 목록 주소로 이동함
+        const scrollsToTopOnClick =
+          item.scrollToTopOnReselect === true && currentPathname === item.href;
+        const onClick = (event: MouseEvent<HTMLAnchorElement>) => {
+          if (!scrollsToTopOnClick) {
+            return;
           }
-          href={item.href}
-          icon={<PlatformNavigationIcon src={item.iconSrc} />}
-          key={item.href}
-          label={item.label}
-          navigationMode={item.navigationMode}
-        />
-      ))}
+
+          event.preventDefault();
+          scrollToTop();
+        };
+
+        return (
+          <PlatformBottomNavigationItem
+            aria-current={
+              isPlatformNavigationItemActive(currentPathname, item.href) ? "page" : undefined
+            }
+            href={item.href}
+            icon={<PlatformNavigationIcon src={item.iconSrc} />}
+            key={item.href}
+            label={item.label}
+            navigationMode={item.navigationMode}
+            onClick={onClick}
+          />
+        );
+      })}
     </PlatformBottomNavigation>
   );
 }

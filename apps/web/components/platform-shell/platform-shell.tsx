@@ -9,6 +9,7 @@ export type PlatformShellProps = Readonly<{
   className?: string;
   contentInert?: boolean;
   contentClassName?: string;
+  contentTopAction?: ReactNode;
   header: ReactNode;
   headerSize?: "compact";
   overlay?: ReactNode;

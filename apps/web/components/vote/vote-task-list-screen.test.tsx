@@ -47,6 +47,14 @@ describe("VoteTaskListScreen", () => {
     expect(useCompletedTasksQueryMock).toHaveBeenCalledWith(20, true);
   });
 
+  it("검색창과 탭이 보이는 첫 화면에서는 맨 위로 버튼을 header 아래에 숨겨 둔다", () => {
+    const html = renderToStaticMarkup(<VoteTaskListScreen />);
+    const button = html.match(/<button[^>]*aria-label="맨 위로"[^>]*>/)?.[0];
+
+    expect(html).toContain('data-platform-shell-content-top-action="true"');
+    expect(button).toContain('data-visible="false"');
+  });
+
   it("검색을 투표 주제 기준의 사용자 문구로 안내한다", () => {
     const html = renderToStaticMarkup(<VoteTaskListScreen />);
 

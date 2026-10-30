@@ -1,7 +1,11 @@
 "use client";
 
-import { useEffect, useLayoutEffect, useRef, type RefObject } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, type RefObject } from "react";
 import type { PlatformShellProps } from "./platform-shell";
+import {
+  PlatformShellContentScrollContext,
+  type PlatformShellContentScroll,
+} from "./platform-shell-content-scroll";
 import styles from "./platform-shell.module.css";
 import {
   calculatePlatformVisualViewportLayout,
@@ -15,6 +19,7 @@ export function PlatformShellVisualViewportBoundary({
   className,
   contentInert = false,
   contentClassName,
+  contentTopAction,
   header,
   headerSize,
   overlay,
@@ -26,48 +31,81 @@ export function PlatformShellVisualViewportBoundary({
 
   usePlatformShellVisualViewport(shellRef);
   usePlatformShellScrollReset(contentRef, scrollResetKey);
+  const contentScroll = usePlatformShellContentScrollControl(contentRef);
 
   return (
-    <div className={styles.stage} data-platform-shell-stage="true">
-      <div
-        className={joinClassNames(styles.shell, className)}
-        data-header-size={headerSize}
-        data-keyboard-open="false"
-        data-platform-shell="true"
-        data-scroll={scroll}
-        ref={shellRef}
-      >
+    <PlatformShellContentScrollContext.Provider value={contentScroll}>
+      <div className={styles.stage} data-platform-shell-stage="true">
         <div
-          aria-hidden={contentInert ? true : undefined}
-          className={styles.surface}
-          data-platform-shell-surface="true"
-          inert={contentInert}
+          className={joinClassNames(styles.shell, className)}
+          data-header-size={headerSize}
+          data-keyboard-open="false"
+          data-platform-shell="true"
+          data-scroll={scroll}
+          ref={shellRef}
         >
-          {header}
-          <main
-            className={joinClassNames(styles.content, contentClassName)}
-            data-platform-shell-content="true"
-            data-scroll={scroll}
-            ref={contentRef}
+          <div
+            aria-hidden={contentInert ? true : undefined}
+            className={styles.surface}
+            data-platform-shell-surface="true"
+            inert={contentInert}
           >
-            {children}
-          </main>
-          {bottomNavigation ? (
-            <div
-              className={styles.bottomNavigationSlot}
-              data-platform-shell-bottom-navigation="true"
+            {header}
+            <main
+              className={joinClassNames(styles.content, contentClassName)}
+              data-platform-shell-content="true"
+              data-scroll={scroll}
+              ref={contentRef}
             >
-              {bottomNavigation}
+              {children}
+            </main>
+            {contentTopAction ? (
+              <div
+                className={styles.contentTopAction}
+                data-platform-shell-content-top-action="true"
+              >
+                {contentTopAction}
+              </div>
+            ) : null}
+            {bottomNavigation ? (
+              <div
+                className={styles.bottomNavigationSlot}
+                data-platform-shell-bottom-navigation="true"
+              >
+                {bottomNavigation}
+              </div>
+            ) : null}
+          </div>
+          {overlay ? (
+            <div className={styles.overlay} data-platform-shell-overlay="true">
+              {overlay}
             </div>
           ) : null}
         </div>
-        {overlay ? (
-          <div className={styles.overlay} data-platform-shell-overlay="true">
-            {overlay}
-          </div>
-        ) : null}
       </div>
-    </div>
+    </PlatformShellContentScrollContext.Provider>
+  );
+}
+
+function usePlatformShellContentScrollControl(
+  contentRef: RefObject<HTMLElement | null>,
+): PlatformShellContentScroll {
+  return useMemo(
+    () => ({
+      scrollToTop: () => {
+        const content = contentRef.current;
+
+        if (!content) {
+          return;
+        }
+
+        // 사용자가 움직임 줄이기를 켰으면 부드럽게 올리는 애니메이션 없이 바로 맨 위로 이동함
+        const prefersReducedMotion =
+          window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
+        content.scrollTo({ behavior: prefersReducedMotion ? "auto" : "smooth", top: 0 });
+      },
+    }),
+    [contentRef],
   );
 }
 
