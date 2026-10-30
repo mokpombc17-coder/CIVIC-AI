@@ -17,14 +17,13 @@ describe("route-aware loading skeletons", () => {
     expect(markup).not.toContain("civic-skeleton-card");
   });
 
-  it("AI 로딩 화면은 empty 화면 골격과 문서 목록 높이를 유지한다", () => {
+  it("AI 로딩 화면은 문서 목록 없이 empty 화면 골격을 유지한다", () => {
     const markup = renderToStaticMarkup(<ParticipantLoadingView pathname="/rag" />);
 
     expect(markup).toMatch(/<h1[^>]*>AI<\/h1>/);
     expect(markup).toMatch(/aria-current="page"[^>]*href="\/rag"/);
     expect(markup).toContain('placeholder="궁금한 내용을 입력해 주세요"');
-    expect(markup).toContain("이런 문서는 어떠세요?");
-    expect(markup.match(/is-loading/gu)).toHaveLength(3);
+    expect(markup).not.toContain("이런 문서는 어떠세요?");
     expect(markup).not.toContain("civic-skeleton-chat-question");
     expect(markup).not.toContain("civic-skeleton-chat-answer");
     expect(markup).not.toContain("civic-skeleton-header-title");
