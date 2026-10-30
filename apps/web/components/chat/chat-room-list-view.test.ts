@@ -559,7 +559,12 @@ function renderChatRoomListView(
         participatingRoomFilter: { select: vi.fn(), value: filter },
         participatingRooms: { ...emptyListState, rooms: participatingRoomItems },
         publicRoomSearch: createPublicRoomSearchController(appliedPublicRoomQuery),
-        publicRooms: { ...emptyListState, rooms: publicRoomItems },
+        publicRooms: {
+          ...emptyListState,
+          needsRefresh: false,
+          refreshFromFirstPage: vi.fn(),
+          rooms: publicRoomItems,
+        },
         roomDetail: { close: vi.fn(), open: vi.fn(), selection: roomDetailSelection },
         toggleCreateRoomForm: vi.fn(),
       }),

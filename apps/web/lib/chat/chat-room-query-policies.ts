@@ -1,4 +1,4 @@
-import type { QueryClient } from "@tanstack/react-query";
+import type { InfiniteData, QueryClient } from "@tanstack/react-query";
 import { mergePresortedChatMessages } from "./chat-message-merge";
 import { ChatApiError } from "./chat-fetch";
 import type {
@@ -81,6 +81,21 @@ export async function recoverRoomCreationRequestInvalidCursorOnce(
   state: InvalidCursorRecoveryState,
 ): Promise<boolean> {
   return recoverInvalidCursorOnce(queryClient, queryKey, error, state);
+}
+
+// 공개방 목록의 둘째 페이지부터는 버리고 첫 페이지만 다시 받음
+// 다시 받는 동안에는 기존 첫 페이지를 그대로 보여 목록이 비거나 깜빡이지 않음
+// 정렬이 생성 순서가 아니어서 첫 페이지만 바꾸고 뒤 페이지를 남기면 방이 빠지거나 겹치므로, 뒤 페이지는 사용자가 다시 내릴 때 새로 받음
+export async function refreshPublicRoomListFromFirstPage(
+  queryClient: QueryClient,
+  queryKey: readonly unknown[],
+): Promise<void> {
+  queryClient.setQueryData<InfiniteData<unknown, unknown>>(queryKey, (data) =>
+    data && data.pages.length > 1
+      ? { pages: data.pages.slice(0, 1), pageParams: data.pageParams.slice(0, 1) }
+      : data,
+  );
+  await queryClient.refetchQueries({ queryKey, exact: true });
 }
 
 async function recoverInvalidCursorOnce(

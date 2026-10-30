@@ -83,6 +83,12 @@ type RoomListState<TItem> = Readonly<{
   rooms: readonly TItem[];
 }>;
 
+type PublicRoomListState = RoomListState<PublicRoomListItem> &
+  Readonly<{
+    needsRefresh: boolean;
+    refreshFromFirstPage: () => void;
+  }>;
+
 type ChatRoomListViewProps = Readonly<{
   closeCreateRoomForm: () => void;
   createRoomTriggerRef: Ref<HTMLButtonElement>;
@@ -91,7 +97,7 @@ type ChatRoomListViewProps = Readonly<{
   participatingRoomFilter: ChatRoomInboxFilterController;
   participatingRooms: RoomListState<RoomInboxListItem>;
   publicRoomSearch: PublicRoomSearchController;
-  publicRooms: RoomListState<PublicRoomListItem>;
+  publicRooms: PublicRoomListState;
   roomDetail: ChatRoomListDetailController;
   toggleCreateRoomForm: () => void;
 }>;
@@ -159,6 +165,15 @@ export function ChatRoomListView({
 
     if (list) list.scrollTop = 0;
   }, [publicRoomSearch.appliedQuery]);
+  const { needsRefresh: publicRoomsNeedRefresh, refreshFromFirstPage: refreshPublicRooms } =
+    publicRooms;
+  const publicRoomListNearTop = publicRoomListScroll.nearTop;
+
+  // 공개방이 바뀌었다는 신호가 와도 목록 상자를 깊이 내려 보고 있으면 보던 위치가 흔들리지 않도록 바로 다시 받지 않음
+  // 맨 위에서 상자 한 화면 안을 보고 있거나 그 위치로 돌아오면 첫 페이지부터 다시 받음
+  useEffect(() => {
+    if (publicRoomsNeedRefresh && publicRoomListNearTop) refreshPublicRooms();
+  }, [publicRoomListNearTop, publicRoomsNeedRefresh, refreshPublicRooms]);
   const overlay = isCreateRoomOpen ? (
     <CreateChatRoomForm onCancel={closeCreateRoomForm} />
   ) : roomDetail.selection ? (
@@ -768,8 +783,11 @@ function useRoomListScrollGradients(
   const [bottomVisible, setBottomVisible] = useState(false);
   const [topVisible, setTopVisible] = useState(false);
   const [overflowing, setOverflowing] = useState(false);
+  // 목록이 아직 없으면 내려 본 위치도 없으므로 맨 위로 봄
+  const [nearTop, setNearTop] = useState(true);
   const update = useCallback(() => {
     const list = listRef.current;
+    const nextNearTop = list ? list.scrollTop <= list.clientHeight : true;
     const nextBottomVisible = list ? shouldShowRoomListBottomGradient(list) : false;
     const nextTopVisible = list ? shouldShowRoomListTopGradient(list) : false;
     const nextOverflowing = list ? hasRoomListRoomOverflow(list) : false;
@@ -777,6 +795,7 @@ function useRoomListScrollGradients(
     setBottomVisible((current) => (current === nextBottomVisible ? current : nextBottomVisible));
     setTopVisible((current) => (current === nextTopVisible ? current : nextTopVisible));
     setOverflowing((current) => (current === nextOverflowing ? current : nextOverflowing));
+    setNearTop((current) => (current === nextNearTop ? current : nextNearTop));
   }, [listRef]);
 
   // 본문에서 읽지 않는 rooms는 방 목록이 바뀌어 넘침 여부가 달라질 때 다시 계산하게 하는 실행 계기임
@@ -792,7 +811,7 @@ function useRoomListScrollGradients(
     return () => resizeObserver.disconnect();
   }, [listRef, rooms, update]);
 
-  return { bottomVisible, overflowing, topVisible, update };
+  return { bottomVisible, nearTop, overflowing, topVisible, update };
 }
 
 // 목록 끝 안내 문구 자체가 상자를 넘치게 만들지 않도록, 안내 문구를 빼고 마지막 방 card의 아래 끝이 상자 높이를 넘는지로 판단함

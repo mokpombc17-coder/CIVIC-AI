@@ -90,6 +90,43 @@ describe("참여 가능한 방 다음 페이지", () => {
   });
 });
 
+describe("참여 가능한 방 변경 반영", () => {
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("공개방이 바뀌었을 때 목록 위쪽을 보고 있으면 첫 페이지부터 다시 받는다", () => {
+    stubIntersectionObserver();
+    const publicRooms = createPublicRoomListState({ needsRefresh: true });
+
+    renderPublicRoomList(publicRooms);
+
+    expect(publicRooms.refreshFromFirstPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("목록 상자를 깊이 내려 보고 있으면 다시 받지 않다가 위쪽으로 돌아오면 첫 페이지부터 다시 받는다", () => {
+    stubIntersectionObserver();
+    const publicRooms = createPublicRoomListState();
+    const { rerender } = renderPublicRoomList(publicRooms);
+    const list = screen.getByRole("list", { name: "공개 토론방" });
+    // jsdom은 layout을 계산하지 않으므로, 412px 상자를 상자 두 화면 넘게 내린 상황을 대신 정함
+    Object.defineProperty(list, "clientHeight", { configurable: true, value: 412 });
+    Object.defineProperty(list, "scrollTop", { configurable: true, value: 900, writable: true });
+    fireEvent.scroll(list);
+
+    const changedPublicRooms = { ...publicRooms, needsRefresh: true };
+    rerender(createPublicRoomListElement(changedPublicRooms));
+
+    expect(publicRooms.refreshFromFirstPage).not.toHaveBeenCalled();
+
+    list.scrollTop = 300;
+    fireEvent.scroll(list);
+
+    expect(publicRooms.refreshFromFirstPage).toHaveBeenCalledTimes(1);
+  });
+});
+
 function createPublicRoomListState(
   patch: Partial<{
     error: unknown;
@@ -98,6 +135,7 @@ function createPublicRoomListState(
     isFetchNextPageError: boolean;
     isFetching: boolean;
     isFetchingNextPage: boolean;
+    needsRefresh: boolean;
   }> = {},
 ) {
   return {
@@ -109,34 +147,38 @@ function createPublicRoomListState(
     isFetchingNextPage: false,
     isPending: false,
     loadMore: vi.fn(),
+    needsRefresh: false,
+    refreshFromFirstPage: vi.fn(),
     retry: vi.fn(),
     rooms: [PUBLIC_ROOM],
     ...patch,
   };
 }
 
-function renderPublicRoomList(publicRooms: ReturnType<typeof createPublicRoomListState>) {
-  const queryClient = new QueryClient({
-    defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
-  });
+const testQueryClient = new QueryClient({
+  defaultOptions: { queries: { retry: false }, mutations: { retry: false } },
+});
 
-  return render(
-    createElement(
-      QueryClientProvider,
-      { client: queryClient },
-      createElement(ChatRoomListView, {
-        closeCreateRoomForm: vi.fn(),
-        createRoomTriggerRef: { current: null },
-        hasReachedActiveRoomLimit: false,
-        isCreateRoomOpen: false,
-        participatingRoomFilter: { select: vi.fn(), value: "ALL" },
-        participatingRooms: { ...createPublicRoomListState(), rooms: [] },
-        publicRoomSearch: createPublicRoomSearchController(),
-        publicRooms,
-        roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
-        toggleCreateRoomForm: vi.fn(),
-      }),
-    ),
+function renderPublicRoomList(publicRooms: ReturnType<typeof createPublicRoomListState>) {
+  return render(createPublicRoomListElement(publicRooms));
+}
+
+function createPublicRoomListElement(publicRooms: ReturnType<typeof createPublicRoomListState>) {
+  return createElement(
+    QueryClientProvider,
+    { client: testQueryClient },
+    createElement(ChatRoomListView, {
+      closeCreateRoomForm: vi.fn(),
+      createRoomTriggerRef: { current: null },
+      hasReachedActiveRoomLimit: false,
+      isCreateRoomOpen: false,
+      participatingRoomFilter: { select: vi.fn(), value: "ALL" },
+      participatingRooms: { ...createPublicRoomListState(), rooms: [] },
+      publicRoomSearch: createPublicRoomSearchController(),
+      publicRooms,
+      roomDetail: { close: vi.fn(), open: vi.fn(), selection: null },
+      toggleCreateRoomForm: vi.fn(),
+    }),
   );
 }
 

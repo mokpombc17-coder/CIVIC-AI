@@ -102,7 +102,9 @@ describe("chat room mutation options", () => {
       }),
     ).resolves.toEqual(CREATE_ROOM_RESPONSE);
 
-    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(1);
+    // 공개방 목록은 받아 둔 페이지를 전부 다시 요청하지 않도록 다시 받아야 한다는 표시만 남기고, 실제 요청은 목록 화면이 보냄
+    expect(queryClient.getQueryState(PUBLIC_LIST_KEY)?.isInvalidated).toBe(true);
+    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(0);
     expect(queryClient.isFetching({ queryKey: chatRoomQueryKeys.creationRequestList(20) })).toBe(1);
     unsubscribe.forEach((stop) => stop());
   });
@@ -254,7 +256,9 @@ describe("chat room mutation options", () => {
     resolveDetail("fresh-detail");
     await mutation;
 
-    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(1);
+    // 공개방 목록은 받아 둔 페이지를 전부 다시 요청하지 않도록 다시 받아야 한다는 표시만 남기고, 실제 요청은 목록 화면이 보냄
+    expect(queryClient.getQueryState(PUBLIC_LIST_KEY)?.isInvalidated).toBe(true);
+    expect(queryClient.isFetching({ queryKey: PUBLIC_LIST_KEY })).toBe(0);
     stopListObserver();
     stopDetailObserver();
   });

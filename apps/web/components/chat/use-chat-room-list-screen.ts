@@ -198,6 +198,8 @@ export function useChatRoomListScreen(initialParticipatingRoomFilter: ChatRoomIn
       isFetchingNextPage: publicRooms.isFetchingNextPage,
       isPending: publicRooms.isPending,
       loadMore: () => void publicRooms.fetchNextPage(),
+      needsRefresh: publicRooms.needsRefresh,
+      refreshFromFirstPage: publicRooms.refreshFromFirstPage,
       retry: () => {
         failureAnalytics.trackRecoveryAttempt("public-room-list-load", "user_retry");
         void (publicRooms.isFetchNextPageError

@@ -7,11 +7,16 @@ import {
   invalidateRoomSettingsState,
   invalidateRoomState,
   refreshAuthoritativeRoomQueries,
+  refreshPublicRoomListQueries,
   refreshRoomInboxQueries,
   resetRoomInboxQueries,
   resetRoomMembershipQueries,
 } from "./chat-room-cache-effects";
-import { chatRoomQueryKeys } from "./chat-room-queries";
+import {
+  chatRoomQueryKeys,
+  publicRoomsInfiniteQueryOptions,
+  refreshPublicRoomListFromFirstPage,
+} from "./chat-room-queries";
 
 describe("chat room cache effects", () => {
   it("방 목록 cache만 기존 순서로 무효화한다", async () => {
@@ -67,6 +72,37 @@ describe("chat room cache effects", () => {
     ]);
     expectRoomInboxReset(resetQueries);
     expectRoomMembershipReset(resetQueries, "room-01");
+  });
+
+  it("공개방 변경 신호는 받아 둔 공개방 페이지를 다시 요청하지 않고 다시 받아야 한다는 표시만 남긴다", async () => {
+    const { listPublicRooms, observer, queryClient, unsubscribe } =
+      await createPublicRoomListWithPages(3);
+
+    await refreshPublicRoomListQueries(queryClient);
+
+    expect(listPublicRooms).toHaveBeenCalledTimes(3);
+    expect(observer.getCurrentResult()).toMatchObject({ isFetching: false, isStale: true });
+    expect(observer.getCurrentResult().data?.pages).toHaveLength(3);
+
+    unsubscribe();
+  });
+
+  it("공개방 목록을 첫 페이지부터 다시 받을 때는 뒤 페이지를 버리고 첫 페이지 하나만 요청한다", async () => {
+    const { listPublicRooms, observer, queryClient, unsubscribe } =
+      await createPublicRoomListWithPages(3);
+    await refreshPublicRoomListQueries(queryClient);
+
+    await refreshPublicRoomListFromFirstPage(queryClient, observer.options.queryKey);
+
+    expect(listPublicRooms).toHaveBeenCalledTimes(4);
+    expect(listPublicRooms).toHaveBeenLastCalledWith(
+      { joinPolicy: "OPEN", limit: 20 },
+      expect.anything(),
+    );
+    expect(observer.getCurrentResult()).toMatchObject({ hasNextPage: true, isStale: false });
+    expect(observer.getCurrentResult().data?.pages).toHaveLength(1);
+
+    unsubscribe();
   });
 
   it("Room inbox 전용 helper가 page chain reset 옵션을 사용한다", async () => {
@@ -355,6 +391,31 @@ function createObservedQueryClient() {
   const invalidateQueries = vi.spyOn(queryClient, "invalidateQueries");
   const resetQueries = vi.spyOn(queryClient, "resetQueries");
   return { invalidateQueries, queryClient, resetQueries };
+}
+
+async function createPublicRoomListWithPages(pageCount: number) {
+  const queryClient = createTestQueryClient();
+  const listPublicRooms = vi.fn(async ({ cursor }: { cursor?: string }) => {
+    const pageIndex = cursor ? Number(cursor) : 0;
+
+    return {
+      items: [],
+      nextCursor: String(pageIndex + 1),
+      hasNext: true,
+    };
+  });
+  const observer = new InfiniteQueryObserver(
+    queryClient,
+    publicRoomsInfiniteQueryOptions({}, { listPublicRooms }),
+  );
+  const unsubscribe = observer.subscribe(() => {});
+
+  await vi.waitFor(() => expect(observer.getCurrentResult().isSuccess).toBe(true));
+  for (let page = 1; page < pageCount; page += 1) {
+    await observer.fetchNextPage();
+  }
+
+  return { listPublicRooms, observer, queryClient, unsubscribe };
 }
 
 function createJoinError(code: string): ChatApiError {

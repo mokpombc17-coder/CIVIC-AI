@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { useInfiniteQuery, useQuery, useQueryClient } from "@tanstack/react-query";
 import type {
   MyRoomListItem,
@@ -44,6 +44,7 @@ import {
   flattenRoomMessageSearchPages,
   recoverPublicRoomInvalidCursorOnce,
   recoverRoomCreationRequestInvalidCursorOnce,
+  refreshPublicRoomListFromFirstPage,
 } from "./chat-room-query-policies";
 import {
   createEmptyChatRoomSystemActivityJournal,
@@ -74,9 +75,20 @@ export function usePublicRoomsQuery(params: PublicRoomListQueryParams = {}) {
     return result;
   };
 
+  const { queryKey } = options;
+  const refreshFromFirstPage = useCallback(
+    () => void refreshPublicRoomListFromFirstPage(queryClient, queryKey),
+    // queryKey는 render마다 새 배열이므로 같은 검색 조건을 뜻하는 recoveryKey로 대신함
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [queryClient, recoveryKey],
+  );
+
   return {
     ...query,
     fetchNextPage,
+    // 공개방이 바뀌었다는 신호로 다시 받아야 한다는 표시가 남았고 아직 다시 받는 중이 아님
+    needsRefresh: query.isStale && !query.isFetching && query.data !== undefined,
+    refreshFromFirstPage,
     rooms,
   };
 }

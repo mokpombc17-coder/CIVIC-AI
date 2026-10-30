@@ -448,6 +448,8 @@ Container/View 분리는 realtime event 처리와 toast 표현 책임의 경계�
 참여 가능한 Room 목록은 목록 상자 끝에 가까워지면 다음 cursor 페이지를 자동으로 이어 받고, 다음 페이지
 요청이 실패했을 때만 공개 방 더 보기 버튼을 보여 준다. 이 버튼으로 받은 경우에만 새로 받은 첫 Room으로
 이동해 강조하며, 모든 페이지를 받았고 Room이 목록 상자를 넘칠 때만 목록 끝에 마무리 문구를 표시한다.
+공개방 목록 변경 신호로 다시 받아야 한다는 표시가 남으면, 목록 상자 맨 위에서 한 화면 안을 보고 있을
+때만 첫 페이지부터 다시 받고 깊이 내려가 있으면 그 위치로 돌아올 때까지 미룬다.
 `PublicRoomSearchForm`은 검색어 draft를 전달하는 controlled 표현이며, 검색어 검증·적용 시점과 Query
 조건은 container hook에 둔다.
 `ChatRoomListDetailDialog`는 PlatformShell 내부의 ARIA dialog로 목록 snapshot을 Figma 기반 bottom

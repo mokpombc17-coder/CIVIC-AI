@@ -20,8 +20,15 @@ export async function refreshRoomInboxQueries(queryClient: QueryClient): Promise
 }
 
 export async function refreshPublicRoomListQueries(queryClient: QueryClient): Promise<void> {
-  await queryClient.invalidateQueries({
+  await markPublicRoomListsStale(queryClient);
+}
+
+// 공개방 목록은 페이지가 쌓인 채로 다시 받으면 받아 둔 페이지 수만큼 요청이 나가므로, 여기서는 다시 받아야 한다는 표시만 남김
+// 실제로 다시 받는 시점과 범위는 목록 화면이 스크롤 위치를 보고 정함
+function markPublicRoomListsStale(queryClient: QueryClient): Promise<void> {
+  return queryClient.invalidateQueries({
     queryKey: chatRoomQueryKeys.publicLists(),
+    refetchType: "none",
   });
 }
 
@@ -41,9 +48,7 @@ export async function resetRoomMembershipQueries(
 
 export async function invalidateRoomLists(queryClient: QueryClient): Promise<void> {
   await Promise.all([
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.publicLists(),
-    }),
+    markPublicRoomListsStale(queryClient),
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
     }),
@@ -59,9 +64,7 @@ export async function invalidatePublicRoomListsAfterJoinError(
     return false;
   }
 
-  await queryClient.invalidateQueries({
-    queryKey: chatRoomQueryKeys.publicLists(),
-  });
+  await markPublicRoomListsStale(queryClient);
   return true;
 }
 
@@ -111,9 +114,7 @@ export async function refreshAuthoritativeRoomQueries(
       queryKey: chatRoomQueryKeys.myMembership(roomId),
     }),
     resetRoomMembershipQueries(queryClient, roomId),
-    queryClient.invalidateQueries({
-      queryKey: chatRoomQueryKeys.publicLists(),
-    }),
+    markPublicRoomListsStale(queryClient),
     queryClient.invalidateQueries({
       queryKey: chatRoomQueryKeys.myLists(),
     }),

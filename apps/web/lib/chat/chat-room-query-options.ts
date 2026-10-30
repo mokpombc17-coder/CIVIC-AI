@@ -51,6 +51,12 @@ export function publicRoomsInfiniteQueryOptions(
       ),
     getNextPageParam: (lastPage) => (lastPage.hasNext ? lastPage.nextCursor : null),
     retry: shouldRetryPublicRoomRequest,
+    // 페이지가 쌓인 목록을 TanStack Query가 스스로 다시 받으면 받아 둔 페이지를 전부 다시 요청하므로, 시간 경과·화면 진입·focus로는 다시 받지 않음
+    // 공개방이 바뀌면 서버 신호로 다시 받아야 한다는 표시가 남고, 목록 화면이 스크롤 위치를 보고 첫 페이지부터 다시 받음
+    staleTime: Number.POSITIVE_INFINITY,
+    refetchOnMount: false,
+    refetchOnReconnect: false,
+    refetchOnWindowFocus: false,
   });
 }
 
