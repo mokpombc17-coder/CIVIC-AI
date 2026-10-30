@@ -7,7 +7,6 @@ import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { PlatformNavigationClient } from "@/components/platform-navigation-client";
 import {
   PlatformHeader,
-  PlatformLoadMoreButton,
   PlatformScrollTopButton,
   PlatformShell,
 } from "@/components/platform-shell";
@@ -192,6 +191,37 @@ export function VoteTaskListScreen({
     : tab === "active"
       ? openTasksQuery.isSuccess
       : completedTasksQuery.isSuccess;
+  // 완료 탭과 검색 결과만 cursor로 다음 페이지를 이어 받음
+  // 진행 중 탭은 한 번에 모두 받으므로 이어 받을 페이지가 없음
+  const pagedTasksQuery = showingSearchResults
+    ? hasSearchQuery
+      ? searchTasksQuery
+      : null
+    : tab === "completed" && voteCompletedApiAvailable
+      ? completedTasksQuery
+      : null;
+  // 목록 끝에 가까워지면 다음 페이지를 자동으로 받되, 목록 전체를 다시 받는 중이거나 오류가 남아 있으면 자동 요청을 멈춤
+  // 다음 페이지 요청이 실패하면 오류 안내의 더 보기 버튼으로만 이어 받음
+  const canAutoLoadNextPage =
+    pagedTasksQuery !== null &&
+    pagedTasksQuery.hasNextPage &&
+    !pagedTasksQuery.isFetching &&
+    !pagedTasksQuery.isError;
+  const continuesWithLoadMore =
+    pagedTasksQuery?.isFetchNextPageError === true &&
+    !(
+      pagedTasksQuery.error instanceof VoteApiError &&
+      pagedTasksQuery.error.code === "INVALID_CURSOR"
+    );
+  const showingListEnd =
+    tasks.length > 0 &&
+    (showingSearchResults
+      ? searchTasksQuery.isSuccess && !searchTasksQuery.hasNextPage
+      : tab === "active"
+        ? openTasksQuery.isSuccess
+        : voteCompletedApiAvailable &&
+          completedTasksQuery.isSuccess &&
+          !completedTasksQuery.hasNextPage);
   const listSurface = showingSearchResults
     ? "search_task_list"
     : tab === "active"
@@ -376,12 +406,28 @@ export function VoteTaskListScreen({
             {showingCompletedLoading ? (
               <p className={styles.listInlineStatus}>실제 완료 과업을 불러오는 중입니다.</p>
             ) : null}
+            {pagedTasksQuery?.hasNextPage ? (
+              <VoteTaskListNextPageTrigger
+                canLoadNextPage={canAutoLoadNextPage}
+                onLoadNextPage={() => void pagedTasksQuery.fetchNextPage()}
+              />
+            ) : null}
+            {pagedTasksQuery?.isFetchingNextPage ? (
+              <p className={styles.listInlineStatus} role="status">
+                투표를 더 불러오는 중이에요
+              </p>
+            ) : null}
             {showingCompletedError ? (
               <VoteListFeedback
                 className={styles.listInlineFeedback!}
                 error={completedTasksQuery.error}
                 message={getCompletedTaskErrorMessage(completedTasksQuery.error)}
-                onRetry={retryVisibleTaskList}
+                {...(continuesWithLoadMore
+                  ? {
+                      onRetry: () => void completedTasksQuery.fetchNextPage(),
+                      retryLabel: "더 보기",
+                    }
+                  : { onRetry: retryVisibleTaskList })}
               />
             ) : null}
             {showingSearchError && searchTasks.length > 0 ? (
@@ -389,23 +435,22 @@ export function VoteTaskListScreen({
                 className={styles.listInlineFeedback!}
                 error={searchTasksQuery.error}
                 message={getSearchTaskErrorMessage(searchTasksQuery.error)}
-                onRetry={retryVisibleTaskList}
+                {...(continuesWithLoadMore
+                  ? {
+                      onRetry: () => void searchTasksQuery.fetchNextPage(),
+                      retryLabel: "더 보기",
+                    }
+                  : { onRetry: retryVisibleTaskList })}
               />
             ) : null}
-            {showingSearchResults ? (
-              <PlatformLoadMoreButton
-                hasNextPage={searchTasksQuery.hasNextPage}
-                isFetching={searchTasksQuery.isFetchingNextPage}
-                label="더 보기"
-                onClick={() => void searchTasksQuery.fetchNextPage()}
-              />
-            ) : tab === "completed" ? (
-              <PlatformLoadMoreButton
-                hasNextPage={completedTasksQuery.hasNextPage}
-                isFetching={completedTasksQuery.isFetchingNextPage}
-                label="더 보기"
-                onClick={() => void completedTasksQuery.fetchNextPage()}
-              />
+            {showingListEnd ? (
+              <p className={styles.listEndStatus}>
+                {showingSearchResults
+                  ? "검색된 모든 투표를 확인했어요"
+                  : tab === "active"
+                    ? "진행 중인 모든 투표를 확인했어요"
+                    : "완료한 모든 투표를 확인했어요"}
+              </p>
             ) : null}
           </>
         ) : null}
@@ -509,16 +554,55 @@ function VoteTaskCard({ task }: { task: VoteTaskListItemPresentation }) {
   );
 }
 
+function VoteTaskListNextPageTrigger({
+  canLoadNextPage,
+  onLoadNextPage,
+}: {
+  canLoadNextPage: boolean;
+  onLoadNextPage: () => void;
+}) {
+  const triggerRef = useRef<HTMLDivElement>(null);
+  const loadNextPageRef = useRef(onLoadNextPage);
+  const [nearListEnd, setNearListEnd] = useState(false);
+
+  useEffect(() => {
+    loadNextPageRef.current = onLoadNextPage;
+  });
+
+  // 목록 끝보다 조금 위에 둔 표시가 화면에 들어오면 목록 끝에 가까워진 것으로 봄
+  // IntersectionObserver가 없는 환경에서는 자동으로 받지 않음
+  useEffect(() => {
+    const trigger = triggerRef.current;
+
+    if (!trigger || typeof IntersectionObserver === "undefined") return;
+
+    const observer = new IntersectionObserver(([entry]) => {
+      if (entry) setNearListEnd(entry.isIntersecting);
+    });
+    observer.observe(trigger);
+    return () => observer.disconnect();
+  }, []);
+
+  // 받은 페이지가 짧아 표시가 계속 화면에 남아 있으면 observer가 다시 알리지 않으므로, 요청이 끝나 다시 받을 수 있게 되는 시점에도 다음 페이지를 이어 받음
+  useEffect(() => {
+    if (nearListEnd && canLoadNextPage) loadNextPageRef.current();
+  }, [canLoadNextPage, nearListEnd]);
+
+  return <div aria-hidden="true" className={styles.nextPageTrigger} ref={triggerRef} />;
+}
+
 function VoteListFeedback({
   className,
   error,
   message,
   onRetry,
+  retryLabel = "다시 시도",
 }: {
   className: string;
   error: unknown;
   message: string;
   onRetry: () => void;
+  retryLabel?: string;
 }) {
   return (
     <div className={className} role="alert">
@@ -533,7 +617,7 @@ function VoteListFeedback({
         </a>
       ) : (
         <button className={styles.listRetryButton} onClick={onRetry} type="button">
-          다시 시도
+          {retryLabel}
         </button>
       )}
     </div>

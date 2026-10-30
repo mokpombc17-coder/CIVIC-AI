@@ -448,6 +448,21 @@
   text-align: center;
 }
 
+.listEndStatus {
+  margin: 24px 0 0;
+  color: var(--vote-muted);
+  font-size: 13px;
+  text-align: center;
+}
+
+/* 목록 끝보다 320px 위에서 화면에 들어오도록 자리만 위로 옮긴 다음 페이지 요청 표시 */
+.nextPageTrigger {
+  position: relative;
+  top: -320px;
+  height: 1px;
+  pointer-events: none;
+}
+
 .listInlineFeedback {
   display: grid;
   justify-items: center;

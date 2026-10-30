@@ -1,5 +1,8 @@
+// @vitest-environment jsdom
+
+import { act, cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { VoteApiError } from "@/lib/vote/vote-fetch";
 import { VoteTaskListScreen } from "./vote-task-list-screen";
 
@@ -37,6 +40,110 @@ describe("VoteTaskListScreen", () => {
     useOpenTasksQueryMock.mockReturnValue(createQueryState());
     useCompletedTasksQueryMock.mockReturnValue(createQueryState());
     useTaskSearchQueryMock.mockReturnValue(createQueryState({ data: { pages: [] } }));
+  });
+
+  afterEach(() => {
+    cleanup();
+    vi.unstubAllGlobals();
+  });
+
+  it("진행 중 투표를 모두 받아 표시하면 목록 끝에 마무리 문구를 보여 준다", () => {
+    useOpenTasksQueryMock.mockReturnValue(
+      createQueryState({
+        data: [
+          {
+            closesAt: "2026-10-15T00:00:00Z",
+            description: null,
+            openedAt: "2026-10-01T00:00:00Z",
+            submission: { submissionId: null, submitted: false, submittedAt: null },
+            taskId: "7dd2eaa5-7ef2-420a-93dc-0cb337be62ff",
+            title: "대중교통 개선 투표",
+          },
+        ],
+        isSuccess: true,
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskListScreen />);
+
+    expect(html).toContain("진행 중인 모든 투표를 확인했어요");
+    expect(html).not.toContain("더 보기");
+  });
+
+  it("다음 검색 결과가 있으면 더 보기 버튼 없이 목록 끝에 가까워질 때 자동으로 이어 받는다", () => {
+    const intersectionObserver = stubIntersectionObserver();
+    const searchQuery = createQueryState({
+      data: { pages: [{ items: [createSearchItem(1)], nextCursor: "next" }] },
+      hasNextPage: true,
+      isSuccess: true,
+    });
+    useTaskSearchQueryMock.mockReturnValue(searchQuery);
+
+    render(<VoteTaskListScreen initialQuery="교통" />);
+
+    expect(screen.queryByRole("button", { name: "더 보기" })).toBeNull();
+    expect(screen.queryByText("검색된 모든 투표를 확인했어요")).toBeNull();
+    expect(searchQuery.fetchNextPage).not.toHaveBeenCalled();
+
+    act(() => intersectionObserver.report(true));
+
+    expect(searchQuery.fetchNextPage).toHaveBeenCalledTimes(1);
+  });
+
+  it("다음 검색 결과를 받는 중이면 목록 끝에 불러오는 중 안내를 보여 주고 다시 요청하지 않는다", () => {
+    const intersectionObserver = stubIntersectionObserver();
+    const searchQuery = createQueryState({
+      data: { pages: [{ items: [createSearchItem(1)], nextCursor: "next" }] },
+      hasNextPage: true,
+      isFetching: true,
+      isFetchingNextPage: true,
+      isSuccess: true,
+    });
+    useTaskSearchQueryMock.mockReturnValue(searchQuery);
+
+    render(<VoteTaskListScreen initialQuery="교통" />);
+    act(() => intersectionObserver.report(true));
+
+    expect(screen.getByRole("status").textContent).toBe("투표를 더 불러오는 중이에요");
+    expect(searchQuery.fetchNextPage).not.toHaveBeenCalled();
+  });
+
+  it("다음 검색 결과를 받지 못하면 자동 요청을 멈추고 오류 안내의 더 보기 버튼으로 이어 받는다", () => {
+    const intersectionObserver = stubIntersectionObserver();
+    const searchQuery = createQueryState({
+      data: { pages: [{ items: [createSearchItem(1)], nextCursor: "next" }] },
+      error: new Error("network"),
+      hasNextPage: true,
+      isError: true,
+      isFetchNextPageError: true,
+    });
+    useTaskSearchQueryMock.mockReturnValue(searchQuery);
+
+    render(<VoteTaskListScreen initialQuery="교통" />);
+    act(() => intersectionObserver.report(true));
+
+    expect(searchQuery.fetchNextPage).not.toHaveBeenCalled();
+    expect(screen.getByRole("alert").textContent).toContain(
+      "투표 검색 결과를 불러오지 못했습니다.",
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "더 보기" }));
+
+    expect(searchQuery.fetchNextPage).toHaveBeenCalledTimes(1);
+    expect(searchQuery.refetch).not.toHaveBeenCalled();
+  });
+
+  it("검색 결과를 마지막 페이지까지 받으면 목록 끝에 마무리 문구를 보여 준다", () => {
+    useTaskSearchQueryMock.mockReturnValue(
+      createQueryState({
+        data: { pages: [{ items: [createSearchItem(1)], nextCursor: null }] },
+        isSuccess: true,
+      }),
+    );
+
+    const html = renderToStaticMarkup(<VoteTaskListScreen initialQuery="교통" />);
+
+    expect(html).toContain("검색된 모든 투표를 확인했어요");
   });
 
   it("URL에서 복원한 완료 탭을 초기 선택으로 표시한다", () => {
@@ -313,6 +420,8 @@ function createQueryState(
     error: unknown;
     hasNextPage: boolean;
     isError: boolean;
+    isFetchNextPageError: boolean;
+    isFetching: boolean;
     isFetchingNextPage: boolean;
     isPending: boolean;
     isSuccess: boolean;
@@ -325,11 +434,54 @@ function createQueryState(
     fetchNextPage: vi.fn(),
     hasNextPage: false,
     isError: false,
+    isFetchNextPageError: false,
+    isFetching: false,
     isFetchingNextPage: false,
     isPending: false,
     isSuccess: false,
     failureCount: 0,
     refetch: vi.fn(),
     ...patch,
+  };
+}
+
+function createSearchItem(index: number) {
+  return {
+    closedAt: null,
+    closesAt: "2026-10-15T00:00:00Z",
+    closureType: null,
+    description: null,
+    mySubmission: null,
+    openedAt: "2026-10-01T00:00:00Z",
+    resultAvailable: false,
+    taskId: `7dd2eaa5-7ef2-420a-93dc-0cb337be62f${index}`,
+    taskStatus: "OPEN",
+    title: `교통 투표 ${index}`,
+  };
+}
+
+function stubIntersectionObserver(): { report: (isIntersecting: boolean) => void } {
+  const callbacks: IntersectionObserverCallback[] = [];
+
+  vi.stubGlobal(
+    "IntersectionObserver",
+    class {
+      constructor(callback: IntersectionObserverCallback) {
+        callbacks.push(callback);
+      }
+
+      disconnect() {}
+
+      observe() {}
+    },
+  );
+
+  // 맨 위로 버튼과 다음 페이지 요청 표시가 각각 observer를 만들므로, 모두에게 같은 상태를 알림
+  return {
+    report: (isIntersecting) => {
+      callbacks.forEach((callback) =>
+        callback([{ isIntersecting } as IntersectionObserverEntry], {} as IntersectionObserver),
+      );
+    },
   };
 }

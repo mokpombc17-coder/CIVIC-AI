@@ -616,7 +616,9 @@ Provider는 Vote 전용 `QueryClient`와 인증 사용자 전환 시 cache 경�
 view 초기값을 정규화한다.
 `VoteTaskListScreen`은 검색 실행과 진행 중·완료 필터 및 URL 동기화를 소유한다. 목록을 내려 검색창과 탭 form이
 화면 밖으로 나가면 shell의 `contentTopAction` slot에 전달한 `PlatformScrollTopButton`이 header 아래에
-나타나고, 누르면 content 스크롤을 맨 위로 올린다. `view`가 지정되지 않으면
+나타나고, 누르면 content 스크롤을 맨 위로 올린다. 완료 탭과 검색 결과의 다음 cursor 페이지는 목록 끝에 가까워지면
+자동으로 이어 받고, 다음 페이지 요청이 실패했을 때만 오류 안내에 더 보기 버튼을 보여 준다. 모든 페이지를
+받으면 탭별 마무리 문구를 목록 끝에 표시한다. `view`가 지정되지 않으면
 검색어가 있을 때 검색 결과 view, 없을 때 목록 view로 시작한다. 목록 view에서는 선택한 탭의 목록 Query를
 카드 view model로 변환하고, 검색 결과 view에서는 두 탭의 Query를 비활성화한 뒤 통합 검색 Infinite Query로
 서버 정렬 순서대로 진행 중·완료 결과와 cursor pagination을 표시한다. 통합 검색 Query는 view와 관계없이
