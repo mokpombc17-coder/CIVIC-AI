@@ -465,27 +465,27 @@ test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 
   await page.route("**/api/v1/admin/room-categories", (route) => route.abort("failed"));
   await page.goto("/admin/chat/requests/detail?requestId=request-1");
 
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1$/u);
-  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("citizen@example.com", { exact: true })).toBeVisible();
-  await expect(page.getByLabel("사유를 입력해 반려")).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
+  const detail = page.getByRole("region", { name: "신청 상세" });
+  await expect(detail.getByRole("heading", { name: "시민 정책 토론방" })).toBeVisible();
+  await expect(detail.getByText("citizen@example.com", { exact: true })).toBeVisible();
+  await expect(detail.getByLabel("사유를 입력해 반려")).toBeVisible();
   await expect(page.getByRole("status")).toContainText("카테고리 목록");
 });
 
-test("기존 승인·반려 주소는 반려 모드 Drawer로 연결한다", async ({ context, page }) => {
+test("승인·반려 주소는 신청 상세를 반려 모드로 연다", async ({ context, page }) => {
   await authenticate(context);
   await page.goto("/admin/chat/requests/review?requestId=request-1");
 
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=request-1&decision=reject$/u);
-  const drawer = page.getByRole("dialog", { name: "시민 정책 토론방" });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByLabel("사유를 입력해 반려")).toBeChecked();
-  const rejectionReason = drawer.getByLabel("반려 사유");
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\/review\?requestId=request-1$/u);
+  const detail = page.getByRole("region", { name: "신청 상세" });
+  await expect(detail.getByRole("heading", { name: "시민 정책 토론방" })).toBeVisible();
+  await expect(detail.getByLabel("사유를 입력해 반려")).toBeChecked();
+  const rejectionReason = detail.getByLabel("반려 사유");
   await expect(rejectionReason).toBeVisible();
   await expect(rejectionReason).toHaveCSS("border-top-style", "solid");
   await expect(rejectionReason).toHaveCSS("border-top-width", "1px");
-  await expect(drawer.getByText("한 줄 입력")).toHaveCount(0);
+  await expect(detail.getByText("한 줄 입력")).toHaveCount(0);
 });
 
 test("다른 관리자가 삭제한 카테고리의 수정 404에서 최신 목록을 다시 불러온다", async ({
@@ -617,7 +617,7 @@ test("토론방·투표의 목록과 상세 구분선은 같은 높이에서 시
   expect(await pageHasVerticalOverflow(page)).toBe(false);
 });
 
-test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 방을 즉시 종료한다", async ({
+test("토론방 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 방을 즉시 종료한다", async ({
   context,
   page,
 }) => {
@@ -636,26 +636,21 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/admin/chat");
 
-  await expect(page.getByRole("heading", { name: "채팅방 관리" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "토론방 운영", level: 1 })).toBeVisible();
   await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
-  const roomWorkbench = page.locator('[data-wireflow-layout="chat-room-admin"]');
-  await expect(roomWorkbench).toHaveCSS("padding-left", "32px");
-  await expect(roomWorkbench).toHaveCSS("padding-right", "32px");
   await expect(page.getByRole("columnheader", { name: "공개·참여" })).toHaveCount(0);
   const activeRoom = page.getByRole("row", { name: /시민 정책 토론방/u });
   await expect(activeRoom).toContainText("운영 중");
   await expect(activeRoom).not.toContainText("목록 공개");
   await expect(activeRoom).not.toContainText("바로 참여");
   await expect(page.getByRole("row", { name: /지난 정책 기록방/u })).toContainText("종료");
-  const detailButton = activeRoom.getByRole("button", { name: "상세 보기" });
-  await detailButton.click();
+  await activeRoom.click();
   await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
-  const statisticsDrawer = page.getByRole("dialog", { name: "시민 정책 토론방 통계" });
-  await expect(statisticsDrawer).toBeVisible();
+  const analysisPanel = page.getByRole("region", { name: "대화 내역" });
+  await expect(analysisPanel.getByText("시민 정책 토론방", { exact: true })).toBeVisible();
   await expect.poll(() => releaseExportResponse !== null).toBe(true);
-  const analysisPanel = statisticsDrawer.getByRole("region", { name: "채팅방 통계 상세" });
-  await analysisPanel.getByText("채팅방 운영 설정", { exact: true }).click();
-  const closeRoomButton = analysisPanel.getByRole("button", { name: "채팅방 종료" });
+  await analysisPanel.getByText("토론방 운영 설정", { exact: true }).click();
+  const closeRoomButton = analysisPanel.getByRole("button", { name: "토론방 종료" });
   try {
     await expect(closeRoomButton).toBeEnabled();
   } finally {
@@ -664,7 +659,7 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
 
   await closeRoomButton.click();
   const closeRoomDialog = page.getByRole("alertdialog", {
-    name: "채팅방을 즉시 종료할까요?",
+    name: "토론방을 즉시 종료할까요?",
   });
   const dialogBox = await closeRoomDialog.boundingBox();
   const viewport = page.viewportSize();
@@ -676,7 +671,7 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
   await expect(closeRoomDialog).toContainText("모든 사용자");
   await expect(closeRoomDialog).toContainText("접속 중인 연결이 끊깁니다");
   const keepRoomButton = closeRoomDialog.getByRole("button", { name: "운영 유지" });
-  const confirmCloseButton = closeRoomDialog.getByRole("button", { name: "채팅방 종료" });
+  const confirmCloseButton = closeRoomDialog.getByRole("button", { name: "토론방 종료" });
   const confirmationInput = closeRoomDialog.getByLabel("종료 확인 문구");
   await expect(keepRoomButton).toBeEnabled();
   await expect(confirmationInput).toBeFocused();
@@ -702,70 +697,72 @@ test("채팅 관리자는 참여자 수와 관계없이 UUID 멱등성 키로 �
 
   await closeRoomButton.click();
   await closeRoomDialog.getByLabel("종료 확인 문구").fill("종료합니다.");
-  await closeRoomDialog.getByRole("button", { name: "채팅방 종료" }).click();
+  await closeRoomDialog.getByRole("button", { name: "토론방 종료" }).click();
 
   await expect
     .poll(() => closeRoomIdempotencyKey, { timeout: 2_000 })
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
   expect(closeRoomBody).toBe("");
-  await expect(page.getByRole("status")).toContainText("CLOSED 상태를 확인했습니다");
-  await expect(statisticsDrawer.getByRole("button", { name: "채팅방 종료" })).toHaveCount(0);
+  await expect(analysisPanel.getByRole("status")).toContainText(
+    "관리자 목록에서 종료 상태를 확인했습니다",
+  );
+  await expect(analysisPanel.getByRole("button", { name: "토론방 종료" })).toHaveCount(0);
+  await expect(activeRoom).toContainText("종료");
   expect(adminRooms.find((room) => room.roomId === activeRoomId)).toMatchObject({
     status: "CLOSED",
     activeMemberCount: 0,
   });
-
-  await page.keyboard.press("Escape");
-  await expect(statisticsDrawer).toHaveCount(0);
-  await expect(page).toHaveURL(/\/admin\/chat$/u);
-  await expect(detailButton).toBeFocused();
 });
 
-test("기존 채팅 통계 주소는 채팅방 관리의 통계 Drawer로 연결한다", async ({ context, page }) => {
+test("채팅 통계 주소는 토론방 운영 화면의 통계 탭으로 연다", async ({ context, page }) => {
   await authenticate(context);
   await page.goto(`/admin/chat/statistics?roomId=${activeRoomId}`);
 
-  await expect(page).toHaveURL(new RegExp(`/admin/chat\\?roomId=${activeRoomId}$`, "u"));
-  await expect(page.getByRole("dialog", { name: "시민 정책 토론방 통계" })).toBeVisible();
+  await expect(page).toHaveURL(new RegExp(`/admin/chat/statistics\\?roomId=${activeRoomId}$`, "u"));
+  const analysisPanel = page.getByRole("region", { name: "대화 내역" });
+  await expect(analysisPanel.getByRole("tab", { name: "통계" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(analysisPanel.getByText("시민 정책 토론방", { exact: true })).toBeVisible();
   await expect(page.getByText("운영 상태와 대화 맥락을 함께 확인합니다")).toHaveCount(0);
 });
 
-test("Vote 관리자는 목록의 투표 상세를 우측 Drawer에서 확인한다", async ({ context, page }) => {
+test("Vote 관리자는 목록에서 고른 투표 상세를 오른쪽 상세 영역에서 확인한다", async ({
+  context,
+  page,
+}) => {
   await authenticate(context);
   await page.setViewportSize({ width: 1280, height: 800 });
   task = taskFixture("OPEN");
   await page.goto("/admin/tasks");
 
-  const detailButton = page.getByRole("button", { name: "투표 상세" });
-  await detailButton.click();
+  await page.getByRole("row", { name: /기존 정책 투표/u }).click();
 
-  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
-  const drawer = page.getByRole("dialog", { name: "투표 상세" });
-  await expect(drawer).toBeVisible();
-  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
-  await expect(drawer.getByRole("link", { name: "조기 종료" })).toBeVisible();
-  await expect(drawer.getByLabel("동작")).toHaveValue("deadline");
-  await expect(drawer.getByRole("option", { name: "즉시 반영" })).toBeAttached();
-  await expect(drawer).toHaveCSS("transform", "none");
+  await expect(page).toHaveURL(`/admin/tasks/detail?taskId=${taskId}`);
+  const list = page.getByRole("region", { name: "투표 목록", exact: true });
+  const detail = page.getByRole("region", { name: "투표 상세" });
+  await expect(detail.getByRole("heading", { name: "기존 정책 투표" })).toBeVisible();
+  await expect(detail.getByRole("heading", { name: "운영 이력" })).toBeVisible();
+  await expect(detail.getByRole("button", { name: "조기 종료" })).toBeVisible();
+  await expect(detail.getByLabel("동작")).toHaveValue("deadline");
+  await expect(detail.getByRole("option", { name: "투표 취소" })).toBeAttached();
 
-  const drawerBox = await drawer.boundingBox();
-  const viewport = page.viewportSize();
-  if (!drawerBox || !viewport) throw new Error("투표 상세 Drawer 위치를 확인할 수 없습니다.");
-  expect(Math.abs(drawerBox.x + drawerBox.width - viewport.width)).toBeLessThan(2);
-  expect(Math.abs(drawerBox.height - viewport.height)).toBeLessThan(2);
-
-  await page.keyboard.press("Escape");
-  await expect(drawer).toHaveCount(0);
-  await expect(page).toHaveURL(/\/admin\/tasks$/u);
-  await expect(detailButton).toBeFocused();
+  const listBox = await list.boundingBox();
+  const detailBox = await detail.boundingBox();
+  if (!listBox || !detailBox) throw new Error("투표 목록·상세 위치를 확인할 수 없습니다.");
+  expect(listBox.x + listBox.width).toBeLessThanOrEqual(detailBox.x);
+  expect(Math.abs(listBox.y - detailBox.y)).toBeLessThan(2);
 });
 
-test("기존 투표 생성 주소는 목록의 새 투표 Drawer로 연결한다", async ({ context, page }) => {
+test("투표 생성 주소는 투표 상세 영역에 새 초안 편집기를 연다", async ({ context, page }) => {
   await authenticate(context);
   await page.goto("/admin/tasks/create");
 
-  await expect(page).toHaveURL("/admin/tasks?create=1");
-  await expect(page.getByRole("dialog", { name: "새 투표 만들기" })).toBeVisible();
+  await expect(page).toHaveURL("/admin/tasks/create");
+  const detail = page.getByRole("region", { name: "투표 상세" });
+  await expect(detail.getByRole("heading", { name: "새 투표 만들기" })).toBeVisible();
+  await expect(detail.getByRole("textbox", { name: /^제목/u })).toBeVisible();
 });
 
 test("투표 제목은 20자까지 입력되고 16자를 넘으면 모바일 잘림을 경고한다", async ({
@@ -794,7 +791,7 @@ test("투표 제목은 20자까지 입력되고 16자를 넘으면 모바일 잘
   await page.screenshot({ path: "e2e/.artifacts/vote-title-limit.png" });
 });
 
-test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 즉시 발행한다", async ({
+test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 상세 영역에서 즉시 발행한다", async ({
   context,
   page,
 }) => {
@@ -803,52 +800,37 @@ test("Vote 관리자는 UUID 멱등성 키로 초안을 만들고 Drawer에서 �
   await page.goto("/admin/tasks");
   await page.getByRole("button", { name: "새 투표 만들기" }).click();
 
-  let createDrawer = page.getByRole("dialog", { name: "새 투표 만들기" });
-  await expect(page).toHaveURL("/admin/tasks?create=1");
-  await expect(createDrawer.getByRole("navigation", { name: "투표 생성 단계" })).toBeVisible();
-  await createDrawer.getByLabel("제목").fill("지역 정책 선호도 조사");
-  await createDrawer.getByLabel("상황 또는 사건").fill("운영 확인용 투표");
-  await createDrawer.getByRole("button", { name: "다음" }).click();
-  await createDrawer.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
-
-  await createDrawer.getByRole("button", { name: "새 투표 만들기 닫기" }).click();
-  await expect(createDrawer).toBeHidden();
-  await page.getByRole("button", { name: "새 투표 만들기" }).click();
-  createDrawer = page.getByRole("dialog", { name: "새 투표 만들기" });
-  await expect(createDrawer.getByRole("textbox", { name: "질문", exact: true })).toHaveValue(
-    "어떤 안을 선호하시나요?",
-  );
-  await createDrawer.getByRole("button", { name: /기본 정보/ }).click();
-  await expect(createDrawer.getByLabel("제목")).toHaveValue("지역 정책 선호도 조사");
-  await expect(createDrawer.getByLabel("상황 또는 사건")).toHaveValue("운영 확인용 투표");
-  await createDrawer.getByRole("button", { name: /시민에게 물을 내용/ }).click();
-  await createDrawer.getByRole("button", { name: "다음" }).click();
-  await expect(createDrawer.getByText("질문 설명", { exact: true })).toHaveCount(0);
-  await createDrawer.getByLabel("선택지 1").fill("A안");
-  await createDrawer.getByLabel("선택지 2").fill("B안");
-  await createDrawer.getByRole("button", { name: "초안 생성" }).click();
+  const detail = page.getByRole("region", { name: "투표 상세" });
+  await expect(page).toHaveURL("/admin/tasks/create");
+  await expect(detail.getByRole("heading", { name: "새 투표 만들기" })).toBeVisible();
+  await detail.getByRole("textbox", { name: /^제목/u }).fill("지역 정책 선호도 조사");
+  await detail.getByLabel("배경").fill("운영 확인용 투표");
+  await detail.getByLabel("질문", { exact: true }).fill("어떤 안을 선호하시나요?");
+  await expect(detail.getByText("질문 설명", { exact: true })).toHaveCount(0);
+  await detail.getByLabel("선택지 1").fill("A안");
+  await detail.getByLabel("선택지 2").fill("B안");
+  // 즉시 발행은 AI 예상 답변 준비가 끝난 초안에서만 열린다(mock capabilities.canOpenNow).
+  preparationStatus = "READY";
+  await detail.getByRole("button", { name: "초안 저장" }).click();
 
   await expect
     .poll(() => createdTaskIdempotencyKey, { timeout: 2_000 })
     .toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/iu);
-  await expect(page).toHaveURL(`/admin/tasks?taskId=${taskId}`);
-  const drawer = page.getByRole("dialog", { name: "투표 상세" });
-  await expect(drawer).toBeVisible();
+  await expect(page).toHaveURL(`/admin/tasks/detail?taskId=${taskId}`);
   expect(createdTaskBody).toMatchObject({
     title: "지역 정책 선호도 조사",
     description: "운영 확인용 투표",
     question: { description: null },
   });
-  await drawer.getByLabel("동작").selectOption("open-now");
-  await drawer.getByLabel("마감 시각").fill("2026-09-01T09:00");
-  await drawer.getByRole("button", { name: "즉시 발행" }).click();
+  await detail.getByLabel("동작").selectOption("open-now");
+  // 마감 시각은 현재보다 미래여야 하므로 실행 시점 기준 7일 뒤로 넣는다.
+  await detail.getByLabel("마감 시각").fill(localDateTimeInput(Date.now() + 7 * 24 * 60 * 60_000));
+  await detail.getByRole("button", { name: "적용하기" }).click();
 
-  await expect(drawer.getByRole("status")).toContainText("최신 상태를 반영했습니다");
-  await expect(
-    drawer.locator(".civic-user-summary-grid").getByText("진행 중", { exact: true }),
-  ).toBeVisible();
-  await expect(drawer.getByText(taskId, { exact: true })).toHaveCount(0);
-  await expect(drawer.getByText("운영 이력", { exact: true })).toHaveCount(0);
+  await expect(detail.locator(".civic-form-message")).toContainText("최신 상태를 반영했습니다");
+  // 상태는 상세 영역 머리글의 부제로 보인다(투표 요약에는 일정만 남는다).
+  await expect(detail.locator(".console-pane-header small")).toHaveText("진행 중");
+  await expect(detail.getByText(taskId, { exact: true })).toHaveCount(0);
 });
 
 test("시뮬레이션 탭은 투표 기반 시뮬레이션과 시뮬레이션을 별도 목록으로 보여준다", async ({
@@ -1741,3 +1723,9 @@ test("작성 중 투표는 상세의 투표 취소 버튼과 확인 다이얼로
   await expect.poll(() => cancelRequests).toBe(1);
   await expect(page.getByRole("button", { name: "투표 취소", exact: true })).toHaveCount(0);
 });
+
+function localDateTimeInput(epochMs: number): string {
+  const date = new Date(epochMs);
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
