@@ -80,7 +80,23 @@ test.beforeAll(async () => {
       return;
     }
     if (url.pathname === "/api/v1/auth/password-reset/request" && request.method === "POST") {
-      response.writeHead(202).end();
+      const now = Date.now();
+      response.writeHead(202, {
+        "content-type": "application/json",
+        "set-cookie":
+          "__Host-civic-auth-flow=reset-flow; Path=/; Secure; HttpOnly; SameSite=Strict",
+      });
+      response.end(
+        JSON.stringify({
+          masked_email: "na***@example.com",
+          expires_at: new Date(now + 10 * 60_000).toISOString(),
+          resend_available_at: new Date(now + 60_000).toISOString(),
+        }),
+      );
+      return;
+    }
+    if (url.pathname === "/api/v1/auth/password-reset/verify" && request.method === "POST") {
+      response.writeHead(204).end();
       return;
     }
     if (url.pathname === "/api/v1/auth/password-reset/complete" && request.method === "POST") {
@@ -243,6 +259,12 @@ test.beforeAll(async () => {
     if (url.pathname === "/api/v1/admin/simulation-tasks") {
       return json(response, [currentSimulationTaskFixture]);
     }
+    if (url.pathname === "/api/v1/admin/simulation-scenarios") {
+      return json(response, []);
+    }
+    if (url.pathname === "/api/v1/admin/tasks" && request.method === "GET") {
+      return json(response, []);
+    }
     if (url.pathname === "/internal/v1/rag/documents/document-1/versions/version-1/original") {
       response.writeHead(200, {
         "content-type": "application/pdf",
@@ -314,7 +336,11 @@ test("AUTH-001은 frontend2 Platform Shell 안에서 실제 로그인 UI를 유�
   await expectBox(form, { x: [16, 18], width: [359, 362], height: [303, 309] });
   await expectBox(submit, { x: [37, 39], width: [317, 320], height: [47, 50] });
   await expectBox(reset, { x: [16, 18], width: [174, 177], height: [47, 50] });
-  await expectBox(signup, { x: [202, 204], width: [174, 177], height: [47, 50] });
+  await expectBox(signup, { width: [174, 177], height: [47, 50] });
+  // 두 보조 버튼은 `.civic-auth-support-row`의 8px 간격으로 나란히 놓인다.
+  const resetBox = await reset.boundingBox();
+  const signupBox = await signup.boundingBox();
+  expect((signupBox?.x ?? 0) - ((resetBox?.x ?? 0) + (resetBox?.width ?? 0))).toBeCloseTo(8, 0);
 });
 
 test("AUTH-002 헤더는 모바일 공통 높이로 본문과 분리된다", async ({ page }) => {
@@ -417,7 +443,7 @@ test("가입은 계정 정보·이메일 인증·약관 동의 3단계와 유동
   await expect(termsLabel).toHaveCSS("line-height", "22.5px");
 });
 
-test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번호 재설정 흐름을 유지한다", async ({
+test("AUTH-007은 로그인 이메일로 시작해 이메일·인증번호·새 비밀번호 단계를 한 화면에서 진행한다", async ({
   page,
 }) => {
   await page.setViewportSize({ width: 393, height: 852 });
@@ -427,53 +453,59 @@ test("AUTH-007·008은 이메일 입력 단계를 건너뛰고 Figma 비밀번�
 
   await expect(page).toHaveURL(/\/password-reset$/u);
   await expect(page.getByRole("heading", { name: "비밀번호 재설정" })).toBeVisible();
-  await expect(page.getByRole("textbox", { name: "등록 이메일" })).toHaveCount(0);
-  const codeForm = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-form');
-  const codeSupport = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-info');
-  await expect(codeForm).toContainText("na***@example.com으로 코드를 전송했습니다.");
-  await expectBox(codeForm, {
+  const resetForm = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-form');
+  const resetSupport = page.locator('[data-wireflow-screen="AUTH-007"] .wf-auth-info');
+  await expect(resetForm.getByRole("heading", { name: "이메일 입력" })).toBeVisible();
+  await expect(resetForm.getByLabel("이메일")).toHaveValue("name@example.com");
+  await expectBox(resetForm, {
     x: [15.5, 16.5],
-    y: [84.5, 85.5],
+    y: [79.5, 80.5],
     width: [360.5, 361.5],
     height: [270, 272],
   });
-  await expectBox(codeSupport, {
+  await resetForm.getByRole("button", { name: "인증번호 받기" }).click();
+
+  await expect(resetForm.getByRole("heading", { name: "인증번호 입력" })).toBeVisible();
+  await expect(resetForm).toContainText("na***@example.com으로 인증번호를 전송했습니다.");
+  await expect(resetForm.getByLabel("이메일")).toHaveValue("name@example.com");
+  await expectBox(resetForm, {
     x: [15.5, 16.5],
-    y: [375, 377],
+    y: [79.5, 80.5],
+    width: [360.5, 361.5],
+    height: [418.5, 420.5],
+  });
+  await expectBox(resetSupport, {
+    x: [15.5, 16.5],
+    y: [518.5, 520.5],
     width: [360.5, 361.5],
     height: [184, 186],
   });
-  await expect(codeForm.getByRole("heading", { name: "인증 코드 입력" })).toHaveCSS(
+  await expect(resetForm.getByRole("heading", { name: "인증번호 입력" })).toHaveCSS(
     "font-size",
     "18px",
   );
-  await expect(codeForm.getByLabel("6자리 인증 코드")).toHaveCSS("font-size", "16px");
+  await expect(resetForm.getByLabel("6자리 인증번호")).toHaveCSS("font-size", "16px");
 
-  await codeForm.getByLabel("6자리 인증 코드").fill("111222");
-  await codeForm.getByRole("button", { name: "인증하기" }).click();
+  await resetForm.getByLabel("6자리 인증번호").fill("111222");
+  await resetForm.getByRole("button", { name: "인증번호 확인" }).click();
 
-  await expect(page).toHaveURL(/\/password-reset\/complete$/u);
-  const passwordForm = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-form');
-  const passwordSupport = page.locator('[data-wireflow-screen="AUTH-008"] .wf-auth-info');
-  await expect(passwordForm.getByLabel("6자리 인증 코드")).toHaveValue("111222");
-  await expectBox(passwordForm, {
+  await expect(resetForm.getByRole("heading", { name: "새 비밀번호 설정" })).toBeVisible();
+  await expect(resetForm).toContainText("na***@example.com 이메일 인증을 완료했습니다.");
+  await expect(page).toHaveURL(/\/password-reset$/u);
+  await expect(resetForm.getByLabel("새 비밀번호", { exact: true })).toBeVisible();
+  await expect(resetForm.getByLabel("새 비밀번호 확인")).toBeVisible();
+  await expect(resetSupport).toHaveCount(0);
+  await expectBox(resetForm, {
     x: [15.5, 16.5],
-    y: [84.5, 85.5],
+    y: [79.5, 80.5],
     width: [360.5, 361.5],
-    height: [446, 447],
-  });
-  await expectBox(passwordSupport, {
-    x: [15.5, 16.5],
-    y: [547, 548],
-    width: [360.5, 361.5],
-    height: [205, 207],
+    height: [358.5, 360.5],
   });
 
   for (const width of [320, 430]) {
     await page.setViewportSize({ width, height: 852 });
-    await page.reload();
-    await expect(passwordForm).toBeVisible();
-    await expectBox(passwordForm, {
+    await expect(resetForm).toBeVisible();
+    await expectBox(resetForm, {
       x: [15.5, 16.5],
       width: [width - 32.5, width - 31.5],
     });
@@ -488,10 +520,14 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
   await authenticate(context, "participant.payload.signature");
   await page.goto("/home");
 
+  // 로딩 skeleton도 같은 브랜드 제목을 그리므로 실제 홈 카드가 붙은 뒤에 검사한다.
+  await expect(
+    page.locator('[data-wireflow-layout="participant-home"] .wf-action-card'),
+  ).toHaveCount(3);
   await expect(page.locator(".civic-participant-home-header")).toHaveCount(0);
   await expect(page.getByRole("navigation", { name: "페이지 전환" })).toHaveCount(0);
   await expect(page.locator(".civic-brand-title")).toHaveText("CIVIC.AI");
-  await expect(page.locator(".civic-region-badge")).toHaveText("광주/전남");
+  await expect(page.locator(".civic-region-badge")).toHaveText("전남광주");
   const shell = page.locator('[data-platform-shell="true"]');
   const navigation = page.getByRole("navigation", { name: "참여자 주요 메뉴" });
   await expect(shell).toHaveCount(1);
@@ -503,7 +539,7 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
   await expect(cards).toHaveCount(3);
   await expect(cards.nth(0)).toContainText("어떤 점부터 짚어볼까요?");
   await expect(cards.nth(0)).toContainText("질문하기");
-  await expect(cards.nth(1)).toContainText("서로 오가는 이야기");
+  await expect(cards.nth(1)).toContainText("같은 주제로 나누는 생각들");
   await expect(cards.nth(1)).toContainText("토론하기");
   await expect(cards.nth(2)).toContainText("논의에 보태는 내 의견");
   await expect(cards.nth(2)).toContainText("투표하기");
@@ -539,9 +575,8 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
   await expect(userMenu.getByText("관리자 페이지", { exact: true })).toHaveCount(0);
   const installAction = userMenu.getByRole("button", { name: "앱 설치" });
   const logoutAction = userMenu.getByRole("button", { name: "로그아웃" });
-  await expect(installAction).toBeVisible();
-  await expect(installAction).toBeDisabled();
-  await expect(installAction).toHaveCSS("color", "rgb(154, 161, 172)");
+  // 설치할 수 없을 때는 비활성 버튼 대신 항목 자체를 숨긴다.
+  await expect(installAction).toHaveCount(0);
   await expect(logoutAction).toBeVisible();
   await page.evaluate(() => {
     const state = window as typeof window & { __pwaInstallPromptCalls?: number };
@@ -559,6 +594,7 @@ test("U-HOME-001은 별도 브랜드 막대 없이 기준 Wire Flow 카드와 �
     });
     window.dispatchEvent(event);
   });
+  await expect(installAction).toBeVisible();
   await expect(installAction).toBeEnabled();
   await installAction.hover();
   await expect(installAction).toHaveCSS("background-color", "rgb(245, 246, 248)");
@@ -633,79 +669,54 @@ test("관리자 로그인 홈은 사용자 팝업에서 관리자 페이지 이�
   await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
 });
 
-test("U-ACCOUNT는 Figma 계정 허브·정보 관리·설문·비활성화 dialog를 유지한다", async ({
+test("U-ACCOUNT는 보안·로그아웃·비활성화를 한 화면에 두고 비활성화 dialog를 유지한다", async ({
   context,
   page,
 }) => {
   await authenticate(context, "participant.payload.signature");
 
   await page.goto("/account");
-  await expect(page.getByRole("heading", { name: "계정" })).toBeVisible();
-  await expect(page.getByRole("navigation", { name: "계정 항목" })).toBeVisible();
-  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toBeVisible();
-  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toBeVisible();
-  await expect(page.getByRole("button", { name: "로그아웃" })).toBeVisible();
-  const accountCards = page.locator(".wf-account-hub-card");
-  await expect(accountCards).toHaveCount(2);
-  const accountCardLayout = await accountCards.evaluateAll((cards) =>
-    cards.map((card) => {
-      const box = card.getBoundingClientRect();
-      const style = getComputedStyle(card);
-      return {
-        height: Math.round(box.height),
-        paddingBlock: `${style.paddingTop} ${style.paddingBottom}`,
-      };
-    }),
-  );
-  expect(accountCardLayout).toEqual([
-    { height: 78, paddingBlock: "12px 12px" },
-    { height: 78, paddingBlock: "12px 12px" },
-  ]);
+  await expect(page.getByRole("heading", { level: 1, name: "계정" })).toBeVisible();
+  const accountHub = page.locator('[data-wireflow-layout="account-hub"]');
+  await expect(accountHub.getByRole("region", { name: "보안" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /내 정보 관리/u })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /내 설문 보기/u })).toHaveCount(0);
+  await expect(accountHub.getByRole("button", { name: "로그아웃" })).toBeVisible();
+  await expect(accountHub.getByRole("button", { name: "계정 비활성화" })).toBeVisible();
 
   await page.goto("/account/profile");
-  await expect(page.getByRole("heading", { name: "내 정보 관리" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "계정" })).toBeVisible();
   await expect(page.getByText("회원정보 수정", { exact: true })).toHaveCount(0);
   await expect(page.getByLabel("선호 언어")).toHaveCount(0);
   await expect(page.getByLabel("AI 답변 상세도")).toHaveCount(0);
-  await expect(page.getByText("비밀번호 변경", { exact: true })).toBeVisible();
-  await expect(page.getByText("2단계 인증", { exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "비밀번호 변경", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "로그인 2차 인증", exact: true })).toBeVisible();
   await expect(page.getByText("서비스 이용 동의", { exact: true })).toHaveCount(0);
   const passwordCard = page.locator(".wf-account-security-card").filter({
     hasText: "비밀번호 변경",
   });
   const passwordAction = passwordCard.getByRole("button", { name: "변경하기" });
   await passwordAction.scrollIntoViewIfNeeded();
-  const accountScroller = page.locator('[data-platform-shell-content="true"]');
-  const scrollTopBeforePasswordForm = await accountScroller.evaluate((element) =>
-    Math.round(element.scrollTop),
-  );
+  // 보안 항목은 서로 독립적인 아코디언이라 펼쳐도 자동으로 스크롤·포커스를 옮기지 않는다.
   await passwordAction.click();
-  const currentPassword = page.getByLabel("현재 비밀번호");
-  await expect(currentPassword).toBeVisible();
-  await expect(currentPassword).toBeFocused();
-  await expect
-    .poll(() => accountScroller.evaluate((element) => Math.round(element.scrollTop)))
-    .toBeGreaterThan(scrollTopBeforePasswordForm);
-  const securityForm = page.locator(".wf-security-form");
-  const readFormOffsetFromScroller = () =>
-    securityForm.evaluate((form) => {
-      const scroller = form.closest('[data-platform-shell-content="true"]');
-      if (!scroller) return Number.POSITIVE_INFINITY;
-      return Math.round(form.getBoundingClientRect().top - scroller.getBoundingClientRect().top);
-    });
-  await expect.poll(readFormOffsetFromScroller).toBeLessThanOrEqual(24);
-  const formOffsetFromScroller = await readFormOffsetFromScroller();
-  expect(formOffsetFromScroller).toBeGreaterThanOrEqual(0);
-  const accountManagement = page.getByRole("heading", { name: "계정 관리" });
-  await accountManagement.scrollIntoViewIfNeeded();
-  await expect(accountManagement).toBeVisible();
+  await expect(passwordCard).toHaveClass(/is-expanded/u);
+  await expect(passwordCard.getByRole("button", { name: "닫기" })).toHaveAttribute(
+    "aria-expanded",
+    "true",
+  );
+  await expect(page.getByLabel("현재 비밀번호")).toBeVisible();
+  await expect(page.getByLabel("새 비밀번호", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("새 비밀번호 확인")).toBeVisible();
+  const deactivateAction = page.getByRole("button", { name: "계정 비활성화" });
+  await deactivateAction.scrollIntoViewIfNeeded();
+  await expect(deactivateAction).toBeVisible();
   const profileUrl = page.url();
-  await page.getByRole("button", { name: "계정 비활성화" }).click();
+  await deactivateAction.click();
   await expect(page).toHaveURL(profileUrl);
   await expect(page.getByLabel("화면을 불러오는 중")).toHaveCount(0);
   const dialog = page.getByRole("alertdialog", { name: "계정을 비활성화할까요?" });
   await expect(dialog).toBeVisible();
-  await expect(dialog.getByText("비활성화 영향", { exact: true })).toBeVisible();
+  await expect(dialog.getByRole("term")).toHaveText(["보관 데이터", "로그인 상태"]);
   await expect(dialog.getByLabel("비밀번호 확인")).toBeFocused();
   await expectBox(dialog, { width: [359, 362] });
   await expectBox(dialog.locator(".wf-impact-list > div").first(), { height: [93, 95] });
@@ -784,7 +795,8 @@ test("자격 확인이 늦으면 Platform Shell을 유지하고 지연 indicator
     observer.observe(document, { childList: true, subtree: true });
   });
 
-  await page.goto("/home?source=eligibility-loading", { waitUntil: "domcontentloaded" });
+  // 홈은 자격 확인과 별개로 먼저 그려지므로(loadingFallback=null) 보호 화면인 계정에서 확인한다.
+  await page.goto("/mypage?source=eligibility-loading", { waitUntil: "domcontentloaded" });
 
   const shells = page.locator('[data-platform-shell="true"]');
   const shell = shells.last();
@@ -792,14 +804,12 @@ test("자격 확인이 늦으면 Platform Shell을 유지하고 지연 indicator
   const indicator = page.locator('[data-eligibility-loading-indicator="true"]');
   await expect(shell).toBeVisible();
   await expect(navigation).toBeVisible();
-  await expect(page.locator('[data-wireflow-layout="participant-home"]')).toHaveCount(0);
+  await expect(page.locator('[data-wireflow-layout="account-hub"]')).toHaveCount(0);
   await expect(indicator).toHaveCount(0);
   await expect(indicator).toBeVisible();
   await expect(page.getByText("이용 자격 확인 중…", { exact: true })).toBeVisible();
   await expect(indicator).toHaveCount(0);
-  await expect(
-    page.locator('[data-wireflow-layout="participant-home"] .wf-action-card'),
-  ).toHaveCount(3);
+  await expect(page.locator('[data-wireflow-layout="account-hub"]')).toBeVisible();
   await expect(shells).toHaveCount(1);
 
   const timings = await page.evaluate(() => {
@@ -826,20 +836,26 @@ test("참여자 Platform Shell 헤더는 자격 확인 전후와 주요 경로�
       .first()
       .evaluate((element) => element.getBoundingClientRect().height);
 
-  await page.goto("/rag", { waitUntil: "domcontentloaded" });
+  await page.goto("/mypage", { waitUntil: "domcontentloaded" });
   await expect(page.locator('[data-eligibility-loading="true"]')).toBeVisible();
   expect(await headerHeight()).toBe(64);
 
-  await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
-  expect(await headerHeight()).toBe(64);
-
-  serviceEligibilityDelayMs = 0;
-  await page.goto("/mypage");
   await expect(page.locator('[data-wireflow-screen="U-ACCOUNT-001"]')).toBeVisible();
   expect(await headerHeight()).toBe(64);
 
+  // RAG는 자격 확인 중에도 공통 지연 화면 대신 자기 빈 화면(fallback)을 유지한다.
+  await page.goto("/rag", { waitUntil: "domcontentloaded" });
+  await waitForStreamingSettled(page);
+  await expect(page.locator('[data-wireflow-screen="U-RAG-001"]')).toBeVisible();
+  await expect(page.locator('[data-eligibility-loading="true"]')).toHaveCount(0);
+  expect(await headerHeight()).toBe(64);
+  serviceEligibilityDelayMs = 0;
+
   await page.goto("/home");
-  await expect(page.locator('[data-wireflow-layout="participant-home"]')).toBeVisible();
+  await waitForStreamingSettled(page);
+  await expect(
+    page.locator('[data-wireflow-layout="participant-home"] .wf-action-card'),
+  ).toHaveCount(3);
   expect(await headerHeight()).toBe(64);
 });
 
@@ -940,6 +956,8 @@ test("참여자 하단 메뉴는 소유 앱에 따라 client/document navigation
 }) => {
   await authenticate(context, "participant.payload.signature");
   await page.goto("/home");
+  // 사용자 메뉴는 hydration 뒤 effect에서 그려진다. 그 전에 누르면 Link가 일반 문서 이동이 된다.
+  await expect(page.getByRole("button", { name: "citizen님 사용자 메뉴" })).toBeVisible();
   await page.evaluate(() => {
     (window as typeof window & { __platformNavigationMarker?: string }).__platformNavigationMarker =
       "preserved";
@@ -974,10 +992,10 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   await page.goto("/account/profile");
 
   const twoFactorCard = page.locator(".wf-account-security-card").filter({
-    hasText: "2단계 인증",
+    hasText: "로그인 2차 인증",
   });
   await expect(twoFactorCard).toContainText(
-    "로그인할 때 비밀번호 입력 후 이메일로 받은 6자리 코드를 추가로 확인합니다.",
+    "로그인 시 이메일로 받은 6자리 인증번호를 추가로 확인합니다.",
   );
   await twoFactorCard.getByRole("button", { name: "설정하기" }).click();
   await expect(page.getByLabel("6자리 인증 코드")).toHaveCount(0);
@@ -986,7 +1004,6 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   await expect(page.getByText("인증코드가 전송되었습니다.", { exact: true })).toBeVisible();
   const codeInput = page.getByLabel("6자리 인증 코드");
   await expect(codeInput).toBeVisible();
-  await expect(codeInput).toBeFocused();
   await expect(codeInput).toHaveAttribute("autocomplete", "one-time-code");
   await expect(codeInput).toHaveAttribute("inputmode", "numeric");
   await expect(codeInput).toHaveAttribute("maxlength", "6");
@@ -997,22 +1014,31 @@ test("U-ACCOUNT 2단계 인증은 코드 발송 후 6자리 코드를 확인한�
   expect(twoFactorEnableRequestBodies).toEqual([{ code: null }, { code: "123456" }]);
 });
 
-test("A-HOME은 채팅방 승인 대기 목록에서 검토 화면으로 이동한다", async ({ context, page }) => {
+test("A-HOME은 토론방 승인 대기 목록에서 검토 화면으로 이동한다", async ({ context, page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await authenticate(context, "admin.payload.signature");
 
   await page.goto("/admin");
-  const pendingChatRequests = page.getByRole("region", { name: "채팅방 승인 대기" });
+  const pendingChatRequests = page.getByRole("region", { name: /^토론방 승인 대기/u });
   await expect(pendingChatRequests.getByText("지역 교통 토론방", { exact: true })).toBeVisible();
   await expect(pendingChatRequests.getByText(/citizen@example\.com/)).toBeVisible();
   const reviewChatRequest = pendingChatRequests.getByRole("link", {
     name: "지역 교통 토론방 검토하기",
   });
-  await expect(reviewChatRequest).toHaveCSS("justify-self", "end");
+  // 행은 `justify-content: space-between`이라 검토 링크가 행 오른쪽 안쪽 여백(16px)에 붙는다.
+  const reviewRow = pendingChatRequests.locator(".civic-home-row").first();
+  await expect(reviewRow).toHaveCSS("justify-content", "space-between");
+  const rowBox = await reviewRow.boundingBox();
+  const reviewBox = await reviewChatRequest.boundingBox();
+  expect(
+    (rowBox?.x ?? 0) + (rowBox?.width ?? 0) - ((reviewBox?.x ?? 0) + (reviewBox?.width ?? 0)),
+  ).toBeCloseTo(16, 0);
   await reviewChatRequest.click();
 
-  await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=chat-request-1$/u);
-  await expect(page.getByRole("heading", { name: "채팅방 생성 요청 검토" })).toBeVisible();
+  await expect(page).toHaveURL(/\/admin\/chat\/requests\?requestId=chat-request-1$/u);
+  const requestDetail = page.getByRole("region", { name: "신청 상세" });
+  await expect(requestDetail.getByRole("heading", { name: "지역 교통 토론방" })).toBeVisible();
+  await expect(requestDetail.getByRole("complementary", { name: "신청 처리" })).toBeVisible();
 });
 
 test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한다", async ({ context, page }) => {
@@ -1021,12 +1047,12 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
 
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
-  await expect(page.locator('[data-wireflow-layout="admin-home"] .wf-admin-metric')).toHaveCount(4);
+  await expect(page.locator('[data-wireflow-layout="admin-home"] .console-metric')).toHaveCount(6);
   const adminCards = page.locator('[data-wireflow-layout="admin-home"] .wf-action-card');
   await expect(adminCards).toHaveCount(0);
   await expect(page.getByText("시뮬레이션 사용 잔액", { exact: true })).toBeVisible();
   await expect(page.getByText("88,000원", { exact: true })).toBeVisible();
-  await expect(page.getByText("24시간 내 마감", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("24시간 내 마감", { exact: true })).toBeVisible();
   await expect(page.getByText(/실행 보류/u)).toHaveCount(0);
   const currentOperations = page.getByRole("region", { name: "현재 처리 중" });
   await expect(currentOperations.getByText("2건", { exact: true })).toBeVisible();
@@ -1046,10 +1072,14 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
     x: [238, 242],
     y: [0, 0],
     width: [1198, 1202],
-    height: [78, 82],
+    height: [63, 65],
   });
 
-  const retryLink = page.getByRole("link", { name: "policy.pdf 재시도" });
+  const retryLink = page
+    .getByRole("region", { name: "처리 실패 문서" })
+    .getByRole("listitem")
+    .filter({ hasText: "policy.pdf" })
+    .getByRole("link", { name: "재시도" });
   await expect(retryLink).toHaveAttribute(
     "href",
     "/admin/rag/upload?retryJobId=job-1&documentId=document-1&filename=policy.pdf",
@@ -1063,7 +1093,7 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   const retryRequest = await retryRequestPromise;
   expect(retryRequest.headers()["idempotency-key"]).toBe("ADMIN_HOME_RETRY:job-1");
   await expect(page).toHaveURL(/\/admin\/rag\/jobs\?jobId=job-retry-1&filename=policy\.pdf$/u);
-  await expect(page.getByRole("heading", { name: "문서 준비 상태" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "업로드한 문서" })).toBeVisible();
 
   await page.goto("/admin/users");
   await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
@@ -1087,7 +1117,8 @@ test("A-HOME과 A-USER는 최신 Wire Flow 관리자 작업공간을 유지한�
   await expect(page.getByRole("heading", { name: "사용자·권한" })).toBeVisible();
   await expect(page.getByRole("tablist", { name: "사용자 상세 탭" })).toBeVisible();
   await expect(page.getByRole("tab", { name: "개요" })).toHaveAttribute("aria-selected", "true");
-  await expect(page.getByRole("tab", { name: "활동" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "권한 이력" })).toBeVisible();
+  await expect(page.getByRole("tab", { name: "활동" })).toHaveCount(0);
 
   await page.goto("/admin/users/roles/revoke?userId=00000000-0000-4000-8000-000000000002");
   await expect(page).toHaveURL(/\/admin\/users\/roles\/revoke\?userId=/u);

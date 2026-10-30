@@ -94,12 +94,12 @@ test.afterAll(async () => {
   });
 });
 
-test("70개 canonical route가 Wire Flow 화면, 접근성, 비활성 네트워크 경계를 유지한다", async ({
+test("68개 canonical route가 Wire Flow 화면, 접근성, 비활성 네트워크 경계를 유지한다", async ({
   context,
   page,
 }) => {
   test.setTimeout(120_000);
-  expect(registry.screens).toHaveLength(70);
+  expect(registry.screens).toHaveLength(68);
   const selectedScreens = process.env.WIREFLOW_SCREEN_ID
     ? registry.screens.filter((screen) => screen.id === process.env.WIREFLOW_SCREEN_ID)
     : registry.screens;
@@ -122,13 +122,19 @@ test("70개 canonical route가 Wire Flow 화면, 접근성, 비활성 네트워�
     }
     const recoveredSignupStep = screen.id === "AUTH-003" || screen.id === "AUTH-004";
     if (recoveredSignupStep) await expect(page).toHaveURL(/\/signup\/account$/u);
-    const screenSurface = page.locator(
-      `[data-wireflow-screen="${recoveredSignupStep ? "AUTH-002" : screen.id}"]`,
-    );
+    // 비밀번호 재설정 코드 단계는 직접 들어오면 이메일 입력 단계(AUTH-007)로 되돌린다.
+    const recoveredPasswordResetStep = screen.id === "AUTH-008";
+    if (recoveredPasswordResetStep) await expect(page).toHaveURL(/\/password-reset$/u);
+    const surfaceId = recoveredSignupStep
+      ? "AUTH-002"
+      : recoveredPasswordResetStep
+        ? "AUTH-007"
+        : screen.id;
+    const screenSurface = page.locator(`[data-wireflow-screen="${surfaceId}"]`);
     await expect(screenSurface).toHaveCount(1);
     await expect(screenSurface).toBeVisible();
-    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
-    await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+    await expect(page.getByRole("heading", { level: 1 }), screen.id).toHaveCount(1);
+    await expect(page.getByRole("heading", { level: 1 }), screen.id).toBeVisible();
     await expectNoHorizontalOverflow(page, screen.id);
 
     const result = await new AxeBuilder({ page })

@@ -7,7 +7,8 @@ const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE_NAME = "civic_ai_access_token";
 
 let mockApiServer: Server;
-const iPhone = devices["iPhone 14"];
+// iOS 16.4 미만은 지원하지 않는 브라우저 안내로 막히므로(lib/browser-support.ts) iOS 17 기기를 쓴다.
+const iPhone = devices["iPhone 15"];
 
 test.use({
   deviceScaleFactor: iPhone.deviceScaleFactor,
