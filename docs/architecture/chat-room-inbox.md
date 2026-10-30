@@ -67,9 +67,10 @@ online 복귀에도 REST page chain을 reset한다.
 
 - Room inbox는 다시 조회하지 않고 공개방 목록 query에 다시 받아야 한다는 표시만 남긴다
   (`refetchType: "none"`). 방 생성·참여 등 mutation 뒤의 공개방 목록 무효화도 같다.
-- 공개방 목록은 `_id`(무작위 UUID) 오름차순이라 생성 순서가 아니다. TanStack Query가 스스로 다시 받으면
-  받아 둔 page를 전부 다시 요청하므로, 공개방 목록 query는 `staleTime`을 무한으로 두고 화면 진입·focus·
-  네트워크 복귀로는 다시 받지 않는다.
+- 공개방 목록은 최신 생성순(`createdAt DESC`, 같은 시각이면 `roomId DESC`)이다. 방이 생기거나 종료되면
+  뒤 page들의 경계가 밀리므로 첫 page만 바꾸고 뒤 page를 남기면 방이 빠지거나 겹친다.
+- TanStack Query가 스스로 다시 받으면 받아 둔 page를 전부 다시 요청하므로, 공개방 목록 query는
+  `staleTime`을 무한으로 두고 화면 진입·focus·네트워크 복귀로는 다시 받지 않는다.
 - 표시가 남으면 `ChatRoomListView`가 목록 상자 위치를 보고 다시 받는다. 맨 위에서 상자 한 화면 안을 보고
   있으면 둘째 page부터 버리고 첫 page만 다시 받는다. 깊이 내려가 있으면 보던 위치가 흔들리지 않도록
   기다렸다가 그 위치로 돌아오거나 화면에 다시 들어올 때 다시 받는다. 어느 경우든 신호 한 번에 요청은
