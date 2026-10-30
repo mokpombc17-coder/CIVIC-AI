@@ -507,7 +507,7 @@ describe("7 functional RAG screens", () => {
     const versionId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentInspector, {
-        creatorLabel: "civic-admin@post-ai.com",
+        creatorLabel: "civic-admin@example.test",
         document: {
           document_id: documentId,
           folder_id: "00000000-0000-4000-8000-000000000002",
@@ -541,7 +541,7 @@ describe("7 functional RAG screens", () => {
     expect(html).toContain('aria-label="시민참여 정책.pdf 미리보기"');
     expect(html).toContain("문서 접근 권한을 확인하고 있습니다.");
     expect(html).not.toContain("disposition=inline");
-    expect(html).toContain("civic-admin@post-ai.com");
+    expect(html).toContain("civic-admin@example.test");
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("2026. 8. 22.");
     expect(html).toContain("70%");
@@ -565,7 +565,7 @@ describe("7 functional RAG screens", () => {
     const versionId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentInspector, {
-        creatorLabel: "civic-admin@post-ai.com",
+        creatorLabel: "civic-admin@example.test",
         document: {
           document_id: documentId,
           folder_id: "00000000-0000-4000-8000-000000000002",
@@ -685,7 +685,7 @@ describe("7 functional RAG screens", () => {
     const creatorId = "03aca507-5bd9-4d83-878b-8b39b6f97e63";
     const html = renderToStaticMarkup(
       createElement(DocumentWorkspace, {
-        creatorLabels: new Map([[creatorId, "civic-admin@post-ai.com"]]),
+        creatorLabels: new Map([[creatorId, "civic-admin@example.test"]]),
         documents: [
           {
             document_id: documentId,
@@ -722,7 +722,7 @@ describe("7 functional RAG screens", () => {
     );
 
     expect(html).toContain("시민참여 정책.pdf");
-    expect(html).toContain("civic-admin@post-ai.com");
+    expect(html).toContain("civic-admin@example.test");
     expect(html).toContain("2026. 8. 21.");
     expect(html).toContain("12쪽");
     expect(html).toContain("4 KB");

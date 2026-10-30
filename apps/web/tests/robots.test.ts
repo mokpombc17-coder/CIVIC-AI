@@ -8,7 +8,7 @@ describe("robots", () => {
         userAgent: "*",
         allow: "/",
       },
-      sitemap: "https://civic-ai.co.kr/sitemap.xml",
+      sitemap: "https://example.com/sitemap.xml",
     });
   });
 });

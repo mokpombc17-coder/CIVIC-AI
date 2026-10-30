@@ -10,7 +10,7 @@ describe("home search metadata", () => {
   it("uses canonical search metadata for the home page", () => {
     expect(homeMetadata).toMatchObject({
       alternates: {
-        canonical: "https://civic-ai.co.kr/home",
+        canonical: "https://example.com/home",
       },
       description: HOME_SEARCH_DESCRIPTION,
       robots: {
@@ -29,7 +29,7 @@ describe("home search metadata", () => {
       "@type": "WebSite",
       name: "CIVIC AI",
       alternateName: "CIVIC AI 전남광주",
-      url: "https://civic-ai.co.kr/",
+      url: "https://example.com/",
     });
   });
 });

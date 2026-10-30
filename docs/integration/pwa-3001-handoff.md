@@ -2,7 +2,7 @@
 
 ## 배경
 
-- 브라우저에 노출되는 공개 origin은 `https://civic-ai.co.kr` 하나다.
+- 브라우저에 노출되는 공개 origin은 `https://example.com` 하나다.
 - 내부의 3000/3001 포트는 같은 서버 인스턴스에서 실행되는 서로 다른 Next.js upstream이다.
 - Nginx가 URL에 따라 3000과 3001로 요청을 분기한다.
 - 3000 애플리케이션에 설치 가능한 최소 PWA 구성이 추가되었다.
@@ -91,10 +91,10 @@ cache-first 자산으로 추가한다. 3001 화면, 일반 route의 추가 Next 
 공개 origin에서 다음 요청은 3000 애플리케이션 또는 해당 정적 자산으로 전달되어야 한다.
 
 ```text
-https://civic-ai.co.kr/manifest.webmanifest
-https://civic-ai.co.kr/icons/civic-ai-192.png
-https://civic-ai.co.kr/icons/civic-ai-512.png
-https://civic-ai.co.kr/icons/apple-touch-icon.png
+https://example.com/manifest.webmanifest
+https://example.com/icons/civic-ai-192.png
+https://example.com/icons/civic-ai-512.png
+https://example.com/icons/apple-touch-icon.png
 ```
 
 라우팅 원칙은 다음과 같다.

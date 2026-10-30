@@ -6,6 +6,6 @@ export default function robots(): MetadataRoute.Robots {
       userAgent: "*",
       allow: "/",
     },
-    sitemap: "https://civic-ai.co.kr/sitemap.xml",
+    sitemap: "https://example.com/sitemap.xml",
   };
 }

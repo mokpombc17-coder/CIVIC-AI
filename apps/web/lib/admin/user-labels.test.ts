@@ -5,7 +5,7 @@ describe("administrator display labels", () => {
   it("중복 ID를 한 요청으로 조회하고 반환된 이메일만 매핑한다", async () => {
     const request = vi.fn(async () =>
       Response.json({
-        items: [{ user_id: "user-1", email: "operator@post-ai.com" }],
+        items: [{ user_id: "user-1", email: "operator@example.test" }],
       }),
     );
 
@@ -18,7 +18,7 @@ describe("administrator display labels", () => {
     expect(request).toHaveBeenCalledWith("/api/v1/admin/user-labels?ids=user-1&ids=user-2", {
       cache: "no-store",
     });
-    expect(labels).toEqual(new Map([["user-1", "operator@post-ai.com"]]));
+    expect(labels).toEqual(new Map([["user-1", "operator@example.test"]]));
     expect(adminUserLabel(labels ?? new Map(), "user-2")).toBe("확인할 수 없는 사용자");
   });
 
@@ -26,7 +26,7 @@ describe("administrator display labels", () => {
     const request = vi.fn(async () =>
       Response.json({
         items: [
-          { user_id: "user-1", email: "operator@post-ai.com" },
+          { user_id: "user-1", email: "operator@example.test" },
           { user_id: "user-2", email: 17 },
         ],
       }),

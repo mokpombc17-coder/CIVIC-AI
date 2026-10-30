@@ -10,12 +10,12 @@ export const websiteJsonLd = {
   "@type": "WebSite",
   name: "CIVIC AI",
   alternateName: "CIVIC AI 전남광주",
-  url: "https://civic-ai.co.kr/",
+  url: "https://example.com/",
 } as const;
 
 export const homeMetadata = {
   alternates: {
-    canonical: "https://civic-ai.co.kr/home",
+    canonical: "https://example.com/home",
   },
   robots: {
     follow: true,

@@ -222,13 +222,13 @@ describe("25 functional Main/Auth screens", () => {
         reason: "RAG 문서 운영 담당 지정",
       },
       new Map([
-        [actorId, "highest-admin@post-ai.com"],
-        [subjectId, "rag-admin@post-ai.com"],
+        [actorId, "highest-admin@example.test"],
+        [subjectId, "rag-admin@example.test"],
       ]),
     );
 
-    expect(row.actorLabel).toBe("highest-admin@post-ai.com");
-    expect(row.subjectLabel).toBe("rag-admin@post-ai.com");
+    expect(row.actorLabel).toBe("highest-admin@example.test");
+    expect(row.subjectLabel).toBe("rag-admin@example.test");
     expect(row.eventLabel).toBe("관리자 역할 변경");
     expect(row.afterLabel).toContain("문서 관리");
     // subjectId stays as raw data for building links; every displayed label

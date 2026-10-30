@@ -7,7 +7,7 @@ const llmsTxt = readFileSync(path.join(process.cwd(), "apps/web/public/llms.txt"
 describe("llms.txt", () => {
   it("AI 에이전트를 위한 사이트 제목과 공개 페이지 링크를 제공한다", () => {
     expect(llmsTxt.match(/^# .+$/gm)).toEqual(["# CIVIC.AI"]);
-    expect(llmsTxt).toContain("[CIVIC.AI 홈](https://civic-ai.co.kr/home)");
-    expect(llmsTxt).toContain("[사이트맵](https://civic-ai.co.kr/sitemap.xml)");
+    expect(llmsTxt).toContain("[CIVIC.AI 홈](https://example.com/home)");
+    expect(llmsTxt).toContain("[사이트맵](https://example.com/sitemap.xml)");
   });
 });
