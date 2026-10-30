@@ -2,6 +2,11 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import { expect, test, type Page } from "@playwright/test";
 import { LEGAL_DOCUMENTS } from "../../apps/web/lib/legal/legal-documents";
 
+function legalPath(id: keyof typeof LEGAL_DOCUMENTS): string {
+  const document = LEGAL_DOCUMENTS[id];
+  return `/legal/${document.slug}/${document.version}`;
+}
+
 const MOCK_API_HOST = "127.0.0.1";
 const MOCK_API_PORT = Number(process.env.CIVIC_E2E_ADMIN_MOCK_PORT ?? "4791");
 const ACCESS_COOKIE = "civic_ai_access_token";
@@ -52,19 +57,22 @@ test.beforeAll(async () => {
           flow_id: "signup-flow-1",
           expires_at: "2026-08-12T08:00:00Z",
           questionnaire_version: "1",
-          document_versions: { TERMS: "2", ACCOUNT_RAG_PRIVACY: "2" },
+          document_versions: {
+            TERMS: LEGAL_DOCUMENTS.TERMS.version,
+            ACCOUNT_RAG_PRIVACY: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.version,
+          },
           documents: {
             TERMS: {
               document_id: "TERMS",
               document_version: LEGAL_DOCUMENTS.TERMS.version,
               body_sha256: LEGAL_DOCUMENTS.TERMS.bodySha256,
-              path: "/legal/terms/2",
+              path: legalPath("TERMS"),
             },
             ACCOUNT_RAG_PRIVACY: {
               document_id: "ACCOUNT_RAG_PRIVACY",
               document_version: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.version,
               body_sha256: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.bodySha256,
-              path: "/legal/required-service-information/2",
+              path: legalPath("ACCOUNT_RAG_PRIVACY"),
             },
           },
           acceptance_controls: ["TERMS"],
@@ -234,11 +242,12 @@ test("회원가입은 계정 정보, 이메일 인증, 약관 동의와 필수�
   );
   await expect(page.getByRole("link", { name: "서비스 이용약관 전문 보기" })).toHaveAttribute(
     "href",
-    "/legal/terms/2",
+    legalPath("TERMS"),
   );
-  await expect(
-    page.getByRole("link", { name: "개인정보 필수정보 처리 안내 전문 보기" }),
-  ).toHaveAttribute("href", "/legal/required-service-information/2");
+  await expect(page.getByRole("link", { name: "개인정보 처리 안내 전문 보기" })).toHaveAttribute(
+    "href",
+    legalPath("ACCOUNT_RAG_PRIVACY"),
+  );
   const termsPopupPromise = page.waitForEvent("popup");
   await page.getByRole("link", { name: "서비스 이용약관 전문 보기" }).click();
   const termsPopup = await termsPopupPromise;
@@ -251,7 +260,7 @@ test("회원가입은 계정 정보, 이메일 인증, 약관 동의와 필수�
   );
   await termsPopup.close();
   const privacyPopupPromise = page.waitForEvent("popup");
-  await page.getByRole("link", { name: "개인정보 필수정보 처리 안내 전문 보기" }).click();
+  await page.getByRole("link", { name: "개인정보 처리 안내 전문 보기" }).click();
   const privacyPopup = await privacyPopupPromise;
   await expect(
     privacyPopup.getByRole("heading", { name: LEGAL_DOCUMENTS.ACCOUNT_RAG_PRIVACY.title }),
@@ -271,9 +280,9 @@ test("회원가입은 계정 정보, 이메일 인증, 약관 동의와 필수�
     rag_answer_detail: "balanced",
     terms_evidence: {
       document_id: "TERMS",
-      document_version: "2",
+      document_version: LEGAL_DOCUMENTS.TERMS.version,
       body_sha256: LEGAL_DOCUMENTS.TERMS.bodySha256,
-      path: "/legal/terms/2",
+      path: legalPath("TERMS"),
     },
   });
   expect(lastSignupCompletion).not.toHaveProperty("privacy_evidence");
@@ -349,11 +358,11 @@ test("2FA 로그인은 auth-flow cookie로 코드 확인 후 관리자 홈으로
 
   await expect(page).toHaveURL(/\/signup\/verify\?kind=two-factor/);
   await page.reload();
-  await expect(page.getByRole("heading", { name: "이메일 인증" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "로그인 2차 인증" })).toBeVisible();
   await page.getByRole("textbox", { name: "인증 코드" }).fill("654321");
   await page.getByRole("button", { name: "인증하기" }).click();
   await expect(page).toHaveURL(/\/admin$/);
-  await expect(page.getByRole("heading", { name: "관리 업무" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "관리 홈" })).toBeVisible();
   await expectAuthCookies(page);
 });
 
