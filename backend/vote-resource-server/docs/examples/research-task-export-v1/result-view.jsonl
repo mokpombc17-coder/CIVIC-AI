@@ -1,0 +1,8 @@
+{"type":"manifest","schemaVersion":"research-task-result-view/v1","sourceSchemaVersion":"task-result-view/v1","taskId":"11111111-1111-1111-1111-111111111111","resultVersion":1,"closedAt":"2026-09-07T03:00:00Z","closureType":"DEADLINE_REACHED","optionCount":3,"responseCount":2,"bodySha256":"b23d86e4cc3265b1a39605ba10e008ce0c08b01aab5ccf8223994b6fe429592d"}
+{"type":"task","title":"지역 공공도서관 운영 시간 확대","description":"주말과 평일 야간 운영 시간을 확대할지 의견을 수렴합니다."}
+{"type":"question","questionType":"SINGLE_CHOICE","content":"공공도서관 운영 시간 확대에 찬성하십니까?","description":"가장 가까운 의견 하나를 선택해 주세요."}
+{"type":"option","key":"O1","displayOrder":1,"content":"찬성"}
+{"type":"option","key":"O2","displayOrder":2,"content":"반대"}
+{"type":"option","key":"O3","displayOrder":3,"content":"잘 모르겠다"}
+{"type":"response","participantKey":"P1","userId":"46fd4756-f07f-4b54-b03a-6e07740317da","personaId":"persona-research-001","selectedOptionKey":"O2","reason":"예산 대비 효과가 충분히 검증되지 않았다고 판단했습니다.","reasonSource":"AI_ACCEPTED"}
+{"type":"response","participantKey":"P2","userId":"4af25cff-f0ad-4a43-ad4f-5f556dcdff5b","personaId":"persona-research-002","selectedOptionKey":"O1","reason":"지역 주민에게 장기적으로 도움이 될 것이라고 생각합니다.","reasonSource":"USER_WRITTEN"}

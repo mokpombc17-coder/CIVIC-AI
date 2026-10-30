@@ -1,0 +1,412 @@
+package com.hamcheeze.vote.persona.application;
+
+import com.hamcheeze.vote.TestcontainersConfiguration;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationAttemptRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationInputRepository;
+import com.hamcheeze.vote.persona.application.port.out.PersonaGenerationRepository;
+import com.hamcheeze.vote.persona.domain.PersonaGeneration;
+import com.hamcheeze.vote.persona.domain.PersonaId;
+import com.hamcheeze.vote.persona.domain.PersonaSourceType;
+import com.hamcheeze.vote.persona.domain.common.PersonaGenerationId;
+import com.hamcheeze.vote.persona.domain.common.PersonaSourceId;
+import com.hamcheeze.vote.persona.domain.common.PersonaUserId;
+import com.hamcheeze.vote.persona.infra.PersonaGenerationProperties;
+import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Import;
+import org.springframework.context.annotation.Primary;
+import org.springframework.jdbc.core.JdbcTemplate;
+import org.springframework.test.context.ActiveProfiles;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.support.TransactionTemplate;
+
+import java.math.BigDecimal;
+import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.util.List;
+import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
+
+@SpringBootTest
+@ActiveProfiles({"local", "test"})
+@Import({
+        TestcontainersConfiguration.class,
+        PersonaGenerationLeaseRecoveryIntegrationTest.ClockConfiguration.class
+})
+class PersonaGenerationLeaseRecoveryIntegrationTest {
+
+    private static final Instant INITIAL =
+            Instant.parse("2026-08-20T00:00:00Z");
+
+    @Autowired
+    private PersonaGenerationStateService states;
+
+    @Autowired
+    private PersonaGenerationRepository generations;
+
+    @Autowired
+    private PersonaGenerationInputRepository inputs;
+
+    @Autowired
+    private MutableClock clock;
+
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
+    @Autowired
+    private PlatformTransactionManager transactionManager;
+
+    @BeforeEach
+    @AfterEach
+    void reset() {
+        clock.set(INITIAL);
+        jdbcTemplate.execute("""
+                TRUNCATE TABLE
+                    persona_generation_retry_requests,
+                    persona_generation_attempts,
+                    persona_generations
+                CASCADE
+                """);
+    }
+
+    @Test
+    void processExitLeaseRecoveryNewAttemptAndLateCompletionAreFenced() {
+        PersonaGeneration generation = insertPending();
+        var first = states.claimNext("instance-a:worker-1").orElseThrow();
+
+        clock.set(first.leaseExpiresAt().plusSeconds(1));
+        assertThat(states.reapExpired(10)).isEqualTo(1);
+        PersonaGeneration retryWait = generations.findById(
+                generation.id()).orElseThrow();
+        assertThat(retryWait.nextAttemptAt()).isPresent();
+
+        clock.set(retryWait.nextAttemptAt().orElseThrow());
+        var second = states.claimNext("instance-b:worker-1").orElseThrow();
+        assertThat(second.claimToken()).isNotEqualTo(first.claimToken());
+        assertThat(second.attemptNumber()).isEqualTo(2);
+
+        PersonaGenerationInputSnapshot input = input(generation);
+        assertThat(states.succeed(
+                generation.id(), second.claimToken(), input,
+                result(generation.id())))
+                .isEqualTo(PersonaGenerationStateService.CompletionResult.APPLIED);
+        assertThat(states.succeed(
+                generation.id(), first.claimToken(), input,
+                result(generation.id())))
+                .isEqualTo(PersonaGenerationStateService.CompletionResult
+                        .IGNORED_STALE_CLAIM);
+
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .attemptCount()).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*)
+                FROM persona_generation_attempts
+                WHERE outcome = 'LEASE_EXPIRED'
+                  AND late_completion_observed_at IS NOT NULL
+                """, Long.class)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentWorkersClaimOneGenerationOnce() throws Exception {
+        insertPending();
+        CountDownLatch start = new CountDownLatch(1);
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> first = executor.submit(() -> {
+                start.await();
+                return states.claimNext("instance-a:worker-1").isPresent();
+            });
+            Future<Boolean> second = executor.submit(() -> {
+                start.await();
+                return states.claimNext("instance-b:worker-1").isPresent();
+            });
+            start.countDown();
+
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(true, false);
+        }
+        assertThat(count("persona_generation_attempts")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT attempt_count FROM persona_generations
+                """, Integer.class)).isEqualTo(1);
+    }
+
+    @Test
+    void concurrentReapersExpireOneLeaseOnce() throws Exception {
+        insertPending();
+        var claim = states.claimNext("instance-a:worker-1").orElseThrow();
+        clock.set(claim.leaseExpiresAt().plusSeconds(1));
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Integer> first = executor.submit(() -> {
+                start.await();
+                return states.reapExpired(1);
+            });
+            Future<Integer> second = executor.submit(() -> {
+                start.await();
+                return states.reapExpired(1);
+            });
+            start.countDown();
+
+            assertThat(List.of(first.get(), second.get()))
+                    .containsExactlyInAnyOrder(1, 0);
+        }
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM persona_generation_attempts
+                WHERE outcome = 'LEASE_EXPIRED'
+                """, Long.class)).isEqualTo(1);
+        assertThat(generations.findById(
+                claim.generation().id()).orElseThrow().attemptCount())
+                .isEqualTo(1);
+    }
+
+    @Test
+    void concurrentWorkersCanClaimDifferentGenerations() throws Exception {
+        insertPending();
+        insertPending();
+        CountDownLatch start = new CountDownLatch(1);
+
+        try (var executor = Executors.newFixedThreadPool(2)) {
+            Future<Boolean> first = executor.submit(() -> {
+                start.await();
+                return states.claimNext("instance-a:worker-1").isPresent();
+            });
+            Future<Boolean> second = executor.submit(() -> {
+                start.await();
+                return states.claimNext("instance-b:worker-1").isPresent();
+            });
+            start.countDown();
+
+            assertThat(first.get()).isTrue();
+            assertThat(second.get()).isTrue();
+        }
+        assertThat(count("persona_generation_attempts")).isEqualTo(2);
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(DISTINCT generation_id)
+                FROM persona_generation_attempts
+                """, Long.class)).isEqualTo(2);
+    }
+
+    @Test
+    void completionHoldingRowLockWinsAgainstExpiredLeaseReaper()
+            throws Exception {
+        PersonaGeneration generation = insertPending();
+        var claim = states.claimNext("completion-first").orElseThrow();
+        clock.set(claim.leaseExpiresAt().plusSeconds(1));
+        CountDownLatch completionLocked = new CountDownLatch(1);
+        CountDownLatch reaperFinished = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<PersonaGenerationStateService.CompletionResult> completion =
+                    executor.submit(() -> new TransactionTemplate(
+                            transactionManager).execute(status -> {
+                        generations.findByIdForUpdate(generation.id())
+                                .orElseThrow();
+                        completionLocked.countDown();
+                        try {
+                            assertThat(reaperFinished.await(
+                                    10, TimeUnit.SECONDS)).isTrue();
+                        } catch (InterruptedException exception) {
+                            Thread.currentThread().interrupt();
+                            throw new IllegalStateException(exception);
+                        }
+                        return states.succeed(
+                                generation.id(), claim.claimToken(),
+                                input(generation), result(generation.id()));
+                    }));
+            Future<Integer> reaper = executor.submit(() -> {
+                assertThat(completionLocked.await(
+                        10, TimeUnit.SECONDS)).isTrue();
+                int count = states.reapExpired(10);
+                reaperFinished.countDown();
+                return count;
+            });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isZero();
+            assertThat(completion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(PersonaGenerationStateService.CompletionResult
+                            .APPLIED);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .status().name()).isEqualTo("SUCCEEDED");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT outcome FROM persona_generation_attempts
+                WHERE generation_id = ? AND attempt_number = 1
+                """, String.class, generation.id().value()))
+                .isEqualTo("SUCCEEDED");
+    }
+
+    @Test
+    void reaperHoldingRowLockFencesLateCompletion() throws Exception {
+        PersonaGeneration generation = insertPending();
+        var claim = states.claimNext("reaper-first").orElseThrow();
+        clock.set(claim.leaseExpiresAt().plusSeconds(1));
+        CountDownLatch reaperLocked = new CountDownLatch(1);
+        CountDownLatch completionStarted = new CountDownLatch(1);
+        var executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<Integer> reaper = executor.submit(() ->
+                    new TransactionTemplate(transactionManager).execute(
+                            status -> {
+                                generations.findByIdForUpdate(generation.id())
+                                        .orElseThrow();
+                                reaperLocked.countDown();
+                                try {
+                                    assertThat(completionStarted.await(
+                                            10, TimeUnit.SECONDS)).isTrue();
+                                } catch (InterruptedException exception) {
+                                    Thread.currentThread().interrupt();
+                                    throw new IllegalStateException(exception);
+                                }
+                                return states.reapExpired(10);
+                            }));
+            Future<PersonaGenerationStateService.CompletionResult> completion =
+                    executor.submit(() -> {
+                        assertThat(reaperLocked.await(
+                                10, TimeUnit.SECONDS)).isTrue();
+                        completionStarted.countDown();
+                        return states.succeed(
+                                generation.id(), claim.claimToken(),
+                                input(generation), result(generation.id()));
+                    });
+
+            assertThat(reaper.get(10, TimeUnit.SECONDS)).isEqualTo(1);
+            assertThat(completion.get(10, TimeUnit.SECONDS))
+                    .isEqualTo(PersonaGenerationStateService.CompletionResult
+                            .IGNORED_STALE_CLAIM);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(generations.findById(generation.id()).orElseThrow()
+                .status().name()).isEqualTo("FAILED");
+        assertThat(jdbcTemplate.queryForObject("""
+                SELECT count(*) FROM persona_generation_attempts
+                WHERE generation_id = ?
+                  AND outcome = 'LEASE_EXPIRED'
+                  AND late_completion_observed_at IS NOT NULL
+                """, Long.class, generation.id().value())).isEqualTo(1);
+    }
+
+    private static PersonaGeneration pending() {
+        return PersonaGeneration.pending(
+                new PersonaGenerationId(UUID.randomUUID()),
+                PersonaSourceType.SURVEY_RESPONSE,
+                new PersonaSourceId(UUID.randomUUID()),
+                INITIAL);
+    }
+
+    private PersonaGeneration insertPending() {
+        PersonaGeneration generation = generations.insert(pending());
+        inputs.insert(input(generation));
+        return generation;
+    }
+
+    private static PersonaSurveySource source(PersonaSourceId sourceId) {
+        return new PersonaSurveySource(
+                sourceId, new PersonaUserId("user-a"),
+                UUID.randomUUID(), 1, UUID.randomUUID(), 1,
+                INITIAL, List.of());
+    }
+
+    private static PersonaGenerationInputSnapshot input(
+            PersonaGeneration generation
+    ) {
+        PersonaSurveySource source = source(generation.sourceId());
+        return PersonaGenerationInputSnapshot.create(
+                generation.id(),
+                source.responseId(),
+                source.userId(),
+                PersonaCreationCommand.CURRENT_SCHEMA_VERSION,
+                "{\"generationId\":\"" + generation.id().value()
+                        + "\"}",
+                INITIAL);
+    }
+
+    private static PersonaCreationResult result(
+            PersonaGenerationId generationId
+    ) {
+        return new PersonaCreationResult(
+                generationId,
+                new PersonaId("persona-" + generationId.value()));
+    }
+
+    private long count(String table) {
+        return jdbcTemplate.queryForObject(
+                "SELECT count(*) FROM " + table, Long.class);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class ClockConfiguration {
+
+        @Bean
+        MutableClock mutablePersonaClock() {
+            return new MutableClock(INITIAL);
+        }
+
+        @Bean
+        @Primary
+        PersonaGenerationStateService deterministicPersonaStates(
+                PersonaGenerationRepository generations,
+                PersonaGenerationAttemptRepository attempts,
+                PersonaGenerationProperties properties,
+                MutableClock clock
+        ) {
+            properties.setProcessingLeaseDuration(Duration.ofSeconds(10));
+            properties.setRetryInitialDelay(Duration.ofSeconds(2));
+            properties.setRetryMaxDelay(Duration.ofSeconds(10));
+            properties.setMaxAttempts(3);
+            return new PersonaGenerationStateService(
+                    generations, attempts, properties, clock,
+                    UUID::randomUUID);
+        }
+    }
+
+    static final class MutableClock extends Clock {
+
+        private volatile Instant instant;
+
+        MutableClock(Instant instant) {
+            this.instant = instant;
+        }
+
+        void set(Instant value) {
+            instant = value;
+        }
+
+        @Override
+        public ZoneId getZone() {
+            return ZoneOffset.UTC;
+        }
+
+        @Override
+        public Clock withZone(ZoneId zone) {
+            return this;
+        }
+
+        @Override
+        public Instant instant() {
+            return instant;
+        }
+    }
+}

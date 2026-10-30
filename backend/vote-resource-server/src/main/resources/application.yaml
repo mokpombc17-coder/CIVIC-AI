@@ -1,0 +1,116 @@
+spring:
+  application:
+    name: vote-resource-server
+  datasource:
+    url: ${VOTE_DB_URL}
+    username: ${VOTE_DB_USERNAME}
+    password: ${VOTE_DB_PASSWORD}
+  flyway:
+    enabled: true
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+
+server:
+  port: ${SERVER_PORT:8083}
+
+vote:
+  ai-runtime:
+    auth-token: ${VOTE_AI_RUNTIME_AUTH_TOKEN:}
+  integration:
+    outbox:
+      dispatcher-enabled: false
+      poller-delay: 1s
+      retry-initial-delay: 5s
+      retry-max-delay: 5m
+      max-attempts: 10
+      batch-size: 20
+  security:
+    local-admin-api-enabled: false
+  persona:
+    enabled: ${VOTE_PERSONA_ENABLED:${VOTE_SURVEY_PERSONA_ENABLED:false}}
+    provider: ${VOTE_PERSONA_PROVIDER:${VOTE_SURVEY_PERSONA_PROVIDER:http}}
+    base-url: ${VOTE_PERSONA_BASE_URL:${VOTE_SURVEY_PERSONA_BASE_URL:http://localhost:8090}}
+    auth-token: ${VOTE_PERSONA_AUTH_TOKEN:${VOTE_SURVEY_PERSONA_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}}
+    connect-timeout: ${VOTE_PERSONA_CONNECT_TIMEOUT:5s}
+    request-timeout: ${VOTE_PERSONA_REQUEST_TIMEOUT:60s}
+    dispatcher-delay: ${VOTE_PERSONA_DISPATCHER_DELAY:${VOTE_SURVEY_PERSONA_DISPATCHER_DELAY:5s}}
+    processing-lease-duration: ${VOTE_PERSONA_PROCESSING_LEASE_DURATION:90s}
+    lease-reaper-delay: ${VOTE_PERSONA_LEASE_REAPER_DELAY:10s}
+    retry-initial-delay: ${VOTE_PERSONA_RETRY_INITIAL_DELAY:30s}
+    retry-max-delay: ${VOTE_PERSONA_RETRY_MAX_DELAY:2m}
+    max-attempts: ${VOTE_PERSONA_MAX_ATTEMPTS:3}
+    batch-size: ${VOTE_PERSONA_BATCH_SIZE:10}
+    worker-pool-size: ${VOTE_PERSONA_WORKER_POOL_SIZE:4}
+    worker-queue-capacity: ${VOTE_PERSONA_WORKER_QUEUE_CAPACITY:20}
+    worker-shutdown-await: ${VOTE_PERSONA_WORKER_SHUTDOWN_AWAIT:30s}
+  task:
+    bootstrap:
+      enabled: false
+      persona-ready-enabled: false
+      participation-enabled: false
+      persona-subject: local-user-1
+      persona-ready-timeout: 10s
+      persona-ready-poll-interval: 100ms
+    lifecycle:
+      enabled: false
+      scheduler-delay: 1s
+      batch-size: 100
+    preparation:
+      enabled: false
+      provider: http
+      base-url: http://localhost:8090
+      path: /v1/tasks/prepare
+      status-path: /v1/task-preparations/{requestId}
+      auth-token: ${VOTE_TASK_PREPARATION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
+      connect-timeout: 5s
+      request-timeout: 30s
+      retry-delay: 30s
+      processing-lease-duration: 60s
+    prediction:
+      enabled: false
+      provider: http
+      base-url: http://localhost:8090
+      path: /v1/task-predictions
+      auth-token: ${VOTE_TASK_PREDICTION_AUTH_TOKEN:${vote.ai-runtime.auth-token:}}
+      connect-timeout: 5s
+      candidate-policy-version: candidate-policy-v1
+      request-timeout: 60s
+      maximum-attempts: 2
+      retry-delay: 30s
+      dispatcher-delay: 5s
+      processing-lease-duration: 90s
+      lease-reaper-delay: 10s
+      batch-size: 10
+      worker-pool-size: 4
+      worker-queue-capacity: 16
+      worker-shutdown-await: 10s
+      fake:
+        scenario: success
+    opinion-map:
+      enabled: ${VOTE_TASK_OPINION_MAP_ENABLED:false}
+      provider: ${VOTE_TASK_OPINION_MAP_PROVIDER:none}
+      base-url: ${VOTE_TASK_OPINION_MAP_BASE_URL:https://openrouter.ai}
+      path: ${VOTE_TASK_OPINION_MAP_PATH:/api/v1/chat/completions}
+      api-key: ${OPENROUTER_API_KEY:}
+      model: ${VOTE_TASK_OPINION_MAP_MODEL:openai/gpt-5.6-luna}
+      connect-timeout: ${VOTE_TASK_OPINION_MAP_CONNECT_TIMEOUT:5s}
+      maximum-output-tokens: ${VOTE_TASK_OPINION_MAP_MAXIMUM_OUTPUT_TOKENS:4096}
+      prompt-version: ${VOTE_TASK_OPINION_MAP_PROMPT_VERSION:task-result-prompt/v1}
+      request-timeout: ${VOTE_TASK_OPINION_MAP_REQUEST_TIMEOUT:60s}
+      maximum-attempts: ${VOTE_TASK_OPINION_MAP_MAXIMUM_ATTEMPTS:3}
+      retry-delay: ${VOTE_TASK_OPINION_MAP_RETRY_DELAY:30s}
+      dispatcher-delay: ${VOTE_TASK_OPINION_MAP_DISPATCHER_DELAY:5s}
+      processing-lease-duration: ${VOTE_TASK_OPINION_MAP_PROCESSING_LEASE_DURATION:90s}
+      batch-size: ${VOTE_TASK_OPINION_MAP_BATCH_SIZE:10}
+      worker-pool-size: ${VOTE_TASK_OPINION_MAP_WORKER_POOL_SIZE:2}
+      worker-queue-capacity: ${VOTE_TASK_OPINION_MAP_WORKER_QUEUE_CAPACITY:10}
+      worker-shutdown-await: ${VOTE_TASK_OPINION_MAP_WORKER_SHUTDOWN_AWAIT:10s}
+  survey:
+    round-activation:
+      enabled: false
+      fixed-delay: 5s
+      initial-delay: 0s
+    bootstrap:
+      enabled: false

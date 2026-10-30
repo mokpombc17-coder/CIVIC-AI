@@ -1,0 +1,45 @@
+services:
+  vote-db:
+    image: postgres:17.6-alpine
+    environment:
+      POSTGRES_DB: vote
+      POSTGRES_USER: vote
+      POSTGRES_PASSWORD: vote
+    ports:
+      - "127.0.0.1:5432:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready --username=$$POSTGRES_USER --dbname=$$POSTGRES_DB
+      interval: 2s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  vote-resource-server:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    init: true
+    environment:
+      SPRING_PROFILES_ACTIVE: local,auth-fixture
+      SERVER_PORT: 8083
+      VOTE_DB_URL: jdbc:postgresql://vote-db:5432/vote
+      VOTE_DB_USERNAME: vote
+      VOTE_DB_PASSWORD: vote
+      VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED: ${VOTE_TASK_BOOTSTRAP_PARTICIPATION_ENABLED:-true}
+      VOTE_TASK_BOOTSTRAP_SUBMISSION_SIMULATION_ENABLED: ${VOTE_TASK_BOOTSTRAP_SUBMISSION_SIMULATION_ENABLED:-true}
+      VOTE_TASK_OPINION_MAP_ENABLED: ${VOTE_TASK_OPINION_MAP_ENABLED:-false}
+      VOTE_TASK_OPINION_MAP_PROVIDER: ${VOTE_TASK_OPINION_MAP_PROVIDER:-fake}
+      VOTE_TASK_OPINION_MAP_MODEL: ${VOTE_TASK_OPINION_MAP_MODEL:-openai/gpt-5.6-luna}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    depends_on:
+      vote-db:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:8083:8083"
+
+volumes:
+  postgres-data:

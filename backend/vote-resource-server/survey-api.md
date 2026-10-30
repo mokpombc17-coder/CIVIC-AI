@@ -1,0 +1,201 @@
+# Survey HTTP API 계약
+
+## 1. 공통 규칙
+
+- base path는 `/api/v1`이다.
+- 사용자 식별자는 request body, query parameter, path variable로 받지 않고 검증된 JWT의 `sub`에서만 가져온다.
+- 사용자 조회 API는 `vote:surveys:read`, 최종 제출 API는 `vote:survey-responses:write` scope를 사용한다.
+- 관리자 API는 처음부터 `/api/v1/admin/**` 경계에 둔다. `local`에서는 일반 인증 사용자에게 임시 허용하며, 기본값과 `prod`에서는 관리자 권한 계약이 확정될 때까지 거부한다.
+- 오류는 `application/problem+json`이며 `type`, `title`, `status`, `detail`, `instance`, `code`, `replayed`, `retryable`을 공통 필드로 사용한다. 도메인 검증 오류는 `violations[]`를 추가한다.
+- UUID path와 body 값은 문자열 UUID다. 시각은 UTC 기준 ISO-8601 문자열이다.
+
+## 2. 사용자 API
+
+| Method | Path | 설명 |
+|---|---|---|
+| `GET` | `/api/v1/me/surveys/current` | 현재 설문 상태와 미제출 설문 내용을 조회한다. |
+| `POST` | `/api/v1/me/survey-responses` | 현재 회차의 응답을 한 번 최종 제출한다. |
+| `GET` | `/api/v1/me/survey-responses/latest` | 자신의 가장 최근 최종 응답 원문을 조회한다. |
+| `GET` | `/api/v1/me/survey-responses` | 자신의 과거 응답 목록을 최신순으로 조회한다. |
+| `GET` | `/api/v1/me/survey-responses/{responseId}` | 자신의 특정 응답 원문을 조회한다. 다른 사용자의 응답도 `404`로 숨긴다. |
+| `GET` | `/api/v1/me/service-eligibility` | 현재 서비스 이용 가능 여부와 capability를 조회한다. |
+
+현재 Survey 응답은 `status`로 구분하는 union이다.
+
+- `PENDING`: `status`, `roundId`, `contentVersionId`, `sections`
+- `SUBMITTED`: `status`, `roundId`, `contentVersionId`, `responseId`, `submittedAt`
+
+제출 완료 상태에는 전체 설문 내용을 반환하지 않는다. Eligibility는 현재 Survey에
+포함하지 않고 `/api/v1/me/service-eligibility`에서 별도로 조회한다.
+
+미제출 콘텐츠는 `Section -> Question -> Item` 구조이며 7개 Section, 29개
+Question, 16개 Matrix Item을 반환한다. 배열은 DB의 표시 순서대로 정렬하지만
+사용자 API에는 `displayOrder`를 노출하지 않는다. Section은 `sectionKey`,
+`title`, `questions`만 가진다. Question 공통 필드는 `questionId`, `questionKey`,
+`title`, `prompt`, `required`, `type`이다. `required=false`인 Question은 선택
+문항이며 민감정보를 수집하는 동의 대상 문항이다. 타입별 추가 필드는 다음과 같다.
+
+| type | 추가 필드 |
+|---|---|
+| `SINGLE_CHOICE` | `options[]` |
+| `MULTIPLE_CHOICE` | `minimumSelections`, `maximumSelections`, `options[]` |
+| `SHORT_TEXT`, `LONG_TEXT` | `maxLength` |
+| `NUMBER` | `minimum`, `maximum`, `decimalScale` |
+| `SCALE` | `minimum`, `maximum`, `minimumLabel`, `maximumLabel` |
+| `MATRIX_SINGLE_CHOICE` | `items[]`, `options[]` |
+| `MATRIX_SCALE` | `items[]`, `minimum`, `maximum`, `minimumLabel`, `maximumLabel` |
+
+Item은 `itemId`, `itemKey`, `itemLabel`, Option은 `optionId`, `label`만
+가진다. DB에 보존하는 `description`, `sourceNumber`, `optionLocalKey`, 모든
+lineage ID와 row version은 사용자 API에 노출하지 않는다. Figma 전용 표현은
+Survey payload에 포함하지 않으며, 동의 문서는 운영 서버 API로 조회한다.
+
+활성 회차가 정확히 하나 존재하지 않으면 현재 Survey와 Eligibility API는
+`404 SURVEY_ACTIVE_ROUND_UNAVAILABLE`을 반환한다.
+
+### 동의 문서와 증적
+
+동의 문서 조회, 동의 증적 저장 및 `consentReceiptId` 발급은 운영 서버가 소유한다.
+프론트는 운영 서버가 발급한 receipt ID를 설문 최종 제출 요청에 포함한다.
+
+Vote 서버는 `consentReceiptId`를 운영 서버의 불투명한 외부 참조 UUID로 취급한다.
+현재 단계에서는 receipt의 존재, 소유 사용자, 회차 또는 문서 버전을 동기 검증하지
+않으며, 설문 응답과 함께 보존해 추후 운영 서버 증적과 대조할 수 있게 한다.
+
+동의는 선택 문항(`required=false`)에 하나 이상 답한 경우에만 받는다. Vote 서버는
+제출 시 다음 규칙만 검증한다.
+
+| 선택 문항 답변 | `consentReceiptId` | 결과 |
+|---|---|---|
+| 1개 이상 | 있음 | 저장 |
+| 1개 이상 | 없음 | `422`, violation `SURVEY_CONSENT_RECEIPT_REQUIRED` |
+| 모두 생략 | 없음 | 저장 (receipt 없음) |
+| 모두 생략 | 있음 | `422`, violation `SURVEY_CONSENT_RECEIPT_NOT_ALLOWED` |
+
+동의를 받은 뒤 선택 문항 답변을 모두 지웠다면 receipt를 빼고 제출한다.
+
+### 최종 제출
+
+`Idempotency-Key` 헤더에 클라이언트가 생성한 UUID를 필수로 전달한다. 같은 사용자·동작·key와 같은 canonical request는 최초 결과를 그대로 재생하고, 응답의 `replayed=true`로 표시한다. 같은 key를 다른 요청에 재사용하면 `409 IDEMPOTENCY_CONFLICT`다.
+
+```json
+{
+  "roundId": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+  "consentReceiptId": "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee",
+  "answers": [
+    {
+      "questionId": "bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+      "type": "SINGLE_CHOICE",
+      "selection": {
+        "optionId": "cccccccc-cccc-cccc-cccc-cccccccccccc"
+      }
+    },
+    {
+      "questionId": "dddddddd-dddd-dddd-dddd-dddddddddddd",
+      "type": "SHORT_TEXT",
+      "text": "응답"
+    }
+  ]
+}
+```
+
+필수 Question(`required=true`)은 정확히 한 번 포함해야 한다. 선택
+Question(`required=false`)에 답하지 않으면 해당 answer를 배열에서 **생략**한다.
+값을 `null`로 채운 answer는 미응답으로 처리하지 않고 거절한다(선택형은
+`400 INVALID_REQUEST`, 텍스트·숫자·척도형은 `422`). 선택 문항에 하나 이상 답했을 때만 `consentReceiptId`를 포함한다.
+
+답변 유형별 값은 다음 필드를 사용한다.
+
+| type | 값 필드 |
+|---|---|
+| `SINGLE_CHOICE` | `selection` |
+| `MULTIPLE_CHOICE` | `selections[]` |
+| `SHORT_TEXT`, `LONG_TEXT` | `text` |
+| `NUMBER` | `number` |
+| `SCALE` | `scale` |
+| `MATRIX_SINGLE_CHOICE` | `itemAnswers[].itemId`, `itemAnswers[].selection` |
+| `MATRIX_SCALE` | `itemAnswers[].itemId`, `itemAnswers[].scale` |
+
+영구 저장 성공은 HTTP `201`과 함께 `status=SUBMITTED`, `persisted=true`,
+`replayed`, `responseId`, `roundId`, `contentVersionId`, `submittedAt`을
+반환한다. 저장된 거절 결과도 동일한 key 재시도 시 같은 HTTP 상태·오류 code와
+`replayed=true`를 반환한다.
+
+정상 제출된 `survey_responses`는 `consentReceiptId` 값을 저장하지만 Vote의 로컬
+동의 테이블과 외래키로 연결하지 않는다. 선택 문항에 답하지 않은 응답과 마이그레이션
+이전 응답은 연결 값이 `NULL`이다.
+
+본인 응답 조회의 `answers`에는 답한 Question만 포함된다. 선택 문항 미응답은
+함께 반환되는 `sections`의 Question 중 `answers`에 없는 것으로 판단한다.
+
+### 로컬 preview 사용자
+
+`local` 프로필은 `vote.survey.preview.user-ids`에 설정된 사용자에 한해 사용자
+HTTP API를 반복 확인 모드로 제공한다. 기본 대상은 `local-user-1`이며 환경 변수
+`VOTE_SURVEY_PREVIEW_USER_IDS`로 쉼표 구분 목록을 재정의할 수 있다.
+
+- 현재 설문 조회와 Eligibility는 해당 사용자의 기존 응답을 무시하고 미제출로 평가한다.
+- 제출 payload는 일반 제출과 같은 규칙으로 검증한다.
+- 검증 성공은 HTTP `200`과 함께 `status=PREVIEW_VALIDATED`,
+  `persisted=false`, `roundId`, `contentVersionId`, `validatedAt`을 반환한다.
+- 임시 `responseId`와 `replayed`는 반환하지 않는다.
+- 응답, 답변, 멱등성 receipt와 Outbox event는 저장하지 않는다.
+- preview 제출은 최신·이력 조회에 나타나지 않는다.
+- 내부 local Task/Persona bootstrap과 비로컬 프로필은 이 예외를 적용하지 않는다.
+
+이력 요약은 `responseId`, `roundId`, `contentVersionId`, `submittedAt`을
+반환한다. 최신·과거 응답 상세는 같은 메타데이터와 `sections`, `answers`를
+반환한다. Question과 Answer 모두 타입별로 필요한 필드만 포함하며 불필요한
+`null`과 빈 배열을 공통 필드로 반환하지 않는다. 선택 값은 `optionId`만
+반환한다. 따라서 현재 회차가 바뀐 뒤에도 응답이
+참조한 불변 Content를 기준으로 질문과 선택지 label을 복원할 수 있다.
+사용자 응답은 JWT `sub`에서 해석한 사용자 식별자로만 저장·조회하며, 이메일은
+Survey API의 요청·응답 및 저장 모델에 포함하지 않는다.
+
+## 3. 관리자 API
+
+> **후순위 메모:** 현재 관리자 endpoint는 기존 평면 Question 관리 기능의
+> 호환을 위해 유지한다. 2회차부터 필요한 Group 기반 전체 콘텐츠 등록·검증·발행
+> 계약은 별도 후속 작업으로 정의한다. 이번 1회차 사용자 기능의 완료 조건에는
+> 관리자 작성 API 확장이 포함되지 않는다.
+
+### 내용 버전
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/api/v1/admin/survey-content-versions` | 초안 생성 |
+| `PUT` | `/api/v1/admin/survey-content-versions/{id}` | 초안 전체 교체 |
+| `POST` | `/api/v1/admin/survey-content-versions/{id}/clone` | 발행본을 새 초안으로 복제 |
+| `POST` | `/api/v1/admin/survey-content-versions/{id}/publish` | 초안 발행 |
+| `GET` | `/api/v1/admin/survey-content-versions` | 내용 버전 목록 |
+| `GET` | `/api/v1/admin/survey-content-versions/{id}` | 내용 버전 상세 |
+
+생성·교체 body는 `name`, `description`, `questions[]`를 가진다. question의 `required`는 생략하면 `true`로 처리한다. `false`로 지정한 질문은 선택 문항이자 동의 대상 문항이다. question/option의 `id`와 `lineageKey`는 생략하면 서버가 UUID를 만든다. 수정 시 같은 질문·선택지 계보를 유지하려면 기존 `lineageKey`를 보낸다. 선택 질문의 `allowOther=true`는 관리자 호환 입력이며 Aggregate가 실제 `kind=OTHER`, `label=기타` 선택지로 물질화한다. 이 내부 확장 구조는 1회차에서 사용하지 않는다. 직접 입력형 Option을 실제 회차에 적용하려면 사용자 API 계약을 먼저 확장해야 한다. 규칙 필드는 질문 유형에 따라 `minimumSelections`, `maximumSelections`, `maxLength`, `minimum`, `maximum`, `decimalAllowed`, `decimalScale`, `minimumLabel`, `maximumLabel`을 사용한다.
+
+### 회차
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/api/v1/admin/survey-rounds/schedules` | 발행 내용 버전의 회차 예약 |
+| `PUT` | `/api/v1/admin/survey-rounds/{id}/schedule` | 예약 시각 변경 |
+| `POST` | `/api/v1/admin/survey-rounds/{id}/cancel` | 예약 취소 |
+| `POST` | `/api/v1/admin/survey-rounds/start-now` | 발행 내용 버전으로 즉시 새 회차 시작 |
+| `POST` | `/api/v1/admin/survey-rounds/{id}/start-now` | 예약 회차 즉시 시작 |
+| `PUT` | `/api/v1/admin/survey-rounds/{id}/enforcement` | 활성 회차 강제 수준 변경 |
+| `GET` | `/api/v1/admin/survey-rounds` | 전체 회차 조회 |
+| `GET` | `/api/v1/admin/survey-rounds/{id}` | 회차 상세 조회 |
+| `GET` | `/api/v1/admin/survey-rounds/{id}/transitions` | 회차 전환 이력 조회 |
+
+관리자의 개별 사용자 응답 원문 조회 endpoint는 제공하지 않는다.
+
+## 4. 주요 오류 코드
+
+| HTTP | code | 의미 |
+|---|---|---|
+| `400` | `INVALID_REQUEST` | JSON, path, DTO 형식 오류 |
+| `400` | `INVALID_IDEMPOTENCY_KEY` | 멱등성 key가 UUID가 아님 |
+| `404` | `SURVEY_CONTENT_NOT_FOUND`, `SURVEY_ROUND_NOT_FOUND`, `SURVEY_RESPONSE_NOT_FOUND` | 소유권 범위를 포함해 리소스를 찾을 수 없음 |
+| `409` | `IDEMPOTENCY_CONFLICT` | 같은 key를 다른 요청에 재사용 |
+| `409` | `CURRENT_SURVEY_ALREADY_SUBMITTED`, `SURVEY_SUBMISSION_ROUND_CHANGED` | 제출 상태 충돌 |
+| `422` | `SURVEY_RESPONSE_VALIDATION_FAILED` | 질문 규칙에 맞지 않는 답변. 필수 답변 누락은 `SURVEY_REQUIRED_ANSWER_MISSING`, 동의 receipt 불일치는 `SURVEY_CONSENT_RECEIPT_REQUIRED`/`SURVEY_CONSENT_RECEIPT_NOT_ALLOWED` violation으로 표시 |
+| `404` | `SURVEY_ACTIVE_ROUND_UNAVAILABLE` | 조회할 활성 회차가 없음 |
