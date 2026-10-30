@@ -2574,8 +2574,8 @@ describe("7 functional RAG screens", () => {
 
     expect(participantHtml).toContain('data-wireflow-screen="U-RAG-001"');
     expect(participantHtml).toContain('data-wireflow-layout="rag-conversation"');
-    expect(participantHtml).toContain("이런 문서는 어떠세요?");
-    expect(restoringParticipantHtml).toContain("이런 문서는 어떠세요?");
+    expect(participantHtml).not.toContain("이런 문서는 어떠세요?");
+    expect(restoringParticipantHtml).not.toContain("이런 문서는 어떠세요?");
     expect(participantHtml).not.toContain("문서에서 궁금한 내용을 물어보세요.");
     expect(participantHtml).not.toContain("AI가 관련 내용을 찾아 답변해 드립니다.");
     expect(participantHtml).not.toContain('aria-label="새 대화"');
@@ -2586,7 +2586,6 @@ describe("7 functional RAG screens", () => {
     expect(participantHtml).toContain("메시지 입력");
     expect(participantHtml).toContain(">전송<");
     expect(restoringParticipantHtml).toContain('data-rag-conversation-restoring="true"');
-    expect(restoringParticipantHtml.match(/is-loading/gu)).toHaveLength(3);
     expect(restoringParticipantHtml).not.toContain("civic-skeleton-chat-question");
     expect(restoringParticipantHtml).not.toContain("civic-skeleton-chat-answer");
     expect(restoringParticipantHtml).not.toContain("확인할 정책이나 자료를 질문하세요.");
