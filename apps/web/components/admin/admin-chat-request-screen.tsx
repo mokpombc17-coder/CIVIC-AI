@@ -104,11 +104,26 @@ export function AdminChatRequestScreen({
   }, [requestPaging.pageSize]);
   const [hasNext, setHasNext] = useState(false);
   const [query, setQuery] = useState("");
-  const [notice, setNotice] = useState<Readonly<{ text: string; error: boolean }>>({
+  const [notice, setNotice] = useState<
+    Readonly<{ text: string; error: boolean; source: NoticeSource }>
+  >({
     text: "",
     error: false,
+    source: "detail",
   });
-  const setMessage = useCallback((text: string, error = true) => setNotice({ text, error }), []);
+  const setMessage = useCallback(
+    (text: string, error = true, source: NoticeSource = "detail") =>
+      setNotice({ text, error, source }),
+    [],
+  );
+  // 목록과 상세는 따로 끝나므로, 한쪽이 성공해도 다른 쪽이 남긴 오류는 지우지 않는다.
+  const clearMessageFrom = useCallback(
+    (source: NoticeSource) =>
+      setNotice((current) =>
+        current.source === source ? { text: "", error: false, source } : current,
+      ),
+    [],
+  );
   const [listLoading, setListLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(Boolean(initialRequestId));
   const [pending, setPending] = useState(false);
@@ -141,20 +156,20 @@ export function AdminChatRequestScreen({
         if (currentGeneration !== listGeneration.current) return;
         if (!response.ok) {
           const problem = await readAdminProblem(response);
-          setMessage(formatAdminProblem(problem));
+          setMessage(formatAdminProblem(problem), true, "list");
           if (!cursor) setItems([]);
           return;
         }
         const page = readRoomCreationRequestPage(await response.json());
         if (!page) {
-          setMessage("서버의 신청 목록 응답 형식을 확인해야 합니다.");
+          setMessage("서버의 신청 목록 응답 형식을 확인해야 합니다.", true, "list");
           if (!cursor) setItems([]);
           return;
         }
         setItems(page.items);
         setHasNext(page.hasNext);
         commitRequestPage(target.page, target.pageSize, page.hasNext ? page.nextCursor : null);
-        setMessage("");
+        clearMessageFrom("list");
         const nextLabels = await requestAdminUserLabels(
           page.items.map((item) => item.requesterUserId),
         );
@@ -164,13 +179,13 @@ export function AdminChatRequestScreen({
       } catch {
         if (currentGeneration === listGeneration.current) {
           if (!cursor) setItems([]);
-          setMessage("네트워크 오류로 신청 목록을 불러오지 못했습니다.");
+          setMessage("네트워크 오류로 신청 목록을 불러오지 못했습니다.", true, "list");
         }
       } finally {
         if (currentGeneration === listGeneration.current) setListLoading(false);
       }
     },
-    [commitRequestPage, setMessage],
+    [clearMessageFrom, commitRequestPage, setMessage],
   );
 
   const loadDetail = useCallback(
@@ -215,7 +230,7 @@ export function AdminChatRequestScreen({
             setMessage("서버의 카테고리 목록 응답 형식을 확인해야 합니다.");
           } else {
             setCategories(sortRoomCategories(page.items));
-            setMessage("");
+            clearMessageFrom("detail");
           }
         }
         const nextLabels = await requestAdminUserLabels([detail.requesterUserId]);
@@ -232,7 +247,7 @@ export function AdminChatRequestScreen({
         if (currentGeneration === detailGeneration.current) setDetailLoading(false);
       }
     },
-    [setMessage],
+    [clearMessageFrom, setMessage],
   );
 
   useEffect(() => {
@@ -453,6 +468,8 @@ function syncRequestUrl(requestId: string) {
   if (typeof window === "undefined") return;
   window.history.replaceState(window.history.state, "", chatRequestDetailPath(requestId));
 }
+
+type NoticeSource = "list" | "detail";
 
 type AdminRouteQuery = Readonly<Record<string, string | readonly string[] | undefined>>;
 
