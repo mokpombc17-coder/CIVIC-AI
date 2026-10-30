@@ -463,6 +463,11 @@ test("채팅 관리자는 카테고리를 생성·수정·삭제하고 사용 �
 test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 유지한다", async ({ context, page }) => {
   await authenticate(context);
   await page.route("**/api/v1/admin/room-categories", (route) => route.abort("failed"));
+  // 신청 목록이 상세보다 늦게 끝나도 카테고리 오류 안내가 지워지면 안 된다.
+  await page.route("**/api/v1/admin/room-creation-requests?*", async (route) => {
+    await new Promise((resolve) => setTimeout(resolve, 1_000));
+    await route.fallback();
+  });
   await page.goto("/admin/chat/requests/detail?requestId=request-1");
 
   await expect(page).toHaveURL(/\/admin\/chat\/requests\/detail\?requestId=request-1$/u);
@@ -470,7 +475,10 @@ test("카테고리 목록 요청이 끊겨도 신청 상세와 반려 작업을 
   await expect(detail.getByRole("heading", { name: "시민 정책 토론방" })).toBeVisible();
   await expect(detail.getByText("citizen@example.com", { exact: true })).toBeVisible();
   await expect(detail.getByLabel("사유를 입력해 반려")).toBeVisible();
-  await expect(page.getByRole("status")).toContainText("카테고리 목록");
+  await expect(page.getByText("최신 신청 목록을 불러오는 중입니다.")).toHaveCount(0);
+  await expect(page.getByRole("status")).toHaveText(
+    "네트워크 오류로 카테고리 목록을 불러오지 못했습니다.",
+  );
 });
 
 test("승인·반려 주소는 신청 상세를 반려 모드로 연다", async ({ context, page }) => {
