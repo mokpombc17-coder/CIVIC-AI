@@ -13,7 +13,6 @@ This change includes:
 - A receipt ledger containing the authenticated user, document code and version, survey round, client click time, server acceptance time, idempotency key, and request fingerprint.
 - Idempotent replay and conflicting-key detection.
 - Migration, controller, persistence, concurrency, authentication, browser-boundary, and JSON-contract tests.
-- Main/Auth production deployment and public-origin smoke verification.
 
 This change does not include:
 
@@ -148,21 +147,6 @@ Implementation follows red-green-refactor. Tests must demonstrate:
 - Request and response JSON remain camelCase despite the global snake_case policy, and the successful body contains exactly the two specified fields.
 - The full Gradle test suite remains green.
 
-## Delivery and Deployment
+## Delivery
 
 Repository delivery follows the user's explicit PR request: preserve unrelated `.DS_Store`, publish the feature branch, complete an independent PR review, and merge only after the reviewed head passes the full suite.
-
-Deployment follows the workspace immutable-image standard:
-
-1. Reconfirm remote `main`, local HEAD, the running revision/image, and production Flyway history.
-2. Run the complete Gradle test suite.
-3. Build one `linux/arm64` image off-server, tagged with the exact Git SHA and labeled with revision/source metadata.
-4. Record its digest, then deliver by registry pull or a checksummed OCI/Docker archive if no registry is available.
-5. Validate production Compose and server-side secrets without printing secret values.
-6. Verify V22 against the existing Flyway history and run the migration before application cutover.
-7. Deploy `main-auth` and `main-worker` from the same immutable image with `docker compose up -d --no-build`.
-8. Keep the previous immutable image reference and verified rollback command available.
-9. Route only the exact public path `/api/v1/me/consent-acceptances` to Main/Auth if it is not already routed. Do not move the broad `/api/v1/me/*` namespace away from Vote.
-10. Verify container health/restarts/OOM, Flyway V22, public discovery/JWKS, unauthenticated `401` for the new route, and one authenticated create/replay/conflict sequence through the public origin using an already authorized test account. Do not create or alter a production user solely for smoke testing without separate authorization.
-
-If the exact edge-routing configuration is owned by a non-allowlisted repository, stop before modifying it and request explicit approval for that repository and action. A Main/Auth container replacement alone is not reported as complete public deployment when the route is unreachable through the public origin.

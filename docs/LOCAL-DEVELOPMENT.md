@@ -26,11 +26,11 @@ Windows에서는 Docker Desktop과 WSL2 터미널 사용을 권장합니다.
 ## 2. 저장소 받기
 
 ```bash
-git clone https://github.com/Ham-n-Cheeze/civic-main-auth.git
-cd civic-main-auth
+git clone https://github.com/mokpombc17-coder/CIVIC-AI.git
+cd CIVIC-AI/backend/auth-resource-server
 ```
 
-비공개 저장소이므로 GitHub 접근 권한이 필요합니다. 최초 실행 시 GitHub, Docker Hub, `services.gradle.org`, Maven Central에 접근할 수 있어야 합니다.
+최초 실행 시 GitHub, Docker Hub, `services.gradle.org`, Maven Central에 접근할 수 있어야 합니다.
 
 ## 3. 한 명령으로 실행
 

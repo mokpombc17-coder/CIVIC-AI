@@ -2,11 +2,11 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build, test, review, merge, and deploy the authenticated survey consent receipt API in Main/Auth.
+**Goal:** Build, test, review, and merge the authenticated survey consent receipt API in Main/Auth.
 
 **Architecture:** A dedicated Flyway policy allowlist and receipt ledger back a focused controller/service pair. The access-token subject is the only user identity, PostgreSQL's `(user_id, idempotency_key)` constraint serializes retries, and explicit Jackson annotations preserve the requested camelCase wire contract.
 
-**Tech Stack:** Java 21, Spring Boot 3.5.4, Spring MVC, Spring JDBC, PostgreSQL 16, Flyway, JUnit 5, MockMvc, Testcontainers, Docker Buildx.
+**Tech Stack:** Java 21, Spring Boot 3.5.4, Spring MVC, Spring JDBC, PostgreSQL 16, Flyway, JUnit 5, MockMvc, Testcontainers.
 
 **Spec:** `docs/superpowers/specs/2026-09-04-survey-consent-acceptance-design.md`
 
@@ -19,7 +19,6 @@
 - The authenticated access-token `sub`, never a request field, supplies the stored user ID.
 - Matching retries return the original two-field response; conflicting reuse of one user's key returns `409`.
 - Preserve the unrelated untracked `.DS_Store`.
-- Build one immutable `linux/arm64` image and run `main-auth` and `main-worker` from the same exact reference.
 
 ---
 
@@ -305,7 +304,7 @@ gh pr create --base main --head feat/survey-consent-acceptance-20260904 \
   --body-file /tmp/civic-main-auth-consent-pr.md
 ```
 
-The PR body states the exact API, policy pair, idempotency behavior, test command/result, excluded Vote verification API, and deployment/migration notes.
+The PR body states the exact API, policy pair, idempotency behavior, test command/result, excluded Vote verification API, and migration notes.
 
 - [ ] **Step 4: Review the GitHub PR head independently**
 
@@ -321,32 +320,3 @@ git pull --ff-only
 ```
 
 Expected: GitHub reports the PR merged and local `main` resolves to the merged commit.
-
-### Task 5: Deploy one immutable image and prove the public API
-
-**Files:**
-- No repository source changes. Server-side deployment state changes are limited to the existing Main/Auth release and the exact-path edge route when authorized by the workspace allowlist.
-
-**Interfaces:**
-- Consumes: merged `origin/main` SHA and existing server-side secrets/Compose configuration.
-- Produces: `main-auth` and `main-worker` on one recorded image digest, Flyway V22 applied, exact public route reachable, and rollback evidence retained.
-
-- [ ] **Step 1: Capture pre-deployment evidence**
-
-Record remote `main`, merged SHA, running container image IDs, Compose project/config paths, current Flyway version/checksums, health/restart/OOM state, and previous rollback image without printing secrets.
-
-- [ ] **Step 2: Build and validate the immutable arm64 image off-server**
-
-Build from the merged SHA using Docker Buildx with `--platform linux/arm64`, SHA tag, and OCI revision/source labels. Inspect the resulting platform and digest. If registry push is unavailable, save a checksummed image archive and verify the checksum after transfer.
-
-- [ ] **Step 3: Validate migration and Compose cutover**
-
-Compare production Flyway history with V1-V22, validate fully merged Compose, run V22 before cutover, and update both `main-auth` and `main-worker` to the same exact image reference. Use `docker compose up -d --no-build`; do not build on the target server.
-
-- [ ] **Step 4: Add only the explicit edge route when needed and allowed**
-
-Route `/api/v1/me/consent-acceptances` to Main/Auth without changing Vote-owned `/api/v1/me/*`. Validate and reload the candidate edge configuration with automatic restoration on failure. If that file is owned by a non-allowlisted repository, stop before mutation and request the required explicit repository approval.
-
-- [ ] **Step 5: Run post-deployment smoke and rollback checks**
-
-Verify container health/restarts/OOM, V22, discovery/JWKS, unauthenticated `401`, and an authenticated create/replay/conflict flow through the public origin using an already authorized account. Verify the rollback command and retain the previous immutable image reference. Report any missing authenticated proof explicitly instead of treating unauthenticated reachability as end-to-end completion.

@@ -4,7 +4,7 @@
 
 - 기준일: 2026-08-26
 - 구현 기준: `civic-main-auth`의 `main` 브랜치
-- 대상: Frontend, Chat, Vote, RAG 및 Edge 배포 담당자
+- 대상: Frontend, Chat, Vote, RAG 및 Edge 담당자
 - 목적: Main/Auth 코드를 읽지 않고도 로그인 UI와 Resource Server 인증을 연동하는 데 필요한
   계약을 제공한다.
 
@@ -228,7 +228,7 @@ Cookie 인증으로 상태를 변경하는 Resource Server 요청은 허용된 e
 Edge/Nginx는 Resource Server로 향하는 `Cookie`와 `Authorization` 헤더 원문을 그대로
 전달한다.
 
-## 8. discovery, JWKS와 개발 서버 상태
+## 8. discovery와 JWKS
 
 공개 endpoint:
 
@@ -263,4 +263,4 @@ Audience:               civic-ai-api
 - Resource Server가 Access 쿠키와 Bearer를 검증하고 `401`과 `403`을 구분한다.
 - Frontend/BFF가 `401 → refresh → 원 요청 1회 재시도`와 refresh `409`를 처리한다.
 - Edge가 Resource Server에 Cookie와 Authorization을 그대로 전달한다.
-- 개발 JWKS의 RSA key로 실제 발급 JWT를 검증해 Chat, Vote, RAG의 인증 연동을 확인한다.
+- JWKS의 RSA key로 실제 발급 JWT를 검증해 Chat, Vote, RAG의 인증 연동을 확인한다.

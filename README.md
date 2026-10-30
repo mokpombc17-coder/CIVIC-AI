@@ -206,6 +206,13 @@ Persona는 이 Bearer 토큰으로 기존 Vote `GET /api/v1/admin/tasks`를 호�
 RSA JWK 파일은 파일명 순으로 읽으며 마지막 키를 활성 서명 키로, 앞의 키를 검증 전용
 retiring key로 공개합니다. 활성 키에는 고유한 `kid`가 있어야 합니다.
 
+## 배포 전 도메인 교체
+
+인증 메일의 문의 링크는 `example.com`으로 채워져 있습니다. 그대로 배포하면 사용자가 받는 메일의
+링크가 `example.com`을 가리키므로, 배포 전에
+`src/main/java/ai/civic/mainauth/notification/AuthenticationMailTemplate.java`의 텍스트·HTML 본문에
+있는 URL을 자기 도메인으로 바꿉니다.
+
 ## 검증
 
 Docker가 실행 중인 환경에서 PostgreSQL/Redis Testcontainers를 포함한 전체 검증을
