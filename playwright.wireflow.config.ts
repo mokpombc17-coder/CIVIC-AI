@@ -26,7 +26,8 @@ export default defineConfig({
   use: {
     baseURL: WEB_BASE_URL,
     ignoreHTTPSErrors: true,
-    reducedMotion: "reduce",
+    // Playwright Test에는 reducedMotion 최상위 옵션이 없어 context 옵션으로 넘긴다.
+    contextOptions: { reducedMotion: "reduce" },
     screenshot: "only-on-failure",
     trace: "retain-on-failure",
     viewport: { width: 394, height: 853 },
@@ -51,7 +52,7 @@ export default defineConfig({
       name: "chromium-mobile-wireflow",
       use: {
         ...devices["Desktop Chrome"],
-        reducedMotion: "reduce",
+        contextOptions: { reducedMotion: "reduce" },
         viewport: { width: 394, height: 853 },
       },
     },
