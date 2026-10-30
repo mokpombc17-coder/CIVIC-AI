@@ -1,0 +1,223 @@
+# civic-main-auth
+
+CIVIC의 계정, 로그인, 관리자 권한과 공통 Access Token 발급을 담당하는 운영 Auth
+서비스입니다. 브라우저 인증은 서버 세션을 사용하지 않고 짧은 Access JWT와 회전하는
+Refresh Token을 사용합니다.
+
+Frontend, Chat, Vote, RAG 구현 담당자에게 전달할 전체 계약과 현재 연동 상태는
+[`docs/CIVIC-MAIN-AUTH-LOGIN-CONTEXT.md`](docs/CIVIC-MAIN-AUTH-LOGIN-CONTEXT.md)를
+참조하세요.
+
+## 로컬 실행
+
+JDK 21 이상과 Docker Desktop 또는 Docker Engine을 실행한 뒤 다음 한 명령으로 PostgreSQL,
+Redis, migration, 로컬 테스트 계정과 Main/Auth 서버를 준비할 수 있습니다.
+
+```bash
+./dev-local.sh
+```
+
+서버는 기본적으로 `http://localhost:8080`에서 실행됩니다. 자동 생성 계정과 상세한 확인
+방법은 [`docs/LOCAL-DEVELOPMENT.md`](docs/LOCAL-DEVELOPMENT.md)를 참조하세요.
+
+## 인증 모델
+
+- Access Token: RS256 JWT, 15분
+- Refresh Token: 256-bit 불투명 난수, 개별 7일
+- Refresh Token family: 최초 로그인부터 최대 30일
+- PWA Refresh 세션: 마지막 사용 후 90일, 정상 회전할 때마다 90일로 갱신
+- 서버 저장값: Refresh Token 원문이 아닌 SHA-256 해시와 family/회전/폐기 메타데이터
+- Spring Security HTTP session: `STATELESS`
+- 기존 `sessions` 테이블: Flyway V15에서 제거
+
+로그인마다 별도의 Refresh Token family가 생성됩니다. 따라서 여러 브라우저나 기기는
+서로 독립적으로 로그아웃할 수 있습니다. `/logout`은 현재 브라우저 family만 폐기하고,
+`/logout-all`과 비밀번호 변경·재설정, 2FA 해제, 계정 비활성화, 관리자 권한 변경은 해당
+사용자의 모든 Refresh Token을 폐기합니다.
+
+자기 완결형 Access JWT에는 서버 세션이나 토큰 denylist를 두지 않습니다. 따라서 다른
+기기에 이미 발급된 Access JWT는 `/logout-all`이나 Refresh Token 폐기 후에도 최대 15분간
+유효하고, 이후에는 갱신할 수 없습니다. 계정 상태 변경은 `account_state_version`과 기존
+계정 상태 전파 경계로 별도 차단합니다.
+
+Refresh Token은 사용할 때마다 즉시 교체됩니다. 이미 교체된 토큰이 10초 안에 다시
+도착하면 동시 갱신으로 보고 `409 Conflict`를 반환합니다. 10초가 지난 뒤 재사용되면
+탈취 가능성으로 보고 family 전체를 폐기한 뒤 `401 Unauthorized`를 반환합니다.
+
+## 브라우저 쿠키
+
+| 쿠키 | Path | SameSite | 수명 | 용도 |
+| --- | --- | --- | --- | --- |
+| `civic_ai_access_token` | `/` | `Lax` | JWT `exp`까지 | Chat, Vote, RAG를 포함한 공통 Access JWT |
+| `civic_ai_refresh_token` | `/api/v1/auth` | `Lax` | Refresh Token 만료까지 | Auth의 갱신·로그아웃 경로에만 전송 |
+| `__Host-civic-auth-flow` | `/` | `Strict` | 10분 | 2FA, 비밀번호 재설정 등 단기 인증 절차 |
+
+세 쿠키는 모두 `HttpOnly`, `Secure`이며 `Domain`을 지정하지 않습니다. Access 쿠키에는
+`Bearer` 접두사 없이 JWT 원문만 들어갑니다. 발급 쿠키의 `Expires`는 각 자격 증명의
+만료 시각과 정확히 같고, 로그아웃은 발급 때와 같은 Path로 `Max-Age=0` 쿠키를 보냅니다.
+
+PWA는 `civic_ai_pwa_refresh_token`을 `/api/v1/auth/pwa` Path에 별도로 발급한다. PWA
+로그인은 2FA challenge 없이 완료하며, `/api/v1/auth/pwa/refresh`가 세션의 마지막 사용
+시각과 90일 만료 시각을 갱신한다. 기존 브라우저 로그인·Refresh Token 수명과 회전 규칙은
+변경하지 않는다.
+
+로컬에서 HTTPS를 사용하지 않을 때만 `CIVIC_COOKIES_SECURE=false`로 실행할 수 있습니다.
+운영 프로필은 `Secure=true`를 강제합니다.
+
+## Access JWT 계약
+
+- 알고리즘: `RS256`
+- 헤더: `typ=JWT`, 활성 키의 `kid` 필수
+- 필수 claim: `iss`, `sub`, `email`, `aud`, `iat`, `exp`, `jti`, `scope`
+- `sub`: 변경되지 않는 사용자 UUID
+- `email`: 정규화된 로그인 이메일
+- `aud`: 배열 `["civic-ai-api"]`
+- `exp - iat`: 정확히 900초
+- `scope`: 배열이나 `roles` claim이 아닌 공백 구분 문자열
+- 내부 상태 claim: `account_state_version`, `must_change_password`
+
+모든 활성 인증 사용자의 공통 기본 scope는 다음과 같습니다.
+
+```text
+chat:connect
+chat:rooms:read
+chat:rooms:write
+chat:messages:write
+chat:read-state:write
+vote:surveys:read
+vote:survey-responses:write
+vote:personas:read
+vote:tasks:read
+vote:predictions:write
+vote:submissions:read
+vote:submissions:write
+rag:documents:read
+rag:queries:write
+rag:jobs:read
+```
+
+이 목록은 `PARTICIPANT` 전용이 아니라 모든 활성 인증 사용자의 공통 기본 scope입니다.
+따라서 `ADMIN`과 `HIGHEST_ADMIN`도 로그인·토큰 갱신 시 이 scope 전체를 항상 받고,
+관리 permission에 따른 scope는 공통 기본 scope를 대체하지 않고 합집합으로 추가됩니다.
+
+관리 권한은 역할과 분리된 permission에서 scope로 변환됩니다.
+
+| permission | 추가 scope |
+| --- | --- |
+| `RAG_ADMIN` | `rag:documents:write` |
+| `CHAT_ADMIN` | `chat:rooms:approve`, `chat:categories:manage`, `chat:rooms:membership-limit:exempt`, `chat:audit:exports`, `chat:research:exports` |
+| `VOTE_ADMIN` | `vote:tasks:admin`, `vote:survey-outbox-replays:write`, `vote:persona-generation-retries:write` |
+| `SIMULATION_ADMIN` | `simulation:tasks:read`, `simulation:tasks:run`, `simulation:billing:read`, `simulation:billing:write` |
+
+따라서 위 관리 scope는 일반 사용자에게 발급되지 않습니다. 강제 비밀번호 변경 대상은
+완료 전까지 `account:password:write`만 받습니다.
+
+`chat:rooms:read`는 자기 방·공개 방·멤버십 조회에 필요한 일반 사용자 기본 scope이므로
+`CHAT_ADMIN` 전용 scope로 중복 분류하지 않습니다. `CHAT_ADMIN`이 있는 사용자는 기본
+scope와 위 관리자 추가 scope를 모두 받습니다.
+
+Vote 과업을 기반으로 시뮬레이션을 실행하는 관리자는 `VOTE_ADMIN`과
+`SIMULATION_ADMIN`을 함께 부여받습니다. 두 permission은 독립적으로 유지되고 access
+token에는 두 scope 집합이 합쳐져 발급됩니다.
+
+## 브라우저 흐름
+
+1. `POST /api/v1/auth/login` 성공 시 Access/Refresh 쿠키가 발급됩니다. 2FA 계정은
+   `202 Accepted`와 auth-flow 쿠키를 받고 `/2fa/verify` 완료 후 두 쿠키를 받습니다.
+2. `GET /api/v1/auth/me`로 현재 사용자 UUID, 역할, permission, 계정 상태를 읽습니다.
+3. 상태 변경 전 `GET /api/v1/auth/csrf`에서 현재 Access JWT의 `jti`에 묶인 CSRF 값을
+   받아 `X-CSRF-Token`으로 전송합니다.
+4. 리소스 API가 `401`을 반환하면 브라우저는 `POST /api/v1/auth/refresh`를 한 번 호출한
+   뒤 원 요청을 한 번만 재시도합니다. 갱신 후 상태 변경 요청은 CSRF도 다시 받습니다.
+   갱신이 `409`이면 같은 브라우저의 다른 요청이 먼저 회전한 것이므로 그 요청이 새 쿠키를
+   반영할 때까지 기다린 뒤 원 리소스 요청만 재시도하며, 이전 Refresh Token으로 갱신을
+   반복하지 않습니다.
+5. `POST /api/v1/auth/logout`은 현재 기기를, `/logout-all`은 모든 기기를 로그아웃합니다.
+
+Worker 런타임은 만료된 Refresh Token family를 체인 단위로 주기적으로 정리합니다.
+
+브라우저 상태 변경 요청은 허용된 정확한 `Origin`, `Sec-Fetch-Site: same-origin`과 허용된
+Content-Type을 만족해야 합니다. Main/Auth의 브라우저 API는 `Authorization` 헤더를 받지
+않습니다.
+
+Chat, Vote, RAG 같은 리소스 서버는 같은 `iss`와 `aud`로 검증하고 아래 공개 endpoint를
+사용합니다.
+
+- `GET /.well-known/openid-configuration`
+- `GET /.well-known/jwks.json`
+
+Edge/Nginx는 `Cookie`와 `Authorization`을 임의로 재작성하지 않고 리소스 서버에
+전달해야 합니다. 리소스 서버가 한 요청에서 Access 쿠키와 Bearer 토큰을 모두 허용한다면
+두 원문이 다를 때 요청을 거절해야 합니다.
+
+## 운영 설정
+
+### Persona 서비스 토큰
+
+`POST /api/v1/auth/service-token`은 브라우저 로그인과 별도인 단일 서비스 클라이언트
+발급 경로입니다. 기본값은 비활성화이며, 배포 시 `CIVIC_SERVICE_TOKEN_ENABLED=true`와
+`CIVIC_PERSONA_SERVICE_CLIENT_SECRET`을 함께 공급해야 활성화됩니다. 활성화했는데
+비밀값이 누락되었거나 32자 미만·4096자 초과 또는 개발/자리표시자 값이면 시작을
+거부합니다. 운영 비밀값은 서버의 env/config tree로 공급하고 이미지에 포함하지 않습니다.
+config tree를 쓸 경우 `civic.service-token.enabled`와
+`civic.service-token.persona-client-secret` 속성을 사용할 수 있습니다.
+
+클라이언트 ID는 `individual-persona-runtime`으로 고정합니다. HTTP Basic 인증에는
+RFC 6749 §2.3.1에 따라 ID와 비밀값을 각각 form URL 인코딩한 뒤 `:`로 연결하여
+Base64 인코딩합니다. 임의 생성한 64자리 hex 비밀값을 권장합니다.
+요청 Content-Type은 `application/x-www-form-urlencoded`이며 본문은 다음과 같습니다.
+
+```text
+grant_type=client_credentials&scope=vote%3Atasks%3Aadmin
+```
+
+쿼리 파라미터, 중복/추가 본문 필드, 다른 grant 또는 scope는 거부합니다.
+인증 헤더는 6144자, 본문은 1024바이트까지만 읽습니다. 잘못된 인증은
+`401 invalid_client`, 지원하지 않는 grant는 `400 unsupported_grant_type`, 허용하지
+않는 scope는 `400 invalid_scope`, 잘못된 요청은 `400 invalid_request`를 반환하며
+성공과 오류 응답 모두 `Cache-Control: no-store`를 설정합니다.
+
+성공 응답은 `access_token`, `token_type=Bearer`, `expires_in=900`,
+`scope=vote:tasks:admin`입니다. 기존 Auth 키/JWKS와 issuer로 서명한 RS256 JWT이며
+`aud=["civic-ai-api"]`, `sub=d2e3c201-7b81-4c94-a832-88acbe72b106`,
+`email=individual-persona-runtime@services.civic.invalid`, `account_state_version=0`,
+`must_change_password=false`, `token_use=service`, `client_id=individual-persona-runtime`을
+포함합니다. `jti`는 발급마다 새로운 UUID이며 `exp-iat`는 정확히 900초입니다.
+`sub`는 사용자 계정 행이 없는 고정 기술 주체로 예약하며 사용자 계정에 재사용하지
+않습니다. 일반 사용자 권한, 쿠키, refresh token은 발급하지 않습니다.
+
+Persona는 이 Bearer 토큰으로 기존 Vote `GET /api/v1/admin/tasks`를 호출합니다.
+이 발급 경로가 Vote의 scope 의미나 라우트 권한을 변경하지는 않으므로 토큰은
+서버에서만 보관해야 합니다. 이 설정만으로 Persona 연동이나 공개 프록시 라우팅이
+완료되지는 않으며 함께 배포하고 공개 origin에서 별도 검증해야 합니다.
+
+`prod` 프로필은 기본적으로 `/run/secrets/civic/main/`의 config tree를 읽습니다. 다음 값은
+개발 기본값으로 운영을 시작할 수 없으며 외부에서 공급해야 합니다.
+
+- `spring.datasource.password`
+- `civic.auth.hmac-secret` (최소 32바이트)
+- `civic.internal.client-secret`
+- `civic.notification.code-protection-key`
+- `spring.flyway.placeholders.bootstrap_admin_password_hash`
+- `CIVIC_RS256_KEY_DIRECTORY`의 영속 RSA private JWK 파일
+
+그 밖의 필수 운영 환경값은 `CIVIC_DB_URL`, `CIVIC_DB_USER`, `CIVIC_REDIS_URL`,
+`CIVIC_ISSUER`, `CIVIC_BROWSER_ORIGIN`, SMTP 설정과 bootstrap 관리자 이메일입니다.
+RSA JWK 파일은 파일명 순으로 읽으며 마지막 키를 활성 서명 키로, 앞의 키를 검증 전용
+retiring key로 공개합니다. 활성 키에는 고유한 `kid`가 있어야 합니다.
+
+## 배포 전 도메인 교체
+
+인증 메일의 문의 링크는 `example.com`으로 채워져 있습니다. 그대로 배포하면 사용자가 받는 메일의
+링크가 `example.com`을 가리키므로, 배포 전에
+`src/main/java/ai/civic/mainauth/notification/AuthenticationMailTemplate.java`의 텍스트·HTML 본문에
+있는 URL을 자기 도메인으로 바꿉니다.
+
+## 검증
+
+Docker가 실행 중인 환경에서 PostgreSQL/Redis Testcontainers를 포함한 전체 검증을
+실행합니다.
+
+```bash
+./gradlew test
+```

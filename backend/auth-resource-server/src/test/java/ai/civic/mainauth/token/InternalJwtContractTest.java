@@ -1,0 +1,226 @@
+package ai.civic.mainauth.token;
+
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
+
+import com.nimbusds.jose.JOSEObjectType;
+import com.nimbusds.jose.crypto.RSASSAVerifier;
+import com.nimbusds.jose.jwk.gen.RSAKeyGenerator;
+import com.nimbusds.jwt.SignedJWT;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Set;
+import java.util.UUID;
+import org.junit.jupiter.api.Test;
+
+class InternalJwtContractTest {
+    private static final Instant NOW = Instant.parse("2026-08-11T12:00:00Z");
+    private static final Set<String> ALL_ADMIN_PERMISSIONS = Set.of(
+            "RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN", "SIMULATION_ADMIN");
+
+    @Test
+    void participantScopesIncludeEveryResourceServerDefaultButNeverElevatedOperations() {
+        assertThat(AccessTokenService.scopesForPermissions(Set.of()))
+                .contains(
+                        "chat:connect",
+                        "chat:rooms:read",
+                        "chat:rooms:write",
+                        "chat:messages:write",
+                        "chat:read-state:write",
+                        "vote:surveys:read",
+                        "vote:survey-responses:write",
+                        "vote:personas:read",
+                        "vote:tasks:read",
+                        "vote:predictions:write",
+                        "vote:submissions:read",
+                        "vote:submissions:write",
+                        "rag:documents:read",
+                        "rag:queries:write",
+                        "rag:jobs:read")
+                .doesNotContain(
+                        "chat:rooms:approve",
+                        "chat:categories:manage",
+                        "chat:rooms:membership-limit:exempt",
+                        "chat:audit:exports",
+                        "chat:research:exports",
+                        "vote:tasks:admin",
+                        "vote:survey-outbox-replays:write",
+                        "vote:persona-generation-retries:write",
+                        "rag:documents:write",
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write");
+        assertThat(AccessTokenService.scopesForPermissions(Set.of("RAG_ADMIN")))
+                .contains("rag:documents:write")
+                .doesNotContain("chat:audit:exports");
+        assertThat(AccessTokenService.scopesForPermissions(Set.of("SIMULATION_ADMIN")))
+                .contains(
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write")
+                .doesNotContain("vote:tasks:admin");
+        assertThat(AccessTokenService.scopesForPermissions(ALL_ADMIN_PERMISSIONS))
+                .contains(
+                        "rag:documents:write",
+                        "chat:rooms:approve",
+                        "chat:categories:manage",
+                        "chat:rooms:membership-limit:exempt",
+                        "chat:audit:exports",
+                        "chat:research:exports",
+                        "vote:tasks:admin",
+                        "vote:survey-outbox-replays:write",
+                        "vote:persona-generation-retries:write",
+                        "simulation:tasks:read",
+                        "simulation:tasks:run",
+                        "simulation:billing:read",
+                        "simulation:billing:write");
+    }
+
+    @Test
+    void administratorsInheritEveryOrdinaryUserScopeBeforePermissionScopesAreAdded() {
+        var ordinaryUserScopes = AccessTokenService.scopesForPermissions(Set.of());
+        var administratorScopes = AccessTokenService.scopesForPermissions(ALL_ADMIN_PERMISSIONS);
+
+        assertThat(administratorScopes)
+                .containsAll(ordinaryUserScopes)
+                .hasSizeGreaterThan(ordinaryUserScopes.size());
+    }
+
+    @Test
+    void chatAdminReceivesEveryChatAdministratorScopeWithoutElevatingParticipants() {
+        assertThat(chatScopes(AccessTokenService.scopesForPermissions(Set.of())))
+                .containsExactly(
+                        "chat:connect",
+                        "chat:rooms:read",
+                        "chat:rooms:write",
+                        "chat:messages:write",
+                        "chat:read-state:write");
+        assertThat(chatScopes(AccessTokenService.scopesForPermissions(Set.of("CHAT_ADMIN"))))
+                .containsExactly(
+                        "chat:connect",
+                        "chat:rooms:read",
+                        "chat:rooms:write",
+                        "chat:messages:write",
+                        "chat:read-state:write",
+                        "chat:rooms:approve",
+                        "chat:categories:manage",
+                        "chat:rooms:membership-limit:exempt",
+                        "chat:audit:exports",
+                        "chat:research:exports");
+        assertThat(AccessTokenService.scopesForPermissions(Set.of("RAG_ADMIN")))
+                .doesNotContain("chat:categories:manage", "chat:rooms:approve");
+    }
+
+    @Test
+    void voteScopesMatchThePublishedParticipantAndAdminContract() {
+        assertThat(voteScopes(AccessTokenService.scopesForPermissions(Set.of())))
+                .containsExactly(
+                        "vote:surveys:read",
+                        "vote:survey-responses:write",
+                        "vote:personas:read",
+                        "vote:tasks:read",
+                        "vote:predictions:write",
+                        "vote:submissions:read",
+                        "vote:submissions:write");
+        assertThat(voteScopes(AccessTokenService.scopesForPermissions(Set.of("VOTE_ADMIN"))))
+                .containsExactly(
+                        "vote:surveys:read",
+                        "vote:survey-responses:write",
+                        "vote:personas:read",
+                        "vote:tasks:read",
+                        "vote:predictions:write",
+                        "vote:submissions:read",
+                        "vote:submissions:write",
+                        "vote:tasks:admin",
+                        "vote:survey-outbox-replays:write",
+                        "vote:persona-generation-retries:write");
+    }
+
+    @Test
+    void accessTokenHasExactCommonAudienceClaimsAndValidRs256Signature() throws Exception {
+        var key = new RSAKeyGenerator(2048).keyID("active-2026-08").generate();
+        var tokens = new AccessTokenService(
+                new Rs256KeyRing(key, java.util.List.of()), "https://auth.civic.example",
+                Clock.fixed(NOW, ZoneOffset.UTC));
+        var loginEmail = "person@example.com";
+        var userId = UUID.randomUUID();
+
+        var issued = tokens.issue(userId, loginEmail, 7, Set.of());
+        var jwt = SignedJWT.parse(issued.token());
+        var claims = jwt.getJWTClaimsSet();
+
+        assertThat(jwt.getHeader().getAlgorithm().getName()).isEqualTo("RS256");
+        assertThat(jwt.getHeader().getType()).isEqualTo(JOSEObjectType.JWT);
+        assertThat(jwt.getHeader().getKeyID()).isEqualTo("active-2026-08");
+        assertThat(jwt.verify(new RSASSAVerifier(key.toRSAPublicKey()))).isTrue();
+        assertThat(claims.getIssuer()).isEqualTo("https://auth.civic.example");
+        assertThat(claims.getAudience()).containsExactly("civic-ai-api");
+        assertThat(jwt.getPayload().toJSONObject().get("aud"))
+                .isEqualTo(java.util.List.of("civic-ai-api"));
+        assertThat(claims.getSubject()).isEqualTo(userId.toString());
+        assertThat(claims.getStringClaim("email")).isEqualTo(loginEmail);
+        assertThat(claims.getClaim("user_id")).isNull();
+        assertThat(claims.getLongClaim("account_state_version")).isEqualTo(7);
+        assertThat(claims.getStringClaim("scope")).contains("chat:connect", "vote:surveys:read", "rag:queries:write");
+        assertThat(claims.getClaim("roles")).isNull();
+        assertThat(claims.getClaim("scopes")).isNull();
+        assertThat(claims.getClaim("request_id")).isNull();
+        assertThat(claims.getJWTID()).isNotBlank();
+        assertThat(claims.getExpirationTime().toInstant().getEpochSecond()
+                - claims.getIssueTime().toInstant().getEpochSecond()).isEqualTo(900);
+        assertThat(issued.expiresAt()).isEqualTo(claims.getExpirationTime().toInstant());
+    }
+
+    @Test
+    void mandatoryPasswordRotationReceivesOnlyThePasswordChangeScope() throws Exception {
+        var key = new RSAKeyGenerator(2048).keyID("active-2026-08").generate();
+        var tokens = new AccessTokenService(
+                new Rs256KeyRing(key, java.util.List.of()), "https://auth.civic.example",
+                Clock.fixed(NOW, ZoneOffset.UTC));
+
+        var jwt = SignedJWT.parse(tokens.issue(
+                UUID.randomUUID(), "admin@example.com", 0,
+                Set.of("RAG_ADMIN", "CHAT_ADMIN", "VOTE_ADMIN"), true).token());
+
+        assertThat(jwt.getJWTClaimsSet().getStringClaim("scope"))
+                .isEqualTo("account:password:write");
+        assertThat(jwt.getJWTClaimsSet().getBooleanClaim("must_change_password")).isTrue();
+    }
+
+    @Test
+    void issuanceRejectsInvalidSubjectAndJwksNeverContainsPrivateMaterial() throws Exception {
+        var key = new RSAKeyGenerator(2048).keyID("active").generate();
+        var ring = new Rs256KeyRing(key, java.util.List.of());
+        var tokens = new AccessTokenService(ring, "https://auth.civic.example", Clock.systemUTC());
+        assertThatThrownBy(() -> tokens.issue(null, "person@example.com", 0, Set.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> tokens.issue(UUID.randomUUID(), " ", 0, Set.of()))
+                .isInstanceOf(IllegalArgumentException.class);
+        var publicJwks = ring.publicJwks().toString();
+        assertThat(publicJwks)
+                .contains("\"alg\":\"RS256\"")
+                .contains("\"use\":\"sig\"")
+                .doesNotContain("\"d\"");
+    }
+
+    @Test
+    void keyRingRejectsDuplicateSigningKeyIds() throws Exception {
+        var active = new RSAKeyGenerator(2048).keyID("duplicate").generate();
+        var duplicate = new RSAKeyGenerator(2048).keyID("duplicate").generate();
+
+        assertThatThrownBy(() -> new Rs256KeyRing(active, java.util.List.of(duplicate)))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("unique");
+    }
+
+    private static java.util.List<String> voteScopes(java.util.List<String> scopes) {
+        return scopes.stream().filter(scope -> scope.startsWith("vote:")).toList();
+    }
+
+    private static java.util.List<String> chatScopes(java.util.List<String> scopes) {
+        return scopes.stream().filter(scope -> scope.startsWith("chat:")).toList();
+    }
+}

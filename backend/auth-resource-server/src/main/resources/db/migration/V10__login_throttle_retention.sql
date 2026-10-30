@@ -1,0 +1,1 @@
+create index ix_login_throttles_last_failure_at on login_throttles(last_failure_at);

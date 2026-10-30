@@ -1,0 +1,186 @@
+package ai.civic.mainauth;
+
+import static org.assertj.core.api.Assertions.assertThat;
+
+import java.sql.DriverManager;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.time.Duration;
+import java.util.List;
+import java.util.Map;
+import org.flywaydb.core.Flyway;
+import org.junit.jupiter.api.Test;
+import org.testcontainers.containers.PostgreSQLContainer;
+import org.testcontainers.junit.jupiter.Container;
+import org.testcontainers.junit.jupiter.Testcontainers;
+import org.testcontainers.containers.wait.strategy.Wait;
+
+@Testcontainers(disabledWithoutDocker = true)
+class MigrationTest {
+    private static final int POSTGRES_HOST_PORT = availablePort();
+
+    @Container
+    static final PostgreSQLContainer<?> POSTGRES = postgres();
+
+    private static PostgreSQLContainer<?> postgres() {
+        var container = new PostgreSQLContainer<>("postgres:16.9-alpine");
+        // Colima's VZ port forwarder requires an explicit host port rather than Docker's ephemeral port.
+        container.setPortBindings(List.of("127.0.0.1:" + POSTGRES_HOST_PORT + ":5432"));
+        container.waitingFor(Wait.forListeningPort().withStartupTimeout(Duration.ofSeconds(60)));
+        return container;
+    }
+
+    private static int availablePort() {
+        try (var socket = new ServerSocket(0)) {
+            return socket.getLocalPort();
+        } catch (IOException exception) {
+            throw new IllegalStateException("Could not reserve a PostgreSQL test port", exception);
+        }
+    }
+
+    @Test
+    void createsAuthoritativeTablesAndBootstrapAdministrator() throws Exception {
+        Flyway.configure()
+                .dataSource(POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword())
+                .placeholders(Map.of(
+                        "bootstrap_admin_email", "o''connor@example.test",
+                        "bootstrap_admin_password_hash", "$argon2id$v=19$m=65536,t=3,p=1$test$test"))
+                .load()
+                .migrate();
+
+        var requiredTables = List.of(
+                "users", "credentials", "roles", "user_roles", "permissions", "user_permissions",
+                "questionnaire_schemas",
+                "questionnaire_responses", "consent_evidence", "refresh_tokens",
+                "pwa_refresh_sessions", "pwa_refresh_tokens", "auth_challenges",
+                "notification_outbox", "audit_outbox", "audit_events", "feature_gates",
+                "account_state_outbox", "pre_session_rate_limits",
+                "consent_acceptance_policies", "consent_acceptances");
+
+        try (var connection = DriverManager.getConnection(
+                        POSTGRES.getJdbcUrl(), POSTGRES.getUsername(), POSTGRES.getPassword());
+                var statement = connection.prepareStatement(
+                        "select table_name from information_schema.tables where table_schema = 'public'")) {
+            try (var rows = statement.executeQuery()) {
+                var actual = new java.util.HashSet<String>();
+                while (rows.next()) actual.add(rows.getString(1));
+                assertThat(actual).containsAll(requiredTables);
+                assertThat(actual).doesNotContain("sessions");
+            }
+
+            try (var permissions = connection.prepareStatement("""
+                    select p.code
+                    from users u
+                    join user_permissions up on up.user_id = u.id and up.revoked_at is null
+                    join permissions p on p.id = up.permission_id
+                    where u.normalized_email = 'o''connor@example.test'
+                    """)) {
+                try (var rows = permissions.executeQuery()) {
+                    var actual = new java.util.HashSet<String>();
+                    while (rows.next()) actual.add(rows.getString("code"));
+                    assertThat(actual).containsExactlyInAnyOrder("RAG_ADMIN", "CHAT_ADMIN");
+                }
+            }
+
+            try (var admin = connection.prepareStatement("""
+                    select u.origin, u.state, c.must_change_password, r.code
+                    from users u
+                    join credentials c on c.user_id = u.id
+                    join user_roles ur on ur.user_id = u.id and ur.revoked_at is null
+                    join roles r on r.id = ur.role_id
+                    where u.normalized_email = 'o''connor@example.test'
+                    """)) {
+                try (var row = admin.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getString("origin")).isEqualTo("BOOTSTRAP_ADMIN");
+                    assertThat(row.getString("state")).isEqualTo("ACTIVE");
+                    assertThat(row.getBoolean("must_change_password")).isTrue();
+                    assertThat(row.getString("code")).isEqualTo("SUPER_ADMIN");
+                    assertThat(row.next()).isFalse();
+                }
+            }
+
+            try (var initialState = connection.prepareStatement("""
+                    select o.account_state_version, o.state, o.event_payload->>'reason' as reason
+                    from account_state_outbox o
+                    join users u on u.id = o.user_id
+                    where u.normalized_email = 'o''connor@example.test'
+                    """)) {
+                try (var row = initialState.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getLong("account_state_version")).isZero();
+                    assertThat(row.getString("state")).isEqualTo("ACTIVE");
+                    assertThat(row.getString("reason")).isEqualTo("ACTIVE_STATE_BACKFILL");
+                    assertThat(row.next()).isFalse();
+                }
+            }
+
+            try (var pendingNotificationIndex = connection.prepareStatement("""
+                    select indexdef
+                    from pg_indexes
+                    where schemaname = 'public'
+                      and indexname = 'notification_outbox_pending_poll_idx'
+                    """)) {
+                try (var row = pendingNotificationIndex.executeQuery()) {
+                    assertThat(row.next()).isTrue();
+                    assertThat(row.getString("indexdef"))
+                            .contains("created_at", "available_at", "delivered_at IS NULL");
+                    assertThat(row.next()).isFalse();
+                }
+            }
+
+            try (var legalDocuments = connection.prepareStatement("""
+                    select document_id, body_sha256, path, requires_acceptance
+                    from legal_documents where active_for_new_signup order by document_id
+                    """)) {
+                try (var rows = legalDocuments.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_id")).isEqualTo("ACCOUNT_RAG_PRIVACY");
+                    assertThat(rows.getString("body_sha256"))
+                            .isEqualTo("d0d9da07e02f57509838735b4caa37743282feb7489188c5f6bcf9dc3d380dee");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/privacy-consent/3");
+                    assertThat(rows.getBoolean("requires_acceptance")).isTrue();
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_id")).isEqualTo("TERMS");
+                    assertThat(rows.getString("body_sha256"))
+                            .isEqualTo("bb15f15b01ec758c78664947c64d55337fd9022a9296b5e2e6c5f8181871eb3c");
+                    assertThat(rows.getString("path")).isEqualTo("/legal/terms/3");
+                    assertThat(rows.getBoolean("requires_acceptance")).isTrue();
+                    assertThat(rows.next()).isFalse();
+                }
+            }
+
+            try (var policy = connection.prepareStatement("""
+                    select document_code, document_version
+                    from consent_acceptance_policies
+                    where active
+                    order by document_code, document_version
+                    """)) {
+                try (var rows = policy.executeQuery()) {
+                    assertThat(rows.next()).isTrue();
+                    assertThat(rows.getString("document_code"))
+                            .isEqualTo("SENSITIVE_INFORMATION_CONSENT");
+                    assertThat(rows.getString("document_version")).isEqualTo("2026-09-04");
+                    assertThat(rows.next()).isFalse();
+                }
+            }
+
+            try (var constraints = connection.prepareStatement("""
+                    select pg_get_constraintdef(oid) as definition
+                    from pg_constraint
+                    where conrelid = 'consent_acceptances'::regclass
+                    order by conname
+                    """)) {
+                try (var rows = constraints.executeQuery()) {
+                    var definitions = new java.util.ArrayList<String>();
+                    while (rows.next()) definitions.add(rows.getString("definition"));
+                    assertThat(definitions).anyMatch(definition -> definition.contains(
+                            "FOREIGN KEY (document_code, document_version) REFERENCES "
+                                    + "consent_acceptance_policies(document_code, document_version)"));
+                    assertThat(definitions).anyMatch(definition -> definition.equals(
+                            "UNIQUE (user_id, idempotency_key)"));
+                }
+            }
+        }
+    }
+}

@@ -1,0 +1,33 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  datasource:
+    url: ${CIVIC_DB_URL:jdbc:postgresql://localhost:15432/civic_main}
+    username: ${CIVIC_DB_USER:civic_main}
+    password: ${CIVIC_DB_PASSWORD:civic-main-local-only}
+  data:
+    redis:
+      url: ${CIVIC_REDIS_URL:redis://localhost:16379}
+  flyway:
+    placeholders:
+      bootstrap_admin_email: ${CIVIC_LOCAL_ADMIN_EMAIL:admin@dev.civic.test}
+      # Known local-only credential for CivicDevAdmin!2026. Never copy this value to another profile.
+      bootstrap_admin_password_hash: '$argon2id$v=19$m=16384,t=2,p=1$AMPzsH/mBLCuoOfvSqjDIg$JUqBhiN64N7eIeuEdOE1SpNaQenUd+9yGu4n6d5lQRk'
+
+management:
+  health:
+    mail:
+      enabled: false
+
+civic:
+  issuer: ${CIVIC_ISSUER:http://localhost:8080}
+  browser:
+    origin: ${CIVIC_BROWSER_ORIGIN:http://localhost:8080}
+  cookies:
+    secure: ${CIVIC_COOKIES_SECURE:false}
+  local-seed:
+    enabled: ${CIVIC_LOCAL_SEED_ENABLED:true}
+    admin-email: ${CIVIC_LOCAL_ADMIN_EMAIL:admin@dev.civic.test}
+    admin-password: CivicDevAdmin!2026
+    user-password: CivicDevUser!2026
